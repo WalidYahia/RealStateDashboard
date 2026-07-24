@@ -1,0 +1,50 @@
+# Visual Studio / .NET build output
+[Bb]in/
+[Oo]bj/
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Ll]og/
+[Ll]ogs/
+
+# Visual Studio files
+.vs/
+*.user
+*.userosscache
+*.suo
+*.userprefs
+
+# Rider / VS Code
+.idea/
+.vscode/
+
+# NuGet
+*.nupkg
+**/packages/*
+!**/packages/build/
+*.nuget.props
+*.nuget.targets
+
+# Build results
+[Bb]uild/
+msbuild.log
+msbuild.err
+msbuild.wrn
+
+# ASP.NET Scaffolding
+ScaffoldingReadMe.txt
+
+# DotCover
+*.dotCover
+
+# Rider
+*.sln.iml
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Environment / secrets
+*.env
+appsettings.*.local.json
