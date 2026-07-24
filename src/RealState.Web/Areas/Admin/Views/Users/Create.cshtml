@@ -1,0 +1,71 @@
+@model CreateUserViewModel
+@{
+    ViewData["Title"] = "مستخدم جديد";
+}
+
+<div class="page-head">
+    <h1>مستخدم جديد</h1>
+    <a class="btn-sm" asp-action="Index">رجوع</a>
+</div>
+
+<div class="card-tile" style="max-width:720px;">
+    <form asp-action="Create" method="post">
+        <div asp-validation-summary="ModelOnly" class="validation-summary-errors"></div>
+
+        <div class="form-grid">
+            <div>
+                <label asp-for="DisplayName" class="form-label"></label>
+                <input asp-for="DisplayName" class="form-control" autocomplete="off" />
+                <span asp-validation-for="DisplayName" class="field-validation-error"></span>
+            </div>
+            <div>
+                <label asp-for="Phone" class="form-label"></label>
+                <input asp-for="Phone" class="form-control" autocomplete="off" dir="ltr" />
+                <span asp-validation-for="Phone" class="field-validation-error"></span>
+            </div>
+            <div>
+                <label asp-for="Email" class="form-label"></label>
+                <input asp-for="Email" class="form-control" autocomplete="off" dir="ltr" />
+                <span asp-validation-for="Email" class="field-validation-error"></span>
+            </div>
+            <div>
+                <label asp-for="Password" class="form-label"></label>
+                <input asp-for="Password" class="form-control" autocomplete="new-password" />
+                <span asp-validation-for="Password" class="field-validation-error"></span>
+            </div>
+
+            <div class="full">
+                <label asp-for="TenantId" class="form-label">المؤسسة</label>
+                @if (Model.CanChooseTenant)
+                {
+                    <select asp-for="TenantId" class="form-control"
+                            asp-items="@(new SelectList(Model.Tenants, "Id", "Name"))"></select>
+                }
+                else
+                {
+                    <input class="form-control" value="@Model.Tenants.FirstOrDefault(t => t.Id == Model.TenantId)?.Name" disabled />
+                    <input type="hidden" asp-for="TenantId" />
+                }
+            </div>
+
+            <div class="full">
+                <label class="form-label">الأدوار</label>
+                <div class="checks">
+                    @foreach (var role in Model.AllRoles)
+                    {
+                        <label>
+                            <input type="checkbox" name="SelectedRoles" value="@role"
+                                   checked="@(Model.SelectedRoles.Contains(role))" /> @role
+                        </label>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <button type="submit" class="btn-primary" style="margin-top:12px;">إنشاء المستخدم</button>
+    </form>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

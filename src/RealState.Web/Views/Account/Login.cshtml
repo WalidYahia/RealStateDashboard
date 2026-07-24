@@ -1,0 +1,34 @@
+@model LoginViewModel
+@{
+    ViewData["Title"] = "تسجيل الدخول";
+}
+
+<div class="auth-card">
+    @await Component.InvokeAsync("Brand")
+    <h2>تسجيل الدخول</h2>
+    <p class="subtitle">لوحة القيادة التنفيذية</p>
+
+    <form asp-action="Login" method="post">
+        <input type="hidden" asp-for="ReturnUrl" />
+        <div asp-validation-summary="ModelOnly" class="validation-summary-errors"></div>
+
+        <label asp-for="UserName" class="form-label"></label>
+        <input asp-for="UserName" class="form-control" autocomplete="username" autofocus />
+        <span asp-validation-for="UserName" class="field-validation-error"></span>
+
+        <label asp-for="Password" class="form-label"></label>
+        <input asp-for="Password" class="form-control" autocomplete="current-password" />
+        <span asp-validation-for="Password" class="field-validation-error"></span>
+
+        <label class="form-check">
+            <input asp-for="RememberMe" type="checkbox" /> تذكرني
+        </label>
+
+        <button type="submit" class="btn-primary">دخول</button>
+    </form>
+    <p class="hint">الدخول بالبريد الإلكتروني أو رقم الهاتف — المسؤول الافتراضي: admin</p>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

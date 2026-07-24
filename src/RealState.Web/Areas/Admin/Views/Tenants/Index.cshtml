@@ -1,0 +1,58 @@
+@model List<TenantListItem>
+@{
+    ViewData["Title"] = "المؤسسات";
+}
+
+<div class="page-head">
+    <h1>المؤسسات</h1>
+    <a class="btn-new-tenant" asp-area="Admin" asp-controller="Tenants" asp-action="Create">➕ مؤسسة جديدة</a>
+</div>
+
+@if (TempData["StatusMessage"] is string status)
+{
+    <div class="status-message">@status</div>
+}
+
+<div class="card-tile">
+    <table class="rs-table">
+        <thead>
+            <tr><th>الشعار</th><th>المؤسسة</th><th>المستخدمون</th><th>الحالة</th><th>تاريخ الإنشاء</th><th></th></tr>
+        </thead>
+        <tbody>
+        @foreach (var t in Model)
+        {
+            <tr>
+                <td>
+                    @if (t.HasLogo)
+                    {
+                        <img src="@Url.Action("Logo", "Branding", new { area = "", id = t.Id })" alt="@t.Name" style="max-height:34px;max-width:120px;object-fit:contain;" />
+                    }
+                    else
+                    {
+                        <span style="color:var(--muted)">—</span>
+                    }
+                </td>
+                <td>@t.Name</td>
+                <td>@t.UserCount</td>
+                <td><span class="badge-state @(t.IsActive ? "state-on" : "state-off")">@(t.IsActive ? "مفعّلة" : "معطّلة")</span></td>
+                <td>@t.CreatedAt.ToString("yyyy/MM/dd")</td>
+                <td style="white-space:nowrap;">
+                    <a class="btn-sm" asp-action="Edit" asp-route-id="@t.Id">تعديل</a>
+                    @if (t.Id != RealState.Application.Common.AppConstants.DefaultTenantId)
+                    {
+                        <form asp-action="Delete" asp-route-id="@t.Id" method="post" style="display:inline;"
+                              onsubmit="return confirm('تحذير: سيتم حذف المؤسسة «@t.Name» نهائيًا مع جميع مستخدميها وكل بياناتها (المشاريع، العملاء، الفواتير، المهام...). لا يمكن التراجع. هل أنت متأكد؟');">
+                            @Html.AntiForgeryToken()
+                            <button type="submit" class="btn-sm btn-danger">حذف</button>
+                        </form>
+                    }
+                </td>
+            </tr>
+        }
+        @if (Model.Count == 0)
+        {
+            <tr><td colspan="6" style="color:var(--muted)">لا توجد مؤسسات بعد.</td></tr>
+        }
+        </tbody>
+    </table>
+</div>

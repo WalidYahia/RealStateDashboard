@@ -1,0 +1,44 @@
+@model EditTenantViewModel
+@{
+    ViewData["Title"] = $"تعديل: {Model.Name}";
+}
+
+<div class="page-head">
+    <h1>تعديل المؤسسة</h1>
+    <a class="btn-sm" asp-area="Admin" asp-controller="Tenants" asp-action="Index">رجوع</a>
+</div>
+
+<div class="card-tile" style="max-width:640px;">
+    <form asp-area="Admin" asp-controller="Tenants" asp-action="Edit" method="post" enctype="multipart/form-data">
+        <input type="hidden" asp-for="Id" />
+        <input type="hidden" asp-for="HasLogo" />
+        <div asp-validation-summary="ModelOnly" class="validation-summary-errors"></div>
+
+        <label asp-for="Name" class="form-label"></label>
+        <input asp-for="Name" class="form-control" />
+        <span asp-validation-for="Name" class="field-validation-error"></span>
+
+        <label class="form-check" style="margin:4px 0 16px;">
+            <input asp-for="IsActive" type="checkbox" /> مفعّلة
+        </label>
+
+        @if (Model.HasLogo)
+        {
+            <div style="margin-bottom:10px;">
+                <span class="form-label">الشعار الحالي</span>
+                <img class="logo-preview" src="@Url.Action("Logo", "Branding", new { area = "", id = Model.Id, v = DateTime.UtcNow.Ticks })" alt="logo" />
+                <label class="form-check"><input asp-for="RemoveLogo" type="checkbox" /> حذف الشعار الحالي</label>
+            </div>
+        }
+
+        <label class="form-label">استبدال الشعار (اختياري)</label>
+        <input type="file" name="logo" accept="image/*" class="form-control" />
+        <span class="field-validation-error">@Html.ValidationMessage("logo")</span>
+
+        <button type="submit" class="btn-primary" style="margin-top:12px;">حفظ التغييرات</button>
+    </form>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

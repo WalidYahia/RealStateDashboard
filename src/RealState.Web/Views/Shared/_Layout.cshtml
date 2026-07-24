@@ -1,0 +1,89 @@
+@using System.Security.Claims
+@using RealState.Application.Common
+@{
+    var fullName = User?.FindFirst("full_name")?.Value ?? User?.Identity?.Name;
+    var isAuth = User?.Identity?.IsAuthenticated ?? false;
+    bool Can(string permission) => User?.HasClaim("permission", permission) ?? false;
+    string NavActive(string controller) =>
+        string.Equals(ViewContext.RouteData.Values["controller"]?.ToString(), controller, StringComparison.OrdinalIgnoreCase)
+            ? "active" : "";
+}
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] — لوحة القيادة التنفيذية</title>
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.rtl.min.css" />
+    <link rel="stylesheet" href="~/css/dashboard.css" asp-append-version="true" />
+</head>
+<body class="@(isAuth ? "app-shell" : "auth-shell")">
+    @if (isAuth)
+    {
+        <aside class="sidebar">
+            @await Component.InvokeAsync("Brand")
+            <nav class="side-nav">
+                <a class="nav-link @NavActive("Dashboard")" asp-area="" asp-controller="Dashboard" asp-action="Index"><span>🏠</span> الرئيسية</a>
+                @if (Can(PermissionNames.TenantsManage))
+                {
+                    <a class="nav-link @NavActive("Tenants")" asp-area="Admin" asp-controller="Tenants" asp-action="Index"><span>🏙️</span> المؤسسات</a>
+                }
+                @if (Can(PermissionNames.UsersManage))
+                {
+                    <a class="nav-link @NavActive("Users")" asp-area="Admin" asp-controller="Users" asp-action="Index"><span>👤</span> المستخدمون</a>
+                }
+                <a class="nav-link" href="#"><span>📣</span> التسويق</a>
+                <a class="nav-link" href="#"><span>🛒</span> المبيعات</a>
+                <a class="nav-link" href="#"><span>🏗️</span> المشاريع</a>
+                <a class="nav-link" href="#"><span>💰</span> التحصيل</a>
+                <a class="nav-link" href="#"><span>💬</span> خدمة العملاء</a>
+                <a class="nav-link" href="#"><span>👥</span> الموارد البشرية</a>
+                <a class="nav-link" href="#"><span>📊</span> التقارير</a>
+                <a class="nav-link @NavActive("Account")" asp-area="" asp-controller="Account" asp-action="ChangePassword"><span>⚙️</span> الإعدادات</a>
+            </nav>
+        </aside>
+        <div class="main">
+            <header class="topbar">
+                <div class="topbar-title">
+                    <h1>@ViewData["Title"]</h1>
+                    <p>رئيس مجلس الإدارة</p>
+                </div>
+                <div class="topbar-meta">
+                    @if (Can(PermissionNames.TenantsManage))
+                    {
+                        <a class="btn-new-tenant" asp-area="Admin" asp-controller="Tenants" asp-action="Create">➕ مؤسسة جديدة</a>
+                    }
+                    <div class="clock">
+                        <div id="topDate">@DateTime.Now.ToString("dddd d MMMM yyyy", new System.Globalization.CultureInfo("ar-EG"))</div>
+                        <div id="topTime" class="time">@DateTime.Now.ToString("hh:mm tt", new System.Globalization.CultureInfo("ar-EG"))</div>
+                    </div>
+                    <div class="user">
+                        <div class="user-name">مرحبًا، @fullName</div>
+                        <div class="user-role">رئيس مجلس الإدارة</div>
+                    </div>
+                    <form asp-area="" asp-controller="Account" asp-action="Logout" method="post" class="logout-form">
+                        @Html.AntiForgeryToken()
+                        <button type="submit" title="تسجيل الخروج">⏻</button>
+                    </form>
+                </div>
+            </header>
+            <main class="content">
+                @RenderBody()
+            </main>
+            <partial name="_Footer" />
+        </div>
+    }
+    else
+    {
+        <div class="auth-wrap">
+            @RenderBody()
+            <partial name="_Footer" />
+        </div>
+    }
+
+    <script src="~/lib/jquery/dist/jquery.min.js"></script>
+    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="~/lib/chartjs/chart.umd.min.js"></script>
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

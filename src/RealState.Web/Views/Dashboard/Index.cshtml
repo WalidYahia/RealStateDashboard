@@ -1,0 +1,201 @@
+@model DashboardVm
+@using System.Text.Json
+@{
+    ViewData["Title"] = "لوحة القيادة التنفيذية";
+    string N(decimal v) => v.ToString("N0", new System.Globalization.CultureInfo("ar-EG"));
+
+    var chartData = new
+    {
+        leadsLabels = Model.LeadsTrend.Select(p => p.Label).ToArray(),
+        leadsValues = Model.LeadsTrend.Select(p => p.Value).ToArray(),
+        sales = new { achieved = Model.MonthlySales, remaining = Model.SalesRemaining },
+        collection = new { achieved = Model.CollectionAchieved, remaining = Model.CollectionRemaining },
+        tasks = new { completed = Model.TasksCompleted, inProgress = Model.TasksInProgress, overdue = Model.TasksOverdue }
+    };
+}
+
+<!-- KPI row -->
+<div class="kpi-grid">
+    <div class="kpi k-sales">
+        <div class="kpi-label">إجمالي المبيعات اليوم</div>
+        <div class="kpi-value">@N(Model.TodaySales) <span class="kpi-unit">جنيه</span></div>
+        <div class="kpi-foot"><span class="delta-up">▲ +12%</span> عن أمس</div>
+    </div>
+    <div class="kpi k-leads">
+        <div class="kpi-label">العملاء الجدد (Leads)</div>
+        <div class="kpi-value">@Model.NewLeads</div>
+        <div class="kpi-foot"><span class="delta-up">▲ +8%</span> هذا الشهر</div>
+    </div>
+    <div class="kpi k-reserve">
+        <div class="kpi-label">الحجوزات اليوم</div>
+        <div class="kpi-value">@Model.ReservationsToday <span class="kpi-unit">حجز</span></div>
+        <div class="kpi-foot"><span class="delta-up">▲ +5%</span> عن أمس</div>
+    </div>
+    <div class="kpi k-collect">
+        <div class="kpi-label">إجمالي التحصيل</div>
+        <div class="kpi-value">@N(Model.TotalCollection) <span class="kpi-unit">جنيه</span></div>
+        <div class="kpi-foot"><span class="delta-up">▲ @Model.CollectionPercent%</span> من المستهدف</div>
+    </div>
+    <div class="kpi k-tasks">
+        <div class="kpi-label">نسبة تنفيذ المهام</div>
+        <div class="kpi-value">@Model.TaskCompletionPercent%</div>
+        <div class="kpi-foot">@Model.TasksCompleted من @Model.TasksTotal مهمة</div>
+    </div>
+    <div class="kpi k-alerts">
+        <div class="kpi-label">تنبيهات عاجلة</div>
+        <div class="kpi-value">@Model.UrgentAlerts</div>
+        <div class="kpi-foot">تحتاج إلى متابعة</div>
+    </div>
+</div>
+
+<!-- Row: campaigns table | leads trend | sales donut -->
+<div class="grid-row row-3">
+    <div class="card-tile">
+        <div class="card-head"><h3>أداء حملات التسويق</h3><span class="pill">هذا الشهر</span></div>
+        <table class="rs-table">
+            <thead>
+                <tr><th>الحملة</th><th>Leads</th><th>القيمة المتوقعة</th></tr>
+            </thead>
+            <tbody>
+            @foreach (var c in Model.Campaigns)
+            {
+                <tr>
+                    <td>@c.Source</td>
+                    <td class="tag-up">@c.Leads</td>
+                    <td>@N(c.EstimatedValue)</td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+
+    <div class="card-tile">
+        <div class="card-head"><h3>اتجاه العملاء المحتملين (Leads)</h3><span class="pill">آخر 30 يوم</span></div>
+        <div class="chart-wrap"><canvas id="leadsChart"></canvas></div>
+    </div>
+
+    <div class="card-tile">
+        <div class="card-head"><h3>أداء المبيعات</h3><span class="pill">هذا الشهر</span></div>
+        <div class="donut-wrap">
+            <canvas id="salesChart"></canvas>
+            <div class="donut-center"><div class="big">@Model.SalesAchievedPercent%</div><div class="sub">من الهدف</div></div>
+        </div>
+        <ul class="legend-list">
+            <li><span class="dot" style="background:var(--aqua)"></span> المحقق <span class="val">@N(Model.MonthlySales)</span></li>
+            <li><span class="dot" style="background:var(--baseline)"></span> المتبقي <span class="val">@N(Model.SalesRemaining)</span></li>
+            <li><span class="dot" style="background:transparent"></span> الهدف الشهري <span class="val">@N(Model.MonthlyTarget)</span></li>
+        </ul>
+    </div>
+</div>
+
+<!-- Row: projects progress | collection donut | customer service | tasks donut -->
+<div class="grid-row row-4">
+    <div class="card-tile">
+        <div class="card-head"><h3>المشاريع</h3><span class="pill">كل المشاريع</span></div>
+        @foreach (var p in Model.ProjectsProgress)
+        {
+            <div class="progress-item">
+                <div class="pi-head"><span>@p.Name</span><span class="pct">@p.Percent.ToString("0")%</span></div>
+                <div class="bar"><span style="width:@p.Percent.ToString("0")%"></span></div>
+            </div>
+        }
+    </div>
+
+    <div class="card-tile">
+        <div class="card-head"><h3>التحصيل</h3><span class="pill">هذا الشهر</span></div>
+        <div class="donut-wrap">
+            <canvas id="collectionChart"></canvas>
+            <div class="donut-center"><div class="big">@Model.CollectionPercent%</div><div class="sub">نسبة التحصيل</div></div>
+        </div>
+        <ul class="legend-list">
+            <li><span class="dot" style="background:var(--aqua)"></span> المحصّل <span class="val">@N(Model.CollectionAchieved)</span></li>
+            <li><span class="dot" style="background:var(--baseline)"></span> المتبقي <span class="val">@N(Model.CollectionRemaining)</span></li>
+        </ul>
+    </div>
+
+    <div class="card-tile">
+        <div class="card-head"><h3>خدمة العملاء</h3><span class="pill">اليوم</span></div>
+        <div class="stat-rows">
+            <div class="row-item"><span class="ico">🎧</span> الطلبات الجديدة <span class="num">@Model.NewRequests</span></div>
+            <div class="row-item"><span class="ico">💬</span> الشكاوى المفتوحة <span class="num">@Model.OpenComplaints</span></div>
+            <div class="row-item"><span class="ico">✅</span> المغلقة <span class="num">@Model.ClosedRequests</span></div>
+        </div>
+    </div>
+
+    <div class="card-tile">
+        <div class="card-head"><h3>المهام المنجزة اليوم</h3><span class="pill">اليوم</span></div>
+        <div class="donut-wrap">
+            <canvas id="tasksChart"></canvas>
+            <div class="donut-center"><div class="big">@Model.TasksCompleted</div><div class="sub">من @Model.TasksTotal مهمة</div></div>
+        </div>
+        <ul class="legend-list">
+            <li><span class="dot" style="background:var(--good)"></span> مكتملة <span class="val">@Model.TasksCompleted</span></li>
+            <li><span class="dot" style="background:var(--warning)"></span> قيد التنفيذ <span class="val">@Model.TasksInProgress</span></li>
+            <li><span class="dot" style="background:var(--critical)"></span> متأخرة <span class="val">@Model.TasksOverdue</span></li>
+        </ul>
+    </div>
+</div>
+
+<!-- Alerts ticker -->
+<div class="alerts-bar">
+    <span class="label">آخر التنبيهات</span>
+    @foreach (var a in Model.Alerts)
+    {
+        <span class="item @(a.Level == "Urgent" ? "urgent" : "")">
+            <span class="dot"></span>@a.Title <span class="time">@a.Timestamp.ToString("hh:mm tt", new System.Globalization.CultureInfo("ar-EG"))</span>
+        </span>
+    }
+</div>
+
+@section Scripts {
+    <script>
+        const DATA = @Html.Raw(JsonSerializer.Serialize(chartData));
+        const C = {
+            blue: '#3987e5', aqua: '#199e70', track: '#383835',
+            good: '#0ca30c', warning: '#fab219', critical: '#d03b3b',
+            ink: '#c3c2b7', grid: '#2c2c2a', surface: '#1a1a19'
+        };
+        Chart.defaults.color = C.ink;
+        Chart.defaults.font.family = 'system-ui, "Segoe UI", Tahoma, sans-serif';
+
+        // Leads trend — single line series (blue)
+        new Chart(document.getElementById('leadsChart'), {
+            type: 'line',
+            data: {
+                labels: DATA.leadsLabels,
+                datasets: [{
+                    data: DATA.leadsValues, borderColor: C.blue, borderWidth: 2,
+                    tension: 0.35, pointRadius: 0, pointHoverRadius: 5,
+                    fill: true,
+                    backgroundColor: (ctx) => {
+                        const { chart } = ctx;
+                        const g = chart.ctx.createLinearGradient(0, 0, 0, chart.height);
+                        g.addColorStop(0, 'rgba(57,135,229,0.28)');
+                        g.addColorStop(1, 'rgba(57,135,229,0)');
+                        return g;
+                    }
+                }]
+            },
+            options: {
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { grid: { display: false }, ticks: { maxTicksLimit: 6 } },
+                    y: { beginAtZero: true, grid: { color: C.grid }, border: { display: false } }
+                }
+            }
+        });
+
+        function donut(id, values, colors) {
+            return new Chart(document.getElementById(id), {
+                type: 'doughnut',
+                data: { datasets: [{ data: values, backgroundColor: colors, borderColor: C.surface, borderWidth: 2 }] },
+                options: { maintainAspectRatio: false, cutout: '72%', plugins: { legend: { display: false } } }
+            });
+        }
+
+        donut('salesChart', [DATA.sales.achieved, DATA.sales.remaining], [C.aqua, C.track]);
+        donut('collectionChart', [DATA.collection.achieved, DATA.collection.remaining], [C.aqua, C.track]);
+        donut('tasksChart', [DATA.tasks.completed, DATA.tasks.inProgress, DATA.tasks.overdue], [C.good, C.warning, C.critical]);
+    </script>
+}

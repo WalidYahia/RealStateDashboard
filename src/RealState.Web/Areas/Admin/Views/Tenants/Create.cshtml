@@ -1,0 +1,58 @@
+@model CreateTenantViewModel
+@{
+    ViewData["Title"] = "مؤسسة جديدة";
+}
+
+<div class="page-head">
+    <h1>مؤسسة جديدة</h1>
+    <a class="btn-sm" asp-area="Admin" asp-controller="Tenants" asp-action="Index">رجوع</a>
+</div>
+
+<div class="card-tile" style="max-width:720px;">
+    <form asp-area="Admin" asp-controller="Tenants" asp-action="Create" method="post" enctype="multipart/form-data">
+        <div asp-validation-summary="ModelOnly" class="validation-summary-errors"></div>
+
+        <div class="form-grid">
+            <div class="full">
+                <label asp-for="Name" class="form-label"></label>
+                <input asp-for="Name" class="form-control" />
+                <span asp-validation-for="Name" class="field-validation-error"></span>
+            </div>
+
+            <div class="full">
+                <label class="form-label">شعار المؤسسة (اختياري)</label>
+                <input type="file" name="logo" accept="image/*" class="form-control" />
+                <span class="field-validation-error">@Html.ValidationMessage("logo")</span>
+            </div>
+
+            <div class="full"><hr style="border-color:var(--border);margin:6px 0 14px;" /><strong style="font-size:14px;">حساب مدير المؤسسة</strong></div>
+
+            <div>
+                <label asp-for="AdminDisplayName" class="form-label"></label>
+                <input asp-for="AdminDisplayName" class="form-control" autocomplete="off" />
+                <span asp-validation-for="AdminDisplayName" class="field-validation-error"></span>
+            </div>
+            <div>
+                <label asp-for="AdminPhone" class="form-label"></label>
+                <input asp-for="AdminPhone" class="form-control" autocomplete="off" dir="ltr" />
+                <span asp-validation-for="AdminPhone" class="field-validation-error"></span>
+            </div>
+            <div>
+                <label asp-for="AdminEmail" class="form-label"></label>
+                <input asp-for="AdminEmail" class="form-control" autocomplete="off" dir="ltr" />
+                <span asp-validation-for="AdminEmail" class="field-validation-error"></span>
+            </div>
+            <div>
+                <label asp-for="AdminPassword" class="form-label"></label>
+                <input asp-for="AdminPassword" class="form-control" autocomplete="new-password" />
+                <span asp-validation-for="AdminPassword" class="field-validation-error"></span>
+            </div>
+        </div>
+
+        <button type="submit" class="btn-primary" style="margin-top:12px;">إنشاء المؤسسة</button>
+    </form>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

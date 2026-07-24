@@ -1,0 +1,11 @@
+@model RealState.Web.Components.BrandVm
+<div class="brand">
+    @if (Model.HasLogo)
+    {
+        <img class="brand-logo" src="@Url.Action("Logo", "Branding", new { area = "", id = Model.Id, v = Model.Version })" alt="@Model.Name" />
+    }
+    else
+    {
+        <span class="brand-fallback">@Model.Name</span>
+    }
+</div>
