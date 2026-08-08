@@ -1,0 +1,145 @@
+@model SalesSummaryVm
+@using System.Globalization
+@using System.Text.Json
+@using Microsoft.AspNetCore.Html
+@{
+    ViewData["Title"] = "ملخص المبيعات";
+    string N(decimal v) => v.ToString("N0", new CultureInfo("ar-EG"));
+    string C(decimal v) => v >= 1_000_000 ? (v / 1_000_000m).ToString("0.##") + "M"
+        : v >= 1000 ? (v / 1000m).ToString("0.#") + "K" : v.ToString("N0");
+
+    var palette = new[] { "#3987e5", "#199e70", "#9085e9", "#c98500", "#d03b3b", "#2bb8a3" };
+
+    // A month-over-month delta badge for a KPI card foot.
+    Func<decimal, decimal, IHtmlContent> delta = (cur, prev) =>
+    {
+        var d = SalesSummaryVm.DeltaPct(cur, prev);
+        var cls = d >= 0 ? "delta-up" : "delta-down";
+        var arrow = d >= 0 ? "▲" : "▼";
+        return new HtmlString($"<span class=\"{cls}\">{arrow} {Math.Abs(d):0.#}%</span> <span style=\"color:var(--muted)\">عن الشهر الماضي</span>");
+    };
+
+    var monthLabels = Model.ByMonth.Select(m => m.Label).ToList();
+    var monthValues = Model.ByMonth.Select(m => m.Value).ToList();
+    var projLabels = Model.ByProject.Select(p => p.Project).ToList();
+    var projValues = Model.ByProject.Select(p => p.Value).ToList();
+    var projColors = Model.ByProject.Select((p, i) => palette[i % palette.Length]).ToList();
+}
+
+<div class="page-head">
+    <h1>ملخص المبيعات</h1>
+    <div style="display:flex;gap:8px;">
+        <a class="btn-new-tenant" asp-action="SummaryPrint" target="_blank">🖨 طباعة الملخص (PDF)</a>
+    </div>
+</div>
+
+<!-- KPI cards -->
+<div class="kpi-grid">
+    <div class="kpi k-sales">
+        <div class="kpi-label">إجمالي المبيعات</div>
+        <div class="kpi-value">@C(Model.TotalValue) <span class="kpi-unit">ج.م</span></div>
+        <div class="kpi-foot">@delta(Model.SalesThisMonth, Model.SalesPrevMonth)</div>
+    </div>
+    <div class="kpi k-collect">
+        <div class="kpi-label">إجمالي التحصيل</div>
+        <div class="kpi-value">@C(Model.TotalCollected) <span class="kpi-unit">ج.م</span></div>
+        <div class="kpi-foot">@delta(Model.CollectedThisMonth, Model.CollectedPrevMonth)</div>
+    </div>
+    <div class="kpi k-reserve">
+        <div class="kpi-label">عدد التعاقدات</div>
+        <div class="kpi-value">@Model.ContractsCount</div>
+        <div class="kpi-foot">@delta(Model.ContractsThisMonth, Model.ContractsPrevMonth)</div>
+    </div>
+    <div class="kpi k-leads">
+        <div class="kpi-label">عملاء جدد (هذا الشهر)</div>
+        <div class="kpi-value">@Model.NewCustomersThisMonth</div>
+        <div class="kpi-foot">@delta(Model.NewCustomersThisMonth, Model.NewCustomersPrevMonth)</div>
+    </div>
+    <div class="kpi k-tasks">
+        <div class="kpi-label">الوحدات المباعة</div>
+        <div class="kpi-value">@Model.UnitsSold</div>
+        <div class="kpi-foot">إجمالي العملاء @Model.CustomersCount</div>
+    </div>
+    <div class="kpi k-alerts">
+        <div class="kpi-label">المتبقي للتحصيل</div>
+        <div class="kpi-value">@C(Model.TotalRemaining) <span class="kpi-unit">ج.م</span></div>
+        <div class="kpi-foot">مستحق التحصيل من الأقساط</div>
+    </div>
+</div>
+
+<!-- monthly line + project bar -->
+<div class="grid-row" style="grid-template-columns: 1fr 1fr; align-items:start;">
+    <div class="card-tile">
+        <div class="card-head"><h3>المبيعات الشهرية</h3><span class="pill">آخر 6 أشهر · محقق</span></div>
+        <div style="height:260px;"><canvas id="mChart"></canvas></div>
+    </div>
+
+    <div class="card-tile">
+        <div class="card-head"><h3>المبيعات حسب المشروع</h3><span class="pill">القيمة</span></div>
+        <div style="height:260px;"><canvas id="bChart"></canvas></div>
+    </div>
+</div>
+
+<!-- latest contracts -->
+<div class="card-tile">
+    <div class="card-head"><h3>آخر التعاقدات</h3><a class="btn-sm" asp-action="Index">عرض الكل</a></div>
+    <table class="rs-table">
+        <thead><tr><th>الكود</th><th>العميل</th><th>المشروع</th><th>القيمة</th><th>التاريخ</th></tr></thead>
+        <tbody>
+        @foreach (var c in Model.Latest)
+        {
+            <tr>
+                <td dir="ltr" style="text-align:right;">@c.Code</td>
+                <td>@c.Customer</td>
+                <td>@c.Project</td>
+                <td class="tag-up">@N(c.Value)</td>
+                <td dir="ltr" style="text-align:right;">@c.Date.ToString("yyyy/MM/dd", CultureInfo.InvariantCulture)</td>
+            </tr>
+        }
+        @if (Model.Latest.Count == 0)
+        {
+            <tr><td colspan="5" style="color:var(--muted)">لا توجد تعاقدات بعد.</td></tr>
+        }
+        </tbody>
+    </table>
+</div>
+
+@section Scripts {
+    <script>
+        (function () {
+            if (!window.Chart) return;
+            Chart.defaults.color = '#c3c2b7';
+            Chart.defaults.font.family = 'system-ui, "Segoe UI", Tahoma, sans-serif';
+
+            new Chart(document.getElementById('mChart'), {
+                type: 'line',
+                data: {
+                    labels: @Html.Raw(JsonSerializer.Serialize(monthLabels)),
+                    datasets: [{ label: 'المبيعات', data: @Html.Raw(JsonSerializer.Serialize(monthValues)), borderColor: '#3987e5', backgroundColor: 'rgba(57,135,229,.15)', fill: true, tension: .35, pointRadius: 3, borderWidth: 2 }]
+                },
+                options: {
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { y: { beginAtZero: true, ticks: { callback: function (v) { return v >= 1000 ? (v / 1000) + 'k' : v; } }, grid: { color: 'rgba(255,255,255,.06)' } }, x: { grid: { display: false } } }
+                }
+            });
+
+            var projLabels = @Html.Raw(JsonSerializer.Serialize(projLabels));
+            var projColors = @Html.Raw(JsonSerializer.Serialize(projColors));
+            var pv = @Html.Raw(JsonSerializer.Serialize(projValues));
+            var moneyTick = function (v) { return v >= 1000000 ? (v / 1000000) + 'M' : v >= 1000 ? (v / 1000) + 'k' : v; };
+
+            if (pv.length) {
+                new Chart(document.getElementById('bChart'), {
+                    type: 'bar',
+                    data: { labels: projLabels, datasets: [{ data: pv, backgroundColor: projColors, borderRadius: 4 }] },
+                    options: {
+                        maintainAspectRatio: false,
+                        plugins: { legend: { display: false } },
+                        scales: { y: { beginAtZero: true, ticks: { callback: moneyTick }, grid: { color: 'rgba(255,255,255,.06)' } }, x: { grid: { display: false } } }
+                    }
+                });
+            }
+        })();
+    </script>
+}

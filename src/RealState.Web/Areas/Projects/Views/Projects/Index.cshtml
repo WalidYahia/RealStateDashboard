@@ -1,0 +1,65 @@
+@model ProjectsIndexVm
+@{
+    ViewData["Title"] = "المشاريع";
+}
+<div class="page-head">
+    <h1>لوحة المشاريع</h1>
+    <div style="display:flex;gap:8px;">
+        <a class="btn-sm" asp-action="PrintAll" target="_blank">🖨 ملخص المشاريع (PDF)</a>
+        @if (User.Can(PermissionNames.ProjectsCreate))
+        {
+            <button type="button" class="btn-new-tenant" onclick="appOpenModal('@Url.Action("Form")', 'مشروع جديد')">➕ مشروع جديد</button>
+        }
+    </div>
+</div>
+
+@if (TempData["StatusMessage"] is string status)
+{
+    <div class="status-message">@status</div>
+}
+
+<!-- summary cards -->
+<div class="kpi-grid" style="grid-template-columns: repeat(4, 1fr);">
+    <div class="kpi k-tasks"><div class="kpi-label">إجمالي المشاريع</div><div class="kpi-value">@Model.TotalProjects</div><div class="kpi-foot">عمارات @Model.Buildings · مولات @Model.Malls · أراضٍ @Model.Lands</div></div>
+    <div class="kpi k-reserve"><div class="kpi-label">إجمالي الوحدات</div><div class="kpi-value">@Model.TotalUnits</div><div class="kpi-foot">في العمارات والمولات</div></div>
+    <div class="kpi k-sales"><div class="kpi-label">وحدات مباعة</div><div class="kpi-value">@Model.SoldUnits</div><div class="kpi-foot">من إجمالي @Model.TotalUnits</div></div>
+    <div class="kpi k-leads"><div class="kpi-label">وحدات متاحة</div><div class="kpi-value">@Model.AvailableUnits</div><div class="kpi-foot">جاهزة للبيع</div></div>
+</div>
+
+<!-- projects grid -->
+<div class="proj-grid">
+    @foreach (var p in Model.Projects)
+    {
+        <a class="proj-card" asp-action="Details" asp-route-id="@p.Id">
+            <div class="proj-hero">
+                @if (p.HasHero)
+                {
+                    <img src="@Url.Action("HeroImage", new { id = p.Id })" alt="@p.Name" />
+                }
+                else
+                {
+                    <div class="proj-hero-ph">🏗️</div>
+                }
+                <span class="proj-type">@p.Type.Ar()</span>
+            </div>
+            <div class="proj-body">
+                <div class="proj-title"><span class="proj-code">#@p.Code</span> @p.Name</div>
+                <div class="proj-loc">📍 @(string.IsNullOrEmpty(p.Location) ? "—" : p.Location)</div>
+                @if (p.Type != ProjectType.Land)
+                {
+                    <div class="proj-stats">
+                        <span>الوحدات: <b>@p.UnitsTotal</b></span>
+                        <span class="tag-up">مباع: @p.UnitsSold</span>
+                        <span>متاح: @p.UnitsAvailable</span>
+                    </div>
+                }
+                <div class="proj-stats"><span>المراحل: <b>@p.StagesCount</b></span><span>نهاية مخططة: @(p.PlannedEndDate?.ToString("yyyy/MM/dd") ?? "—")</span></div>
+            </div>
+        </a>
+    }
+    @if (Model.Projects.Count == 0)
+    {
+        <div class="card-tile" style="color:var(--muted)">لا توجد مشاريع بعد. ابدأ بإضافة مشروع جديد.</div>
+    }
+</div>
+

@@ -1,0 +1,28 @@
+@model LeadFormModel
+<div asp-validation-summary="ModelOnly" class="validation-summary-errors"></div>
+<input type="hidden" asp-for="Id" />
+<div class="form-grid">
+    <div class="full">
+        <label asp-for="FullName" class="form-label"></label>
+        <input asp-for="FullName" class="form-control" />
+        <span asp-validation-for="FullName" class="field-validation-error"></span>
+    </div>
+    <div>
+        <label asp-for="Phone" class="form-label"></label>
+        <input asp-for="Phone" class="form-control" dir="ltr" />
+        <span asp-validation-for="Phone" class="field-validation-error"></span>
+    </div>
+    <div>
+        <label asp-for="Source" class="form-label"></label>
+        <input asp-for="Source" class="form-control" />
+    </div>
+    <div>
+        <label asp-for="Status" class="form-label"></label>
+        <select asp-for="Status" class="form-control" asp-items="RealState.Web.ArabicLabels.LeadStatusOptions(Model.Status)"></select>
+    </div>
+    <div>
+        <label asp-for="EstimatedValue" class="form-label"></label>
+        <input asp-for="EstimatedValue" class="form-control" type="number" step="0.01" min="0" dir="ltr" />
+        <span asp-validation-for="EstimatedValue" class="field-validation-error"></span>
+    </div>
+</div>

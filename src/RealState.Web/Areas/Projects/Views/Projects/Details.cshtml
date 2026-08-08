@@ -1,0 +1,331 @@
+@model ProjectDetailsVm
+@{
+    var p = Model.Project;
+    ViewData["Title"] = p.Name;
+    string D(DateTime? d) => d?.ToString("yyyy/MM/dd") ?? "—";
+    string N(decimal v) => v.ToString("N0", new System.Globalization.CultureInfo("ar-EG"));
+    bool Delayed(DateTime? planned, DateTime? actual) => planned.HasValue && actual.HasValue && actual.Value.Date > planned.Value.Date;
+    string StatusClass(UnitStatus s) => s switch { UnitStatus.Sold => "state-off", UnitStatus.Available => "state-on", _ => "badge-role" };
+    (string L, string C) StageStatus(ProjectStage s) =>
+        s.ActualEndDate.HasValue ? ("مكتملة", "var(--good)")
+        : s.ActualStartDate.HasValue ? ("قيد التنفيذ", "var(--series-1)")
+        : ("لم تبدأ", "var(--muted)");
+    var canEditProj = User.Can(PermissionNames.ProjectsEdit);
+}
+
+<div class="page-head">
+    <div>
+        <h1><span class="proj-code">#@p.Code</span> @p.Name</h1>
+        <p style="color:var(--muted);margin:2px 0 0;">@p.Type.Ar() · 📍 @(string.IsNullOrEmpty(p.Location) ? "—" : p.Location)</p>
+    </div>
+    <div style="display:flex;gap:8px;">
+        <a class="btn-sm" asp-action="Index">رجوع للقائمة</a>
+        <a class="btn-sm" asp-action="PrintSummary" asp-route-id="@p.Id" target="_blank">🖨 ملخص المشروع (PDF)</a>
+        @if (User.Can(PermissionNames.ProjectsEdit))
+        {
+            <button type="button" class="btn-new-tenant" onclick="appOpenModal('@Url.Action("Form", new { id = p.Id })', 'تعديل المشروع')">✏️ تعديل</button>
+        }
+    </div>
+</div>
+
+@if (TempData["StatusMessage"] is string status)
+{
+    <div class="status-message">@status</div>
+}
+
+<!-- status cards -->
+<div class="kpi-grid" style="grid-template-columns: repeat(5, 1fr);">
+    <div class="kpi k-tasks"><div class="kpi-label">النوع</div><div class="kpi-value" style="font-size:20px;">@p.Type.Ar()</div><div class="kpi-foot">الكود #@p.Code</div></div>
+    <div class="kpi k-reserve"><div class="kpi-label">الوحدات</div><div class="kpi-value">@Model.UnitsTotal</div><div class="kpi-foot">مباع @Model.UnitsSold · متاح @Model.UnitsAvailable</div></div>
+    <div class="kpi k-collect"><div class="kpi-label">تاريخ البداية الفعلية</div><div class="kpi-value" style="font-size:16px;">@D(p.ActualStartDate)</div><div class="kpi-foot">مخطط @D(p.PlannedStartDate)</div></div>
+    <div class="kpi @(Model.HasDelay ? "k-alerts" : "k-leads")">
+        <div class="kpi-label">
+            المرحلة الحالية
+            @if (Model.HasDelay)
+            {
+                <span class="delay-alert" title="@string.Join(" — ", Model.DelayedStageNotes)">⚠</span>
+            }
+        </div>
+        <div class="kpi-value" style="font-size:18px;">@(Model.CurrentStage?.Name ?? "—")</div>
+        <div class="kpi-foot">@(Model.HasDelay ? "⚠ يوجد مراحل متأخرة" : "على المسار")</div>
+    </div>
+    <div class="kpi k-sales">
+        <div class="kpi-label">إجمالي المصروفات</div>
+        <div class="kpi-value">@N(Model.TotalExpenses) <span class="kpi-unit">ج.م</span></div>
+        <div class="kpi-foot">@(Model.LastExpenseDate.HasValue ? $"آخر مصروف: {Model.LastExpenseDate:yyyy/MM/dd}" : "لا مصروفات")</div>
+    </div>
+</div>
+
+<!-- tabs -->
+<div class="subtabs" style="margin-top:6px;">
+    <a class="subtab active" data-tab="main" href="javascript:" onclick="pShowTab(event,'main')">البيانات الأساسية</a>
+    <a class="subtab" data-tab="stages" href="javascript:" onclick="pShowTab(event,'stages')">المراحل</a>
+    <a class="subtab" data-tab="expenses" href="javascript:" onclick="pShowTab(event,'expenses')">المصاريف</a>
+    <a class="subtab" data-tab="files" href="javascript:" onclick="pShowTab(event,'files')">المرفقات</a>
+    @if (Model.HasUnits)
+    {
+        <a class="subtab" data-tab="units" href="javascript:" onclick="pShowTab(event,'units')">الوحدات</a>
+    }
+</div>
+
+<!-- main data -->
+<div id="ptab-main" class="ptab">
+    <div class="grid-row" style="grid-template-columns: 1fr 2fr;">
+        <div class="card-tile">
+            @if (p.HeroImageData != null)
+            {
+                <img src="@Url.Action("HeroImage", new { id = p.Id })" alt="@p.Name" style="width:100%;border-radius:10px;object-fit:cover;max-height:220px;" />
+            }
+            else
+            {
+                <div class="proj-hero-ph" style="height:180px;border-radius:10px;">🏗️</div>
+            }
+        </div>
+        <div class="card-tile">
+            <table class="rs-table">
+                <tr><th style="width:200px;">الاسم</th><td>@p.Name</td></tr>
+                <tr><th>الكود</th><td dir="ltr" style="text-align:right;">@p.Code</td></tr>
+                <tr><th>النوع</th><td>@p.Type.Ar()</td></tr>
+                <tr><th>الموقع</th><td>@(string.IsNullOrEmpty(p.Location) ? "—" : p.Location)</td></tr>
+                <tr><th>بداية مخططة / فعلية</th><td>@D(p.PlannedStartDate) / @D(p.ActualStartDate) @if (Delayed(p.PlannedStartDate, p.ActualStartDate)) {<span class="badge-state state-off">تأخر البدء</span>}</td></tr>
+                <tr><th>نهاية مخططة / فعلية</th><td>@D(p.PlannedEndDate) / @D(p.ActualEndDate) @if (Delayed(p.PlannedEndDate, p.ActualEndDate)) {<span class="badge-state state-off">تأخر الانتهاء</span>}</td></tr>
+                <tr><th>ملاحظات</th><td>@(string.IsNullOrEmpty(p.Notes) ? "—" : p.Notes)</td></tr>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- units -->
+@if (Model.HasUnits)
+{
+    <div id="ptab-units" class="ptab" style="display:none;">
+        <div class="card-tile">
+            <div class="card-head">
+                <h3>الوحدات</h3>
+                <div style="display:flex;gap:8px;">
+                    <a class="btn-sm" asp-action="PrintUnits" asp-route-id="@p.Id" target="_blank">🖨 طباعة (PDF)</a>
+                    @if (User.Can(PermissionNames.ProjectsCreate))
+                    {
+                        <button type="button" class="btn-new-tenant" onclick="appOpenModal('@Url.Action("UnitForm", new { projectId = p.Id })', 'وحدة جديدة')">➕ وحدة جديدة</button>
+                    }
+                </div>
+            </div>
+            <table class="rs-table">
+                <thead><tr><th>الاسم</th><th>الرقم</th><th>المساحة (م²)</th><th>السعر</th><th>الحالة</th><th></th></tr></thead>
+                <tbody>
+                @foreach (var u in Model.Units)
+                {
+                    <tr>
+                        <td>@u.Name</td>
+                        <td dir="ltr" style="text-align:right;">@u.Number</td>
+                        <td>@N(u.AreaSqm)</td>
+                        <td>@N(u.Price)</td>
+                        <td><span class="badge-state @StatusClass(u.Status)">@u.Status.Ar()</span></td>
+                        <td style="white-space:nowrap;">
+                            <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("UnitPreview", new { id = u.Id })', 'تفاصيل الوحدة')">👁 معاينة</button>
+                            @if (User.Can(PermissionNames.ProjectsEdit))
+                            {
+                                <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("UnitForm", new { projectId = p.Id, id = u.Id })', 'تعديل الوحدة')">تعديل</button>
+                            }
+                            @if (User.Can(PermissionNames.ProjectsDelete))
+                            {
+                                <form asp-action="UnitDelete" method="post" style="display:inline;" data-confirm="حذف الوحدة؟" data-danger>
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="id" value="@u.Id" /><input type="hidden" name="projectId" value="@p.Id" />
+                                    <button type="submit" class="btn-sm btn-danger">حذف</button>
+                                </form>
+                            }
+                        </td>
+                    </tr>
+                }
+                @if (Model.Units.Count == 0)
+                {
+                    <tr><td colspan="6" style="color:var(--muted)">لا توجد وحدات بعد.</td></tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+
+<!-- stages -->
+<div id="ptab-stages" class="ptab" style="display:none;">
+    <div class="card-tile">
+        <div class="card-head">
+            <h3>المراحل</h3>
+            @if (User.Can(PermissionNames.ProjectsCreate))
+            {
+                <button type="button" class="btn-new-tenant" onclick="appOpenModal('@Url.Action("Form", "Stages", new { projectId = p.Id })', 'مرحلة جديدة')">➕ مرحلة جديدة</button>
+            }
+        </div>
+        <table class="rs-table">
+            <thead><tr><th>المرحلة</th><th>الحالة</th><th>بداية (مخطط/فعلي)</th><th>نهاية (مخطط/فعلي)</th><th>الأنشطة</th><th></th></tr></thead>
+            <tbody>
+            @foreach (var s in Model.Stages)
+            {
+                var st = StageStatus(s);
+                <tr>
+                    <td><a asp-controller="Stages" asp-action="Details" asp-route-id="@s.Id" style="color:var(--series-1);text-decoration:none;font-weight:600;">@s.Name</a></td>
+                    <td><span class="badge-role" style="color:@st.C;border-color:@st.C;">@st.L</span></td>
+                    <td>@D(s.PlannedStartDate) / @D(s.ActualStartDate) @if (Delayed(s.PlannedStartDate, s.ActualStartDate)) {<span class="badge-state state-off">تأخر</span>}</td>
+                    <td>@D(s.PlannedEndDate) / @D(s.ActualEndDate) @if (Delayed(s.PlannedEndDate, s.ActualEndDate)) {<span class="badge-state state-off">تأخر</span>}</td>
+                    <td>@(Model.StageActivityCounts.TryGetValue(s.Id, out var ac) ? ac : 0)</td>
+                    <td style="white-space:nowrap;">
+                        @if (canEditProj && s.ActualStartDate is null)
+                        {
+                            <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("StateForm", "Stages", new { stageId = s.Id, end = false })', 'بدء المرحلة')">▶ بدء</button>
+                        }
+                        @if (canEditProj && s.ActualStartDate is not null && s.ActualEndDate is null)
+                        {
+                            <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("StateForm", "Stages", new { stageId = s.Id, end = true })', 'إنهاء المرحلة')">⏹ إنهاء</button>
+                        }
+                        <a class="btn-sm" asp-controller="Stages" asp-action="Details" asp-route-id="@s.Id">التفاصيل</a>
+                        @if (canEditProj)
+                        {
+                            <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("Form", "Stages", new { projectId = p.Id, id = s.Id })', 'تعديل المرحلة')">تعديل</button>
+                        }
+                        @if (User.Can(PermissionNames.ProjectsDelete))
+                        {
+                            <form asp-controller="Stages" asp-action="Delete" method="post" style="display:inline;" data-confirm="حذف المرحلة «@s.Name» وكل أنشطتها؟" data-danger>
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="id" value="@s.Id" /><input type="hidden" name="projectId" value="@p.Id" />
+                                <button type="submit" class="btn-sm btn-danger">حذف</button>
+                            </form>
+                        }
+                    </td>
+                </tr>
+            }
+            @if (Model.Stages.Count == 0)
+            {
+                <tr><td colspan="6" style="color:var(--muted)">لا توجد مراحل بعد. اضغط «مرحلة جديدة» لإضافتها.</td></tr>
+            }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- expenses -->
+<div id="ptab-expenses" class="ptab" style="display:none;">
+    <div class="card-tile">
+        <div class="card-head">
+            <h3>المصاريف <span style="color:var(--muted);font-size:13px;">(الإجمالي: @N(Model.TotalExpenses) ج.م)</span></h3>
+            @if (User.Can(PermissionNames.ProjectsEdit))
+            {
+                <button type="button" class="btn-new-tenant" onclick="appOpenModal('@Url.Action("ExpenseForm", new { projectId = p.Id })', 'مصروف جديد للمشروع')">➕ مصروف</button>
+            }
+        </div>
+        <p style="color:var(--muted);font-size:13px;margin:-4px 0 10px;">تشمل المصاريف اليدوية للمشروع ودفعات أوامر التوريد المرتبطة به.</p>
+        <table class="rs-table">
+            <thead><tr><th>#</th><th>التاريخ</th><th>البيان</th><th>المصدر</th><th>القيمة</th><th></th></tr></thead>
+            <tbody>
+            @foreach (var e in Model.Expenses)
+            {
+                <tr>
+                    <td dir="ltr" style="text-align:right;">@e.Serial.ToString("D4")</td>
+                    <td dir="ltr" style="text-align:right;">@D(e.Date)</td>
+                    <td>@e.Description</td>
+                    <td><span class="badge-role">@e.Source.Ar()</span></td>
+                    <td>@N(e.Amount)</td>
+                    <td>
+                        @if (e.CanDelete && User.Can(PermissionNames.ProjectsEdit))
+                        {
+                            <form asp-action="ExpenseDelete" asp-route-id="@e.Id" asp-route-projectId="@p.Id" method="post" style="display:inline;" data-confirm="حذف المصروف؟" data-danger>
+                                @Html.AntiForgeryToken()
+                                <button type="submit" class="btn-sm btn-danger">حذف</button>
+                            </form>
+                        }
+                    </td>
+                </tr>
+            }
+            @if (Model.Expenses.Count == 0)
+            {
+                <tr><td colspan="6" style="color:var(--muted)">لا توجد مصاريف بعد.</td></tr>
+            }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- attachments -->
+<div id="ptab-files" class="ptab" style="display:none;">
+    <div class="card-tile">
+        <div class="card-head">
+            <h3>المرفقات</h3>
+            <a class="btn-sm" asp-action="PrintAttachments" asp-route-id="@p.Id" target="_blank">🖨 طباعة (PDF)</a>
+        </div>
+        @if (User.Can(PermissionNames.ProjectsEdit))
+        {
+            <form asp-action="AttachmentUpload" method="post" enctype="multipart/form-data" style="display:flex;gap:8px;align-items:center;margin-bottom:14px;flex-wrap:wrap;">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="projectId" value="@p.Id" />
+                <input type="file" name="file" class="form-control" style="margin:0;max-width:360px;" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt" />
+                <button type="submit" class="btn-primary" style="width:auto;">⬆ رفع مرفق</button>
+                <span style="color:var(--muted);font-size:12px;">صور، PDF، Word، Excel، نصوص — حتى 15 ميجابايت</span>
+            </form>
+        }
+        <table class="rs-table">
+            <thead><tr><th>الملف</th><th>النوع</th><th>الحجم</th><th>التاريخ</th><th></th></tr></thead>
+            <tbody>
+            @foreach (var a in Model.Attachments)
+            {
+                <tr>
+                    <td>@a.FileName</td>
+                    <td dir="ltr" style="text-align:right;">@a.ContentType</td>
+                    <td>@((a.Size / 1024.0).ToString("N0")) KB</td>
+                    <td>@a.CreatedAt.ToString("yyyy/MM/dd")</td>
+                    <td style="white-space:nowrap;">
+                        <a class="btn-sm" asp-action="AttachmentPreview" asp-route-id="@a.Id" target="_blank">👁 معاينة</a>
+                        <a class="btn-sm" asp-action="AttachmentDownload" asp-route-id="@a.Id" target="_blank">تنزيل</a>
+                        @if (User.Can(PermissionNames.ProjectsEdit))
+                        {
+                            <form asp-action="AttachmentDelete" method="post" style="display:inline;" data-confirm="حذف المرفق؟" data-danger>
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="id" value="@a.Id" /><input type="hidden" name="projectId" value="@p.Id" />
+                                <button type="submit" class="btn-sm btn-danger">حذف</button>
+                            </form>
+                        }
+                    </td>
+                </tr>
+            }
+            @if (Model.Attachments.Count == 0)
+            {
+                <tr><td colspan="5" style="color:var(--muted)">لا توجد مرفقات بعد.</td></tr>
+            }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        function pActivate(name) {
+            var el = document.getElementById('ptab-' + name);
+            if (!el) { name = 'main'; el = document.getElementById('ptab-main'); }
+            document.querySelectorAll('.ptab').forEach(function (t) { t.style.display = 'none'; });
+            if (el) el.style.display = '';
+            document.querySelectorAll('.subtabs .subtab').forEach(function (a) {
+                a.classList.toggle('active', a.getAttribute('data-tab') === name);
+            });
+            // keep the tab in the URL hash so uploads/reloads stay put
+            if (history.replaceState) history.replaceState(null, '', '#' + name);
+        }
+        function pShowTab(e, name) { e.preventDefault(); pActivate(name); }
+
+        // Pre-save warning when a stage's actual dates differ from planned (used by the stage modal).
+        window.stageDateWarn = function (form) {
+            function val(n) { var el = form.querySelector('[name="' + n + '"]'); return el && el.value ? new Date(el.value) : null; }
+            function days(a, b) { return Math.round((a - b) / 86400000); }
+            var ps = val('PlannedStartDate'), as = val('ActualStartDate'), pe = val('PlannedEndDate'), ae = val('ActualEndDate');
+            var msgs = [];
+            if (ps && as) { var d = days(as, ps); if (d !== 0) msgs.push('فرق البداية: ' + Math.abs(d) + ' يوم ' + (d > 0 ? 'تأخير' : 'تقديم')); }
+            if (pe && ae) { var d2 = days(ae, pe); if (d2 !== 0) msgs.push('فرق النهاية: ' + Math.abs(d2) + ' يوم ' + (d2 > 0 ? 'تأخير' : 'تقديم')); }
+            if (!msgs.length) return null;
+            return 'يوجد فرق بين التواريخ المخططة والفعلية:<br>• ' + msgs.join('<br>• ') + '<br><br>هل تريد حفظ المرحلة؟';
+        };
+        // On load: open the tab from the URL hash (e.g. after an attachment upload -> #files).
+        document.addEventListener('DOMContentLoaded', function () {
+            var name = (location.hash || '').replace('#', '') || 'main';
+            pActivate(name);
+        });
+    </script>
+}

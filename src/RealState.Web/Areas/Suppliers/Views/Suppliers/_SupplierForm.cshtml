@@ -1,0 +1,28 @@
+@model SupplierFormModel
+<form id="appModalForm" asp-area="Suppliers" asp-controller="Suppliers" asp-action="Form" method="post">
+    @Html.AntiForgeryToken()
+    <div asp-validation-summary="ModelOnly" class="validation-summary-errors"></div>
+    <input type="hidden" asp-for="Id" />
+    <div class="form-grid">
+        <div class="full">
+            <label asp-for="Name" class="form-label"></label>
+            <input asp-for="Name" class="form-control" />
+            <span asp-validation-for="Name" class="field-validation-error"></span>
+        </div>
+        <div>
+            <label asp-for="Phone" class="form-label"></label>
+            <input asp-for="Phone" class="form-control" dir="ltr" />
+            <span asp-validation-for="Phone" class="field-validation-error"></span>
+        </div>
+        <div>
+            <label asp-for="Email" class="form-label"></label>
+            <input asp-for="Email" class="form-control" dir="ltr" />
+            <span asp-validation-for="Email" class="field-validation-error"></span>
+        </div>
+        <div class="full">
+            <label asp-for="Notes" class="form-label"></label>
+            <textarea asp-for="Notes" class="form-control" rows="2"></textarea>
+        </div>
+    </div>
+    <button type="submit" class="btn-primary" style="margin-top:12px;">💾 حفظ</button>
+</form>

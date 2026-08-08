@@ -1,0 +1,96 @@
+@model CustomerStatementVm
+@{
+    var c = Model.Customer;
+    ViewData["Title"] = c.FullName;
+    var salesName = ViewBag.SalesName as string;
+    string N(decimal v) => v.ToString("N0", new System.Globalization.CultureInfo("ar-EG"));
+    string D(DateTime? d) => d?.ToString("yyyy/MM/dd") ?? "—";
+}
+<div class="page-head">
+    <div>
+        <h1>@c.FullName</h1>
+        <p style="color:var(--muted);margin:2px 0 0;">@c.Source.Ar() · المندوب: @(salesName ?? "—")</p>
+    </div>
+    <div style="display:flex;gap:8px;">
+        <a class="btn-sm" asp-action="Index">رجوع للعملاء</a>
+        <a class="btn-new-tenant" asp-action="PrintStatement" asp-route-id="@c.Id" target="_blank">🖨 كشف الحساب (PDF)</a>
+    </div>
+</div>
+
+<div class="subtabs">
+    <a class="subtab active" data-cs="info" href="javascript:" onclick="csTab(event,'info')">البيانات</a>
+    <a class="subtab" data-cs="statement" href="javascript:" onclick="csTab(event,'statement')">كشف الحساب</a>
+</div>
+
+<!-- info -->
+<div id="cs-info" class="cstab">
+    <div class="card-tile" style="max-width:620px;">
+        <table class="rs-table">
+            <tr><th style="width:160px;">الاسم</th><td>@c.FullName</td></tr>
+            <tr><th>الهاتف</th><td dir="ltr" style="text-align:right;">@c.Phone</td></tr>
+            <tr><th>البريد الإلكتروني</th><td dir="ltr" style="text-align:right;">@c.Email</td></tr>
+            <tr><th>المصدر</th><td>@c.Source.Ar()</td></tr>
+            <tr><th>المندوب</th><td>@(salesName ?? "—")</td></tr>
+            <tr><th>ملاحظات</th><td>@(string.IsNullOrEmpty(c.Notes) ? "—" : c.Notes)</td></tr>
+        </table>
+    </div>
+</div>
+
+<!-- statement -->
+<div id="cs-statement" class="cstab" style="display:none;">
+    <div class="kpi-grid" style="grid-template-columns: repeat(3, 1fr);">
+        <div class="kpi k-tasks"><div class="kpi-label">إجمالي الالتزامات</div><div class="kpi-value">@N(Model.TotalObligations) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">@Model.Contracts.Count عقد</div></div>
+        <div class="kpi k-sales"><div class="kpi-label">المحصّل</div><div class="kpi-value">@N(Model.TotalPaid) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">من الأقساط والمقدمات</div></div>
+        <div class="kpi k-alerts"><div class="kpi-label">المتبقي</div><div class="kpi-value">@N(Model.TotalRemaining) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">رصيد مستحق</div></div>
+    </div>
+
+    @if (!Model.HasContracts)
+    {
+        <div class="card-tile" style="color:var(--muted)">لا توجد عقود بيع لهذا العميل بعد.</div>
+    }
+    @foreach (var ct in Model.Contracts)
+    {
+        <div class="card-tile" style="margin-bottom:14px;">
+            <div class="card-head">
+                <h3>عقد <span class="proj-code">@ct.Code</span> — @ct.ProjectName / @ct.UnitLabel</h3>
+                <span style="color:var(--muted);font-size:13px;">الإجمالي @N(ct.TotalPrice) · المدفوع @N(ct.Paid) · المتبقي @N(ct.Remaining) ج.م</span>
+            </div>
+            <table class="rs-table">
+                <thead><tr><th>#</th><th>تاريخ الاستحقاق</th><th>القيمة</th><th>المدفوع</th><th>الحالة</th><th></th></tr></thead>
+                <tbody>
+                    @foreach (var i in ct.Installments)
+                    {
+                        <tr>
+                            <td>@ArabicLabels.InstNo(i.Number)</td>
+                            <td dir="ltr" style="text-align:right;">@D(i.DueDate)</td>
+                            <td>@N(i.Amount)</td>
+                            <td>@N(i.PaidAmount)</td>
+                            <td><span class="badge-state @i.Status.BadgeClass()">@i.Status.Ar() @(i.Status == InstallmentStatus.Overdue ? "⚠" : "")</span></td>
+                            <td>
+                                @if (i.Status == InstallmentStatus.Paid)
+                                {
+                                    <a class="btn-sm" asp-action="PrintReceipt" asp-route-id="@i.Id" target="_blank">🖨 إيصال</a>
+                                }
+                                else
+                                {
+                                    <a class="btn-sm" asp-action="PrintNotice" asp-route-id="@i.Id" target="_blank">🖨 إشعار</a>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+@section Scripts {
+    <script>
+        function csTab(e, name) {
+            e.preventDefault();
+            document.querySelectorAll('.cstab').forEach(function (t) { t.style.display = 'none'; });
+            document.getElementById('cs-' + name).style.display = '';
+            document.querySelectorAll('.subtabs .subtab').forEach(function (a) { a.classList.toggle('active', a.getAttribute('data-cs') === name); });
+        }
+    </script>
+}

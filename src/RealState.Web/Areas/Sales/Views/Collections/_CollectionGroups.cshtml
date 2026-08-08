@@ -1,0 +1,173 @@
+@model List<IGrouping<string, CollectionRow>>
+@using System.Globalization
+
+@{
+    string N(decimal v) => v.ToString("N0", new CultureInfo("ar-EG"));
+    string D(DateTime d) => d.ToString("yyyy/MM/dd", CultureInfo.InvariantCulture);
+
+    var sort = (string?)ViewData["Sort"] ?? "unit";
+    var mode = (string?)ViewData["Mode"] ?? "all";
+    var isCollected = mode == "collected";
+    var canCollect = User.Can(PermissionNames.CollectionsCollect);
+    var canCancel = User.Can(PermissionNames.CollectionsCancel);
+}
+
+<div class="card-tile" style="margin-bottom:12px;">
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+        <label style="color:var(--text-secondary);font-size:13px;">تجميع حسب:</label>
+
+        <select class="form-control" style="margin:0;width:auto;" onchange="colReload(this.value)">
+            <option value="unit" selected="@(sort == "unit")">الوحدة</option>
+            <option value="customer" selected="@(sort == "customer")">العميل</option>
+            <option value="project" selected="@(sort == "project")">المشروع</option>
+        </select>
+
+        <input class="form-control"
+               style="margin:0;flex:1;min-width:200px;"
+               placeholder="🔍 بحث بالعميل، الهاتف، المشروع أو الوحدة..."
+               oninput="colFilter(this.value)" />
+    </div>
+</div>
+
+@foreach (var g in Model)
+{
+    var total = g.Sum(x => x.Amount);
+    var paid = g.Sum(x => x.PaidAmount);
+
+    <details class="col-group card-tile" open style="margin-bottom:10px;">
+        <summary style="cursor:pointer;font-weight:700;display:flex;justify-content:space-between;align-items:center;">
+            <span>
+                @g.Key
+                <span style="color:var(--muted);font-weight:400;font-size:13px;">
+                    (@g.Count())
+                </span>
+            </span>
+
+            <span style="color:var(--muted);font-weight:400;font-size:13px;">
+                الإجمالي @N(total) · المدفوع @N(paid) · المتبقي @N(total - paid) ج.م
+            </span>
+        </summary>
+
+        <table class="rs-table" style="margin-top:10px;">
+            <thead>
+                <tr>
+                    <th>العميل</th>
+                    <th>الوحدة</th>
+                    <th>العقد</th>
+                    <th>القسط</th>
+                    <th>الاستحقاق</th>
+                    <th>القيمة</th>
+
+                    @if (isCollected)
+                    {
+                        <th>تاريخ السداد</th>
+                        <th>الإيصال</th>
+                    }
+                    else
+                    {
+                        <th>الحالة</th>
+                    }
+
+                    <th></th>
+                </tr>
+            </thead>
+
+            <tbody>
+                @foreach (var r in g.OrderBy(x => x.DueDate))
+                {
+                    <tr data-search="@r.Search">
+                        <td>@r.CustomerName</td>
+
+                        <td>@r.UnitLabel</td>
+
+                        <td dir="ltr" style="text-align:right;">
+                            @r.ContractCode
+                        </td>
+
+                        <td>
+                            @ArabicLabels.InstNo(r.Number)
+                        </td>
+
+                        <td dir="ltr" style="text-align:right;white-space:nowrap;">
+                            <span dir="ltr">@D(r.DueDate)</span>
+                        </td>
+
+                        <td>@N(r.Amount)</td>
+
+                        @if (isCollected)
+                        {
+                            <td dir="ltr" style="text-align:right;white-space:nowrap;">
+                                <span dir="ltr">
+                                    @(r.PaidDate.HasValue? D(r.PaidDate.Value) : "—")
+                                </span>
+                            </td>
+
+                            <td dir="ltr" style="text-align:right;">
+                                @(r.ReceiptNo.HasValue ? $"C-{r.ReceiptNo.Value:D5}" : "—")
+                            </td>
+                        }
+                        else
+                        {
+                            <td>
+                                <span class="badge-state @r.Status.BadgeClass()">
+                                    @r.Status.Ar()
+                                </span>
+                            </td>
+                        }
+
+                        <td style="white-space:nowrap;">
+                            @if (isCollected)
+                            {
+                                <a class="btn-sm"
+                                   asp-action="Receipt"
+                                   asp-route-id="@r.InstallmentId"
+                                   target="_blank">
+                                    🖨 إيصال
+                                </a>
+
+                                @if (canCancel)
+                                {
+                                    <form class="cancel-form"
+                                          asp-action="CancelPayment"
+                                          asp-route-id="@r.InstallmentId"
+                                          method="post"
+                                          style="display:inline;"
+                                          data-msg="إلغاء تحصيل @ArabicLabels.InstPhrase(r.Number) من «@r.CustomerName» بقيمة @N(r.Amount) ج.م؟ سيعود إلى المستحقات.">
+                                        @Html.AntiForgeryToken()
+                                        <button type="submit" class="btn-sm btn-danger">
+                                            إلغاء التحصيل
+                                        </button>
+                                    </form>
+                                }
+                            }
+                            else if (r.Status != InstallmentStatus.Paid && canCollect)
+                            {
+                                <form class="pay-form"
+                                      asp-action="Pay"
+                                      asp-route-id="@r.InstallmentId"
+                                      method="post"
+                                      style="display:inline;"
+                                      data-msg="تحصيل @ArabicLabels.InstPhrase(r.Number) من «@r.CustomerName» بقيمة @N(r.Amount) ج.م؟">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="safeId" class="pay-safe" />
+                                    <button type="submit"
+                                            class="btn-sm"
+                                            style="background:var(--aqua);color:#fff;border-color:var(--aqua);">
+                                        💳 تحصيل
+                                    </button>
+                                </form>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </details>
+}
+
+@if (Model.Count == 0)
+{
+    <div class="card-tile" style="color:var(--muted)">
+        لا توجد بيانات.
+    </div>
+}

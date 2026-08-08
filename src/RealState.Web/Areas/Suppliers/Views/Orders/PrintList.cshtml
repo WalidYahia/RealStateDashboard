@@ -1,0 +1,49 @@
+@model List<OrderListItem>
+@{
+    Layout = null;
+    var tenantId = (Guid)ViewBag.TenantId;
+    string N(decimal v) => v.ToString("N0", new System.Globalization.CultureInfo("ar-EG"));
+    string D(DateTime d) => d.ToString("yyyy/MM/dd", System.Globalization.CultureInfo.InvariantCulture);
+    string PO(int x) => "PO-" + x.ToString("D4");
+    var total = Model.Sum(r => r.Total);
+}
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="utf-8" />
+    <title>أوامر التوريد</title>
+    <style>
+        body { font-family: "Segoe UI", Tahoma, sans-serif; padding: 24px; color: #111; }
+        .brand { text-align: center; margin-bottom: 6px; } .brand img { max-height: 64px; }
+        h1 { font-size: 19px; text-align: center; margin: 4px 0; }
+        .sub { text-align: center; color: #666; font-size: 12px; margin-bottom: 16px; }
+        table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+        th, td { border: 1px solid #ccc; padding: 6px 7px; text-align: start; unicode-bidi: plaintext; }
+        th { background: #f2f2f2; }
+        .no-print { margin-bottom: 12px; } @@media print { .no-print { display: none; } }
+    </style>
+</head>
+<body>
+    <div class="no-print"><button onclick="window.print()">🖨 طباعة / حفظ PDF</button></div>
+    <div class="brand"><img src="@Url.Action("Logo", "Branding", new { area = "", id = tenantId })" alt="logo" onerror="this.style.display='none'" /></div>
+    <h1>أوامر التوريد</h1>
+    <div class="sub">@DateTime.Now.ToString("yyyy/MM/dd HH:mm")</div>
+
+    <table>
+        <thead><tr><th>الرقم</th><th>التاريخ</th><th>المورد</th><th>المشروع</th><th>عدد البنود</th><th>الإجمالي</th></tr></thead>
+        <tbody>
+        @foreach (var o in Model)
+        {
+            <tr><td>@PO(o.Number)</td><td>@D(o.OrderDate)</td><td>@o.Supplier</td><td>@o.Project</td><td>@o.ItemCount</td><td>@N(o.Total)</td></tr>
+        }
+        @if (Model.Count == 0)
+        {
+            <tr><td colspan="6">لا توجد أوامر توريد.</td></tr>
+        }
+        </tbody>
+        <tfoot><tr><th colspan="5">الإجمالي</th><th>@N(total)</th></tr></tfoot>
+    </table>
+
+    <script>window.addEventListener('load', function () { setTimeout(function () { window.print(); }, 400); });</script>
+</body>
+</html>

@@ -1,0 +1,44 @@
+@model List<CampaignRow>
+@{
+    Layout = null;
+    string N(decimal v) => v.ToString("N0", new System.Globalization.CultureInfo("ar-EG"));
+}
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="utf-8" />
+    <title>تقرير الحملات</title>
+    <style>
+        body { font-family: "Segoe UI", Tahoma, sans-serif; padding: 24px; color: #111; }
+        h1 { font-size: 20px; margin: 0 0 4px; }
+        .sub { color: #666; font-size: 12px; margin-bottom: 16px; }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        th, td { border: 1px solid #ccc; padding: 8px; text-align: start; }
+        th { background: #f2f2f2; }
+        .no-print { margin-bottom: 14px; }
+        @@media print { .no-print { display: none; } }
+    </style>
+</head>
+<body>
+    <div class="no-print">
+        <button onclick="window.print()">🖨 طباعة / حفظ PDF</button>
+    </div>
+    <h1>تقرير الحملات التسويقية</h1>
+    <div class="sub">تاريخ التقرير: @DateTime.Now.ToString("yyyy/MM/dd HH:mm")</div>
+    <table>
+        <thead>
+            <tr><th>اسم الحملة</th><th>المنصة</th><th>الحالة</th><th>الوصول</th><th>Leads</th><th>التكلفة</th><th>المبيعات</th><th>الحجوزات</th><th>الميزانية</th></tr>
+        </thead>
+        <tbody>
+        @foreach (var c in Model)
+        {
+            <tr>
+                <td>@c.Name</td><td>@c.Platform.Ar()</td><td>@c.Status.Ar()</td>
+                <td>@N(c.Reach)</td><td>@c.Leads</td><td>@N(c.Cost)</td><td>@N(c.Sales)</td><td>@c.Reservations</td><td>@N(c.Budget)</td>
+            </tr>
+        }
+        </tbody>
+    </table>
+    <script>window.addEventListener('load', () => setTimeout(() => window.print(), 400));</script>
+</body>
+</html>

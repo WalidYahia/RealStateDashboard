@@ -41,7 +41,7 @@
                     @if (t.Id != RealState.Application.Common.AppConstants.DefaultTenantId)
                     {
                         <form asp-action="Delete" asp-route-id="@t.Id" method="post" style="display:inline;"
-                              onsubmit="return confirm('تحذير: سيتم حذف المؤسسة «@t.Name» نهائيًا مع جميع مستخدميها وكل بياناتها (المشاريع، العملاء، الفواتير، المهام...). لا يمكن التراجع. هل أنت متأكد؟');">
+                              data-confirm="تحذير: سيتم حذف المؤسسة «@t.Name» نهائيًا مع جميع مستخدميها وكل بياناتها (المشاريع، العملاء، الفواتير، المهام...). لا يمكن التراجع. هل أنت متأكد؟" data-danger>
                             @Html.AntiForgeryToken()
                             <button type="submit" class="btn-sm btn-danger">حذف</button>
                         </form>

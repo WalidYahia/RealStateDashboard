@@ -1,0 +1,41 @@
+@model UnitFormModel
+<form id="appModalForm" asp-area="Projects" asp-controller="Projects" asp-action="UnitForm" method="post">
+    @Html.AntiForgeryToken()
+    <div asp-validation-summary="ModelOnly" class="validation-summary-errors"></div>
+    <input type="hidden" asp-for="Id" />
+    <input type="hidden" asp-for="ProjectId" />
+    <div class="form-grid">
+        <div>
+            <label asp-for="Name" class="form-label"></label>
+            <input asp-for="Name" class="form-control" />
+            <span asp-validation-for="Name" class="field-validation-error"></span>
+        </div>
+        <div>
+            <label asp-for="Number" class="form-label"></label>
+            <input asp-for="Number" class="form-control" dir="ltr" />
+        </div>
+        <div>
+            <label asp-for="Status" class="form-label"></label>
+            <select asp-for="Status" class="form-control" asp-items="RealState.Web.ArabicLabels.UnitStatusOptions(Model.Status)"></select>
+        </div>
+        <div>
+            <label asp-for="AreaSqm" class="form-label"></label>
+            <input asp-for="AreaSqm" class="form-control" type="number" step="0.01" min="0" dir="ltr" />
+            <span asp-validation-for="AreaSqm" class="field-validation-error"></span>
+        </div>
+        <div>
+            <label asp-for="Price" class="form-label"></label>
+            <input asp-for="Price" class="form-control" type="number" step="0.01" min="0" dir="ltr" />
+            <span asp-validation-for="Price" class="field-validation-error"></span>
+        </div>
+        <div class="full">
+            <label asp-for="Description" class="form-label"></label>
+            <textarea asp-for="Description" class="form-control" rows="2"></textarea>
+        </div>
+        <div class="full">
+            <label asp-for="Notes" class="form-label"></label>
+            <textarea asp-for="Notes" class="form-control" rows="2"></textarea>
+        </div>
+    </div>
+    <button type="submit" class="btn-primary" style="margin-top:12px;">💾 حفظ</button>
+</form>

@@ -1,0 +1,53 @@
+@model SupplierReportVm
+@{
+    ViewData["Title"] = "تقرير الموردين";
+    string N(decimal v) => v.ToString("N0", new System.Globalization.CultureInfo("ar-EG"));
+    string? F(DateTime? d) => d?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+}
+<div class="page-head">
+    <h1>تقرير الموردين</h1>
+    <a class="btn-new-tenant" asp-action="SuppliersPrint" asp-route-from="@F(Model.From)" asp-route-to="@F(Model.To)" target="_blank">🖨 طباعة (PDF)</a>
+</div>
+
+<div class="card-tile" style="margin-bottom:12px;">
+    <form asp-action="Suppliers" method="get" style="display:flex;gap:10px;align-items:end;flex-wrap:wrap;">
+        <div><label class="form-label">من (تاريخ الأمر)</label><input type="date" name="from" value="@F(Model.From)" class="form-control" style="margin:0;" dir="ltr" /></div>
+        <div><label class="form-label">إلى</label><input type="date" name="to" value="@F(Model.To)" class="form-control" style="margin:0;" dir="ltr" /></div>
+        <button type="submit" class="btn-primary" style="width:auto;">بحث</button>
+        <a class="btn-sm" asp-action="Suppliers" asp-route-from="2000-01-01" asp-route-to="2100-01-01">الكل</a>
+    </form>
+</div>
+
+<div class="card-tile">
+    <table class="rs-table">
+        <thead>
+            <tr><th>المورد</th><th>الهاتف</th><th>عدد الأوامر</th><th>قيمة الأوامر</th><th>المسدَّد</th><th>المتبقي</th></tr>
+        </thead>
+        <tbody>
+        @foreach (var r in Model.Rows)
+        {
+            <tr>
+                <td>@r.Name</td>
+                <td dir="ltr" style="text-align:right;">@r.Phone</td>
+                <td>@r.Orders</td>
+                <td>@N(r.OrdersValue)</td>
+                <td class="tag-up">@N(r.Paid)</td>
+                <td>@N(r.Residual)</td>
+            </tr>
+        }
+        @if (Model.Rows.Count == 0)
+        {
+            <tr><td colspan="6" style="color:var(--muted)">لا توجد بيانات في هذه الفترة.</td></tr>
+        }
+        </tbody>
+        <tfoot>
+            <tr>
+                <th colspan="2">الإجمالي</th>
+                <th>@Model.TotOrders</th>
+                <th>@N(Model.TotValue)</th>
+                <th>@N(Model.TotPaid)</th>
+                <th>@N(Model.TotResidual)</th>
+            </tr>
+        </tfoot>
+    </table>
+</div>

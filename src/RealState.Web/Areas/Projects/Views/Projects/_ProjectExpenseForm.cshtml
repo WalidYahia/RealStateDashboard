@@ -1,0 +1,37 @@
+@model ProjectExpenseFormModel
+<form id="appModalForm" asp-area="Projects" asp-controller="Projects" asp-action="ExpenseForm" method="post">
+    @Html.AntiForgeryToken()
+    <div asp-validation-summary="ModelOnly" class="validation-summary-errors"></div>
+    <input type="hidden" asp-for="ProjectId" />
+
+    @if (Model.Safes.Count == 0)
+    {
+        <div class="status-message" style="background:rgba(250,178,25,.12);border-color:var(--warning);color:var(--warning);">
+            لا توجد خزنة نشطة. أضف خزنة من صفحة الخزائن أولًا.
+        </div>
+    }
+
+    <div class="form-grid">
+        <div>
+            <label asp-for="Date" class="form-label"></label>
+            <input asp-for="Date" class="form-control" type="date" dir="ltr" />
+            <span asp-validation-for="Date" class="field-validation-error"></span>
+        </div>
+        <div>
+            <label asp-for="Value" class="form-label"></label>
+            <input asp-for="Value" class="form-control" type="number" step="0.01" min="0" dir="ltr" />
+            <span asp-validation-for="Value" class="field-validation-error"></span>
+        </div>
+        <div>
+            <label asp-for="SafeId" class="form-label"></label>
+            <select asp-for="SafeId" class="form-control" asp-items="Model.Safes"><option value="">— اختر الخزنة —</option></select>
+            <span asp-validation-for="SafeId" class="field-validation-error"></span>
+        </div>
+        <div class="full">
+            <label asp-for="Description" class="form-label"></label>
+            <input asp-for="Description" class="form-control" />
+        </div>
+    </div>
+
+    <button type="submit" class="btn-primary" style="margin-top:12px;" disabled="@(Model.Safes.Count == 0)">💾 تسجيل المصروف</button>
+</form>

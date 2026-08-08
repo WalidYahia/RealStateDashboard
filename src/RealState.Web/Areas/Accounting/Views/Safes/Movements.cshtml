@@ -1,0 +1,60 @@
+@model SafeMovementsVm
+@{
+    ViewData["Title"] = $"حركات: {Model.SafeName}";
+    string N(decimal v) => v.ToString("N0", new System.Globalization.CultureInfo("ar-EG"));
+    string DT(DateTime d) => d.ToString("yyyy/MM/dd HH:mm");
+    string? F(DateTime? d) => d?.ToString("yyyy-MM-dd");
+}
+<div class="page-head">
+    <div>
+        <h1>حركات الخزنة: @Model.SafeName</h1>
+        <p style="color:var(--muted);margin:2px 0 0;">الرصيد الحالي: <strong>@N(Model.Balance)</strong> ج.م</p>
+    </div>
+    <div style="display:flex;gap:8px;">
+        <a class="btn-sm" asp-action="Index">رجوع للخزائن</a>
+        <a class="btn-new-tenant" asp-action="PrintMovements" asp-route-id="@Model.SafeId" asp-route-from="@F(Model.From)" asp-route-to="@F(Model.To)" asp-route-q="@Model.Q" target="_blank">🖨 طباعة</a>
+    </div>
+</div>
+
+<div class="card-tile" style="margin-bottom:12px;">
+    <form asp-action="Movements" method="get" style="display:flex;gap:10px;align-items:end;flex-wrap:wrap;">
+        <input type="hidden" name="id" value="@Model.SafeId" />
+        <div><label class="form-label">من</label><input type="date" name="from" value="@F(Model.From)" class="form-control" style="margin:0;" dir="ltr" /></div>
+        <div><label class="form-label">إلى</label><input type="date" name="to" value="@F(Model.To)" class="form-control" style="margin:0;" dir="ltr" /></div>
+        <div style="flex:1;min-width:180px;"><label class="form-label">بحث بالبيان</label><input type="text" name="q" value="@Model.Q" class="form-control" style="margin:0;" placeholder="اسم الحركة..." /></div>
+        <button type="submit" class="btn-primary" style="width:auto;">بحث</button>
+    </form>
+</div>
+
+<div class="card-tile">
+    <table class="rs-table">
+        <thead><tr><th>#</th><th>التاريخ/الوقت</th><th>النوع</th><th>المصدر</th><th>البيان</th><th>المبلغ</th><th>الرصيد</th></tr></thead>
+        <tbody>
+        @foreach (var t in Model.Transactions)
+        {
+            <tr>
+                <td dir="ltr" style="text-align:right;">@t.Serial.ToString("D4")</td>
+                <td dir="ltr" style="text-align:right;">@DT(t.OccurredAt)</td>
+                <td><span class="badge-state @(t.Type == TxnType.Income ? "state-on" : "state-off")">@t.Type.Ar()</span></td>
+                <td>@t.Source.Ar()</td>
+                <td>@t.Description</td>
+                <td style="color:@(t.Type == TxnType.Income ? "var(--good)" : "var(--critical)")">@(t.Type == TxnType.Income ? "+" : "−")@N(t.Amount)</td>
+                <td style="font-weight:600;white-space:nowrap;">@N(t.RunningBalance)</td>
+            </tr>
+        }
+        @if (Model.Transactions.Count == 0)
+        {
+            <tr><td colspan="7" style="color:var(--muted)">لا توجد حركات.</td></tr>
+        }
+        </tbody>
+        @if (Model.Transactions.Count > 0)
+        {
+            <tfoot>
+                <tr style="border-top:2px solid var(--border,rgba(255,255,255,.12));">
+                    <td colspan="6" style="text-align:left;font-weight:700;">الرصيد الحالي</td>
+                    <td style="font-weight:800;white-space:nowrap;color:var(--aqua);">@N(Model.Balance) <span style="color:var(--muted);font-weight:400;">ج.م</span></td>
+                </tr>
+            </tfoot>
+        }
+    </table>
+</div>

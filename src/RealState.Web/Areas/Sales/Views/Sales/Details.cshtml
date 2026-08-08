@@ -1,0 +1,53 @@
+@model SaleContract
+@{
+    ViewData["Title"] = $"عقد {Model.Code}";
+    var installments = ViewBag.Installments as List<Installment> ?? new();
+    string N(decimal v) => v.ToString("N0", new System.Globalization.CultureInfo("ar-EG"));
+    string D(DateTime? d) => d?.ToString("yyyy/MM/dd") ?? "—";
+    string? F(DateTime? d) => d?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+    var paid = installments.Sum(i => i.PaidAmount);   // down payment is scheduled as an installment
+    var remaining = Model.TotalPrice - paid;
+}
+<div class="page-head">
+    <div>
+        <h1>عقد بيع <span class="proj-code">@Model.Code</span></h1>
+        <p style="color:var(--muted);margin:2px 0 0;">@Model.Customer?.FullName · @Model.Project?.Name · وحدة @Model.Unit?.Name</p>
+    </div>
+    <div style="display:flex;gap:8px;">
+        <a class="btn-sm" asp-action="Index" asp-route-from="@F((DateTime?)ViewBag.From)" asp-route-to="@F((DateTime?)ViewBag.To)">رجوع</a>
+        <a class="btn-new-tenant" asp-action="Contract" asp-route-id="@Model.Id" target="_blank">🖨 طباعة العقد (PDF)</a>
+        @if (User.Can(PermissionNames.SalesDelete))
+        {
+            <form asp-action="Delete" asp-route-id="@Model.Id" method="post" style="display:inline;" data-confirm="حذف العقد وكل أقساطه وإرجاع الوحدة كمتاحة؟" data-danger>
+                @Html.AntiForgeryToken()
+                <button type="submit" class="btn-sm btn-danger">حذف</button>
+            </form>
+        }
+    </div>
+</div>
+
+<div class="kpi-grid" style="grid-template-columns: repeat(4, 1fr);">
+    <div class="kpi k-tasks"><div class="kpi-label">السعر الإجمالي</div><div class="kpi-value">@N(Model.TotalPrice) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">المقدم @N(Model.DownPayment)</div></div>
+    <div class="kpi k-sales"><div class="kpi-label">المحصّل</div><div class="kpi-value">@N(paid) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">من الأقساط والمقدم</div></div>
+    <div class="kpi k-alerts"><div class="kpi-label">المتبقي</div><div class="kpi-value">@N(remaining) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">@installments.Count(i => !i.IsPaid) قسط متبقٍ</div></div>
+    <div class="kpi k-reserve"><div class="kpi-label">الأقساط</div><div class="kpi-value">@Model.InstallmentsCount</div><div class="kpi-foot">@Model.Step.Ar()</div></div>
+</div>
+
+<div class="card-tile">
+    <div class="card-head"><h3>جدول الأقساط</h3></div>
+    <table class="rs-table">
+        <thead><tr><th>#</th><th>تاريخ الاستحقاق</th><th>القيمة</th><th>المدفوع</th><th>الحالة</th></tr></thead>
+        <tbody>
+        @foreach (var i in installments)
+        {
+            <tr>
+                <td>@ArabicLabels.InstNo(i.Number)</td>
+                <td dir="ltr" style="text-align:right;">@D(i.DueDate)</td>
+                <td>@N(i.Amount)</td>
+                <td>@N(i.PaidAmount)</td>
+                <td><span class="badge-state @i.Status.BadgeClass()">@i.Status.Ar() @(i.Status == InstallmentStatus.Overdue ? "⚠" : "")</span></td>
+            </tr>
+        }
+        </tbody>
+    </table>
+</div>

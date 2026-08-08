@@ -1,0 +1,36 @@
+@model StageFormModel
+<form id="appModalForm" asp-area="Projects" asp-controller="Stages" asp-action="Form" method="post" data-warn-fn="stageDateWarn">
+    @Html.AntiForgeryToken()
+    <div asp-validation-summary="ModelOnly" class="validation-summary-errors"></div>
+    <input type="hidden" asp-for="Id" />
+    <input type="hidden" asp-for="ProjectId" />
+
+    @if (Model.Definitions.Count == 0)
+    {
+        <div class="status-message" style="background:rgba(250,178,25,.12);border-color:var(--warning);color:var(--warning);">
+            لا توجد مراحل معرّفة. عرّف المراحل أولًا من الإعدادات ← مراحل المشاريع.
+        </div>
+    }
+
+    <div class="form-grid">
+        <div class="full">
+            <label asp-for="Name" class="form-label"></label>
+            <select asp-for="Name" class="form-control" asp-items="Model.Definitions">
+                <option value="">— اختر المرحلة —</option>
+            </select>
+            <span asp-validation-for="Name" class="field-validation-error"></span>
+        </div>
+
+        <div><label asp-for="PlannedStartDate" class="form-label"></label><input asp-for="PlannedStartDate" class="form-control" type="date" dir="ltr" /></div>
+        <div><label asp-for="ActualStartDate" class="form-label"></label><input asp-for="ActualStartDate" class="form-control" type="date" dir="ltr" /></div>
+        <div><label asp-for="PlannedEndDate" class="form-label"></label><input asp-for="PlannedEndDate" class="form-control" type="date" dir="ltr" /></div>
+        <div><label asp-for="ActualEndDate" class="form-label"></label><input asp-for="ActualEndDate" class="form-control" type="date" dir="ltr" /></div>
+
+        <div class="full">
+            <label asp-for="Notes" class="form-label"></label>
+            <textarea asp-for="Notes" class="form-control" rows="2"></textarea>
+        </div>
+    </div>
+
+    <button type="submit" class="btn-primary" style="margin-top:12px;" disabled="@(Model.Definitions.Count == 0)">💾 حفظ المرحلة</button>
+</form>

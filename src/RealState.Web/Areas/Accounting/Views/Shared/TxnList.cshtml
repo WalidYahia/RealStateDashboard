@@ -1,0 +1,180 @@
+@model TxnListVm
+@using System.Globalization
+
+@{
+    var isIncome = Model.Type == TxnType.Income;
+    ViewData["Title"] = isIncome ? "الإيرادات" : "المصروفات";
+
+    var inv = CultureInfo.InvariantCulture;
+
+    string N(decimal v) => v.ToString("N0", new CultureInfo("ar-EG"));
+
+    // Display format
+    string DT(DateTime d) => d.ToString("yyyy/MM/dd HH:mm", inv);
+
+    // datetime-local format (seconds are not needed); null when no value so the input stays empty.
+    string DTL(DateTime d) => d.ToString("yyyy-MM-ddTHH:mm", inv);
+    string? DTLn(DateTime? d) => d.HasValue ? DTL(d.Value) : null;
+
+    var canCreate = (bool?)ViewData["CanCreate"] ?? false;
+    var canEdit = (bool?)ViewData["CanEdit"] ?? false;
+    var canDelete = (bool?)ViewData["CanDelete"] ?? false;
+}
+
+<div class="page-head">
+    <h1>@(isIncome ? "الإيرادات" : "المصروفات")</h1>
+
+    <div style="display:flex;gap:8px;">
+        <a class="btn-sm"
+           asp-action="PrintList"
+           asp-route-from="@DTLn(Model.From)"
+           asp-route-to="@DTLn(Model.To)"
+           asp-route-q="@Model.Q"
+           target="_blank">
+            🖨 طباعة (PDF)
+        </a>
+
+        @if (canCreate)
+        {
+            <button type="button"
+                    class="btn-new-tenant"
+                    onclick="appOpenModal('@Url.Action("Form")', '@(isIncome ? "إيراد جديد" : "مصروف جديد")')">
+                ➕ @(isIncome ? "إيراد جديد" : "مصروف جديد")
+            </button>
+        }
+    </div>
+</div>
+
+@if (TempData["StatusMessage"] is string status)
+{
+    <div class="status-message">@status</div>
+}
+
+<div class="card-tile" style="margin-bottom:12px;">
+    <form asp-action="Index"
+          method="get"
+          style="display:flex;gap:10px;align-items:end;flex-wrap:wrap;">
+
+        <div>
+            <label class="form-label">من</label>
+            <input type="datetime-local"
+                   name="from"
+                   value="@DTLn(Model.From)"
+                   class="form-control"
+                   style="margin:0;"
+                   dir="ltr" />
+        </div>
+
+        <div>
+            <label class="form-label">إلى</label>
+            <input type="datetime-local"
+                   name="to"
+                   value="@DTLn(Model.To)"
+                   class="form-control"
+                   style="margin:0;"
+                   dir="ltr" />
+        </div>
+
+        <div style="flex:1;min-width:180px;">
+            <label class="form-label">بحث بالبيان</label>
+            <input type="text"
+                   name="q"
+                   value="@Model.Q"
+                   class="form-control"
+                   style="margin:0;"
+                   placeholder="اسم الحركة..." />
+        </div>
+
+        <button type="submit" class="btn-primary" style="width:auto;">بحث</button>
+
+        <span style="color:var(--muted);font-size:13px;align-self:center;">
+            الإجمالي: <strong>@N(Model.Total)</strong> ج.م
+        </span>
+    </form>
+</div>
+
+<div class="card-tile">
+    <table class="rs-table">
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>التاريخ/الوقت</th>
+                <th>الخزنة</th>
+                <th>المصدر</th>
+                <th>البيان</th>
+                <th>المبلغ</th>
+                <th></th>
+            </tr>
+        </thead>
+
+        <tbody>
+            @foreach (var t in Model.Rows)
+            {
+                <tr>
+                    <td style="text-align:right;">
+                        <bdi dir="ltr">
+                            @t.Serial.ToString("D4", inv)
+                        </bdi>
+                    </td>
+
+                    <td style="text-align:right;white-space:nowrap;">
+                        <bdi dir="ltr" lang="en">
+                            @DT(t.OccurredAt)
+                        </bdi>
+                    </td>
+
+                    <td>@t.SafeName</td>
+
+                    <td>@t.Source.Ar()</td>
+
+                    <td>@t.Description</td>
+
+                    <td>@N(t.Amount)</td>
+
+                    <td style="white-space:nowrap;">
+                        <a class="btn-sm" asp-action="PrintOne" asp-route-id="@t.Id" target="_blank">🖨</a>
+                        @if (t.IsManual)
+                        {
+                            @if (canEdit)
+                            {
+                                <button type="button"
+                                        class="btn-sm"
+                                        onclick="appOpenModal('@Url.Action("Form", new { id = t.Id })', 'تعديل')">
+                                    تعديل
+                                </button>
+                            }
+                            @if (canDelete)
+                            {
+                                <form asp-action="Delete"
+                                      asp-route-id="@t.Id"
+                                      method="post"
+                                      style="display:inline;"
+                                      data-confirm="حذف الحركة؟" data-danger>
+                                    @Html.AntiForgeryToken()
+                                    <button type="submit" class="btn-sm btn-danger">
+                                        حذف
+                                    </button>
+                                </form>
+                            }
+                        }
+                        else
+                        {
+                            <span style="color:var(--muted);font-size:12px;">
+                                تلقائي
+                            </span>
+                        }
+                    </td>
+                </tr>
+            }
+
+            @if (Model.Rows.Count == 0)
+            {
+                <tr>
+                    <td colspan="7" style="color:var(--muted)">
+                        لا توجد حركات.
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>

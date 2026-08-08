@@ -1,0 +1,83 @@
+@model DailyReportVm
+@{
+    ViewData["Title"] = "التقرير اليومي";
+    string N(decimal v) => v.ToString("N0", new System.Globalization.CultureInfo("ar-EG"));
+    string DI(DateTime d) => d.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+}
+<div class="page-head">
+    <h1>التقرير اليومي</h1>
+    <a class="btn-new-tenant" asp-action="DailyPrint" asp-route-date="@DI(Model.Date)" target="_blank">🖨 طباعة (PDF)</a>
+</div>
+
+<div class="card-tile" style="margin-bottom:12px;">
+    <form asp-action="Daily" method="get" style="display:flex;gap:10px;align-items:end;flex-wrap:wrap;">
+        <div><label class="form-label">اليوم</label><input type="date" name="date" value="@DI(Model.Date)" class="form-control" style="margin:0;" dir="ltr" /></div>
+        <button type="submit" class="btn-primary" style="width:auto;">عرض</button>
+    </form>
+</div>
+
+<div class="kpi-grid" style="grid-template-columns: repeat(5, 1fr);">
+    <div class="kpi k-sales"><div class="kpi-label">عقود البيع</div><div class="kpi-value">@N(Model.ContractsTotal) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">@Model.Contracts.Count عقد</div></div>
+    <div class="kpi k-reserve"><div class="kpi-label">أوامر التوريد</div><div class="kpi-value">@N(Model.OrdersTotal) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">@Model.Orders.Count أمر</div></div>
+    <div class="kpi k-collect"><div class="kpi-label">الإيرادات</div><div class="kpi-value">@N(Model.IncomeTotal) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">@Model.Incomes.Count حركة</div></div>
+    <div class="kpi k-alerts"><div class="kpi-label">المصروفات</div><div class="kpi-value">@N(Model.ExpenseTotal) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">@Model.Expenses.Count حركة</div></div>
+    <div class="kpi k-tasks"><div class="kpi-label">صافي الحركة النقدية</div><div class="kpi-value">@N(Model.NetCash) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">إيراد − مصروف</div></div>
+</div>
+
+<div class="grid-row" style="grid-template-columns: 1fr 1fr;">
+    <div class="card-tile">
+        <div class="card-head"><h3>عقود البيع</h3></div>
+        <table class="rs-table">
+            <thead><tr><th>الكود</th><th>العميل</th><th>الوحدة</th><th>القيمة</th></tr></thead>
+            <tbody>
+            @foreach (var c in Model.Contracts) { <tr><td dir="ltr" style="text-align:right;">@c.Code</td><td>@c.Customer</td><td>@c.Unit</td><td>@N(c.Value)</td></tr> }
+            @if (Model.Contracts.Count == 0) { <tr><td colspan="4" style="color:var(--muted)">لا توجد عقود في هذا اليوم.</td></tr> }
+            </tbody>
+        </table>
+    </div>
+    <div class="card-tile">
+        <div class="card-head"><h3>أوامر التوريد</h3></div>
+        <table class="rs-table">
+            <thead><tr><th>الرقم</th><th>المورد</th><th>المشروع</th><th>القيمة</th></tr></thead>
+            <tbody>
+            @foreach (var o in Model.Orders) { <tr><td dir="ltr" style="text-align:right;">@o.Number</td><td>@o.Supplier</td><td>@o.Project</td><td>@N(o.Value)</td></tr> }
+            @if (Model.Orders.Count == 0) { <tr><td colspan="4" style="color:var(--muted)">لا توجد أوامر في هذا اليوم.</td></tr> }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="grid-row" style="grid-template-columns: 1fr 1fr;">
+    <div class="card-tile">
+        <div class="card-head"><h3>الإيرادات (إيصالات استلام)</h3></div>
+        <table class="rs-table">
+            <thead><tr><th>#</th><th>البيان</th><th>المبلغ</th></tr></thead>
+            <tbody>
+            @foreach (var t in Model.Incomes) { <tr><td dir="ltr" style="text-align:right;">@t.Serial.ToString("D4")</td><td>@t.Description</td><td class="tag-up">@N(t.Amount)</td></tr> }
+            @if (Model.Incomes.Count == 0) { <tr><td colspan="3" style="color:var(--muted)">لا توجد إيرادات في هذا اليوم.</td></tr> }
+            </tbody>
+        </table>
+    </div>
+    <div class="card-tile">
+        <div class="card-head"><h3>المصروفات (إيصالات دفع)</h3></div>
+        <table class="rs-table">
+            <thead><tr><th>#</th><th>البيان</th><th>المبلغ</th></tr></thead>
+            <tbody>
+            @foreach (var t in Model.Expenses) { <tr><td dir="ltr" style="text-align:right;">@t.Serial.ToString("D4")</td><td>@t.Description</td><td>@N(t.Amount)</td></tr> }
+            @if (Model.Expenses.Count == 0) { <tr><td colspan="3" style="color:var(--muted)">لا توجد مصروفات في هذا اليوم.</td></tr> }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="card-tile">
+    <div class="card-head"><h3>أرصدة الخزائن <span style="color:var(--muted);font-size:13px;">(في نهاية اليوم)</span></h3></div>
+    <table class="rs-table">
+        <thead><tr><th>الخزنة</th><th>الرصيد</th></tr></thead>
+        <tbody>
+        @foreach (var s in Model.Safes) { <tr><td>@s.Name</td><td style="font-weight:600;">@N(s.Balance)</td></tr> }
+        @if (Model.Safes.Count == 0) { <tr><td colspan="2" style="color:var(--muted)">لا توجد خزائن.</td></tr> }
+        </tbody>
+        <tfoot><tr><th>الإجمالي</th><th>@N(Model.SafesTotal) ج.م</th></tr></tfoot>
+    </table>
+</div>

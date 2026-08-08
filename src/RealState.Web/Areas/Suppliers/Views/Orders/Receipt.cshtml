@@ -1,0 +1,51 @@
+@model SupplierPayment
+@{
+    Layout = null;
+    var supplier = ViewBag.Supplier as Supplier;
+    var order = ViewBag.Order as SupplierOrder;
+    var tenantId = (Guid)ViewBag.TenantId;
+    string N(decimal v) => v.ToString("N0", new System.Globalization.CultureInfo("ar-EG"));
+}
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="utf-8" />
+    <title>إيصال دفع</title>
+    <style>
+        body { font-family: "Segoe UI", Tahoma, sans-serif; padding: 28px; color: #111; }
+        .receipt { max-width: 640px; margin: 0 auto; border: 1px solid #ccc; border-radius: 10px; padding: 24px; }
+        .brand { text-align: center; margin-bottom: 8px; } .brand img { max-height: 70px; }
+        h1 { font-size: 19px; text-align: center; margin: 6px 0 2px; }
+        .sub { text-align: center; color: #666; font-size: 12px; margin-bottom: 16px; }
+        table { width: 100%; border-collapse: collapse; font-size: 14px; }
+        th, td { border: 1px solid #ccc; padding: 9px 10px; text-align: start; unicode-bidi: plaintext; }
+        th { background: #fafafa; width: 180px; }
+        .amount { font-size: 22px; font-weight: 800; text-align: center; margin: 16px 0; color: #b3540f; }
+        .no-print { margin-bottom: 14px; text-align: center; } @@media print { .no-print { display: none; } }
+    </style>
+</head>
+<body>
+    <div class="no-print"><button onclick="window.print()">🖨 طباعة / حفظ PDF</button></div>
+    <div class="receipt">
+        <div class="brand"><img src="@Url.Action("Logo", "Branding", new { area = "", id = tenantId })" alt="logo" onerror="this.style.display='none'" /></div>
+        <h1>إيصال دفع</h1>
+        <div class="sub">إيصال رقم P-@Model.ReceiptNo.ToString("D5") @(order != null ? $"· أمر توريد PO-{order.Number:D4}" : "") · تاريخ الإصدار @DateTime.Now.ToString("yyyy/MM/dd")</div>
+
+        <div class="amount">@N(Model.Amount) ج.م</div>
+
+        <table>
+            <tr><th>المورد / المقاول</th><td>@supplier?.Name @(string.IsNullOrEmpty(supplier?.Phone) ? "" : "— " + supplier?.Phone)</td></tr>
+            <tr><th>عن</th><td>@(order != null ? $"سداد دفعة على أمر التوريد PO-{order.Number:D4}" : "سداد دفعة على حساب المورد")</td></tr>
+            <tr><th>تاريخ الدفع</th><td>@Model.PaidDate.ToString("yyyy/MM/dd")</td></tr>
+            <tr><th>المبلغ المدفوع</th><td>@N(Model.Amount) ج.م</td></tr>
+            @if (!string.IsNullOrWhiteSpace(Model.Description))
+            {
+                <tr><th>ملاحظات</th><td>@Model.Description</td></tr>
+            }
+        </table>
+
+        <p style="margin-top:34px;font-size:13px;text-align:end;">توقيع المستلم: ____________________</p>
+    </div>
+    <script>window.addEventListener('load', function () { setTimeout(function () { window.print(); }, 500); });</script>
+</body>
+</html>

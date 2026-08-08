@@ -1,4 +1,5 @@
 using System.Globalization;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Localization;
 using Microsoft.EntityFrameworkCore;
@@ -35,7 +36,8 @@ builder.Services
         options.Password.RequireDigit = false;
         options.Password.RequireLowercase = false;
         options.Password.RequireUppercase = false;
-        options.User.RequireUniqueEmail = true;
+        // Email is optional; uniqueness is enforced in the user controller when one is provided.
+        options.User.RequireUniqueEmail = false;
         options.SignIn.RequireConfirmedAccount = false;
     })
     .AddEntityFrameworkStores<ApplicationDbContext>()
@@ -49,6 +51,15 @@ builder.Services.ConfigureApplicationCookie(options =>
     options.AccessDeniedPath = "/Account/AccessDenied";
     options.ExpireTimeSpan = TimeSpan.FromHours(8);
     options.SlidingExpiration = true;
+
+    // The static host user has no database row, so the default security-stamp validation would
+    // reject its cookie. Skip validation for the host; database-backed users still get validated.
+    options.Events.OnValidatePrincipal = context =>
+    {
+        if (context.Principal?.HasClaim(AppConstants.HostClaimType, "true") == true)
+            return Task.CompletedTask;
+        return SecurityStampValidator.ValidatePrincipalAsync(context);
+    };
 });
 
 builder.Services.AddHttpContextAccessor();
@@ -61,7 +72,12 @@ builder.Services.AddAuthorization(options =>
         options.AddPolicy(permission, policy => policy.RequireClaim("permission", permission));
 });
 
-builder.Services.AddControllersWithViews();
+builder.Services.AddControllersWithViews(options =>
+{
+    // Central try/catch → friendly SweetAlert, and an audit trail for every user action.
+    options.Filters.Add<RealState.Web.Filters.GlobalExceptionFilter>();
+    options.Filters.Add<RealState.Web.Filters.ActivityLogFilter>();
+});
 
 // Arabic RTL as the only supported culture.
 var arabic = new CultureInfo("ar-EG");
@@ -77,10 +93,32 @@ var app = builder.Build();
 // Apply migrations and seed on startup.
 using (var scope = app.Services.CreateScope())
 {
-    var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-    await db.Database.MigrateAsync();
-    await DbSeeder.SeedAsync(scope.ServiceProvider);
+    var startupLogger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("Startup");
+    try
+    {
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        await db.Database.MigrateAsync();
+        await DbSeeder.SeedAsync(scope.ServiceProvider);
+    }
+    catch (Exception ex)
+    {
+        // Surface the real cause in the log stream instead of an opaque SIGABRT (exit 134).
+        // Most common on Azure: the app can't reach Azure SQL — check the connection string,
+        // the SQL server firewall ("Allow Azure services…" = ON) and that the database exists.
+        startupLogger.LogCritical(ex, "Startup database migration/seeding failed: {Message}", ex.Message);
+        throw;
+    }
 }
+
+// Behind the Azure App Service reverse proxy: trust X-Forwarded-Proto/For so HTTPS redirection,
+// secure cookies and generated URLs use the real (https) scheme. Must run before other middleware.
+var forwardedHeaders = new ForwardedHeadersOptions
+{
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
+};
+forwardedHeaders.KnownNetworks.Clear();
+forwardedHeaders.KnownProxies.Clear();
+app.UseForwardedHeaders(forwardedHeaders);
 
 if (!app.Environment.IsDevelopment())
 {

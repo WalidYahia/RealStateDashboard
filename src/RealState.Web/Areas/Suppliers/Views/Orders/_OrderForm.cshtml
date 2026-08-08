@@ -1,0 +1,62 @@
+@model OrderFormModel
+@{
+    var initialTotal = Model.Items.Sum(i => i.Cost);
+    string N(decimal v) => v.ToString("N0", new System.Globalization.CultureInfo("ar-EG"));
+}
+<form id="appModalForm" asp-area="Suppliers" asp-controller="Orders" asp-action="Form" method="post">
+    @Html.AntiForgeryToken()
+    <div asp-validation-summary="ModelOnly" class="validation-summary-errors"></div>
+    <input type="hidden" asp-for="Id" />
+
+    @if (Model.Suppliers.Count == 0)
+    {
+        <div class="status-message" style="background:rgba(250,178,25,.12);border-color:var(--warning);color:var(--warning);">
+            أضف موردًا واحدًا على الأقل قبل إنشاء أمر توريد.
+        </div>
+    }
+
+    <div class="form-grid">
+        <div>
+            <label asp-for="SupplierId" class="form-label"></label>
+            <select asp-for="SupplierId" class="form-control" asp-items="Model.Suppliers"><option value="">— اختر المورد —</option></select>
+            <span asp-validation-for="SupplierId" class="field-validation-error"></span>
+        </div>
+        <div>
+            <label asp-for="ProjectId" class="form-label"></label>
+            <select asp-for="ProjectId" class="form-control" asp-items="Model.Projects"><option value="">— بدون مشروع —</option></select>
+        </div>
+        <div>
+            <label asp-for="OrderDate" class="form-label"></label>
+            <input asp-for="OrderDate" class="form-control" type="date" dir="ltr" />
+            <span asp-validation-for="OrderDate" class="field-validation-error"></span>
+        </div>
+        <div class="full">
+            <label asp-for="Notes" class="form-label"></label>
+            <textarea asp-for="Notes" class="form-control" rows="2"></textarea>
+        </div>
+    </div>
+
+    <h4 style="font-size:14px;margin:14px 0 6px;">البنود</h4>
+    <table class="rs-table" style="margin-bottom:8px;">
+        <thead><tr><th>البند</th><th style="width:170px;">التكلفة (ج.م)</th><th style="width:40px;"></th></tr></thead>
+        <tbody id="ordItemsBody">
+        @for (var i = 0; i < Model.Items.Count; i++)
+        {
+            <tr>
+                <td>
+                    <input type="hidden" name="Items.Index" value="@i" />
+                    <input class="form-control" style="margin:0" name="Items[@i].Name" value="@Model.Items[i].Name" placeholder="مثال: أسمنت، حديد، أجر مقاول..." />
+                </td>
+                <td><input class="form-control" style="margin:0" type="number" step="0.01" min="0" dir="ltr" name="Items[@i].Cost" value="@Model.Items[i].Cost" oninput="orderRecalcTotal()" /></td>
+                <td><button type="button" class="btn-sm btn-danger" onclick="this.closest('tr').remove(); orderRecalcTotal();">✕</button></td>
+            </tr>
+        }
+        </tbody>
+    </table>
+    <div style="display:flex;justify-content:space-between;align-items:center;">
+        <button type="button" class="btn-sm" onclick="addOrderItem()">➕ إضافة بند</button>
+        <div style="font-weight:700;">الإجمالي: <span id="ordTotal">@N(initialTotal)</span> ج.م</div>
+    </div>
+
+    <button type="submit" class="btn-primary" style="margin-top:12px;" disabled="@(Model.Suppliers.Count == 0)">💾 حفظ أمر التوريد</button>
+</form>

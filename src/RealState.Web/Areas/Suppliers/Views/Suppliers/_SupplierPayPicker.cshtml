@@ -1,0 +1,53 @@
+@model SupplierPayPickerModel
+<form id="appModalForm" asp-area="Suppliers" asp-controller="Orders" asp-action="Pay" method="post" data-open-tab>
+    @Html.AntiForgeryToken()
+    <div asp-validation-summary="ModelOnly" class="validation-summary-errors"></div>
+
+    <div class="status-message" style="background:var(--surface-2);border-color:var(--border);color:var(--text-secondary);">
+        المورد: <strong>@Model.SupplierName</strong>
+    </div>
+
+    @if (Model.Orders.Count == 0)
+    {
+        <div class="status-message" style="background:rgba(250,178,25,.12);border-color:var(--warning);color:var(--warning);">
+            لا توجد أوامر توريد غير مسدَّدة بالكامل لهذا المورد.
+        </div>
+    }
+    else if (Model.Safes.Count == 0)
+    {
+        <div class="status-message" style="background:rgba(250,178,25,.12);border-color:var(--warning);color:var(--warning);">
+            لا توجد خزنة نشطة. أضف خزنة من صفحة الخزائن قبل السداد.
+        </div>
+    }
+    else
+    {
+        <div class="form-grid">
+            <div class="full">
+                <label class="form-label">أمر التوريد</label>
+                <select name="OrderId" class="form-control" data-cascade-init onchange="supplierPayPick(this)">
+                    @foreach (var o in Model.Orders)
+                    {
+                        <option value="@o.Id" data-remaining="@o.Remaining">@o.Label</option>
+                    }
+                </select>
+            </div>
+            <div>
+                <label class="form-label">المبلغ المدفوع (ج.م)</label>
+                <input name="Amount" id="supPayAmount" class="form-control" type="number" step="0.01" min="0" dir="ltr" />
+            </div>
+            <div>
+                <label class="form-label">الخزنة</label>
+                <select name="SafeId" class="form-control" asp-items="Model.Safes"><option value="">— اختر الخزنة —</option></select>
+            </div>
+            <div>
+                <label class="form-label">تاريخ الدفع</label>
+                <input name="PaidDate" class="form-control" type="date" dir="ltr" value="@DateTime.Today.ToString("yyyy-MM-dd")" />
+            </div>
+            <div class="full">
+                <label class="form-label">ملاحظات</label>
+                <input name="Description" class="form-control" />
+            </div>
+        </div>
+        <button type="submit" class="btn-primary" style="margin-top:12px;">💵 تسجيل الدفعة وطباعة الإيصال</button>
+    }
+</form>

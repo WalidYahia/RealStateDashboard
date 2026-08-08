@@ -1,0 +1,95 @@
+@model SaleContract
+@{
+    Layout = null;
+    var installments = ViewBag.Installments as List<Installment> ?? new();
+    // The down payment (Number 0) is shown separately under القيمة المالية, not inside the schedule.
+    var schedule = installments.Where(i => i.Number > 0).OrderBy(i => i.Number).ToList();
+    var firstDue = schedule.FirstOrDefault()?.DueDate;
+    var tenantId = (Guid)ViewBag.TenantId;
+    string N(decimal v) => v.ToString("N0", new System.Globalization.CultureInfo("ar-EG"));
+    string D(DateTime? d) => d?.ToString("yyyy/MM/dd") ?? "—";
+}
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="utf-8" />
+    <title>عقد بيع @Model.Code</title>
+    <style>
+        body { font-family: "Segoe UI", Tahoma, sans-serif; padding: 28px; color: #111; }
+        .brand { text-align: center; margin-bottom: 10px; }
+        .brand img { max-height: 80px; }
+        h1 { font-size: 20px; text-align: center; margin: 6px 0 2px; }
+        .sub { text-align: center; color: #666; font-size: 12px; margin-bottom: 18px; }
+        h2 { font-size: 14px; margin: 18px 0 8px; border-bottom: 1px solid #ddd; padding-bottom: 4px; }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 8px; }
+        th, td { border: 1px solid #ccc; padding: 7px 8px; text-align: start;  unicode-bidi: plaintext; }
+        th { background: #f2f2f2; }
+        .kv th { width: 180px; background: #fafafa; }
+        .sign { display: flex; justify-content: space-between; margin-top: 48px; font-size: 13px; }
+        .sign div { width: 40%; border-top: 1px solid #333; padding-top: 6px; text-align: center; }
+        .no-print { margin-bottom: 14px; }
+        @@media print { .no-print { display: none; } }
+    </style>
+</head>
+<body>
+    <div class="no-print"><button onclick="window.print()">🖨 طباعة / حفظ PDF</button></div>
+    <div class="brand">
+        <img src="@Url.Action("Logo", "Branding", new { area = "", id = tenantId })" alt="logo" onerror="this.style.display='none'" />
+    </div>
+    <h1>عقد بيع رقم @Model.Code</h1>
+    <div class="sub">تاريخ التحرير: @DateTime.Now.ToString("yyyy/MM/dd")</div>
+
+    <h2>أطراف العقد والوحدة</h2>
+    <table class="kv">
+        <tr><th>العميل (المشتري)</th><td>@Model.Customer?.FullName — @Model.Customer?.Phone</td></tr>
+        <tr><th>المشروع</th><td>#@Model.Project?.Code @Model.Project?.Name</td></tr>
+        <tr><th>الوحدة</th><td>@Model.Unit?.Name @(string.IsNullOrEmpty(Model.Unit?.Number) ? "" : $"(رقم {Model.Unit?.Number})")</td></tr>
+        @if (Model.Unit is not null && Model.Unit.AreaSqm > 0)
+        {
+            <tr><th>المساحة</th><td>@Model.Unit.AreaSqm.ToString("0.##") م²</td></tr>
+        }
+        @if (Model.Unit is not null && Model.Unit.Price > 0)
+        {
+            <tr><th>سعر الوحدة</th><td>@N(Model.Unit.Price) ج.م</td></tr>
+        }
+        @if (!string.IsNullOrWhiteSpace(Model.Unit?.Description))
+        {
+            <tr><th>وصف الوحدة</th><td>@Model.Unit!.Description</td></tr>
+        }
+        <tr><th>تاريخ الاستلام</th><td>@D(Model.ReceiveDate)</td></tr>
+    </table>
+
+    <h2>القيمة المالية</h2>
+    <table class="kv">
+        <tr><th>السعر الإجمالي</th><td>@N(Model.TotalPrice) ج.م</td></tr>
+        <tr><th>المقدم</th><td>@N(Model.DownPayment) ج.م </td></tr>
+        <tr><th>المتبقي على أقساط</th><td>@N(Model.TotalPrice - Model.DownPayment) ج.م على @Model.InstallmentsCount قسط (@Model.Step.Ar())</td></tr>
+        @if (firstDue.HasValue)
+        {
+            <tr><th>تاريخ أول قسط</th><td>@D(firstDue)</td></tr>
+        }
+    </table>
+
+    <h2>جدول الأقساط</h2>
+    <table>
+        <thead><tr><th>#</th><th>تاريخ الاستحقاق</th><th>القيمة (ج.م)</th></tr></thead>
+        <tbody>
+        @foreach (var i in schedule)
+        {
+            <tr><td>@i.Number</td><td>@D(i.DueDate)</td><td>@N(i.Amount)</td></tr>
+        }
+        @if (schedule.Count == 0) { <tr><td colspan="3">لا توجد أقساط (سداد كامل بالمقدم).</td></tr> }
+        </tbody>
+    </table>
+
+    @if (!string.IsNullOrEmpty(Model.Notes))
+    {
+        <h2>ملاحظات</h2>
+        <p>@Model.Notes</p>
+    }
+
+    <div class="sign"><div>توقيع الطرف الأول (البائع)</div><div>توقيع الطرف الثاني (المشتري)</div></div>
+
+    <script>window.addEventListener('load', function () { setTimeout(function () { window.print(); }, 500); });</script>
+</body>
+</html>

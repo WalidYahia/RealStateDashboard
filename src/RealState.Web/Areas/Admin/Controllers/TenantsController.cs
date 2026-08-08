@@ -1,3 +1,5 @@
+using System.Security.Claims;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -70,52 +72,58 @@ public class TenantsController : Controller
 
         if (!ModelState.IsValid) return View(model);
 
-        // Atomic: the tenant and its admin are created together, or not at all — no orphan tenant rows.
-        await using var tx = await _db.Database.BeginTransactionAsync(ct);
-        try
+        // Create the tenant, then its admin. No explicit DB transaction: the retrying execution
+        // strategy configured for Azure SQL forbids user-initiated transactions. If admin creation
+        // fails we remove the just-created tenant so no orphan rows remain.
+        var tenant = new Tenant
         {
-            var tenant = new Tenant
-            {
-                Name = model.Name,
-                IsActive = true,
-                LogoData = logoData,
-                LogoContentType = logoType
-            };
-            _db.Tenants.Add(tenant);
+            Name = model.Name,
+            IsActive = true,
+            LogoData = logoData,
+            LogoContentType = logoType
+        };
+        _db.Tenants.Add(tenant);
+        await _db.SaveChangesAsync(ct);
+
+        var admin = new ApplicationUser
+        {
+            UserName = model.AdminEmail,          // email is the internal login handle
+            Email = model.AdminEmail,
+            EmailConfirmed = true,
+            PhoneNumber = model.AdminPhone,
+            PhoneNumberConfirmed = true,
+            FullName = model.AdminDisplayName,     // display "user name"
+            TenantId = tenant.Id,
+            IsActive = true,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        var result = await _userManager.CreateAsync(admin, model.AdminPassword);
+        if (!result.Succeeded)
+        {
+            _db.Tenants.Remove(tenant);           // roll back the orphan tenant
             await _db.SaveChangesAsync(ct);
-
-            var admin = new ApplicationUser
-            {
-                UserName = model.AdminEmail,          // email is the internal login handle
-                Email = model.AdminEmail,
-                EmailConfirmed = true,
-                PhoneNumber = model.AdminPhone,
-                PhoneNumberConfirmed = true,
-                FullName = model.AdminDisplayName,     // display "user name"
-                TenantId = tenant.Id,
-                IsActive = true,
-                CreatedAt = DateTime.UtcNow
-            };
-
-            var result = await _userManager.CreateAsync(admin, model.AdminPassword);
-            if (!result.Succeeded)
-            {
-                await tx.RollbackAsync(ct);
-                foreach (var e in result.Errors) ModelState.AddModelError(string.Empty, e.Description);
-                return View(model);
-            }
-
-            await _userManager.AddToRoleAsync(admin, AppConstants.TenantAdminRole);
-            await tx.CommitAsync(ct);
-
-            TempData["StatusMessage"] = $"تم إنشاء المؤسسة «{tenant.Name}» ومديرها.";
-            return RedirectToAction(nameof(Index));
+            foreach (var e in result.Errors) ModelState.AddModelError(string.Empty, e.Description);
+            return View(model);
         }
-        catch
+
+        // Grant the tenant's admin full in-tenant access as direct permission claims. Roles are
+        // no longer seeded (the seeder creates only the permission catalog), so access is
+        // claim-based. ForTenantAdmin = every permission except cross-tenant management.
+        await _userManager.AddClaimsAsync(admin,
+            PermissionNames.ForTenantAdmin.Select(p => new Claim("permission", p)));
+
+        // Host bootstrap: the host created a tenant before selecting one. Sign it out so the
+        // login → select-tenant flow restarts and it can now pick this tenant.
+        if (User.IsHost() && !User.HasTenant())
         {
-            await tx.RollbackAsync(ct);
-            throw;
+            await HttpContext.SignOutAsync(IdentityConstants.ApplicationScheme);
+            TempData["StatusMessage"] = "تم إنشاء المؤسسة. سجّل الدخول مرة أخرى لاختيارها.";
+            return RedirectToAction("Login", "Account", new { area = "" });
         }
+
+        TempData["StatusMessage"] = $"تم إنشاء المؤسسة «{tenant.Name}» ومديرها.";
+        return RedirectToAction(nameof(Index));
     }
 
     [HttpGet]
@@ -180,9 +188,13 @@ public class TenantsController : Controller
 
         // Hard-delete the tenant and everything scoped to it. ExecuteDelete bypasses the soft-delete
         // interceptor; IgnoreQueryFilters is required so we hit the target tenant's rows, not the caller's.
-        await using var tx = await _db.Database.BeginTransactionAsync(ct);
-        try
+        // The whole thing runs inside the retrying execution strategy (required with EnableRetryOnFailure);
+        // ExecuteDelete is idempotent, so a retried attempt is safe.
+        var strategy = _db.Database.CreateExecutionStrategy();
+        await strategy.ExecuteAsync(async () =>
         {
+            await using var tx = await _db.Database.BeginTransactionAsync(ct);
+
             await _db.SalesInvoices.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
             await _db.PurchaseInvoices.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
             await _db.Incomes.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
@@ -202,14 +214,9 @@ public class TenantsController : Controller
             await _db.Tenants.Where(t => t.Id == id).ExecuteDeleteAsync(ct);
 
             await tx.CommitAsync(ct);
-            TempData["StatusMessage"] = $"تم حذف المؤسسة «{tenant.Name}» وكل بياناتها ومستخدميها.";
-        }
-        catch
-        {
-            await tx.RollbackAsync(ct);
-            throw;
-        }
+        });
 
+        TempData["StatusMessage"] = $"تم حذف المؤسسة «{tenant.Name}» وكل بياناتها ومستخدميها.";
         return RedirectToAction(nameof(Index));
     }
 

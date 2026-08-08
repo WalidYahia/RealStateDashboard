@@ -1,0 +1,123 @@
+@model List<OrderListItem>
+@{
+    ViewData["Title"] = "أوامر التوريد";
+    var canCreate = ViewData["CanCreate"] as bool? ?? false;
+    var canEdit = ViewData["CanEdit"] as bool? ?? false;
+    var canDelete = ViewData["CanDelete"] as bool? ?? false;
+    var canPay = ViewData["CanPay"] as bool? ?? false;
+    string N(decimal v) => v.ToString("N0", new System.Globalization.CultureInfo("ar-EG"));
+    string D(DateTime d) => d.ToString("yyyy/MM/dd", System.Globalization.CultureInfo.InvariantCulture);
+    string PO(int n) => "PO-" + n.ToString("D4");
+    var total = Model.Sum(r => r.Total);
+}
+<div class="page-head">
+    <h1>أوامر التوريد</h1>
+    <div style="display:flex;gap:8px;">
+        <a class="btn-sm" asp-action="PrintList" target="_blank">🖨 طباعة (PDF)</a>
+        @if (canCreate)
+        {
+            <button type="button" class="btn-new-tenant" onclick="appOpenModal('@Url.Action("Form")', 'أمر توريد جديد')">➕ أمر توريد جديد</button>
+        }
+    </div>
+</div>
+
+@if (TempData["StatusMessage"] is string status)
+{
+    <div class="status-message">@status</div>
+}
+
+<div class="card-tile">
+    <div class="card-head">
+        <h3>الأوامر</h3>
+        <div style="display:flex;gap:8px;align-items:center;margin-inline-start:auto;">
+            <input id="ordSearch" class="form-control" style="margin:0;width:260px;" placeholder="🔍 بحث بالرقم أو المورد أو المشروع..." />
+            <span class="pill">الأوامر: @Model.Count · الإجمالي: @N(total) ج.م</span>
+        </div>
+    </div>
+    <table class="rs-table" id="ordTable">
+        <thead>
+            <tr><th>الرقم</th><th>التاريخ</th><th>المورد</th><th>المشروع</th><th>الإجمالي</th><th>المسدَّد</th><th>المتبقي</th><th></th></tr>
+        </thead>
+        <tbody>
+        @foreach (var o in Model)
+        {
+            <tr data-search="@((PO(o.Number) + " " + o.Supplier + " " + o.Project).ToLower())">
+                <td dir="ltr" style="text-align:right;"><a asp-action="Details" asp-route-id="@o.Id" style="color:var(--series-1);text-decoration:none;font-weight:600;">@PO(o.Number)</a></td>
+                <td dir="ltr" style="text-align:right;">@D(o.OrderDate)</td>
+                <td>@o.Supplier</td>
+                <td>@o.Project</td>
+                <td>@N(o.Total)</td>
+                <td class="tag-up">@N(o.Paid)</td>
+                <td>@N(o.Remaining)</td>
+                <td style="white-space:nowrap;">
+                    @if (canPay && o.Remaining > 0)
+                    {
+                        <button type="button" class="btn-new-tenant" style="padding:4px 10px;" onclick="appOpenModal('@Url.Action("Pay", new { id = o.Id })', 'سداد دفعة على الأمر')">💵 دفع</button>
+                    }
+                    <a class="btn-sm" asp-action="Details" asp-route-id="@o.Id">التفاصيل</a>
+                    <a class="btn-sm" asp-action="PrintOrder" asp-route-id="@o.Id" target="_blank">🖨</a>
+                    @if (canEdit)
+                    {
+                        <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("Form", new { id = o.Id })', 'تعديل أمر التوريد')">تعديل</button>
+                    }
+                    @if (canDelete)
+                    {
+                        <form asp-action="Delete" asp-route-id="@o.Id" method="post" style="display:inline;" data-confirm="حذف أمر التوريد @PO(o.Number)؟" data-danger>
+                            @Html.AntiForgeryToken()
+                            <button type="submit" class="btn-sm btn-danger">حذف</button>
+                        </form>
+                    }
+                </td>
+            </tr>
+        }
+        @if (Model.Count == 0)
+        {
+            <tr><td colspan="8" style="color:var(--muted)">لا توجد أوامر توريد بعد.</td></tr>
+        }
+        <tr id="ordNoResults" style="display:none;"><td colspan="8" style="color:var(--muted)">لا توجد نتائج مطابقة للبحث.</td></tr>
+        </tbody>
+    </table>
+</div>
+
+@section Scripts {
+    <script>
+        (function () {
+            var box = document.getElementById('ordSearch');
+            if (!box) return;
+            box.addEventListener('input', function () {
+                var q = this.value.trim().toLowerCase();
+                var rows = document.querySelectorAll('#ordTable tbody tr[data-search]');
+                var shown = 0;
+                rows.forEach(function (tr) {
+                    var match = tr.dataset.search.indexOf(q) >= 0;
+                    tr.style.display = match ? '' : 'none';
+                    if (match) shown++;
+                });
+                document.getElementById('ordNoResults').style.display = (rows.length && shown === 0) ? '' : 'none';
+            });
+        })();
+
+        // Dynamic line items inside the order modal (defined globally — modal-injected scripts don't run).
+        window.__ordSeq = 1000;
+        window.addOrderItem = function () {
+            var body = document.getElementById('ordItemsBody'); if (!body) return;
+            var k = 'k' + (window.__ordSeq++);
+            var tr = document.createElement('tr');
+            tr.innerHTML =
+                '<td><input type="hidden" name="Items.Index" value="' + k + '"/>' +
+                '<input class="form-control" style="margin:0" name="Items[' + k + '].Name" placeholder="مثال: أسمنت، حديد، أجر مقاول..."/></td>' +
+                '<td><input class="form-control" style="margin:0" type="number" step="0.01" min="0" dir="ltr" name="Items[' + k + '].Cost" oninput="orderRecalcTotal()"/></td>' +
+                '<td><button type="button" class="btn-sm btn-danger" onclick="this.closest(\'tr\').remove(); orderRecalcTotal();">✕</button></td>';
+            body.appendChild(tr);
+        };
+        window.orderRecalcTotal = function () {
+            var body = document.getElementById('ordItemsBody'); if (!body) return;
+            var sum = 0;
+            body.querySelectorAll('input[name$=".Cost"]').forEach(function (inp) {
+                var v = parseFloat(inp.value); if (!isNaN(v)) sum += v;
+            });
+            var el = document.getElementById('ordTotal');
+            if (el) el.textContent = sum.toLocaleString('ar-EG');
+        };
+    </script>
+}

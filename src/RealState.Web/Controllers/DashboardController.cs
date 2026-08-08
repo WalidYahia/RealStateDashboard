@@ -1,10 +1,11 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using RealState.Application.Common;
 using RealState.Application.Dashboards;
 
 namespace RealState.Web.Controllers;
 
-[Authorize]
+[Authorize(Policy = PermissionNames.DashboardView)]
 public class DashboardController : Controller
 {
     private readonly IDashboardService _dashboard;

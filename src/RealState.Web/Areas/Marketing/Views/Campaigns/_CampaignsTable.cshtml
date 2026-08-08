@@ -1,0 +1,48 @@
+@model List<CampaignRow>
+@{
+    string N(decimal v) => v.ToString("N0", new System.Globalization.CultureInfo("ar-EG"));
+    string StatusClass(CampaignStatus s) => s switch
+    {
+        CampaignStatus.Active => "state-on",
+        CampaignStatus.Completed => "badge-role",
+        CampaignStatus.Paused => "state-off",
+        _ => "badge-role"
+    };
+}
+<table class="rs-table">
+    <thead>
+        <tr><th>اسم الحملة</th><th>المنصة</th><th>الـLeads</th><th>التكلفة (ج.م)</th><th>المبيعات</th><th>الحالة</th><th></th></tr>
+    </thead>
+    <tbody>
+    @foreach (var c in Model)
+    {
+        <tr>
+            <td>@c.Name</td>
+            <td>@c.Platform.Ar()</td>
+            <td class="tag-up">@c.Leads</td>
+            <td>@N(c.Cost)</td>
+            <td>@N(c.Sales)</td>
+            <td><span class="badge-state @StatusClass(c.Status)">@c.Status.Ar()</span></td>
+            <td style="white-space:nowrap;">
+                @if (User.Can(PermissionNames.CampaignsEdit))
+                {
+                    <button type="button" class="btn-sm" onclick="mkOpen('@Url.Action("Update", new { campaignId = c.Id })')">تحديث الأداء</button>
+                    <button type="button" class="btn-sm" onclick="mkOpen('@Url.Action("Form", new { id = c.Id })')">تعديل</button>
+                }
+                @if (User.Can(PermissionNames.CampaignsDelete))
+                {
+                    <form asp-action="Delete" asp-route-id="@c.Id" method="post" style="display:inline;"
+                          data-confirm="حذف الحملة «@c.Name»؟" data-danger>
+                        @Html.AntiForgeryToken()
+                        <button type="submit" class="btn-sm btn-danger">حذف</button>
+                    </form>
+                }
+            </td>
+        </tr>
+    }
+    @if (Model.Count == 0)
+    {
+        <tr><td colspan="7" style="color:var(--muted)">لا توجد حملات.</td></tr>
+    }
+    </tbody>
+</table>

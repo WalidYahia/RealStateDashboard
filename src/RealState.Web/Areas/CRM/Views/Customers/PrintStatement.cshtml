@@ -1,0 +1,65 @@
+@model CustomerStatementVm
+@{
+    Layout = null;
+    var c = Model.Customer;
+    var tenantId = (Guid)ViewBag.TenantId;
+    string N(decimal v) => v.ToString("N0", new System.Globalization.CultureInfo("ar-EG"));
+    string D(DateTime? d) => d?.ToString("yyyy/MM/dd") ?? "—";
+}
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="utf-8" />
+    <title>كشف حساب - @c.FullName</title>
+    <style>
+        body { font-family: "Segoe UI", Tahoma, sans-serif; padding: 24px; color: #111; }
+        .brand { text-align: center; margin-bottom: 6px; } .brand img { max-height: 64px; }
+        h1 { font-size: 19px; text-align: center; margin: 4px 0; }
+        .sub { text-align: center; color: #666; font-size: 12px; margin-bottom: 14px; }
+        h2 { font-size: 14px; margin: 16px 0 6px; }
+        table { width: 100%; border-collapse: collapse; font-size: 12.5px; margin-bottom: 6px; }
+        th, td { border: 1px solid #ccc; padding: 6px 8px; text-align: start;  unicode-bidi: plaintext; }
+        th { background: #f2f2f2; }
+        .kv th { width: 150px; background: #fafafa; }
+        .totals td { font-weight: 700; background: #f7f7f7; }
+        .no-print { margin-bottom: 12px; } @@media print { .no-print { display: none; } }
+    </style>
+</head>
+<body>
+    <div class="no-print"><button onclick="window.print()">🖨 طباعة / حفظ PDF</button></div>
+    <div class="brand"><img src="@Url.Action("Logo", "Branding", new { area = "", id = tenantId })" alt="logo" onerror="this.style.display='none'" /></div>
+    <h1>كشف حساب العميل</h1>
+    <div class="sub">@DateTime.Now.ToString("yyyy/MM/dd HH:mm")</div>
+
+    <table class="kv">
+        <tr><th>العميل</th><td>@c.FullName</td><th>الهاتف</th><td>@c.Phone</td></tr>
+    </table>
+
+    @foreach (var ct in Model.Contracts)
+    {
+        <h2>عقد @ct.Code — @ct.ProjectName / @ct.UnitLabel</h2>
+        <table>
+            <thead><tr><th>#</th><th>تاريخ الاستحقاق</th><th>القيمة</th><th>المدفوع</th><th>الحالة</th></tr></thead>
+            <tbody>
+                @foreach (var i in ct.Installments)
+                {
+                    <tr><td>@ArabicLabels.InstNo(i.Number)</td><td>@D(i.DueDate)</td><td>@N(i.Amount)</td><td>@N(i.PaidAmount)</td><td>@i.Status.Ar()</td></tr>
+                }
+                <tr class="totals"><td colspan="2">إجمالي العقد</td><td>@N(ct.TotalPrice)</td><td>@N(ct.Paid)</td><td>متبقٍ @N(ct.Remaining)</td></tr>
+            </tbody>
+        </table>
+    }
+    @if (!Model.HasContracts) { <p>لا توجد عقود.</p> }
+
+    <h2>الإجمالي العام</h2>
+    <table>
+        <tr class="totals">
+            <td>إجمالي الالتزامات</td><td>@N(Model.TotalObligations) ج.م</td>
+            <td>المدفوع</td><td>@N(Model.TotalPaid) ج.م</td>
+            <td>الرصيد المتبقي</td><td>@N(Model.TotalRemaining) ج.م</td>
+        </tr>
+    </table>
+
+    <script>window.addEventListener('load', function () { setTimeout(function () { window.print(); }, 500); });</script>
+</body>
+</html>

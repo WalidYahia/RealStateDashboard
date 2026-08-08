@@ -1,54 +1,40 @@
 namespace RealState.Application.Dashboards;
 
-/// <summary>A single point in a time series (label + value) for line/bar charts.</summary>
-public record SeriesPoint(string Label, decimal Value);
+public record RecentSaleRow(string Code, string Customer, string Unit, decimal Total, DateTime Date);
+public record ProjectUnitsRow(string Name, int UnitsTotal, int Sold, decimal Percent);
 
-/// <summary>A project progress bar row on the dashboard.</summary>
-public record ProjectProgressDto(string Name, decimal Percent);
-
-/// <summary>A marketing-source row (derived from leads grouped by Source).</summary>
-public record CampaignRowDto(string Source, int Leads, decimal EstimatedValue);
-
-/// <summary>A recent notification/alert shown in the ticker.</summary>
-public record AlertDto(string Title, string? Message, string Level, DateTime Timestamp);
-
-/// <summary>Everything the executive dashboard view needs, aggregated from seeded/business data.</summary>
+/// <summary>Executive dashboard built from the implemented modules: sales, collections, projects, marketing, customers.</summary>
 public class DashboardVm
 {
-    // Top KPI cards
+    // Sales
     public decimal TodaySales { get; set; }
-    public int NewLeads { get; set; }
-    public int ReservationsToday { get; set; }
-    public decimal TotalCollection { get; set; }
-    public decimal TaskCompletionPercent { get; set; }
-    public int UrgentAlerts { get; set; }
+    public decimal MonthSales { get; set; }
+    public decimal TotalContractsValue { get; set; }
+    public int ContractsCount { get; set; }
 
-    // Sales vs target (donut)
-    public decimal MonthlySales { get; set; }
-    public decimal MonthlyTarget { get; set; }
-    public decimal SalesAchievedPercent => MonthlyTarget <= 0 ? 0 : Math.Round(MonthlySales / MonthlyTarget * 100, 0);
-    public decimal SalesRemaining => Math.Max(0, MonthlyTarget - MonthlySales);
+    // Collections
+    public decimal TotalCollected { get; set; }
+    public decimal TotalOutstanding { get; set; }
+    public decimal OverdueAmount { get; set; }
+    public decimal CollectedThisMonth { get; set; }
 
-    // Collection (donut)
-    public decimal CollectionTarget { get; set; }
-    public decimal CollectionAchieved { get; set; }
-    public decimal CollectionPercent => CollectionTarget <= 0 ? 0 : Math.Round(CollectionAchieved / CollectionTarget * 100, 0);
-    public decimal CollectionRemaining => Math.Max(0, CollectionTarget - CollectionAchieved);
+    // Suppliers — outstanding payables (order totals minus payments, for orders not fully paid).
+    public decimal SupplierPayables { get; set; }
+    public decimal CollectionPercent =>
+        TotalContractsValue <= 0 ? 0 : Math.Round(TotalCollected / TotalContractsValue * 100, 0);
 
-    // Tasks summary (donut)
-    public int TasksCompleted { get; set; }
-    public int TasksInProgress { get; set; }
-    public int TasksOverdue { get; set; }
-    public int TasksTotal => TasksCompleted + TasksInProgress + TasksOverdue;
+    // Projects / units
+    public int ProjectsCount { get; set; }
+    public int UnitsTotal { get; set; }
+    public int UnitsSold { get; set; }
+    public int UnitsAvailable { get; set; }
 
-    // Customer service
-    public int NewRequests { get; set; }
-    public int OpenComplaints { get; set; }
-    public int ClosedRequests { get; set; }
+    // People / marketing
+    public int CustomersCount { get; set; }
+    public int SalespersonsCount { get; set; }
+    public int CampaignsCount { get; set; }
+    public int CampaignsLeads { get; set; }
 
-    // Charts / tables
-    public List<SeriesPoint> LeadsTrend { get; set; } = new();
-    public List<ProjectProgressDto> ProjectsProgress { get; set; } = new();
-    public List<CampaignRowDto> Campaigns { get; set; } = new();
-    public List<AlertDto> Alerts { get; set; } = new();
+    public List<RecentSaleRow> RecentSales { get; set; } = new();
+    public List<ProjectUnitsRow> Projects { get; set; } = new();
 }

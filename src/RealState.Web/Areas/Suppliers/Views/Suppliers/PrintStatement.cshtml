@@ -1,0 +1,66 @@
+@model SupplierStatementVm
+@{
+    Layout = null;
+    var tenantId = (Guid)ViewBag.TenantId;
+    string N(decimal v) => v.ToString("N0", new System.Globalization.CultureInfo("ar-EG"));
+    string D(DateTime d) => d.ToString("yyyy/MM/dd", System.Globalization.CultureInfo.InvariantCulture);
+}
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="utf-8" />
+    <title>كشف حساب (مورد/مقاول) @Model.Supplier.Name</title>
+    <style>
+        body { font-family: "Segoe UI", Tahoma, sans-serif; padding: 24px; color: #111; }
+        .brand { text-align: center; margin-bottom: 6px; } .brand img { max-height: 64px; }
+        h1 { font-size: 19px; text-align: center; margin: 4px 0; }
+        .sub { text-align: center; color: #666; font-size: 12px; margin-bottom: 12px; }
+        .summary { text-align: center; font-size: 13px; margin-bottom: 14px; }
+        table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+        th, td { border: 1px solid #ccc; padding: 6px 8px; text-align: start; unicode-bidi: plaintext; }
+        th { background: #f2f2f2; }
+        tfoot td { font-weight: 700; background: #fafafa; }
+        .no-print { margin-bottom: 12px; } @@media print { .no-print { display: none; } }
+    </style>
+</head>
+<body>
+    <div class="no-print"><button onclick="window.print()">🖨 طباعة / حفظ PDF</button></div>
+    <div class="brand"><img src="@Url.Action("Logo", "Branding", new { area = "", id = tenantId })" alt="logo" onerror="this.style.display='none'" /></div>
+    <h1>كشف حساب (مورد/مقاول) — @Model.Supplier.Name</h1>
+    <div class="sub">
+        @Model.Supplier.Phone
+        @if (Model.From.HasValue || Model.To.HasValue)
+        {
+            <text>· الفترة @D(Model.From ?? DateTime.MinValue) — @D(Model.To ?? DateTime.MaxValue)</text>
+        }
+        · تاريخ الطباعة @DateTime.Now.ToString("yyyy/MM/dd HH:mm")
+    </div>
+
+    <table>
+        <thead><tr><th>المصدر</th><th>التاريخ</th><th>البيان</th><th>رصيد قبل</th><th>المبلغ</th><th>الرصيد</th></tr></thead>
+        <tbody>
+        @foreach (var r in Model.Rows)
+        {
+            var isPay = r.Kind == SupplierLedgerKind.Payment;
+            <tr>
+                <td>@r.Source</td>
+                <td>@D(r.Date)</td>
+                <td>@r.Statement</td>
+                <td>@N(r.BalanceBefore)</td>
+                <td>@(isPay ? "−" : "+")@N(r.Amount)</td>
+                <td>@N(r.Balance)</td>
+            </tr>
+        }
+        @if (!Model.HasEntries)
+        {
+            <tr><td colspan="6">لا توجد حركات في هذه الفترة.</td></tr>
+        }
+        </tbody>
+        <tfoot>
+            <tr><td colspan="5">الرصيد الختامي للفترة</td><td>@N(Model.ClosingBalance) ج.م</td></tr>
+        </tfoot>
+    </table>
+
+    <script>window.addEventListener('load', function () { setTimeout(function () { window.print(); }, 400); });</script>
+</body>
+</html>

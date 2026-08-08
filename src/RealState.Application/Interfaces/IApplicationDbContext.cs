@@ -14,6 +14,7 @@ public interface IApplicationDbContext
     DbSet<RolePermission> RolePermissions { get; }
     DbSet<Setting> Settings { get; }
     DbSet<AuditLog> AuditLogs { get; }
+    DbSet<ActivityLog> ActivityLogs { get; }
 
     DbSet<Country> Countries { get; }
     DbSet<City> Cities { get; }
@@ -23,6 +24,23 @@ public interface IApplicationDbContext
     DbSet<Project> Projects { get; }
     DbSet<Customer> Customers { get; }
     DbSet<Lead> Leads { get; }
+    DbSet<Campaign> Campaigns { get; }
+    DbSet<CampaignUpdate> CampaignUpdates { get; }
+    DbSet<Employee> Employees { get; }
+    DbSet<SaleContract> SaleContracts { get; }
+    DbSet<Installment> Installments { get; }
+    DbSet<Safe> Safes { get; }
+    DbSet<SafeTransaction> SafeTransactions { get; }
+    DbSet<Supplier> Suppliers { get; }
+    DbSet<SupplierOrder> SupplierOrders { get; }
+    DbSet<SupplierOrderItem> SupplierOrderItems { get; }
+    DbSet<SupplierPayment> SupplierPayments { get; }
+    DbSet<StageDefinition> StageDefinitions { get; }
+    DbSet<ProjectStage> ProjectStages { get; }
+    DbSet<StageActivity> StageActivities { get; }
+    DbSet<StageExpense> StageExpenses { get; }
+    DbSet<ProjectUnit> ProjectUnits { get; }
+    DbSet<ProjectAttachment> ProjectAttachments { get; }
     DbSet<SalesInvoice> SalesInvoices { get; }
     DbSet<PurchaseInvoice> PurchaseInvoices { get; }
     DbSet<Income> Incomes { get; }

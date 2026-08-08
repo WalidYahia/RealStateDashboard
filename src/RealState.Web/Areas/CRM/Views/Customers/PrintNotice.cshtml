@@ -1,0 +1,52 @@
+@model Installment
+@{
+    Layout = null;
+    var contract = ViewBag.Contract as SaleContract;
+    var customer = ViewBag.Customer as Customer;
+    var tenantId = (Guid)ViewBag.TenantId;
+    string N(decimal v) => v.ToString("N0", new System.Globalization.CultureInfo("ar-EG"));
+    var overdue = Model.Status == RealState.Application.Enums.InstallmentStatus.Overdue;
+}
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="utf-8" />
+    <title>إشعار استحقاق قسط</title>
+    <style>
+        body { font-family: "Segoe UI", Tahoma, sans-serif; padding: 28px; color: #111; }
+        .card { max-width: 640px; margin: 0 auto; border: 1px solid #ccc; border-radius: 10px; padding: 24px; }
+        .brand { text-align: center; margin-bottom: 8px; } .brand img { max-height: 70px; }
+        h1 { font-size: 19px; text-align: center; margin: 6px 0 2px; }
+        .sub { text-align: center; color: #666; font-size: 12px; margin-bottom: 16px; }
+        table { width: 100%; border-collapse: collapse; font-size: 14px; }
+        th, td { border: 1px solid #ccc; padding: 9px 10px; text-align: start;  unicode-bidi: plaintext; }
+        th { background: #fafafa; width: 180px; }
+        .amount { font-size: 22px; font-weight: 800; text-align: center; margin: 16px 0; color: #d03b3b; }
+        .flag { text-align: center; color: #d03b3b; font-weight: 700; margin-bottom: 6px; }
+        .no-print { margin-bottom: 14px; text-align: center; } @@media print { .no-print { display: none; } }
+    </style>
+</head>
+<body>
+    <div class="no-print"><button onclick="window.print()">🖨 طباعة / حفظ PDF</button></div>
+    <div class="card">
+        <div class="brand"><img src="@Url.Action("Logo", "Branding", new { area = "", id = tenantId })" alt="logo" onerror="this.style.display='none'" /></div>
+        <h1>إشعار استحقاق قسط</h1>
+        <div class="sub">رقم العقد @contract?.Code · تاريخ الإصدار @DateTime.Now.ToString("yyyy/MM/dd")</div>
+        @if (overdue) { <div class="flag">⚠ قسط متأخر عن موعد استحقاقه</div> }
+
+        <div class="amount">@N(Model.Amount) ج.م</div>
+
+        <table>
+            <tr><th>العميل</th><td>@customer?.FullName — @customer?.Phone</td></tr>
+            <tr><th>البند</th><td>@ArabicLabels.InstPhrase(Model.Number)</td></tr>
+            <tr><th>تاريخ الاستحقاق</th><td>@Model.DueDate.ToString("yyyy/MM/dd")</td></tr>
+            <tr><th>قيمة القسط</th><td>@N(Model.Amount) ج.م</td></tr>
+            <tr><th>المدفوع منه</th><td>@N(Model.PaidAmount) ج.م</td></tr>
+            <tr><th>المتبقي</th><td>@N(Model.Amount - Model.PaidAmount) ج.م</td></tr>
+        </table>
+
+        <p style="margin-top:20px;font-size:12px;color:#555;">يرجى سداد القيمة المستحقة في أقرب وقت. هذا الإشعار للعلم فقط وليس إيصال سداد.</p>
+    </div>
+    <script>window.addEventListener('load', function () { setTimeout(function () { window.print(); }, 500); });</script>
+</body>
+</html>

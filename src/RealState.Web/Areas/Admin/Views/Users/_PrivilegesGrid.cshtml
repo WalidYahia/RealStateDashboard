@@ -1,0 +1,71 @@
+@model List<string>
+@using RealState.Application.Common
+@{
+    var selected = new HashSet<string>(Model ?? new List<string>());
+    var groups = PermissionNames.Catalog.GroupBy(p => p.Group).ToList();
+}
+<style>
+    .priv-toolbar { display:flex; gap:8px; align-items:center; margin-bottom:12px; flex-wrap:wrap; }
+    .priv-toolbar .muted { color:var(--muted); font-size:13px; }
+    .priv-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:12px; }
+    .priv-group { padding:12px 14px; }
+    .priv-group-head { border-bottom:1px solid var(--border,rgba(255,255,255,.08)); padding-bottom:8px; margin-bottom:8px; }
+    .priv-group-head label { display:flex; align-items:center; gap:8px; cursor:pointer; font-size:14px; }
+    .priv-item { display:flex; align-items:center; gap:8px; padding:4px 0; cursor:pointer; font-size:13.5px; color:var(--text-secondary,#cfd6e4); }
+    .priv-item input, .priv-group-head input { width:16px; height:16px; accent-color:var(--aqua,#2bb8a3); }
+    .priv-count { font-weight:700; }
+</style>
+
+<div class="priv-toolbar">
+    <button type="button" class="btn-sm" onclick="privAll(true)">✅ تحديد الكل</button>
+    <button type="button" class="btn-sm" onclick="privAll(false)">⬜ إلغاء الكل</button>
+    <span class="muted">المُحدد: <span class="priv-count" id="privCount">0</span> صلاحية</span>
+</div>
+
+<div class="priv-grid">
+    @foreach (var g in groups)
+    {
+        <div class="priv-group card-tile">
+            <div class="priv-group-head">
+                <label><input type="checkbox" class="priv-group-toggle" onchange="privGroup(this)" /> <strong>@g.Key</strong></label>
+            </div>
+            @foreach (var perm in g)
+            {
+                <label class="priv-item">
+                    <input type="checkbox" class="priv-check" name="SelectedPermissions" value="@perm.Name"
+                           onchange="privSync()" checked="@(selected.Contains(perm.Name))" />
+                    <span>@perm.Display</span>
+                </label>
+            }
+        </div>
+    }
+</div>
+
+<script>
+    function privAll(on) {
+        document.querySelectorAll('.priv-check').forEach(function (c) { c.checked = on; });
+        privSync();
+    }
+    function privGroup(toggle) {
+        var group = toggle.closest('.priv-group');
+        group.querySelectorAll('.priv-check').forEach(function (c) { c.checked = toggle.checked; });
+        privSync();
+    }
+    function privSync() {
+        var total = 0;
+        document.querySelectorAll('.priv-group').forEach(function (group) {
+            var checks = group.querySelectorAll('.priv-check');
+            var on = group.querySelectorAll('.priv-check:checked').length;
+            total += on;
+            var toggle = group.querySelector('.priv-group-toggle');
+            if (toggle) {
+                toggle.checked = on === checks.length && checks.length > 0;
+                toggle.indeterminate = on > 0 && on < checks.length;
+            }
+        });
+        var badge = document.getElementById('privCount');
+        if (badge) badge.textContent = total;
+    }
+    document.addEventListener('DOMContentLoaded', privSync);
+    privSync();
+</script>

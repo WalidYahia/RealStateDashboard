@@ -1,0 +1,60 @@
+@model CampaignUpdateFormModel
+@{
+    string N(decimal v) => v.ToString("N0", new System.Globalization.CultureInfo("ar-EG"));
+}
+<form id="modalForm" asp-area="Marketing" asp-controller="Campaigns" asp-action="Update" method="post"
+      data-latest-date="@(Model.LatestDate?.ToString("yyyy-MM-dd"))">
+
+    @Html.AntiForgeryToken()
+    <div asp-validation-summary="ModelOnly" class="validation-summary-errors"></div>
+    <input type="hidden" asp-for="CampaignId" />
+    <input type="hidden" asp-for="CampaignName" />
+
+    <p style="color:var(--text-secondary);font-size:13px;margin:0 0 12px;">
+        الحملة: <strong>@Model.CampaignName</strong> — أدخل أحدث الأرقام <b>التراكمية</b>؛ سيُحفظ الفرق كسجل جديد.
+    </p>
+
+    <div class="mb-2" style="margin-bottom:12px;">
+        <label asp-for="Date" class="form-label"></label>
+        <input asp-for="Date" class="form-control" type="date" dir="ltr" />
+        <span asp-validation-for="Date" class="field-validation-error"></span>
+    </div>
+
+    <table class="rs-table" style="margin-bottom:8px;">
+        <thead><tr><th>المؤشر</th><th>الحالي (تراكمي)</th><th>الأحدث (تراكمي)</th></tr></thead>
+        <tbody>
+            <tr>
+                <td>الوصول (Reach)</td>
+                <td class="muted">@N(Model.CurrentReach)</td>
+                <td><input asp-for="ReachTotal" class="form-control" type="number" min="0" dir="ltr" style="margin:0;" /><span asp-validation-for="ReachTotal" class="field-validation-error"></span></td>
+            </tr>
+            <tr>
+                <td>الـLeads</td>
+                <td class="muted">@N(Model.CurrentLeads)</td>
+                <td><input asp-for="LeadsTotal" class="form-control" type="number" min="0" dir="ltr" style="margin:0;" /><span asp-validation-for="LeadsTotal" class="field-validation-error"></span></td>
+            </tr>
+            <tr>
+                <td>التكلفة (ج.م)</td>
+                <td class="muted">@N(Model.CurrentCost)</td>
+                <td><input asp-for="CostTotal" class="form-control" type="number" step="0.01" min="0" dir="ltr" style="margin:0;" /><span asp-validation-for="CostTotal" class="field-validation-error"></span></td>
+            </tr>
+            <tr>
+                <td>المبيعات الناتجة (ج.م)</td>
+                <td class="muted">@N(Model.CurrentSales)</td>
+                <td><input asp-for="SalesTotal" class="form-control" type="number" step="0.01" min="0" dir="ltr" style="margin:0;" /><span asp-validation-for="SalesTotal" class="field-validation-error"></span></td>
+            </tr>
+            <tr>
+                <td>الحجوزات</td>
+                <td class="muted">@N(Model.CurrentReservations)</td>
+                <td><input asp-for="ReservationsTotal" class="form-control" type="number" min="0" dir="ltr" style="margin:0;" /><span asp-validation-for="ReservationsTotal" class="field-validation-error"></span></td>
+            </tr>
+        </tbody>
+    </table>
+
+    <div class="full">
+        <label asp-for="Notes" class="form-label"></label>
+        <textarea asp-for="Notes" class="form-control" rows="2" placeholder="أضف ملاحظات"></textarea>
+    </div>
+
+    <button type="submit" class="btn-primary" style="margin-top:12px;">💾 حفظ الأداء</button>
+</form>

@@ -64,7 +64,8 @@ public class UserListItem
     public string? Email { get; set; }
     public bool IsActive { get; set; }
     public string TenantName { get; set; } = string.Empty;
-    public string Roles { get; set; } = string.Empty;
+    public bool IsSuperAdmin { get; set; }
+    public int PermissionCount { get; set; }
 }
 
 public class CreateUserViewModel
@@ -78,10 +79,9 @@ public class CreateUserViewModel
     [Display(Name = "رقم الهاتف (للدخول)")]
     public string Phone { get; set; } = string.Empty;
 
-    [Required(ErrorMessage = "البريد الإلكتروني مطلوب")]
     [EmailAddress(ErrorMessage = "بريد إلكتروني غير صالح")]
-    [Display(Name = "البريد الإلكتروني (للدخول)")]
-    public string Email { get; set; } = string.Empty;
+    [Display(Name = "البريد الإلكتروني (اختياري)")]
+    public string? Email { get; set; }
 
     [Required(ErrorMessage = "كلمة المرور مطلوبة")]
     [StringLength(100, MinimumLength = 8, ErrorMessage = "يجب أن تكون كلمة المرور 8 أحرف على الأقل")]
@@ -92,12 +92,11 @@ public class CreateUserViewModel
     [Display(Name = "المؤسسة")]
     public Guid TenantId { get; set; }
 
-    [Display(Name = "الأدوار")]
-    public List<string> SelectedRoles { get; set; } = new();
+    /// <summary>Permission names granted directly to this user (checkbox privileges).</summary>
+    public List<string> SelectedPermissions { get; set; } = new();
 
     // Populated for the form
     public List<TenantOption> Tenants { get; set; } = new();
-    public List<string> AllRoles { get; set; } = new();
     public bool CanChooseTenant { get; set; }
 }
 
@@ -114,19 +113,20 @@ public class EditUserViewModel
     [Display(Name = "رقم الهاتف (للدخول)")]
     public string Phone { get; set; } = string.Empty;
 
-    [Required(ErrorMessage = "البريد الإلكتروني مطلوب")]
     [EmailAddress(ErrorMessage = "بريد إلكتروني غير صالح")]
-    [Display(Name = "البريد الإلكتروني (للدخول)")]
-    public string Email { get; set; } = string.Empty;
+    [Display(Name = "البريد الإلكتروني (اختياري)")]
+    public string? Email { get; set; }
 
     [Display(Name = "الحساب مفعّل")]
     public bool IsActive { get; set; }
 
-    [Display(Name = "الأدوار")]
-    public List<string> SelectedRoles { get; set; } = new();
+    /// <summary>Permission names granted directly to this user (checkbox privileges).</summary>
+    public List<string> SelectedPermissions { get; set; } = new();
 
-    public List<string> AllRoles { get; set; } = new();
     public string TenantName { get; set; } = string.Empty;
+
+    /// <summary>SuperAdmin users hold every privilege implicitly; the checkbox grid is hidden for them.</summary>
+    public bool IsSuperAdmin { get; set; }
 }
 
 public class ResetPasswordViewModel

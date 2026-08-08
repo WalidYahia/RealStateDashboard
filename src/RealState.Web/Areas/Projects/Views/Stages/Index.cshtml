@@ -1,0 +1,93 @@
+@model List<ProjectStage>
+@{
+    var project = (Project)ViewBag.Project;
+    ViewData["Title"] = $"مراحل: {project.Name}";
+    var activityCounts = ViewBag.ActivityCounts as Dictionary<Guid, int> ?? new();
+    string D(DateTime? d) => d?.ToString("yyyy/MM/dd") ?? "—";
+    bool Delayed(DateTime? p, DateTime? a) => p.HasValue && a.HasValue && a.Value.Date > p.Value.Date;
+    (string L, string C) Status(ProjectStage s) =>
+        s.ActualEndDate.HasValue ? ("مكتملة", "var(--good)")
+        : s.ActualStartDate.HasValue ? ("قيد التنفيذ", "var(--series-1)")
+        : ("لم تبدأ", "var(--muted)");
+}
+
+<div class="page-head">
+    <div>
+        <h1>مراحل المشروع</h1>
+        <p style="color:var(--muted);margin:2px 0 0;"><span class="proj-code">#@project.Code</span> @project.Name</p>
+    </div>
+    <div style="display:flex;gap:8px;">
+        <a class="btn-sm" asp-controller="Projects" asp-action="Details" asp-route-id="@project.Id">رجوع للمشروع</a>
+        @if (User.Can(PermissionNames.ProjectsCreate))
+        {
+            <button type="button" class="btn-new-tenant" onclick="appOpenModal('@Url.Action("Form", new { projectId = project.Id })', 'مرحلة جديدة')">➕ مرحلة جديدة</button>
+        }
+    </div>
+</div>
+
+@if (TempData["StatusMessage"] is string status)
+{
+    <div class="status-message">@status</div>
+}
+
+<div class="card-tile">
+    <table class="rs-table">
+        <thead><tr><th>المرحلة</th><th>الحالة</th><th>بداية (مخطط/فعلي)</th><th>نهاية (مخطط/فعلي)</th><th>الأنشطة</th><th></th></tr></thead>
+        <tbody>
+        @foreach (var s in Model)
+        {
+            var st = Status(s);
+            <tr>
+                <td><a asp-action="Details" asp-route-id="@s.Id" style="color:var(--series-1);text-decoration:none;font-weight:600;">@s.Name</a></td>
+                <td><span class="badge-role" style="color:@st.C;border-color:@st.C;">@st.L</span></td>
+                <td>@D(s.PlannedStartDate) / @D(s.ActualStartDate) @if (Delayed(s.PlannedStartDate, s.ActualStartDate)) {<span class="badge-state state-off">تأخر</span>}</td>
+                <td>@D(s.PlannedEndDate) / @D(s.ActualEndDate) @if (Delayed(s.PlannedEndDate, s.ActualEndDate)) {<span class="badge-state state-off">تأخر</span>}</td>
+                <td>@(activityCounts.TryGetValue(s.Id, out var ac) ? ac : 0)</td>
+                <td style="white-space:nowrap;">
+                    @if (User.Can(PermissionNames.ProjectsEdit) && s.ActualStartDate is null)
+                    {
+                        <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("StateForm", new { stageId = s.Id, end = false })', 'بدء المرحلة')">▶ بدء</button>
+                    }
+                    @if (User.Can(PermissionNames.ProjectsEdit) && s.ActualStartDate is not null && s.ActualEndDate is null)
+                    {
+                        <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("StateForm", new { stageId = s.Id, end = true })', 'إنهاء المرحلة')">⏹ إنهاء</button>
+                    }
+                    <a class="btn-sm" asp-action="Details" asp-route-id="@s.Id">التفاصيل</a>
+                    @if (User.Can(PermissionNames.ProjectsEdit))
+                    {
+                        <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("Form", new { projectId = project.Id, id = s.Id })', 'تعديل المرحلة')">تعديل</button>
+                    }
+                    @if (User.Can(PermissionNames.ProjectsDelete))
+                    {
+                        <form asp-action="Delete" method="post" style="display:inline;" data-confirm="حذف المرحلة «@s.Name» وكل أنشطتها؟" data-danger>
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="id" value="@s.Id" /><input type="hidden" name="projectId" value="@project.Id" />
+                            <button type="submit" class="btn-sm btn-danger">حذف</button>
+                        </form>
+                    }
+                </td>
+            </tr>
+        }
+        @if (Model.Count == 0)
+        {
+            <tr><td colspan="6" style="color:var(--muted)">لا توجد مراحل بعد. أضف مرحلة جديدة.</td></tr>
+        }
+        </tbody>
+    </table>
+</div>
+
+@section Scripts {
+    <script>
+        // Pre-save warning when actual dates differ from planned.
+        window.stageDateWarn = function (form) {
+            function val(n) { var el = form.querySelector('[name="' + n + '"]'); return el && el.value ? new Date(el.value) : null; }
+            function days(a, b) { return Math.round((a - b) / 86400000); }
+            var ps = val('PlannedStartDate'), as = val('ActualStartDate'), pe = val('PlannedEndDate'), ae = val('ActualEndDate');
+            var msgs = [];
+            if (ps && as) { var d = days(as, ps); if (d !== 0) msgs.push('فرق البداية: ' + Math.abs(d) + ' يوم ' + (d > 0 ? 'تأخير' : 'تقديم')); }
+            if (pe && ae) { var d2 = days(ae, pe); if (d2 !== 0) msgs.push('فرق النهاية: ' + Math.abs(d2) + ' يوم ' + (d2 > 0 ? 'تأخير' : 'تقديم')); }
+            if (!msgs.length) return null;
+            return 'يوجد فرق بين التواريخ المخططة والفعلية:<br>• ' + msgs.join('<br>• ') + '<br><br>هل تريد حفظ المرحلة؟';
+        };
+    </script>
+}

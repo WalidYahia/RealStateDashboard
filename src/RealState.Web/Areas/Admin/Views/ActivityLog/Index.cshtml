@@ -1,0 +1,61 @@
+@using System.Globalization
+@using RealState.Application.Activity
+@model ActivityLogVm
+@{
+    ViewData["Title"] = "سجل النشاط";
+    string DT(DateTime d) => d.ToString("yyyy/MM/dd HH:mm", CultureInfo.InvariantCulture);
+    string? F(DateTime? d) => d?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+    string TypeClass(string t) => t switch
+    {
+        "Delete" => "state-off",
+        "Create" => "state-on",
+        "Login" or "Logout" => "",
+        _ => ""
+    };
+}
+
+<div class="page-head">
+    <h1>سجل نشاط المستخدمين</h1>
+</div>
+
+<div class="card-tile" style="margin-bottom:12px;">
+    <form asp-action="Index" method="get" style="display:flex;gap:10px;align-items:end;flex-wrap:wrap;">
+        <div><label class="form-label">من</label><input type="date" name="from" value="@F(Model.From)" class="form-control" style="margin:0;" dir="ltr" /></div>
+        <div><label class="form-label">إلى</label><input type="date" name="to" value="@F(Model.To)" class="form-control" style="margin:0;" dir="ltr" /></div>
+        <div style="min-width:180px;">
+            <label class="form-label">المستخدم</label>
+            <select name="userId" class="form-control" style="margin:0;" asp-items="Model.Users"><option value="">— الكل —</option></select>
+        </div>
+        <div style="min-width:150px;">
+            <label class="form-label">نوع الإجراء</label>
+            <select name="actionType" class="form-control" style="margin:0;" asp-items="Model.ActionTypes"><option value="">— الكل —</option></select>
+        </div>
+        <button type="submit" class="btn-primary" style="width:auto;">تصفية</button>
+        <a class="btn-sm" asp-action="Index">إعادة تعيين</a>
+        <span style="color:var(--muted);font-size:13px;align-self:center;">النتائج: <strong>@Model.Rows.Count</strong></span>
+    </form>
+</div>
+
+<div class="card-tile">
+    <table class="rs-table">
+        <thead>
+            <tr><th>التاريخ/الوقت</th><th>المستخدم</th><th>النوع</th><th>الوصف</th><th>IP</th></tr>
+        </thead>
+        <tbody>
+        @foreach (var r in Model.Rows)
+        {
+            <tr>
+                <td dir="ltr" style="text-align:right;white-space:nowrap;">@DT(r.Timestamp)</td>
+                <td>@r.UserName</td>
+                <td><span class="badge-state @TypeClass(r.ActionType)">@ActivityActionType.Ar(r.ActionType)</span></td>
+                <td>@(string.IsNullOrWhiteSpace(r.Description) ? ActivityActionType.Describe(r.ActionType, r.Controller) : r.Description)</td>
+                <td dir="ltr" style="text-align:right;color:var(--muted);font-size:12px;">@r.IpAddress</td>
+            </tr>
+        }
+        @if (Model.Rows.Count == 0)
+        {
+            <tr><td colspan="5" style="color:var(--muted)">لا توجد سجلات مطابقة.</td></tr>
+        }
+        </tbody>
+    </table>
+</div>

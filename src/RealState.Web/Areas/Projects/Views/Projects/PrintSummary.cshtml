@@ -1,0 +1,59 @@
+@model ProjectDetailsVm
+@{
+    Layout = null;
+    var p = Model.Project;
+    string D(DateTime? d) => d?.ToString("yyyy/MM/dd") ?? "—";
+    string N(decimal v) => v.ToString("N0", new System.Globalization.CultureInfo("ar-EG"));
+}
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="utf-8" />
+    <title>ملخص المشروع - @p.Name</title>
+    <partial name="_PrintStyles" />
+</head>
+<body>
+    <div class="no-print"><button onclick="window.print()">🖨 طباعة / حفظ PDF</button></div>
+    <h1>ملخص المشروع: @p.Name</h1>
+    <div class="sub">الكود #@p.Code · @p.Type.Ar() · تاريخ التقرير @DateTime.Now.ToString("yyyy/MM/dd HH:mm")</div>
+
+    <h2>البيانات الأساسية</h2>
+    <table class="kv">
+        <tr><th>الاسم</th><td>@p.Name</td></tr>
+        <tr><th>الكود</th><td>@p.Code</td></tr>
+        <tr><th>النوع</th><td>@p.Type.Ar()</td></tr>
+        <tr><th>الموقع</th><td>@(string.IsNullOrEmpty(p.Location) ? "—" : p.Location)</td></tr>
+        <tr><th>البداية (مخطط / فعلي)</th><td>@D(p.PlannedStartDate) / @D(p.ActualStartDate)</td></tr>
+        <tr><th>النهاية (مخطط / فعلي)</th><td>@D(p.PlannedEndDate) / @D(p.ActualEndDate)</td></tr>
+        <tr><th>المرحلة الحالية</th><td>@(Model.CurrentStage?.Name ?? "—")</td></tr>
+        <tr><th>إجمالي المصروفات</th><td>@N(Model.TotalExpenses) ج.م @(Model.LastExpenseDate.HasValue ? $"(آخر مصروف {Model.LastExpenseDate:yyyy/MM/dd})" : "")</td></tr>
+        <tr><th>ملاحظات</th><td>@(string.IsNullOrEmpty(p.Notes) ? "—" : p.Notes)</td></tr>
+    </table>
+
+    @if (Model.HasUnits)
+    {
+        <h2>الوحدات (@Model.UnitsTotal)</h2>
+        <p>مباعة: @Model.UnitsSold · متاحة: @Model.UnitsAvailable · غير جاهزة: @Model.UnitsNotReady</p>
+    }
+
+    @if (Model.DelayedStageNotes.Count > 0)
+    {
+        <h2>تنبيهات التأخير</h2>
+        <ul>@foreach (var n in Model.DelayedStageNotes) { <li>@n</li> }</ul>
+    }
+
+    <h2>المراحل (@Model.Stages.Count)</h2>
+    <table>
+        <thead><tr><th>المرحلة</th><th>بداية (مخطط/فعلي)</th><th>نهاية (مخطط/فعلي)</th></tr></thead>
+        <tbody>
+        @foreach (var s in Model.Stages)
+        {
+            <tr><td>@s.Name</td><td>@D(s.PlannedStartDate) / @D(s.ActualStartDate)</td><td>@D(s.PlannedEndDate) / @D(s.ActualEndDate)</td></tr>
+        }
+        @if (Model.Stages.Count == 0) { <tr><td colspan="3" class="muted">لا توجد مراحل.</td></tr> }
+        </tbody>
+    </table>
+
+    <script>window.addEventListener('load', function () { setTimeout(function () { window.print(); }, 400); });</script>
+</body>
+</html>

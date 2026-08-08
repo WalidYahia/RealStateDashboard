@@ -34,6 +34,7 @@ public class ApplicationDbContext
     public DbSet<RolePermission> RolePermissions => Set<RolePermission>();
     public DbSet<Setting> Settings => Set<Setting>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+    public DbSet<ActivityLog> ActivityLogs => Set<ActivityLog>();
 
     public DbSet<Country> Countries => Set<Country>();
     public DbSet<City> Cities => Set<City>();
@@ -43,6 +44,23 @@ public class ApplicationDbContext
     public DbSet<Project> Projects => Set<Project>();
     public DbSet<Customer> Customers => Set<Customer>();
     public DbSet<Lead> Leads => Set<Lead>();
+    public DbSet<Campaign> Campaigns => Set<Campaign>();
+    public DbSet<CampaignUpdate> CampaignUpdates => Set<CampaignUpdate>();
+    public DbSet<Employee> Employees => Set<Employee>();
+    public DbSet<SaleContract> SaleContracts => Set<SaleContract>();
+    public DbSet<Installment> Installments => Set<Installment>();
+    public DbSet<Safe> Safes => Set<Safe>();
+    public DbSet<SafeTransaction> SafeTransactions => Set<SafeTransaction>();
+    public DbSet<Supplier> Suppliers => Set<Supplier>();
+    public DbSet<SupplierOrder> SupplierOrders => Set<SupplierOrder>();
+    public DbSet<SupplierOrderItem> SupplierOrderItems => Set<SupplierOrderItem>();
+    public DbSet<SupplierPayment> SupplierPayments => Set<SupplierPayment>();
+    public DbSet<StageDefinition> StageDefinitions => Set<StageDefinition>();
+    public DbSet<ProjectStage> ProjectStages => Set<ProjectStage>();
+    public DbSet<StageActivity> StageActivities => Set<StageActivity>();
+    public DbSet<StageExpense> StageExpenses => Set<StageExpense>();
+    public DbSet<ProjectUnit> ProjectUnits => Set<ProjectUnit>();
+    public DbSet<ProjectAttachment> ProjectAttachments => Set<ProjectAttachment>();
     public DbSet<SalesInvoice> SalesInvoices => Set<SalesInvoice>();
     public DbSet<PurchaseInvoice> PurchaseInvoices => Set<PurchaseInvoice>();
     public DbSet<Income> Incomes => Set<Income>();
@@ -84,8 +102,29 @@ public class ApplicationDbContext
             entityType.SetQueryFilter(BuildTenantFilter(entityType.ClrType));
         }
 
+        builder.Entity<ActivityLog>().HasIndex(l => l.Timestamp);
+        builder.Entity<ActivityLog>().HasIndex(l => l.UserId);
+
         builder.Entity<Permission>().HasIndex(p => p.Name).IsUnique();
         builder.Entity<RolePermission>().HasIndex(rp => new { rp.RoleId, rp.PermissionId }).IsUnique();
+
+        // Sale contract references three parents — avoid multiple SQL Server cascade paths; deletes are handled in code.
+        builder.Entity<SaleContract>().HasOne(s => s.Customer).WithMany().HasForeignKey(s => s.CustomerId).OnDelete(DeleteBehavior.Restrict);
+        builder.Entity<SaleContract>().HasOne(s => s.Project).WithMany().HasForeignKey(s => s.ProjectId).OnDelete(DeleteBehavior.Restrict);
+        builder.Entity<SaleContract>().HasOne(s => s.Unit).WithMany().HasForeignKey(s => s.UnitId).OnDelete(DeleteBehavior.Restrict);
+        builder.Entity<Installment>().HasOne(i => i.SaleContract).WithMany(s => s.Installments).HasForeignKey(i => i.SaleContractId).OnDelete(DeleteBehavior.Cascade);
+
+        builder.Entity<SafeTransaction>().HasOne(t => t.Safe).WithMany().HasForeignKey(t => t.SafeId).OnDelete(DeleteBehavior.Restrict);
+        builder.Entity<SafeTransaction>().HasOne(t => t.Project).WithMany().HasForeignKey(t => t.ProjectId).OnDelete(DeleteBehavior.Restrict);
+
+        // Supplier orders reference a supplier and (optionally) a project — restrict to avoid multiple
+        // cascade paths; items cascade with their order, payments/safe are restricted (handled in code).
+        builder.Entity<SupplierOrder>().HasOne(o => o.Supplier).WithMany().HasForeignKey(o => o.SupplierId).OnDelete(DeleteBehavior.Restrict);
+        builder.Entity<SupplierOrder>().HasOne(o => o.Project).WithMany().HasForeignKey(o => o.ProjectId).OnDelete(DeleteBehavior.Restrict);
+        builder.Entity<SupplierOrderItem>().HasOne(i => i.Order).WithMany(o => o.Items).HasForeignKey(i => i.SupplierOrderId).OnDelete(DeleteBehavior.Cascade);
+        builder.Entity<SupplierPayment>().HasOne(p => p.Supplier).WithMany().HasForeignKey(p => p.SupplierId).OnDelete(DeleteBehavior.Restrict);
+        builder.Entity<SupplierPayment>().HasOne(p => p.Order).WithMany(o => o.Payments).HasForeignKey(p => p.SupplierOrderId).OnDelete(DeleteBehavior.Restrict);
+        builder.Entity<SupplierPayment>().HasOne<Safe>().WithMany().HasForeignKey(p => p.SafeId).OnDelete(DeleteBehavior.Restrict);
     }
 
     /// <summary>Builds `e =&gt; !e.IsDeleted &amp;&amp; e.TenantId == currentTenant` for a tenant entity type.</summary>

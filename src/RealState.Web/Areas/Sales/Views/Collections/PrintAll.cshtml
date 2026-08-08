@@ -1,0 +1,47 @@
+@model List<CollectionRow>
+@{
+    Layout = null;
+    var tenantId = (Guid)ViewBag.TenantId;
+    string N(decimal v) => v.ToString("N0", new System.Globalization.CultureInfo("ar-EG"));
+    var groups = Model.GroupBy(r => r.CustomerName).OrderBy(g => g.Key);
+}
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="utf-8" />
+    <title>تقرير التحصيلات</title>
+    <style>
+        body { font-family: "Segoe UI", Tahoma, sans-serif; padding: 24px; color: #111; }
+        .brand { text-align: center; margin-bottom: 6px; } .brand img { max-height: 64px; }
+        h1 { font-size: 19px; text-align: center; margin: 4px 0; }
+        .sub { text-align: center; color: #666; font-size: 12px; margin-bottom: 16px; }
+        h2 { font-size: 14px; margin: 16px 0 6px; }
+        table { width: 100%; border-collapse: collapse; font-size: 12.5px; margin-bottom: 6px; }
+        th, td { border: 1px solid #ccc; padding: 6px 7px; text-align: start;  unicode-bidi: plaintext; }
+        th { background: #f2f2f2; }
+        .no-print { margin-bottom: 12px; } @@media print { .no-print { display: none; } }
+    </style>
+</head>
+<body>
+    <div class="no-print"><button onclick="window.print()">🖨 طباعة / حفظ PDF</button></div>
+    <div class="brand"><img src="@Url.Action("Logo", "Branding", new { area = "", id = tenantId })" alt="logo" onerror="this.style.display='none'" /></div>
+    <h1>تقرير التحصيلات</h1>
+    <div class="sub">@DateTime.Now.ToString("yyyy/MM/dd HH:mm")</div>
+
+    @foreach (var g in groups)
+    {
+        var total = g.Sum(x => x.Amount); var paid = g.Sum(x => x.PaidAmount);
+        <h2>@g.Key — الإجمالي @N(total) · المدفوع @N(paid) · المتبقي @N(total - paid) ج.م</h2>
+        <table>
+            <thead><tr><th>العقد</th><th>القسط</th><th>الاستحقاق</th><th>القيمة</th><th>المدفوع</th><th>الحالة</th></tr></thead>
+            <tbody>
+            @foreach (var r in g.OrderBy(x => x.DueDate))
+            {
+                <tr><td>@r.ContractCode</td><td>@ArabicLabels.InstNo(r.Number)</td><td>@r.DueDate.ToString("yyyy/MM/dd")</td><td>@N(r.Amount)</td><td>@N(r.PaidAmount)</td><td>@r.Status.Ar()</td></tr>
+            }
+            </tbody>
+        </table>
+    }
+    <script>window.addEventListener('load', function () { setTimeout(function () { window.print(); }, 500); });</script>
+</body>
+</html>

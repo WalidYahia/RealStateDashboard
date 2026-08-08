@@ -1,0 +1,91 @@
+@model SupplierStatementVm
+@{
+    ViewData["Title"] = $"كشف حساب {Model.Supplier.Name}";
+    var canPay = ViewData["CanPay"] as bool? ?? false;
+    string N(decimal v) => v.ToString("N0", new System.Globalization.CultureInfo("ar-EG"));
+    string D(DateTime d) => d.ToString("yyyy/MM/dd", System.Globalization.CultureInfo.InvariantCulture);
+    string? F(DateTime? d) => d?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+}
+<div class="page-head">
+    <div>
+        <h1>كشف حساب — @Model.Supplier.Name</h1>
+        <p style="color:var(--muted);margin:2px 0 0;">@Model.Supplier.Phone @(string.IsNullOrEmpty(Model.Supplier.Email) ? "" : "· " + Model.Supplier.Email)</p>
+    </div>
+    <div style="display:flex;gap:8px;">
+        <a class="btn-sm" asp-controller="Suppliers" asp-action="Index">رجوع</a>
+        <a class="btn-sm" asp-controller="Orders" asp-action="Index">أوامر التوريد</a>
+        @if (canPay && Model.HasPayableOrders)
+        {
+            <button type="button" class="btn-new-tenant" onclick="appOpenModal('@Url.Action("PayForm", new { id = Model.Supplier.Id })', 'سداد دفعة للمورد')">💵 سداد دفعة</button>
+        }
+        <a class="btn-new-tenant" asp-controller="Suppliers" asp-action="PrintStatement" asp-route-id="@Model.Supplier.Id" asp-route-from="@F(Model.From)" asp-route-to="@F(Model.To)" target="_blank">🖨 طباعة كشف الحساب</a>
+    </div>
+</div>
+
+@if (TempData["StatusMessage"] is string status)
+{
+    <div class="status-message">@status</div>
+}
+
+<div class="kpi-grid" style="grid-template-columns: repeat(3, 1fr);">
+    <div class="kpi k-reserve"><div class="kpi-label">إجمالي المستحقات</div><div class="kpi-value">@N(Model.TotalObligations) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">@Model.OrdersCount أمر توريد</div></div>
+    <div class="kpi k-collect"><div class="kpi-label">المسدَّد</div><div class="kpi-value">@N(Model.TotalPaid) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">@Model.PaymentsCount دفعة</div></div>
+    <div class="kpi k-alerts"><div class="kpi-label">المتبقي</div><div class="kpi-value">@N(Model.TotalRemaining) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">مستحق الدفع للمورد</div></div>
+</div>
+
+<div class="card-tile" style="margin-bottom:12px;">
+    <form asp-action="Details" asp-route-id="@Model.Supplier.Id" method="get" style="display:flex;gap:10px;align-items:end;flex-wrap:wrap;">
+        <div><label class="form-label">من</label><input type="date" name="from" value="@F(Model.From)" class="form-control" style="margin:0;" dir="ltr" /></div>
+        <div><label class="form-label">إلى</label><input type="date" name="to" value="@F(Model.To)" class="form-control" style="margin:0;" dir="ltr" /></div>
+        <button type="submit" class="btn-primary" style="width:auto;">بحث</button>
+        <a class="btn-sm" asp-action="Details" asp-route-id="@Model.Supplier.Id" asp-route-from="2000-01-01" asp-route-to="2100-01-01">كل الحركات</a>
+    </form>
+</div>
+
+<div class="card-tile">
+    <table class="rs-table">
+        <thead><tr><th>المصدر</th><th>التاريخ</th><th>البيان</th><th>رصيد قبل</th><th>المبلغ</th><th>الرصيد</th></tr></thead>
+        <tbody>
+        @foreach (var r in Model.Rows)
+        {
+            var isPay = r.Kind == SupplierLedgerKind.Payment;
+            <tr>
+                <td>@r.Source</td>
+                <td dir="ltr" style="text-align:right;">@D(r.Date)</td>
+                <td>
+                    @r.Statement
+                    @if (isPay)
+                    {
+                        <a class="btn-sm" asp-controller="Orders" asp-action="Receipt" asp-route-id="@r.Id" target="_blank" style="margin-inline-start:8px;">🖨 طباعة</a>
+                    }
+                </td>
+                <td style="white-space:nowrap;color:var(--muted);">@N(r.BalanceBefore)</td>
+                <td style="color:@(isPay ? "var(--good)" : "var(--critical)");white-space:nowrap;">@(isPay ? "−" : "+")@N(r.Amount)</td>
+                <td style="font-weight:600;white-space:nowrap;">@N(r.Balance)</td>
+            </tr>
+        }
+        @if (!Model.HasEntries)
+        {
+            <tr><td colspan="6" style="color:var(--muted)">لا توجد حركات في هذه الفترة.</td></tr>
+        }
+        </tbody>
+        <tfoot>
+            <tr>
+                <td colspan="5" style="text-align:start;font-weight:700;">الرصيد الختامي للفترة</td>
+                <td style="font-weight:800;white-space:nowrap;">@N(Model.ClosingBalance) ج.م</td>
+            </tr>
+        </tfoot>
+    </table>
+</div>
+
+@section Scripts {
+    <script>
+        // In the pay modal: when an order is picked, cap + prefill the amount with that order's remaining.
+        window.supplierPayPick = function (sel) {
+            var opt = sel.options[sel.selectedIndex];
+            var rem = opt ? parseFloat(opt.getAttribute('data-remaining')) : 0;
+            var amt = document.getElementById('supPayAmount');
+            if (amt && !isNaN(rem)) { amt.max = rem; amt.value = 0; }
+        };
+    </script>
+}

@@ -23,23 +23,167 @@
         <aside class="sidebar">
             @await Component.InvokeAsync("Brand")
             <nav class="side-nav">
-                <a class="nav-link @NavActive("Dashboard")" asp-area="" asp-controller="Dashboard" asp-action="Index"><span>🏠</span> الرئيسية</a>
+                @if (Can(PermissionNames.DashboardView))
+                {
+                    <a class="nav-link @NavActive("Dashboard")" asp-area="" asp-controller="Dashboard" asp-action="Index"><span>🏠</span> الرئيسية</a>
+                }
+                @if (Can(PermissionNames.CampaignsView))
+                {
+                    <a class="nav-link @NavActive("Campaigns")" asp-area="Marketing" asp-controller="Campaigns" asp-action="Index"><span>📣</span> التسويق</a>
+                }
+                @{
+                    var curCtrl = ViewContext.RouteData.Values["controller"]?.ToString();
+                    var curAction = ViewContext.RouteData.Values["action"]?.ToString();
+                    var projOpen = curCtrl == "Projects";
+                    var setOpen = curCtrl == "Account" || curCtrl == "StageDefinitions" || curCtrl == "Settings" || curCtrl == "ActivityLog";
+                    var salesOpen = curCtrl is "Sales" or "Customers" or "Salespersons" or "Collections";
+                    var canSalespersons = Can(PermissionNames.SalespersonsView);
+                    var canCustomers = Can(PermissionNames.CustomersView);
+                    var canSalesContracts = Can(PermissionNames.SalesView);
+                    var canCollections = Can(PermissionNames.CollectionsView);
+                    // Parent "المبيعات" points to the sales summary — highlight it only on the summary itself,
+                    // so opening it doesn't also focus the "عقود البيع" sub-item.
+                    var salesSummaryActive = curCtrl == "Sales" && (curAction == "Summary" || curAction == "SummaryPrint");
+                    var salesContractsActive = curCtrl == "Sales" && !salesSummaryActive;
+                }
+                @if (canSalespersons || canCustomers || canSalesContracts || canCollections)
+                {
+                    <div class="nav-group @(salesOpen ? "open" : "")">
+                        <div class="nav-parent">
+                            @if (canSalesContracts)
+                            {
+                                <a class="nav-link @(salesSummaryActive ? "active" : "")" asp-area="Sales" asp-controller="Sales" asp-action="Summary"><span>🛒</span> المبيعات</a>
+                            }
+                            else
+                            {
+                                <a class="nav-link" href="javascript:" onclick="toggleNavGroup(this)"><span>🛒</span> المبيعات</a>
+                            }
+                            <button type="button" class="nav-caret" onclick="toggleNavGroup(this)">▾</button>
+                        </div>
+                        <div class="subnav">
+                            @if (canSalespersons)
+                            {
+                                <a class="subnav-link @NavActive("Salespersons")" asp-area="CRM" asp-controller="Salespersons" asp-action="Index">المناديب</a>
+                            }
+                            @if (canCustomers)
+                            {
+                                <a class="subnav-link @NavActive("Customers")" asp-area="CRM" asp-controller="Customers" asp-action="Index">العملاء</a>
+                            }
+                            @if (canSalesContracts)
+                            {
+                                <a class="subnav-link @(salesContractsActive ? "active" : "")" asp-area="Sales" asp-controller="Sales" asp-action="Index">المبيعات (عقود البيع)</a>
+                            }
+                            @if (canCollections)
+                            {
+                                <a class="subnav-link @NavActive("Collections")" asp-area="Sales" asp-controller="Collections" asp-action="Index">تحصيلات المبيعات</a>
+                            }
+                        </div>
+                    </div>
+                }
+                @if (Can(PermissionNames.ProjectsView))
+                {
+                    <div class="nav-group @(projOpen ? "open" : "")">
+                        <div class="nav-parent">
+                            <a class="nav-link @NavActive("Projects")" asp-area="Projects" asp-controller="Projects" asp-action="Index"><span>🏗️</span> المشاريع</a>
+                            <button type="button" class="nav-caret" onclick="toggleNavGroup(this)">▾</button>
+                        </div>
+                        <div class="subnav">
+                            @await Component.InvokeAsync("ProjectsMenu")
+                        </div>
+                    </div>
+                }
+                @{
+                    var supArea = ViewContext.RouteData.Values["area"]?.ToString();
+                    var supCtrl = ViewContext.RouteData.Values["controller"]?.ToString();
+                    var supOpen = supArea == "Suppliers";
+                }
+                @if (Can(PermissionNames.SuppliersView))
+                {
+                    <div class="nav-group @(supOpen ? "open" : "")">
+                        <div class="nav-parent">
+                            <a class="nav-link @(supOpen ? "active" : "")" href="javascript:" onclick="toggleNavGroup(this)"><span>🚚</span> الموردون والمقاولون</a>
+                            <button type="button" class="nav-caret" onclick="toggleNavGroup(this)">▾</button>
+                        </div>
+                        <div class="subnav">
+                            <a class="subnav-link @(supOpen && supCtrl == "Suppliers" ? "active" : "")" asp-area="Suppliers" asp-controller="Suppliers" asp-action="Index">قائمة الموردين</a>
+                            <a class="subnav-link @(supOpen && supCtrl == "Orders" ? "active" : "")" asp-area="Suppliers" asp-controller="Orders" asp-action="Index">أوامر التوريد</a>
+                        </div>
+                    </div>
+                }
+                @{
+                    var accCtrl = ViewContext.RouteData.Values["controller"]?.ToString();
+                    var accOpen = accCtrl is "Safes" or "Expenses" or "Incomes";
+                    var canSafes = Can(PermissionNames.SafesView);
+                    var canExpenses = Can(PermissionNames.ExpensesView);
+                    var canIncomes = Can(PermissionNames.IncomesView);
+                }
+                @if (canSafes || canExpenses || canIncomes)
+                {
+                    <div class="nav-group @(accOpen ? "open" : "")">
+                        <div class="nav-parent">
+                            <a class="nav-link @(accOpen ? "active" : "")" href="javascript:" onclick="toggleNavGroup(this)"><span>📒</span> المالية</a>
+                            <button type="button" class="nav-caret" onclick="toggleNavGroup(this)">▾</button>
+                        </div>
+                        <div class="subnav">
+                            @if (canSafes)
+                            {
+                                <a class="subnav-link @NavActive("Safes")" asp-area="Accounting" asp-controller="Safes" asp-action="Index">الخزائن</a>
+                            }
+                            @if (canExpenses)
+                            {
+                                <a class="subnav-link @NavActive("Expenses")" asp-area="Accounting" asp-controller="Expenses" asp-action="Index">المصروفات</a>
+                            }
+                            @if (canIncomes)
+                            {
+                                <a class="subnav-link @NavActive("Incomes")" asp-area="Accounting" asp-controller="Incomes" asp-action="Index">الإيرادات</a>
+                            }
+                        </div>
+                    </div>
+                }
+                @if (Can(PermissionNames.ReportsView))
+                {
+                    var repCtrl = ViewContext.RouteData.Values["controller"]?.ToString();
+                    var repArea = ViewContext.RouteData.Values["area"]?.ToString();
+                    var repAction = ViewContext.RouteData.Values["action"]?.ToString();
+                    var repOpen = repArea == "Reports";
+                    <div class="nav-group @(repOpen ? "open" : "")">
+                        <div class="nav-parent">
+                            <a class="nav-link @(repOpen ? "active" : "")" href="javascript:" onclick="toggleNavGroup(this)"><span>📑</span> التقارير</a>
+                            <button type="button" class="nav-caret" onclick="toggleNavGroup(this)">▾</button>
+                        </div>
+                        <div class="subnav">
+                            <a class="subnav-link @(repOpen && repAction == "Daily" ? "active" : "")" asp-area="Reports" asp-controller="Reports" asp-action="Daily">التقرير اليومي</a>
+                            <a class="subnav-link @(repOpen && repAction == "Customers" ? "active" : "")" asp-area="Reports" asp-controller="Reports" asp-action="Customers">تقرير العملاء</a>
+                            <a class="subnav-link @(repOpen && repAction == "Suppliers" ? "active" : "")" asp-area="Reports" asp-controller="Reports" asp-action="Suppliers">تقرير الموردين</a>
+                        </div>
+                    </div>
+                }
                 @if (Can(PermissionNames.TenantsManage))
                 {
                     <a class="nav-link @NavActive("Tenants")" asp-area="Admin" asp-controller="Tenants" asp-action="Index"><span>🏙️</span> المؤسسات</a>
                 }
-                @if (Can(PermissionNames.UsersManage))
+                @if (Can(PermissionNames.UsersView))
                 {
                     <a class="nav-link @NavActive("Users")" asp-area="Admin" asp-controller="Users" asp-action="Index"><span>👤</span> المستخدمون</a>
                 }
-                <a class="nav-link" href="#"><span>📣</span> التسويق</a>
-                <a class="nav-link" href="#"><span>🛒</span> المبيعات</a>
-                <a class="nav-link" href="#"><span>🏗️</span> المشاريع</a>
-                <a class="nav-link" href="#"><span>💰</span> التحصيل</a>
-                <a class="nav-link" href="#"><span>💬</span> خدمة العملاء</a>
-                <a class="nav-link" href="#"><span>👥</span> الموارد البشرية</a>
-                <a class="nav-link" href="#"><span>📊</span> التقارير</a>
-                <a class="nav-link @NavActive("Account")" asp-area="" asp-controller="Account" asp-action="ChangePassword"><span>⚙️</span> الإعدادات</a>
+                <div class="nav-group @(setOpen ? "open" : "")">
+                    <div class="nav-parent">
+                        <a class="nav-link @(setOpen ? "active" : "")" href="javascript:" onclick="toggleNavGroup(this)"><span>⚙️</span> الإعدادات</a>
+                        <button type="button" class="nav-caret" onclick="toggleNavGroup(this)">▾</button>
+                    </div>
+                    <div class="subnav">
+                        <a class="subnav-link @NavActive("Account")" asp-area="" asp-controller="Account" asp-action="ChangePassword">تغيير كلمة المرور</a>
+                        @if (Can(PermissionNames.SettingsManage))
+                        {
+                            <a class="subnav-link @NavActive("Settings")" asp-area="" asp-controller="Settings" asp-action="Branding">بيانات المؤسسة</a>
+                            <a class="subnav-link @NavActive("StageDefinitions")" asp-area="Projects" asp-controller="StageDefinitions" asp-action="Index">مراحل المشاريع</a>
+                        }
+                        @if (Can(PermissionNames.ActivityLogView))
+                        {
+                            <a class="subnav-link @NavActive("ActivityLog")" asp-area="Admin" asp-controller="ActivityLog" asp-action="Index">سجل النشاط</a>
+                        }
+                    </div>
+                </div>
             </nav>
         </aside>
         <div class="main">
@@ -49,6 +193,17 @@
                     <p>رئيس مجلس الإدارة</p>
                 </div>
                 <div class="topbar-meta">
+                    @if (User.IsHost())
+                    {
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            <span class="badge-role">مشرف عام</span>
+                            @if (User.HasTenant())
+                            {
+                                <span style="color:var(--text-secondary);font-size:13px;">المؤسسة: <strong>@User.TenantName()</strong></span>
+                            }
+                            <a class="btn-sm" asp-area="" asp-controller="Host" asp-action="SelectTenant">تبديل المؤسسة</a>
+                        </div>
+                    }
                     @if (Can(PermissionNames.TenantsManage))
                     {
                         <a class="btn-new-tenant" asp-area="Admin" asp-controller="Tenants" asp-action="Create">➕ مؤسسة جديدة</a>
@@ -71,6 +226,16 @@
                 @RenderBody()
             </main>
             <partial name="_Footer" />
+
+            <!-- Shared add/edit modal (system-wide) -->
+            <div class="modal fade" id="appModal" tabindex="-1" aria-hidden="true">
+                <div class="modal-dialog modal-dialog-centered modal-lg">
+                    <div class="modal-content mk-modal">
+                        <div class="modal-header"><h5 id="appModalTitle">—</h5><button type="button" class="mk-close" data-bs-dismiss="modal">✕</button></div>
+                        <div class="modal-body" id="appModalBody"></div>
+                    </div>
+                </div>
+            </div>
         </div>
     }
     else
@@ -84,6 +249,12 @@
     <script src="~/lib/jquery/dist/jquery.min.js"></script>
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
     <script src="~/lib/chartjs/chart.umd.min.js"></script>
+    <script src="~/lib/sweetalert2/sweetalert2.all.min.js"></script>
+    <script src="~/js/app-modal.js" asp-append-version="true"></script>
+    @if (TempData["ErrorMessage"] is string appErr)
+    {
+        <script>window.__appError = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(appErr));</script>
+    }
     @await RenderSectionAsync("Scripts", required: false)
 </body>
 </html>

@@ -1,0 +1,53 @@
+@model ProjectFormModel
+<form id="appModalForm" asp-area="Projects" asp-controller="Projects" asp-action="Form" method="post" enctype="multipart/form-data">
+    @Html.AntiForgeryToken()
+    <div asp-validation-summary="ModelOnly" class="validation-summary-errors"></div>
+    <input type="hidden" asp-for="Id" />
+    <input type="hidden" asp-for="HasHeroImage" />
+
+    <div class="form-grid">
+        <div>
+            <label asp-for="Name" class="form-label"></label>
+            <input asp-for="Name" class="form-control" />
+            <span asp-validation-for="Name" class="field-validation-error"></span>
+        </div>
+        <div>
+            <label asp-for="Code" class="form-label"></label>
+            <input asp-for="Code" class="form-control" dir="ltr" autocomplete="off" placeholder="مثال: PRJ-001" />
+            <span asp-validation-for="Code" class="field-validation-error"></span>
+        </div>
+        <div>
+            <label asp-for="Type" class="form-label"></label>
+            <select asp-for="Type" class="form-control" asp-items="RealState.Web.ArabicLabels.ProjectTypeOptions(Model.Type)"></select>
+        </div>
+        <div>
+            <label asp-for="Location" class="form-label"></label>
+            <input asp-for="Location" class="form-control" />
+        </div>
+
+        <div><label asp-for="PlannedStartDate" class="form-label"></label><input asp-for="PlannedStartDate" class="form-control" type="date" dir="ltr" /></div>
+        <div><label asp-for="ActualStartDate" class="form-label"></label><input asp-for="ActualStartDate" class="form-control" type="date" dir="ltr" /></div>
+        <div><label asp-for="PlannedEndDate" class="form-label"></label><input asp-for="PlannedEndDate" class="form-control" type="date" dir="ltr" /></div>
+        <div><label asp-for="ActualEndDate" class="form-label"></label><input asp-for="ActualEndDate" class="form-control" type="date" dir="ltr" /></div>
+
+        <div class="full">
+            <label asp-for="Notes" class="form-label"></label>
+            <textarea asp-for="Notes" class="form-control" rows="2"></textarea>
+        </div>
+
+        <div class="full">
+            <label class="form-label">صورة الغلاف (Hero)</label>
+            @if (Model.HasHeroImage)
+            {
+                <div style="margin-bottom:8px;">
+                    <img class="logo-preview" src="@Url.Action("HeroImage", new { id = Model.Id })" alt="hero" style="max-height:90px;" />
+                    <label class="form-check"><input asp-for="RemoveHeroImage" type="checkbox" /> حذف صورة الغلاف الحالية</label>
+                </div>
+            }
+            <input type="file" name="heroImage" accept="image/*" class="form-control" />
+            <span class="field-validation-error">@Html.ValidationMessage("heroImage")</span>
+        </div>
+    </div>
+
+    <button type="submit" class="btn-primary" style="margin-top:12px;">💾 حفظ المشروع</button>
+</form>

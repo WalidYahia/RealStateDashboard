@@ -1,0 +1,79 @@
+@model SupplierOrder
+@{
+    ViewData["Title"] = $"أمر توريد PO-{Model.Number:D4}";
+    var canPay = ViewData["CanPay"] as bool? ?? false;
+    string N(decimal v) => v.ToString("N0", new System.Globalization.CultureInfo("ar-EG"));
+    string D(DateTime d) => d.ToString("yyyy/MM/dd", System.Globalization.CultureInfo.InvariantCulture);
+    var total = Model.Items.Sum(i => i.Cost);
+    var paid = Model.Payments.Sum(p => p.Amount);
+    var remaining = total - paid;
+}
+<div class="page-head">
+    <div>
+        <h1>أمر توريد <span class="proj-code">PO-@Model.Number.ToString("D4")</span></h1>
+        <p style="color:var(--muted);margin:2px 0 0;">@Model.Supplier?.Name · @(Model.Project?.Name ?? "بدون مشروع") · @D(Model.OrderDate)</p>
+    </div>
+    <div style="display:flex;gap:8px;">
+        <a class="btn-sm" asp-action="Index">رجوع</a>
+        @if (Model.Supplier is not null)
+        {
+            <a class="btn-sm" asp-controller="Suppliers" asp-action="Details" asp-route-id="@Model.SupplierId">كشف حساب المورد</a>
+        }
+        @if (canPay && remaining > 0)
+        {
+            <button type="button" class="btn-new-tenant" onclick="appOpenModal('@Url.Action("Pay", new { id = Model.Id })', 'سداد دفعة على الأمر')">💵 سداد دفعة</button>
+        }
+        <a class="btn-new-tenant" asp-action="PrintOrder" asp-route-id="@Model.Id" target="_blank">🖨 طباعة الأمر (PDF)</a>
+    </div>
+</div>
+
+@if (TempData["StatusMessage"] is string status)
+{
+    <div class="status-message">@status</div>
+}
+
+<div class="kpi-grid" style="grid-template-columns: repeat(3, 1fr);">
+    <div class="kpi k-reserve"><div class="kpi-label">إجمالي الأمر</div><div class="kpi-value">@N(total) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">@Model.Items.Count بند</div></div>
+    <div class="kpi k-collect"><div class="kpi-label">المسدَّد</div><div class="kpi-value">@N(paid) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">@Model.Payments.Count دفعة</div></div>
+    <div class="kpi k-alerts"><div class="kpi-label">المتبقي</div><div class="kpi-value">@N(remaining) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">مستحق الدفع</div></div>
+</div>
+
+<div class="card-tile" style="margin-bottom:14px;">
+    <div class="card-head"><h3>البنود</h3></div>
+    <table class="rs-table">
+        <thead><tr><th>البند</th><th>التكلفة</th></tr></thead>
+        <tbody>
+        @foreach (var it in Model.Items)
+        {
+            <tr><td>@it.Name</td><td>@N(it.Cost)</td></tr>
+        }
+        </tbody>
+        <tfoot><tr><th>الإجمالي</th><th>@N(total) ج.م</th></tr></tfoot>
+    </table>
+    @if (!string.IsNullOrWhiteSpace(Model.Notes))
+    {
+        <p style="color:var(--muted);margin-top:10px;">ملاحظات: @Model.Notes</p>
+    }
+</div>
+
+<div class="card-tile">
+    <div class="card-head"><h3>الدفعات</h3></div>
+    <table class="rs-table">
+        <thead><tr><th>إيصال الدفع</th><th>التاريخ</th><th>المبلغ</th><th></th></tr></thead>
+        <tbody>
+        @foreach (var p in Model.Payments)
+        {
+            <tr>
+                <td dir="ltr" style="text-align:right;">P-@p.ReceiptNo.ToString("D5")</td>
+                <td dir="ltr" style="text-align:right;">@D(p.PaidDate)</td>
+                <td class="tag-up">@N(p.Amount)</td>
+                <td><a class="btn-sm" asp-action="Receipt" asp-route-id="@p.Id" target="_blank">🖨 إيصال دفع</a></td>
+            </tr>
+        }
+        @if (Model.Payments.Count == 0)
+        {
+            <tr><td colspan="4" style="color:var(--muted)">لا توجد دفعات بعد.</td></tr>
+        }
+        </tbody>
+    </table>
+</div>

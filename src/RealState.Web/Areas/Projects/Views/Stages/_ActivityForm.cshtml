@@ -1,0 +1,19 @@
+@model ActivityFormModel
+<form id="appModalForm" asp-area="Projects" asp-controller="Stages" asp-action="ActivityForm" method="post">
+    @Html.AntiForgeryToken()
+    <div asp-validation-summary="ModelOnly" class="validation-summary-errors"></div>
+    <input type="hidden" asp-for="StageId" />
+    <div class="form-grid">
+        <div>
+            <label asp-for="Date" class="form-label"></label>
+            <input asp-for="Date" class="form-control" type="date" dir="ltr" />
+            <span asp-validation-for="Date" class="field-validation-error"></span>
+        </div>
+        <div class="full">
+            <label asp-for="Activity" class="form-label"></label>
+            <textarea asp-for="Activity" class="form-control" rows="2"></textarea>
+            <span asp-validation-for="Activity" class="field-validation-error"></span>
+        </div>
+    </div>
+    <button type="submit" class="btn-primary" style="margin-top:12px;">💾 حفظ</button>
+</form>

@@ -1,0 +1,90 @@
+@model ProjectStage
+@{
+    var project = (Project)ViewBag.Project;
+    var activities = ViewBag.Activities as List<StageActivity> ?? new();
+    ViewData["Title"] = $"مرحلة: {Model.Name}";
+    string D(DateTime? d) => d?.ToString("yyyy/MM/dd") ?? "—";
+    bool Delayed(DateTime? p, DateTime? a) => p.HasValue && a.HasValue && a.Value.Date > p.Value.Date;
+    (string L, string C) Status(ProjectStage s) =>
+        s.ActualEndDate.HasValue ? ("مكتملة", "var(--good)")
+        : s.ActualStartDate.HasValue ? ("قيد التنفيذ", "var(--series-1)")
+        : ("لم تبدأ", "var(--muted)");
+    var st = Status(Model);
+    var canEdit = User.Can(PermissionNames.ProjectsEdit);
+}
+
+<div class="page-head">
+    <div>
+        <h1>@Model.Name <span class="badge-role" style="color:@st.C;border-color:@st.C;">@st.L</span></h1>
+        <p style="color:var(--muted);margin:2px 0 0;"><span class="proj-code">#@project.Code</span> @project.Name</p>
+    </div>
+    <div style="display:flex;gap:8px;">
+        @if (canEdit && Model.ActualStartDate is null)
+        {
+            <button type="button" class="btn-new-tenant" onclick="appOpenModal('@Url.Action("StateForm", new { stageId = Model.Id, end = false })', 'بدء المرحلة')">▶ بدء المرحلة</button>
+        }
+        @if (canEdit && Model.ActualStartDate is not null && Model.ActualEndDate is null)
+        {
+            <button type="button" class="btn-new-tenant" onclick="appOpenModal('@Url.Action("StateForm", new { stageId = Model.Id, end = true })', 'إنهاء المرحلة')">⏹ إنهاء المرحلة</button>
+        }
+        <a class="btn-sm" asp-action="PrintStage" asp-route-id="@Model.Id" target="_blank">🖨 طباعة المرحلة (PDF)</a>
+        <a class="btn-sm" href="@(Url.Action("Details", "Projects", new { area = "Projects", id = project.Id }))#stages">رجوع للمشروع</a>
+    </div>
+</div>
+
+@if (TempData["StatusMessage"] is string status)
+{
+    <div class="status-message">@status</div>
+}
+
+<!-- stage status cards -->
+<div class="kpi-grid" style="grid-template-columns: repeat(4, 1fr);">
+    <div class="kpi k-tasks"><div class="kpi-label">الحالة</div><div class="kpi-value" style="font-size:20px;color:@st.C;">@st.L</div><div class="kpi-foot">@activities.Count نشاط</div></div>
+    <div class="kpi @(Delayed(Model.PlannedStartDate, Model.ActualStartDate) ? "k-alerts" : "k-collect")">
+        <div class="kpi-label">البداية الفعلية @(Delayed(Model.PlannedStartDate, Model.ActualStartDate) ? "⚠" : "")</div>
+        <div class="kpi-value" style="font-size:18px;">@D(Model.ActualStartDate)</div>
+        <div class="kpi-foot">المخططة: @D(Model.PlannedStartDate)</div>
+    </div>
+    <div class="kpi @(Delayed(Model.PlannedEndDate, Model.ActualEndDate) ? "k-alerts" : "k-sales")">
+        <div class="kpi-label">النهاية الفعلية @(Delayed(Model.PlannedEndDate, Model.ActualEndDate) ? "⚠" : "")</div>
+        <div class="kpi-value" style="font-size:18px;">@D(Model.ActualEndDate)</div>
+        <div class="kpi-foot">المخططة: @D(Model.PlannedEndDate)</div>
+    </div>
+    <div class="kpi k-reserve"><div class="kpi-label">الأنشطة</div><div class="kpi-value">@activities.Count</div><div class="kpi-foot">نشاط</div></div>
+</div>
+
+<div class="card-tile">
+    <div class="card-head">
+        <h3>سجل الأنشطة</h3>
+        @if (canEdit)
+        {
+            <button type="button" class="btn-new-tenant" onclick="appOpenModal('@Url.Action("ActivityForm", new { stageId = Model.Id })', 'نشاط جديد')">➕ نشاط</button>
+        }
+    </div>
+    <table class="rs-table">
+        <thead><tr><th>التاريخ</th><th>النشاط</th><th></th></tr></thead>
+        <tbody>
+        @foreach (var a in activities)
+        {
+            <tr>
+                <td dir="ltr" style="text-align:right;white-space:nowrap;">@a.Date.ToString("yyyy/MM/dd")</td>
+                <td>@a.Activity</td>
+                <td>
+                    @if (User.Can(PermissionNames.ProjectsDelete))
+                    {
+                        <form asp-action="ActivityDelete" method="post" style="display:inline;" data-confirm="حذف النشاط؟" data-danger>
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="id" value="@a.Id" /><input type="hidden" name="stageId" value="@Model.Id" />
+                            <button type="submit" class="btn-sm btn-danger">حذف</button>
+                        </form>
+                    }
+                </td>
+            </tr>
+        }
+        @if (activities.Count == 0)
+        {
+            <tr><td colspan="3" style="color:var(--muted)">لا توجد أنشطة بعد.</td></tr>
+        }
+        </tbody>
+    </table>
+</div>

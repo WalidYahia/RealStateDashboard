@@ -1,0 +1,68 @@
+@model SupplierOrder
+@{
+    Layout = null;
+    var tenantId = (Guid)ViewBag.TenantId;
+    string N(decimal v) => v.ToString("N0", new System.Globalization.CultureInfo("ar-EG"));
+    string D(DateTime d) => d.ToString("yyyy/MM/dd", System.Globalization.CultureInfo.InvariantCulture);
+    var total = Model.Items.Sum(i => i.Cost);
+}
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="utf-8" />
+    <title>أمر توريد PO-@Model.Number.ToString("D4")</title>
+    <style>
+        body { font-family: "Segoe UI", Tahoma, sans-serif; padding: 28px; color: #111; }
+        .brand { text-align: center; margin-bottom: 10px; } .brand img { max-height: 80px; }
+        h1 { font-size: 20px; text-align: center; margin: 6px 0 2px; }
+        .sub { text-align: center; color: #666; font-size: 12px; margin-bottom: 18px; }
+        h2 { font-size: 14px; margin: 18px 0 8px; border-bottom: 1px solid #ddd; padding-bottom: 4px; }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 8px; }
+        th, td { border: 1px solid #ccc; padding: 7px 8px; text-align: start; unicode-bidi: plaintext; }
+        th { background: #f2f2f2; }
+        .kv th { width: 180px; background: #fafafa; }
+        .sign { display: flex; justify-content: space-between; margin-top: 48px; font-size: 13px; }
+        .sign div { width: 40%; border-top: 1px solid #333; padding-top: 6px; text-align: center; }
+        .no-print { margin-bottom: 14px; } @@media print { .no-print { display: none; } }
+    </style>
+</head>
+<body>
+    <div class="no-print"><button onclick="window.print()">🖨 طباعة / حفظ PDF</button></div>
+    <div class="brand"><img src="@Url.Action("Logo", "Branding", new { area = "", id = tenantId })" alt="logo" onerror="this.style.display='none'" /></div>
+    <h1>أمر توريد رقم PO-@Model.Number.ToString("D4")</h1>
+    <div class="sub">تاريخ التحرير: @DateTime.Now.ToString("yyyy/MM/dd")</div>
+
+    <h2>البيانات</h2>
+    <table class="kv">
+        <tr><th>المورد / المقاول</th><td>@Model.Supplier?.Name @(string.IsNullOrEmpty(Model.Supplier?.Phone) ? "" : "— " + Model.Supplier?.Phone)</td></tr>
+        <tr><th>المشروع</th><td>@(Model.Project is null ? "بدون مشروع" : $"#{Model.Project.Code} {Model.Project.Name}")</td></tr>
+        <tr><th>تاريخ الأمر</th><td>@D(Model.OrderDate)</td></tr>
+    </table>
+
+    <h2>البنود</h2>
+    <table>
+        <thead><tr><th>#</th><th>البند</th><th>التكلفة (ج.م)</th></tr></thead>
+        <tbody>
+        @{ var n = 0; }
+        @foreach (var it in Model.Items)
+        {
+            n++;
+            <tr><td>@n</td><td>@it.Name</td><td>@N(it.Cost)</td></tr>
+        }
+        </tbody>
+        <tfoot>
+            <tr><th colspan="2">الإجمالي</th><th>@N(total) ج.م</th></tr>
+        </tfoot>
+    </table>
+
+    @if (!string.IsNullOrEmpty(Model.Notes))
+    {
+        <h2>ملاحظات</h2>
+        <p>@Model.Notes</p>
+    }
+
+    <div class="sign"><div>توقيع المسؤول</div><div>توقيع المورد</div></div>
+
+    <script>window.addEventListener('load', function () { setTimeout(function () { window.print(); }, 500); });</script>
+</body>
+</html>

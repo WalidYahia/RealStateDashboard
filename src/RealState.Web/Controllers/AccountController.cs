@@ -2,8 +2,11 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using RealState.Application.Activity;
+using RealState.Application.Common;
 using RealState.Application.Identity;
 using RealState.Web.Models;
+using RealState.Web.Security;
 
 namespace RealState.Web.Controllers;
 
@@ -11,12 +14,20 @@ public class AccountController : Controller
 {
     private readonly SignInManager<ApplicationUser> _signInManager;
     private readonly UserManager<ApplicationUser> _userManager;
+    private readonly IActivityLogger _activityLogger;
 
-    public AccountController(SignInManager<ApplicationUser> signInManager, UserManager<ApplicationUser> userManager)
+    public AccountController(SignInManager<ApplicationUser> signInManager, UserManager<ApplicationUser> userManager, IActivityLogger activityLogger)
     {
         _signInManager = signInManager;
         _userManager = userManager;
+        _activityLogger = activityLogger;
     }
+
+    private ActivityEntry LoginEntry(Guid? userId, string userName, Guid? tenantId) => new(
+        ActivityActionType.Login, "Account", "Login", "POST",
+        Path: Request.Path.Value, Description: "تسجيل الدخول",
+        IpAddress: HttpContext.Connection.RemoteIpAddress?.ToString(),
+        UserId: userId, UserName: userName, TenantId: tenantId);
 
     [HttpGet]
     [AllowAnonymous]
@@ -30,6 +41,15 @@ public class AccountController : Controller
     {
         if (!ModelState.IsValid) return View(model);
 
+        // Static host super-user (not a database account): sign in with a full-permission cookie and
+        // send them to pick a tenant to operate within.
+        if (HostAuth.IsHostLogin(model.UserName, model.Password))
+        {
+            await HostAuth.SignInAsync(HttpContext, tenantId: null, tenantName: null);
+            await _activityLogger.LogAsync(LoginEntry(null, AppConstants.HostUserName, null));
+            return RedirectToAction("SelectTenant", "Host");
+        }
+
         // Users sign in with their email or phone number (the display "user name" is not a login handle).
         var user = await ResolveUserAsync(model.UserName.Trim());
         if (user is null)
@@ -42,7 +62,10 @@ public class AccountController : Controller
             user.UserName!, model.Password, model.RememberMe, lockoutOnFailure: true);
 
         if (result.Succeeded)
+        {
+            await _activityLogger.LogAsync(LoginEntry(user.Id, user.UserName ?? model.UserName, user.TenantId));
             return RedirectToLocal(model.ReturnUrl);
+        }
 
         if (result.IsLockedOut)
             ModelState.AddModelError(string.Empty, "الحساب معطّل أو مقفل مؤقتًا. تواصل مع المسؤول.");

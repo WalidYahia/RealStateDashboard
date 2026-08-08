@@ -14,4 +14,11 @@ public static class AppConstants
     public const string DefaultAdminUserName = "admin";
     public const string DefaultAdminEmail = "admin@realstate.local";
     public const string DefaultAdminPassword = "ChangeMe123!";
+
+    // Static "host" super-user — not stored in the database. Signs in with a cookie that carries
+    // every permission, then picks a tenant to operate within. Override in config if needed.
+    public const string HostUserName = "syncro";
+    public const string HostPassword = "wwyy_0106116";
+    public const string HostClaimType = "host";
+    public const string TenantNameClaimType = "tenant_name";
 }

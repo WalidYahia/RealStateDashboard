@@ -1,0 +1,50 @@
+@model SupplierReportVm
+@{
+    Layout = null;
+    var tenantId = (Guid)ViewBag.TenantId;
+    string N(decimal v) => v.ToString("N0", new System.Globalization.CultureInfo("ar-EG"));
+    string D(DateTime d) => d.ToString("yyyy/MM/dd", System.Globalization.CultureInfo.InvariantCulture);
+}
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="utf-8" />
+    <title>تقرير الموردين</title>
+    <style>
+        body { font-family: "Segoe UI", Tahoma, sans-serif; padding: 24px; color: #111; }
+        .brand { text-align: center; margin-bottom: 6px; } .brand img { max-height: 60px; }
+        h1 { font-size: 19px; text-align: center; margin: 4px 0; }
+        .sub { text-align: center; color: #666; font-size: 12px; margin-bottom: 14px; }
+        table { width: 100%; border-collapse: collapse; font-size: 12px; }
+        th, td { border: 1px solid #ccc; padding: 5px 7px; text-align: start; unicode-bidi: plaintext; }
+        th { background: #f2f2f2; }
+        tfoot td, tfoot th { font-weight: 700; background: #fafafa; }
+        .no-print { margin-bottom: 12px; } @@media print { .no-print { display: none; } }
+    </style>
+</head>
+<body>
+    <div class="no-print"><button onclick="window.print()">🖨 طباعة / حفظ PDF</button></div>
+    <div class="brand"><img src="@Url.Action("Logo", "Branding", new { area = "", id = tenantId })" alt="logo" onerror="this.style.display='none'" /></div>
+    <h1>تقرير الموردين</h1>
+    <div class="sub">
+        @if (Model.From.HasValue || Model.To.HasValue) { <text>الفترة @D(Model.From ?? DateTime.MinValue) — @D(Model.To ?? DateTime.MaxValue) · </text> }
+        طُبع @DateTime.Now.ToString("yyyy/MM/dd HH:mm")
+    </div>
+
+    <table>
+        <thead><tr><th>المورد</th><th>الهاتف</th><th>عدد الأوامر</th><th>قيمة الأوامر</th><th>المسدَّد</th><th>المتبقي</th></tr></thead>
+        <tbody>
+        @foreach (var r in Model.Rows)
+        {
+            <tr><td>@r.Name</td><td>@r.Phone</td><td>@r.Orders</td><td>@N(r.OrdersValue)</td><td>@N(r.Paid)</td><td>@N(r.Residual)</td></tr>
+        }
+        @if (Model.Rows.Count == 0) { <tr><td colspan="6">لا توجد بيانات.</td></tr> }
+        </tbody>
+        <tfoot>
+            <tr><th colspan="2">الإجمالي</th><th>@Model.TotOrders</th><th>@N(Model.TotValue)</th><th>@N(Model.TotPaid)</th><th>@N(Model.TotResidual)</th></tr>
+        </tfoot>
+    </table>
+
+    <script>window.addEventListener('load', function () { setTimeout(function () { window.print(); }, 400); });</script>
+</body>
+</html>

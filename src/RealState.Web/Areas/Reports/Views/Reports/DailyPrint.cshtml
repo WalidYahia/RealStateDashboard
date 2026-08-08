@@ -1,0 +1,92 @@
+@model DailyReportVm
+@{
+    Layout = null;
+    var tenantId = (Guid)ViewBag.TenantId;
+    string N(decimal v) => v.ToString("N0", new System.Globalization.CultureInfo("ar-EG"));
+    string D(DateTime d) => d.ToString("yyyy/MM/dd", System.Globalization.CultureInfo.InvariantCulture);
+}
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="utf-8" />
+    <title>التقرير اليومي @D(Model.Date)</title>
+    <style>
+        body { font-family: "Segoe UI", Tahoma, sans-serif; padding: 24px; color: #111; }
+        .brand { text-align: center; margin-bottom: 6px; } .brand img { max-height: 60px; }
+        h1 { font-size: 19px; text-align: center; margin: 4px 0; }
+        .sub { text-align: center; color: #666; font-size: 12px; margin-bottom: 12px; }
+        .cards { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin-bottom: 14px; font-size: 12.5px; }
+        .card { border: 1px solid #ddd; border-radius: 8px; padding: 6px 12px; }
+        h2 { font-size: 14px; margin: 14px 0 6px; border-bottom: 1px solid #ddd; padding-bottom: 3px; }
+        table { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 6px; }
+        th, td { border: 1px solid #ccc; padding: 5px 7px; text-align: start; unicode-bidi: plaintext; }
+        th { background: #f2f2f2; }
+        tfoot td, tfoot th { font-weight: 700; background: #fafafa; }
+        .no-print { margin-bottom: 12px; } @@media print { .no-print { display: none; } }
+    </style>
+</head>
+<body>
+    <div class="no-print"><button onclick="window.print()">🖨 طباعة / حفظ PDF</button></div>
+    <div class="brand"><img src="@Url.Action("Logo", "Branding", new { area = "", id = tenantId })" alt="logo" onerror="this.style.display='none'" /></div>
+    <h1>التقرير اليومي</h1>
+    <div class="sub">يوم @D(Model.Date) · طُبع @DateTime.Now.ToString("yyyy/MM/dd HH:mm")</div>
+
+    <div class="cards">
+        <div class="card">عقود البيع: <strong>@N(Model.ContractsTotal)</strong> (@Model.Contracts.Count)</div>
+        <div class="card">أوامر التوريد: <strong>@N(Model.OrdersTotal)</strong> (@Model.Orders.Count)</div>
+        <div class="card">الإيرادات: <strong>@N(Model.IncomeTotal)</strong></div>
+        <div class="card">المصروفات: <strong>@N(Model.ExpenseTotal)</strong></div>
+        <div class="card">صافي الحركة: <strong>@N(Model.NetCash)</strong> ج.م</div>
+    </div>
+
+    <h2>عقود البيع</h2>
+    <table>
+        <thead><tr><th>الكود</th><th>العميل</th><th>الوحدة</th><th>القيمة</th></tr></thead>
+        <tbody>
+        @foreach (var c in Model.Contracts) { <tr><td>@c.Code</td><td>@c.Customer</td><td>@c.Unit</td><td>@N(c.Value)</td></tr> }
+        @if (Model.Contracts.Count == 0) { <tr><td colspan="4">—</td></tr> }
+        </tbody>
+    </table>
+
+    <h2>أوامر التوريد</h2>
+    <table>
+        <thead><tr><th>الرقم</th><th>المورد</th><th>المشروع</th><th>القيمة</th></tr></thead>
+        <tbody>
+        @foreach (var o in Model.Orders) { <tr><td>@o.Number</td><td>@o.Supplier</td><td>@o.Project</td><td>@N(o.Value)</td></tr> }
+        @if (Model.Orders.Count == 0) { <tr><td colspan="4">—</td></tr> }
+        </tbody>
+    </table>
+
+    <h2>الإيرادات (إيصالات استلام)</h2>
+    <table>
+        <thead><tr><th>#</th><th>البيان</th><th>المبلغ</th></tr></thead>
+        <tbody>
+        @foreach (var t in Model.Incomes) { <tr><td>@t.Serial.ToString("D4")</td><td>@t.Description</td><td>@N(t.Amount)</td></tr> }
+        @if (Model.Incomes.Count == 0) { <tr><td colspan="3">—</td></tr> }
+        </tbody>
+        <tfoot><tr><th colspan="2">الإجمالي</th><th>@N(Model.IncomeTotal)</th></tr></tfoot>
+    </table>
+
+    <h2>المصروفات (إيصالات دفع)</h2>
+    <table>
+        <thead><tr><th>#</th><th>البيان</th><th>المبلغ</th></tr></thead>
+        <tbody>
+        @foreach (var t in Model.Expenses) { <tr><td>@t.Serial.ToString("D4")</td><td>@t.Description</td><td>@N(t.Amount)</td></tr> }
+        @if (Model.Expenses.Count == 0) { <tr><td colspan="3">—</td></tr> }
+        </tbody>
+        <tfoot><tr><th colspan="2">الإجمالي</th><th>@N(Model.ExpenseTotal)</th></tr></tfoot>
+    </table>
+
+    <h2>أرصدة الخزائن (نهاية اليوم)</h2>
+    <table>
+        <thead><tr><th>الخزنة</th><th>الرصيد</th></tr></thead>
+        <tbody>
+        @foreach (var s in Model.Safes) { <tr><td>@s.Name</td><td>@N(s.Balance)</td></tr> }
+        @if (Model.Safes.Count == 0) { <tr><td colspan="2">—</td></tr> }
+        </tbody>
+        <tfoot><tr><th>الإجمالي</th><th>@N(Model.SafesTotal) ج.م</th></tr></tfoot>
+    </table>
+
+    <script>window.addEventListener('load', function () { setTimeout(function () { window.print(); }, 400); });</script>
+</body>
+</html>

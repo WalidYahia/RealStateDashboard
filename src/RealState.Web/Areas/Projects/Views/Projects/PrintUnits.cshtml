@@ -1,0 +1,30 @@
+@model List<ProjectUnit>
+@{
+    Layout = null;
+    var p = (Project)ViewBag.Project;
+    string St(UnitStatus s) => s.Ar();
+}
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="utf-8" />
+    <title>وحدات المشروع - @p.Name</title>
+    <partial name="_PrintStyles" />
+</head>
+<body>
+    <div class="no-print"><button onclick="window.print()">🖨 طباعة / حفظ PDF</button></div>
+    <h1>وحدات المشروع: @p.Name</h1>
+    <div class="sub">الكود #@p.Code · إجمالي الوحدات @Model.Count · @DateTime.Now.ToString("yyyy/MM/dd HH:mm")</div>
+    <table>
+        <thead><tr><th>الاسم</th><th>الرقم</th><th>الحالة</th><th>ملاحظات</th></tr></thead>
+        <tbody>
+        @foreach (var u in Model)
+        {
+            <tr><td>@u.Name</td><td>@u.Number</td><td>@St(u.Status)</td><td>@u.Notes</td></tr>
+        }
+        @if (Model.Count == 0) { <tr><td colspan="4" class="muted">لا توجد وحدات.</td></tr> }
+        </tbody>
+    </table>
+    <script>window.addEventListener('load', function () { setTimeout(function () { window.print(); }, 400); });</script>
+</body>
+</html>

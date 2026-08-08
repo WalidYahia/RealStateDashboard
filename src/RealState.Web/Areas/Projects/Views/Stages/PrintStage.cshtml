@@ -1,0 +1,39 @@
+@model ProjectStage
+@{
+    Layout = null;
+    var project = (Project)ViewBag.Project;
+    var activities = ViewBag.Activities as List<StageActivity> ?? new();
+    string D(DateTime? d) => d?.ToString("yyyy/MM/dd") ?? "—";
+    string status = Model.ActualEndDate.HasValue ? "مكتملة" : Model.ActualStartDate.HasValue ? "قيد التنفيذ" : "لم تبدأ";
+}
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="utf-8" />
+    <title>مرحلة - @Model.Name</title>
+    <partial name="_PrintStyles" />
+</head>
+<body>
+    <div class="no-print"><button onclick="window.print()">🖨 طباعة / حفظ PDF</button></div>
+    <h1>المرحلة: @Model.Name</h1>
+    <div class="sub">مشروع @project.Name (#@project.Code) · @DateTime.Now.ToString("yyyy/MM/dd HH:mm")</div>
+
+    <table class="kv">
+        <tr><th>الحالة</th><td>@status</td></tr>
+        <tr><th>البداية (مخطط / فعلي)</th><td>@D(Model.PlannedStartDate) / @D(Model.ActualStartDate)</td></tr>
+        <tr><th>النهاية (مخطط / فعلي)</th><td>@D(Model.PlannedEndDate) / @D(Model.ActualEndDate)</td></tr>
+        <tr><th>ملاحظات</th><td>@(string.IsNullOrEmpty(Model.Notes) ? "—" : Model.Notes)</td></tr>
+    </table>
+
+    <h2>سجل الأنشطة (@activities.Count)</h2>
+    <table>
+        <thead><tr><th>التاريخ</th><th>النشاط</th></tr></thead>
+        <tbody>
+        @foreach (var a in activities) { <tr><td>@a.Date.ToString("yyyy/MM/dd")</td><td>@a.Activity</td></tr> }
+        @if (activities.Count == 0) { <tr><td colspan="2" class="muted">لا توجد أنشطة.</td></tr> }
+        </tbody>
+    </table>
+
+    <script>window.addEventListener('load', function () { setTimeout(function () { window.print(); }, 400); });</script>
+</body>
+</html>

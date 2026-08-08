@@ -1,0 +1,89 @@
+@model SalesSummaryVm
+@using System.Globalization
+@using System.Text.Json
+@{
+    Layout = null;
+    var tenantId = (Guid)ViewBag.TenantId;
+    string N(decimal v) => v.ToString("N0", new CultureInfo("ar-EG"));
+    var palette = new[] { "#3987e5", "#199e70", "#9085e9", "#c98500", "#d03b3b", "#2bb8a3" };
+    var projLabels = Model.ByProject.Select(p => p.Project).ToList();
+    var projValues = Model.ByProject.Select(p => p.Value).ToList();
+    var projColors = Model.ByProject.Select((p, i) => palette[i % palette.Length]).ToList();
+    var monthLabels = Model.ByMonth.Select(m => m.Label).ToList();
+    var monthValues = Model.ByMonth.Select(m => m.Value).ToList();
+}
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="utf-8" />
+    <title>ملخص المبيعات</title>
+    <style>
+        @@page { size: A4 portrait; margin: 12mm; }
+        * { box-sizing: border-box; }
+        body { font-family: "Segoe UI", Tahoma, sans-serif; color: #111; margin: 0; padding: 16px; }
+        .brand { text-align: center; margin-bottom: 6px; } .brand img { max-height: 56px; }
+        h1 { font-size: 19px; text-align: center; margin: 4px 0; }
+        .sub { text-align: center; color: #666; font-size: 12px; margin-bottom: 14px; }
+        .cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 16px; }
+        .card { border: 1px solid #ddd; border-radius: 8px; padding: 8px 10px; }
+        .card .lbl { color: #777; font-size: 11px; }
+        .card .val { font-size: 16px; font-weight: 800; margin-top: 2px; }
+        .charts { display: flex; gap: 14px; align-items: flex-start; justify-content: center; }
+        .chart-box { border: 1px solid #eee; border-radius: 8px; padding: 10px; }
+        .chart-box canvas { display: block; margin: 0 auto; max-width: 100%; }
+        h3 { font-size: 13px; margin: 0 0 8px; color: #333; text-align: center; }
+        .no-print { margin-bottom: 12px; } @@media print { .no-print { display: none; } }
+    </style>
+</head>
+<body>
+    <div class="no-print"><button onclick="window.print()">🖨 طباعة / حفظ PDF</button></div>
+    <div class="brand"><img src="@Url.Action("Logo", "Branding", new { area = "", id = tenantId })" alt="logo" onerror="this.style.display='none'" /></div>
+    <h1>ملخص المبيعات</h1>
+    <div class="sub">@DateTime.Now.ToString("yyyy/MM/dd HH:mm")</div>
+
+    <div class="cards">
+        <div class="card"><div class="lbl">عدد العقود</div><div class="val">@Model.ContractsCount</div></div>
+        <div class="card"><div class="lbl">إجمالي قيمة العقود</div><div class="val">@N(Model.TotalValue) ج.م</div></div>
+        <div class="card"><div class="lbl">إجمالي المحصّل</div><div class="val">@N(Model.TotalCollected) ج.م</div></div>
+        <div class="card"><div class="lbl">إجمالي المتبقي</div><div class="val">@N(Model.TotalRemaining) ج.م</div></div>
+        <div class="card"><div class="lbl">متوسط قيمة العقد</div><div class="val">@N(Model.AvgContractValue) ج.م</div></div>
+        <div class="card"><div class="lbl">الوحدات المباعة</div><div class="val">@Model.UnitsSold</div></div>
+        <div class="card"><div class="lbl">عدد العملاء</div><div class="val">@Model.CustomersCount</div></div>
+        <div class="card"><div class="lbl">عدد المندوبين</div><div class="val">@Model.SalespersonsCount</div></div>
+    </div>
+
+    <div class="charts">
+        <div class="chart-box"><h3>المحصّل مقابل المتبقي</h3><canvas id="chCollect" width="230" height="230"></canvas></div>
+        <div class="chart-box"><h3>قيمة العقود حسب المشروع</h3><canvas id="chProject" width="430" height="230"></canvas></div>
+    </div>
+    <div class="chart-box" style="margin-top:14px;"><h3>قيمة العقود شهريًا</h3><canvas id="chMonth" width="690" height="240"></canvas></div>
+
+    <script src="/lib/chartjs/chart.umd.min.js"></script>
+    <script>
+        window.addEventListener('load', function () {
+            if (!window.Chart) { window.print(); return; }
+            Chart.defaults.color = '#333';
+            Chart.defaults.font.size = 11;
+            var moneyTick = function (v) { return v >= 1000000 ? (v / 1000000) + 'M' : v >= 1000 ? (v / 1000) + 'k' : v; };
+            var moneyScale = { y: { beginAtZero: true, ticks: { callback: moneyTick } }, x: { grid: { display: false } } };
+
+            new Chart(document.getElementById('chCollect'), {
+                type: 'doughnut',
+                data: { labels: ['المحصّل', 'المتبقي'], datasets: [{ data: @Html.Raw(JsonSerializer.Serialize(new[] { Model.TotalCollected, Model.TotalRemaining })), backgroundColor: ['#2bb8a3', '#e0803a'], borderWidth: 0 }] },
+                options: { responsive: false, animation: false, cutout: '62%', plugins: { legend: { position: 'bottom' } } }
+            });
+            new Chart(document.getElementById('chProject'), {
+                type: 'bar',
+                data: { labels: @Html.Raw(JsonSerializer.Serialize(projLabels)), datasets: [{ data: @Html.Raw(JsonSerializer.Serialize(projValues)), backgroundColor: @Html.Raw(JsonSerializer.Serialize(projColors)), borderRadius: 4 }] },
+                options: { responsive: false, animation: false, plugins: { legend: { display: false } }, scales: moneyScale }
+            });
+            new Chart(document.getElementById('chMonth'), {
+                type: 'line',
+                data: { labels: @Html.Raw(JsonSerializer.Serialize(monthLabels)), datasets: [{ data: @Html.Raw(JsonSerializer.Serialize(monthValues)), borderColor: '#3987e5', backgroundColor: 'rgba(57,135,229,.15)', fill: true, tension: .3, pointRadius: 3 }] },
+                options: { responsive: false, animation: false, plugins: { legend: { display: false } }, scales: moneyScale }
+            });
+            setTimeout(function () { window.print(); }, 700);
+        });
+    </script>
+</body>
+</html>

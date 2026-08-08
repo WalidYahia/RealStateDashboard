@@ -1,0 +1,38 @@
+@model RealState.Web.Models.BrandingSettingsModel
+@using RealState.Application.Common
+@using System.Security.Claims
+@{
+    ViewData["Title"] = "بيانات المؤسسة";
+    var tenantId = User.FindFirst("tenant_id")?.Value;
+}
+<div class="page-head"><h1>بيانات المؤسسة</h1></div>
+
+@if (TempData["StatusMessage"] is string status)
+{
+    <div class="status-message">@status</div>
+}
+
+<div class="card-tile" style="max-width:620px;">
+    <form asp-controller="Settings" asp-action="Branding" method="post" enctype="multipart/form-data">
+        <div asp-validation-summary="ModelOnly" class="validation-summary-errors"></div>
+
+        <label asp-for="Name" class="form-label"></label>
+        <input asp-for="Name" class="form-control" />
+        <span asp-validation-for="Name" class="field-validation-error"></span>
+
+        <label class="form-label" style="margin-top:12px;">الشعار</label>
+        @if (Model.HasLogo && tenantId != null)
+        {
+            <div style="margin-bottom:8px;">
+                <img class="logo-preview" src="@Url.Action("Logo", "Branding", new { id = tenantId, v = DateTime.UtcNow.Ticks })" alt="logo" style="max-height:70px;" />
+                <label class="form-check"><input asp-for="RemoveLogo" type="checkbox" /> حذف الشعار الحالي</label>
+            </div>
+        }
+        <input type="file" name="logo" accept="image/*" class="form-control" />
+        <span class="field-validation-error">@Html.ValidationMessage("logo")</span>
+
+        <button type="submit" class="btn-primary" style="margin-top:12px;">حفظ</button>
+    </form>
+</div>
+
+@section Scripts { <partial name="_ValidationScriptsPartial" /> }

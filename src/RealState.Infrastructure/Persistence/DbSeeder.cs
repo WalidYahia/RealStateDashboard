@@ -19,15 +19,17 @@ public static class DbSeeder
     public static async Task SeedAsync(IServiceProvider sp)
     {
         var db = sp.GetRequiredService<ApplicationDbContext>();
-        var userManager = sp.GetRequiredService<UserManager<ApplicationUser>>();
-        var roleManager = sp.GetRequiredService<RoleManager<ApplicationRole>>();
-        var logger = sp.GetRequiredService<ILoggerFactory>().CreateLogger("DbSeeder");
 
-        await SeedTenantAsync(db);
+        // Only the permission catalog (41 privileges) is seeded. The default tenant, roles,
+        // admin user and lookups are intentionally NOT created here — they are provisioned
+        // separately. (Re-enable the calls below to restore full bootstrap seeding.)
         await SeedPermissionsAsync(db);
-        await SeedRoleAndAdminAsync(db, roleManager, userManager);
-        await SeedLookupsAsync(db);
-        await SeedBusinessDataAsync(db, logger);
+
+        // var userManager = sp.GetRequiredService<UserManager<ApplicationUser>>();
+        // var roleManager = sp.GetRequiredService<RoleManager<ApplicationRole>>();
+        // await SeedTenantAsync(db);
+        // await SeedRoleAndAdminAsync(db, roleManager, userManager);
+        // await SeedLookupsAsync(db);
     }
 
     private static async Task SeedTenantAsync(ApplicationDbContext db)
@@ -46,20 +48,30 @@ public static class DbSeeder
 
     private static async Task SeedPermissionsAsync(ApplicationDbContext db)
     {
-        var existing = await db.Permissions.Select(p => p.Name).ToListAsync();
-        var missing = PermissionNames.All.Except(existing).ToList();
-        if (missing.Count == 0) return;
+        var existing = await db.Permissions.ToListAsync();
+        var byName = existing.ToDictionary(p => p.Name);
+        var changed = false;
 
-        foreach (var name in missing)
+        foreach (var info in PermissionNames.Catalog)
         {
-            db.Permissions.Add(new Permission
+            if (byName.TryGetValue(info.Name, out var row))
             {
-                Name = name,
-                DisplayName = name,
-                Group = name.Split('.')[0],
-            });
+                // Keep Arabic label/group in sync as the catalog evolves.
+                if (row.DisplayName != info.Display || row.Group != info.Group)
+                {
+                    row.DisplayName = info.Display;
+                    row.Group = info.Group;
+                    changed = true;
+                }
+            }
+            else
+            {
+                db.Permissions.Add(new Permission { Name = info.Name, DisplayName = info.Display, Group = info.Group });
+                changed = true;
+            }
         }
-        await db.SaveChangesAsync();
+
+        if (changed) await db.SaveChangesAsync();
     }
 
     private static async Task SeedRoleAndAdminAsync(

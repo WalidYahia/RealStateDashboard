@@ -1,0 +1,43 @@
+@using Microsoft.AspNetCore.Mvc.Rendering
+@model List<SelectListItem>
+@{
+    Layout = null;
+    ViewData["Title"] = "اختيار المؤسسة";
+}
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>اختيار المؤسسة — Syncro</title>
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.rtl.min.css" />
+    <link rel="stylesheet" href="~/css/dashboard.css" asp-append-version="true" />
+</head>
+<body class="auth-shell">
+    <div class="auth-wrap">
+        <div class="card-tile" style="max-width:460px;margin:40px auto;">
+            <div class="card-head"><h3>اختر المؤسسة</h3></div>
+            <p style="color:var(--text-secondary);margin-bottom:14px;">اختر المؤسسة التي تريد الدخول والعمل عليها.</p>
+
+            @if (TempData["StatusMessage"] is string status)
+            {
+                <div class="status-message">@status</div>
+            }
+
+            <form asp-controller="Host" asp-action="SelectTenant" method="post">
+                @Html.AntiForgeryToken()
+                <label class="form-label">المؤسسة</label>
+                <select name="tenantId" class="form-control" asp-items="Model" required>
+                    <option value="">— اختر المؤسسة —</option>
+                </select>
+                <button type="submit" class="btn-primary" style="margin-top:16px;">دخول إلى المؤسسة</button>
+            </form>
+
+            <form asp-controller="Account" asp-action="Logout" method="post" style="margin-top:12px;text-align:center;">
+                @Html.AntiForgeryToken()
+                <button type="submit" class="btn-sm" style="background:transparent;border:none;color:var(--muted);cursor:pointer;">تسجيل الخروج</button>
+            </form>
+        </div>
+    </div>
+</body>
+</html>

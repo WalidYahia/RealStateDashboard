@@ -1,0 +1,256 @@
+@model MarketingDashboardVm
+@using System.Text.Json
+@{
+    ViewData["Title"] = "التسويق";
+    string Compact(decimal v) => v >= 1_000_000 ? (v / 1_000_000m).ToString("0.#") + "M"
+        : v >= 1000 ? (v / 1000m).ToString("0.#") + "K" : v.ToString("N0");
+    var top5 = Model.Campaigns.Take(5).ToList();
+    var campaignsJson = JsonSerializer.Serialize(Model.Campaigns.Select(c => new { id = c.Id, name = c.Name }));
+    var sourcesJson = JsonSerializer.Serialize(Model.Sources.Select(s => new { s.Platform, s.Leads, s.Percent }));
+    var canCreate = User.Can(PermissionNames.CampaignsCreate);
+}
+
+<div class="page-head">
+    <h1>لوحة إدارة التسويق</h1>
+    <div style="display:flex;gap:8px;">
+        <a class="btn-sm" asp-action="ExportExcel">⬇ Excel</a>
+        <a class="btn-sm" asp-action="Print" target="_blank">🖨 PDF</a>
+        @if (canCreate)
+        {
+            <button class="btn-new-tenant" onclick="mkOpen('@Url.Action("Form")')">➕ حملة جديدة</button>
+        }
+    </div>
+</div>
+
+@if (TempData["StatusMessage"] is string status)
+{
+    <div class="status-message">@status</div>
+}
+
+<!-- KPI cards -->
+<div class="kpi-grid">
+    <div class="kpi k-leads"><div class="kpi-label">عدد الـLeads</div><div class="kpi-value">@Model.TotalLeads.ToString("N0")</div><div class="kpi-foot">إجمالي الحملات</div></div>
+    <div class="kpi k-collect"><div class="kpi-label">تكلفة الـLead</div><div class="kpi-value">@Model.Cpl.ToString("N1") <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">التكلفة ÷ Leads</div></div>
+    <div class="kpi k-reserve"><div class="kpi-label">إجمالي الوصول</div><div class="kpi-value">@Compact(Model.TotalReach)</div><div class="kpi-foot">Reach</div></div>
+    <div class="kpi k-sales"><div class="kpi-label">المبيعات الناتجة</div><div class="kpi-value">@Compact(Model.TotalSales) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">من الحملات</div></div>
+    <div class="kpi k-tasks"><div class="kpi-label">الحجوزات الناتجة</div><div class="kpi-value">@Model.TotalReservations.ToString("N0")</div><div class="kpi-foot">حجز</div></div>
+    <div class="kpi k-leads"><div class="kpi-label">العائد على الإعلانات (ROAS)</div><div class="kpi-value">@Model.Roas.ToString("N1")x</div><div class="kpi-foot">المبيعات ÷ التكلفة</div></div>
+</div>
+
+<!-- chart + sources -->
+<div class="grid-row" style="grid-template-columns: 1.6fr 1fr;">
+    <div class="card-tile">
+        <div class="card-head">
+            <h3>أداء الحملات الإعلانية</h3>
+            <div style="display:flex;gap:8px;align-items:center;">
+                <select id="mkMetric" class="form-control" style="width:auto;margin:0;padding:6px 10px;font-size:12px;">
+                    <option value="both">الوصول + Leads</option>
+                    <option value="reach">الوصول</option>
+                    <option value="leads">Leads</option>
+                </select>
+                <button type="button" class="btn-sm" onclick="mkToggleCompare()">مقارنة الحملات</button>
+            </div>
+        </div>
+        <div id="mkComparePanel" style="display:none;flex-wrap:wrap;gap:6px 14px;margin-bottom:10px;"></div>
+        <div class="chart-wrap">
+            <canvas id="mkChart"></canvas>
+            <div id="mkChartEmpty" style="display:none;position:absolute;inset:0;align-items:center;justify-content:center;color:var(--muted);font-size:13px;text-align:center;">
+                لا توجد قراءات أداء بعد.<br />أضف تحديثات (الوصول / Leads) للحملات لعرض المنحنى.
+            </div>
+        </div>
+    </div>
+
+    <div class="card-tile">
+        <div class="card-head"><h3>مصادر الـLeads</h3></div>
+        <div class="donut-wrap">
+            <canvas id="mkSources"></canvas>
+            <div class="donut-center"><div class="big">@Model.TotalLeads.ToString("N0")</div><div class="sub">إجمالي</div></div>
+        </div>
+        <ul class="legend-list" id="mkSourcesLegend"></ul>
+    </div>
+</div>
+
+<!-- last-5 campaigns -->
+<div class="card-tile">
+    <div class="card-head">
+        <h3>الحملات الحالية</h3>
+        <button type="button" class="btn-sm" onclick="mkShowAll()">📋 عرض جميع الحملات</button>
+    </div>
+    <partial name="_CampaignsTable" model="top5" />
+</div>
+
+<!-- generic modal -->
+<div class="modal fade" id="mkModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content mk-modal">
+            <div class="modal-header"><h5 id="mkModalTitle">حملة</h5><button type="button" class="mk-close" data-bs-dismiss="modal">✕</button></div>
+            <div class="modal-body" id="mkModalBody"></div>
+        </div>
+    </div>
+</div>
+
+<!-- show-all modal -->
+<div class="modal fade" id="mkAllModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-xl">
+        <div class="modal-content mk-modal">
+            <div class="modal-header">
+                <h5>جميع الحملات</h5>
+                <div style="display:flex;gap:8px;align-items:center;margin-inline-start:auto;">
+                    <input id="mkAllSearch" class="form-control" style="margin:0;width:220px;" placeholder="بحث بالاسم أو المنصة..." />
+                    <a class="btn-sm" asp-action="ExportExcel">⬇ Excel</a>
+                    <a class="btn-sm" asp-action="Print" target="_blank">🖨 PDF</a>
+                    <button type="button" class="mk-close" data-bs-dismiss="modal">✕</button>
+                </div>
+            </div>
+            <div class="modal-body" id="mkAllBody"></div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        const MK = {
+            campaigns: @Html.Raw(campaignsJson),
+            sources: @Html.Raw(sourcesJson),
+            defaultId: @Html.Raw(Model.DefaultCampaignId is null ? "null" : $"\"{Model.DefaultCampaignId}\""),
+            urls: {
+                chart: '@Url.Action("ChartData")',
+                all: '@Url.Action("All")'
+            },
+            palette: ['#3987e5', '#d95926', '#199e70', '#c98500', '#d55181', '#9085e9'],
+            colors: { blue: '#3987e5', aqua: '#199e70', ink: '#c3c2b7', grid: '#2c2c2a', surface: '#1a1a19', track: '#383835' }
+        };
+        Chart.defaults.color = MK.colors.ink;
+        Chart.defaults.font.family = 'system-ui, "Segoe UI", Tahoma, sans-serif';
+
+        /* ---------- modal AJAX ---------- */
+        let mkModal, mkAllModal;
+        function mkOpen(url, title) {
+            mkModal = mkModal || new bootstrap.Modal(document.getElementById('mkModal'));
+            if (title) document.getElementById('mkModalTitle').textContent = title;
+            fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                .then(r => r.text()).then(html => {
+                    document.getElementById('mkModalBody').innerHTML = html;
+                    mkBindForm();
+                    mkModal.show();
+                });
+        }
+        function mkBindForm() {
+            const form = document.querySelector('#mkModalBody #modalForm');
+            if (!form) return;
+            form.addEventListener('submit', function (e) {
+                e.preventDefault();
+                // Warn (SweetAlert) when the reading date is older than the latest logged one.
+                const latest = form.dataset.latestDate;
+                const dateInput = form.querySelector('input[name="Date"]');
+                if (latest && dateInput && dateInput.value && dateInput.value < latest && window.Swal) {
+                    Swal.fire({
+                        icon: 'warning',
+                        html: `التاريخ المحدد <b>${dateInput.value}</b> أقدم من آخر قراءة مسجلة <b>${latest}</b>.<br/>قد يؤثر ذلك على تسلسل الأداء. هل تريد المتابعة والحفظ؟`,
+                        showCancelButton: true,
+                        confirmButtonText: 'نعم، احفظ',
+                        cancelButtonText: 'إلغاء',
+                        confirmButtonColor: '#3987e5',
+                        cancelButtonColor: '#6b7280',
+                        reverseButtons: true
+                    }).then(res => { if (res.isConfirmed) mkSubmitForm(form); });
+                } else {
+                    mkSubmitForm(form);
+                }
+            });
+        }
+        function mkSubmitForm(form) {
+            fetch(form.action, { method: 'POST', body: new FormData(form), headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                .then(r => r.headers.get('content-type')?.includes('application/json') ? r.json().then(j => ({ json: j })) : r.text().then(t => ({ html: t })))
+                .then(res => {
+                    if (res.json && res.json.ok) { location.reload(); }
+                    else if (res.html) { document.getElementById('mkModalBody').innerHTML = res.html; mkBindForm(); }
+                });
+        }
+
+        /* ---------- show-all ---------- */
+        function mkShowAll() {
+            mkAllModal = mkAllModal || new bootstrap.Modal(document.getElementById('mkAllModal'));
+            mkLoadAll('');
+            mkAllModal.show();
+        }
+        function mkLoadAll(q) {
+            fetch(MK.urls.all + '?q=' + encodeURIComponent(q), { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                .then(r => r.text()).then(html => document.getElementById('mkAllBody').innerHTML = html);
+        }
+        (function () {
+            const s = document.getElementById('mkAllSearch');
+            let t; s && s.addEventListener('input', () => { clearTimeout(t); t = setTimeout(() => mkLoadAll(s.value), 250); });
+        })();
+
+        /* ---------- sources donut ---------- */
+        (function () {
+            if (!MK.sources.length) return;
+            const legend = document.getElementById('mkSourcesLegend');
+            new Chart(document.getElementById('mkSources'), {
+                type: 'doughnut',
+                data: { labels: MK.sources.map(s => s.Platform), datasets: [{ data: MK.sources.map(s => s.Leads), backgroundColor: MK.palette, borderColor: MK.colors.surface, borderWidth: 2 }] },
+                options: { maintainAspectRatio: false, cutout: '70%', plugins: { legend: { display: false } } }
+            });
+            legend.innerHTML = MK.sources.map((s, i) =>
+                `<li><span class="dot" style="background:${MK.palette[i % MK.palette.length]}"></span> ${s.Platform} <span class="val">${s.Percent}%</span></li>`).join('');
+        })();
+
+        /* ---------- performance chart + compare ---------- */
+        let mkChart;
+        function mkSelectedIds() {
+            // No campaigns checked -> aggregate trend (reach + leads across all campaigns).
+            return Array.from(document.querySelectorAll('#mkComparePanel input:checked')).map(c => c.value);
+        }
+        function mkLoadChart() {
+            const ids = mkSelectedIds();
+            const qs = ids.map(id => 'ids=' + encodeURIComponent(id)).join('&');
+            fetch(MK.urls.chart + (qs ? '?' + qs : ''), { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                .then(r => r.json()).then(series => mkRender(series));
+        }
+        function mkRender(series) {
+            const metric = document.getElementById('mkMetric').value;
+            const labels = series.reduce((a, s) => s.labels.length > a.length ? s.labels : a, []);
+
+            // Empty state: no readings at all -> show a hint instead of a blank chart.
+            const hasData = series.some(s => (s.labels || []).length > 0);
+            document.getElementById('mkChartEmpty').style.display = hasData ? 'none' : 'flex';
+            document.getElementById('mkChart').style.display = hasData ? 'block' : 'none';
+            if (!hasData) { if (mkChart) { mkChart.destroy(); mkChart = null; } return; }
+
+            const line = { backgroundColor: 'transparent', borderWidth: 2, tension: .35, pointRadius: 3, pointHoverRadius: 6 };
+            let datasets = [];
+            if (series.length <= 1 && metric === 'both') {
+                const s = series[0] || { reach: [], leads: [] };
+                datasets = [
+                    Object.assign({ label: 'الوصول', data: s.reach, borderColor: MK.colors.blue }, line),
+                    Object.assign({ label: 'Leads', data: s.leads, borderColor: MK.colors.aqua }, line)
+                ];
+            } else {
+                datasets = series.map((s, i) =>
+                    Object.assign({ label: s.name, data: metric === 'reach' ? s.reach : s.leads, borderColor: MK.palette[i % MK.palette.length] }, line));
+            }
+            const cfg = {
+                type: 'line', data: { labels, datasets },
+                options: {
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: true, labels: { boxWidth: 12 } } },
+                    scales: { x: { grid: { display: false } }, y: { beginAtZero: true, grid: { color: MK.colors.grid }, border: { display: false } } }
+                }
+            };
+            if (mkChart) { mkChart.data = cfg.data; mkChart.update(); } else { mkChart = new Chart(document.getElementById('mkChart'), cfg); }
+        }
+        function mkToggleCompare() {
+            const p = document.getElementById('mkComparePanel');
+            if (p.style.display === 'none') {
+                p.style.display = 'flex';
+                p.innerHTML = `<span style="font-size:12px;color:var(--muted);align-self:center;">اترك الكل بدون تحديد لعرض الإجمالي، أو اختر حملات للمقارنة:</span>` +
+                    MK.campaigns.map(c =>
+                    `<label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-secondary);">
+                        <input type="checkbox" value="${c.id}" onchange="mkLoadChart()"> ${c.name}</label>`).join('');
+            } else { p.style.display = 'none'; }
+        }
+        document.getElementById('mkMetric').addEventListener('change', mkLoadChart);
+        mkLoadChart();
+    </script>
+}

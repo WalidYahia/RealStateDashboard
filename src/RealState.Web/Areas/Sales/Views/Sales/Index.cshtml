@@ -1,0 +1,132 @@
+@model SalesListVm
+@using System.Text.Json
+@using System.Globalization
+
+@{
+    ViewData["Title"] = "المبيعات (عقود البيع)";
+    string N(decimal v) => v.ToString("N0", new CultureInfo("ar-EG"));
+    string D(DateTime d) => d.ToString("yyyy/MM/dd", CultureInfo.InvariantCulture);
+    string? F(DateTime? d) => d?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+    var unitPrices = ViewBag.UnitPrices as Dictionary<string, decimal> ?? new();
+}
+
+<div class="page-head">
+    <h1>المبيعات (عقود البيع)</h1>
+    <div style="display:flex;gap:8px;">
+        <a class="btn-sm" asp-action="PrintList" asp-route-from="@F(Model.From)" asp-route-to="@F(Model.To)" target="_blank">🖨 طباعة (PDF)</a>
+        @if (User.Can(PermissionNames.SalesCreate))
+        {
+            <button type="button" class="btn-new-tenant" onclick="appOpenModal('@Url.Action("Form")', 'عقد بيع جديد')">➕ عقد بيع جديد</button>
+        }
+    </div>
+</div>
+
+@if (TempData["StatusMessage"] is string status)
+{
+    <div class="status-message">@status</div>
+}
+
+<div class="card-tile" style="margin-bottom:12px;">
+    <div style="display:flex;gap:12px;align-items:end;flex-wrap:wrap;">
+        <form asp-action="Index" method="get" style="display:flex;gap:10px;align-items:end;">
+            <div><label class="form-label">من (تاريخ العقد)</label><input type="date" name="from" value="@F(Model.From)" class="form-control" style="margin:0;" dir="ltr" /></div>
+            <div><label class="form-label">إلى</label><input type="date" name="to" value="@F(Model.To)" class="form-control" style="margin:0;" dir="ltr" /></div>
+            <button type="submit" class="btn-primary" style="width:auto;">بحث</button>
+            <a class="btn-sm" asp-action="Index">إعادة تعيين</a>
+        </form>
+        <input id="saleSearch" class="form-control" style="margin:0;flex:1;min-width:240px;" placeholder="🔍 بحث بالكود، العميل، المشروع أو الوحدة..." />
+    </div>
+    <div style="color:var(--muted);font-size:13px;margin-top:8px;">العقود: <strong>@Model.Rows.Count</strong> · الإجمالي: <strong>@N(Model.TotalValue)</strong> ج.م</div>
+</div>
+
+<div class="card-tile">
+    <table class="rs-table">
+        <thead>
+            <tr>
+                <th>الكود</th>
+                <th>العميل</th>
+                <th>المشروع</th>
+                <th>الوحدة</th>
+                <th>تاريخ العقد</th>
+                <th>تاريخ الاستلام</th>
+                <th>الإجمالي</th>
+                <th>المدفوع</th>
+                <th>المتبقي</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var s in Model.Rows)
+            {
+                <tr data-search="@((s.Code + " " + s.Customer + " " + s.Project + " " + s.Unit).ToLower())">
+                    <td dir="ltr" style="text-align:right;">
+                        <a asp-action="Details" asp-route-id="@s.Id" asp-route-from="@F(Model.From)" asp-route-to="@F(Model.To)" style="color:var(--series-1);text-decoration:none;font-weight:600;">@s.Code</a>
+                    </td>
+                    <td>@s.Customer</td>
+                    <td>@s.Project</td>
+                    <td>@s.Unit</td>
+                    <td style="direction:ltr;text-align:right;white-space:nowrap;unicode-bidi:isolate;">@D(s.ContractDate)</td>
+                    <td style="direction:ltr;text-align:right;white-space:nowrap;unicode-bidi:isolate;">@D(s.ReceiveDate)</td>
+                    <td>@N(s.TotalPrice)</td>
+                    <td class="tag-up">@N(s.Paid)</td>
+                    <td>@N(s.Remaining)</td>
+                    <td style="white-space:nowrap;">
+                        <a class="btn-sm" asp-action="Details" asp-route-id="@s.Id" asp-route-from="@F(Model.From)" asp-route-to="@F(Model.To)">التفاصيل</a>
+                        <a class="btn-sm" asp-action="Contract" asp-route-id="@s.Id" target="_blank">🖨 العقد</a>
+                    </td>
+                </tr>
+            }
+            @if (Model.Rows.Count == 0)
+            {
+                <tr><td colspan="10" style="color:var(--muted)">لا توجد عقود بيع مطابقة.</td></tr>
+            }
+            <tr id="saleNoResults" style="display:none;"><td colspan="10" style="color:var(--muted)">لا توجد نتائج مطابقة للبحث.</td></tr>
+        </tbody>
+    </table>
+</div>
+
+@section Scripts {
+    <script>
+        var SALE_PRICES = @Html.Raw(JsonSerializer.Serialize(unitPrices));
+
+        // Pre-fill the total price from the selected unit (only if empty or unchanged).
+        window.saleSetPrice = function (unitId) {
+            var price = SALE_PRICES[unitId];
+            var tp = document.querySelector('#appModalBody [name="TotalPrice"]');
+            if (tp && price != null && (!tp.value || tp.value === '0')) tp.value = price;
+        };
+
+        // Client-side text search over the contracts table.
+        (function () {
+            var box = document.getElementById('saleSearch');
+            if (!box) return;
+            box.addEventListener('input', function () {
+                var q = this.value.trim().toLowerCase();
+                var rows = document.querySelectorAll('.rs-table tbody tr[data-search]');
+                var shown = 0;
+                rows.forEach(function (tr) {
+                    var match = tr.getAttribute('data-search').indexOf(q) >= 0;
+                    tr.style.display = match ? '' : 'none';
+                    if (match) shown++;
+                });
+                var nr = document.getElementById('saleNoResults');
+                if (nr) nr.style.display = (rows.length && shown === 0) ? '' : 'none';
+            });
+        })();
+
+        // Filter the units dropdown to the chosen project (empty = show all units).
+        window.saleFilterUnits = function (projectId) {
+            var sel = document.querySelector('#appModalBody [name="UnitId"]');
+            if (!sel) return;
+            var pid = (projectId || '').toLowerCase();
+            var cur = sel.value;
+            for (var i = 0; i < sel.options.length; i++) {
+                var o = sel.options[i];
+                if (!o.value) { o.hidden = false; continue; }
+                o.hidden = !!pid && (o.getAttribute('data-project') || '').toLowerCase() !== pid;
+            }
+            var co = cur ? sel.querySelector('option[value="' + cur + '"]') : null;
+            if (co && co.hidden) sel.value = '';
+        };
+    </script>
+}

@@ -1,0 +1,15 @@
+@model LeadFormModel
+@{
+    ViewData["Title"] = $"تعديل: {Model.FullName}";
+}
+<div class="page-head">
+    <h1>تعديل العميل المحتمل</h1>
+    <a class="btn-sm" asp-action="Index">رجوع</a>
+</div>
+<div class="card-tile" style="max-width:680px;">
+    <form asp-action="Edit" method="post">
+        <partial name="_LeadFields" model="Model" />
+        <button type="submit" class="btn-primary" style="margin-top:12px;">حفظ التغييرات</button>
+    </form>
+</div>
+@section Scripts { <partial name="_ValidationScriptsPartial" /> }

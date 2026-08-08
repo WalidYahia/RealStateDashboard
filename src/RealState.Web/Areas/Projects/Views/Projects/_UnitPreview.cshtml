@@ -1,0 +1,14 @@
+@model ProjectUnit
+@{
+    string N(decimal v) => v.ToString("N0", new System.Globalization.CultureInfo("ar-EG"));
+    string St(UnitStatus s) => s.Ar();
+}
+<table class="rs-table">
+    <tr><th style="width:160px;">اسم الوحدة</th><td>@Model.Name</td></tr>
+    <tr><th>رقم الوحدة</th><td dir="ltr" style="text-align:right;">@Model.Number</td></tr>
+    <tr><th>الحالة</th><td><span class="badge-state @(Model.Status == UnitStatus.Sold ? "state-off" : Model.Status == UnitStatus.Available ? "state-on" : "badge-role")">@St(Model.Status)</span></td></tr>
+    <tr><th>المساحة</th><td>@N(Model.AreaSqm) م²</td></tr>
+    <tr><th>السعر</th><td>@N(Model.Price) ج.م</td></tr>
+    <tr><th>الوصف</th><td>@(string.IsNullOrEmpty(Model.Description) ? "—" : Model.Description)</td></tr>
+    <tr><th>ملاحظات</th><td>@(string.IsNullOrEmpty(Model.Notes) ? "—" : Model.Notes)</td></tr>
+</table>

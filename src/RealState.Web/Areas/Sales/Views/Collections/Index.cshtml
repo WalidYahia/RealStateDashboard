@@ -1,0 +1,104 @@
+@model CollectionsVm
+@{
+    ViewData["Title"] = "تحصيلات المشاريع";
+    string N(decimal v) => v.ToString("N0", new System.Globalization.CultureInfo("ar-EG"));
+}
+<div class="page-head">
+    <h1>تحصيلات المشاريع</h1>
+    <a class="btn-sm" asp-action="PrintAll" target="_blank">🖨 طباعة (PDF)</a>
+</div>
+
+@if (TempData["StatusMessage"] is string status)
+{
+    <div class="status-message">@status</div>
+}
+
+<div class="kpi-grid" style="grid-template-columns: repeat(4, 1fr);">
+    <div class="kpi k-alerts"><div class="kpi-label">إجمالي المستحق</div><div class="kpi-value">@N(Model.TotalOutstanding) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">@Model.DueCount قسط</div></div>
+    <div class="kpi k-alerts"><div class="kpi-label">المتأخرات</div><div class="kpi-value">@N(Model.OverdueAmount) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">@Model.OverdueCount قسط متأخر</div></div>
+    <div class="kpi k-sales"><div class="kpi-label">محصّل هذا الشهر</div><div class="kpi-value">@N(Model.CollectedThisMonth) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">مدفوعات</div></div>
+    <div class="kpi k-reserve"><div class="kpi-label">أقساط مستحقة</div><div class="kpi-value">@Model.DueCount</div><div class="kpi-foot">بحاجة للتحصيل</div></div>
+</div>
+
+<div class="subtabs">
+    <a class="subtab active" href="javascript:" data-tab="due" onclick="colOpen(event,'@Url.Action("DueNow")')">المستحقة حاليًا</a>
+    <a class="subtab" href="javascript:" data-tab="week" onclick="colOpen(event,'@Url.Action("DueThisWeek")')">مستحقة خلال الأسبوع</a>
+    <a class="subtab" href="javascript:" data-tab="all" onclick="colOpen(event,'@Url.Action("All")')">جميع الاستحقاقات</a>
+    <a class="subtab" href="javascript:" data-tab="coll" onclick="colOpen(event,'@Url.Action("Collected")')">الاستحقاقات المحصلة</a>
+</div>
+
+<div id="colTab"><div class="card-tile" style="color:var(--muted)">جارٍ التحميل…</div></div>
+
+@section Scripts {
+    <script>
+        var COL = { base: '@Url.Action("DueNow")', safes: @Html.Raw(Json.Serialize(ViewBag.Safes ?? new object[0])) };
+        function colSafeOptions() {
+            return (COL.safes || []).map(function (s) { return '<option value="' + s.id + '">' + s.name + '</option>'; }).join('');
+        }
+        function colLoad(url) {
+            COL.base = url.split('?')[0];
+            COL.last = url;
+            fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                .then(function (r) { return r.text(); })
+                .then(function (h) { document.getElementById('colTab').innerHTML = h; colBind(); });
+        }
+        function colOpen(e, url) {
+            document.querySelectorAll('.subtabs .subtab').forEach(function (a) { a.classList.remove('active'); });
+            e.currentTarget.classList.add('active');
+            colLoad(url);
+        }
+        function colReload(sort) { colLoad(COL.base + '?sort=' + encodeURIComponent(sort)); }
+        function colFilter(q) {
+            q = (q || '').trim().toLowerCase();
+            document.querySelectorAll('#colTab [data-search]').forEach(function (tr) {
+                tr.style.display = tr.getAttribute('data-search').indexOf(q) >= 0 ? '' : 'none';
+            });
+            // hide groups with no visible rows
+            document.querySelectorAll('#colTab details.col-group').forEach(function (g) {
+                var any = Array.prototype.some.call(g.querySelectorAll('[data-search]'), function (tr) { return tr.style.display !== 'none'; });
+                g.style.display = any ? '' : 'none';
+            });
+        }
+        function colBind() {
+            document.querySelectorAll('#colTab .pay-form, #colTab .cancel-form').forEach(function (f) {
+                f.addEventListener('submit', function (e) {
+                    e.preventDefault();
+                    if (!window.Swal) { f.submit(); return; }
+                    var isCancel = f.classList.contains('cancel-form');
+                    if (isCancel) {
+                        Swal.fire({
+                            icon: 'warning', title: 'إلغاء التحصيل', html: f.dataset.msg,
+                            showCancelButton: true, confirmButtonText: 'نعم، إلغاء', cancelButtonText: 'رجوع',
+                            reverseButtons: true, confirmButtonColor: '#d03b3b', cancelButtonColor: '#6b7280'
+                        }).then(function (r) { if (r.isConfirmed) f.submit(); });
+                        return;
+                    }
+                    if (!COL.safes || !COL.safes.length) {
+                        Swal.fire({ icon: 'warning', title: 'لا توجد خزائن', html: 'أنشئ خزنة أولًا من المحاسبة ← الخزائن قبل التحصيل.' });
+                        return;
+                    }
+                    Swal.fire({
+                        icon: 'question', title: 'تأكيد التحصيل',
+                        html: f.dataset.msg + '<div style="margin-top:14px;text-align:right;"><label style="display:block;margin-bottom:6px;font-size:14px;">الخزنة المستلمة للمبلغ</label><select id="swalSafe" class="swal2-select" style="width:100%;margin:0;">' + colSafeOptions() + '</select></div>',
+                        showCancelButton: true, confirmButtonText: 'نعم، حصّل واطبع الإيصال', cancelButtonText: 'رجوع',
+                        reverseButtons: true, confirmButtonColor: '#199e70', cancelButtonColor: '#6b7280',
+                        preConfirm: function () {
+                            var v = document.getElementById('swalSafe').value;
+                            if (!v) { Swal.showValidationMessage('اختر الخزنة'); }
+                            return v;
+                        }
+                    }).then(function (r) {
+                        if (r.isConfirmed) {
+                            f.querySelector('.pay-safe').value = r.value;
+                            f.target = '_blank';   // open the printable receipt in a new tab
+                            f.submit();
+                            // refresh the list in place so the collected installment updates
+                            setTimeout(function () { colLoad(COL.last || COL.base); }, 900);
+                        }
+                    });
+                });
+            });
+        }
+        colLoad('@Url.Action("DueNow")'); // default tab
+    </script>
+}

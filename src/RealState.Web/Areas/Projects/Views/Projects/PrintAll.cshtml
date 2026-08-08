@@ -1,0 +1,41 @@
+@model List<ProjectSummaryRow>
+@{
+    Layout = null;
+    var tenantId = (Guid)ViewBag.TenantId;
+    string N(decimal v) => v.ToString("N0", new System.Globalization.CultureInfo("ar-EG"));
+    string D(DateTime? d) => d?.ToString("yyyy/MM/dd") ?? "—";
+}
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="utf-8" />
+    <title>ملخص المشاريع</title>
+    <partial name="_PrintStyles" />
+</head>
+<body>
+    <div class="no-print"><button onclick="window.print()">🖨 طباعة / حفظ PDF</button></div>
+    <div style="text-align:center;margin-bottom:6px;"><img src="@Url.Action("Logo", "Branding", new { area = "", id = tenantId })" alt="logo" style="max-height:60px;" onerror="this.style.display='none'" /></div>
+    <h1>ملخص المشاريع</h1>
+    <div class="sub">عدد المشاريع @Model.Count · @DateTime.Now.ToString("yyyy/MM/dd HH:mm")</div>
+    <table>
+        <thead><tr><th>الكود</th><th>المشروع</th><th>النوع</th><th>الموقع</th><th>الوحدات (مباع/كلي)</th><th>المراحل</th><th>إجمالي المصروفات</th><th>نهاية (مخطط/فعلي)</th></tr></thead>
+        <tbody>
+        @foreach (var r in Model)
+        {
+            <tr>
+                <td>@r.Code</td>
+                <td>@r.Name</td>
+                <td>@r.Type.Ar()</td>
+                <td>@(string.IsNullOrEmpty(r.Location) ? "—" : r.Location)</td>
+                <td>@r.UnitsSold / @r.UnitsTotal</td>
+                <td>@r.StagesCount</td>
+                <td>@N(r.TotalExpenses) ج.م</td>
+                <td>@D(r.PlannedEnd) / @D(r.ActualEnd)</td>
+            </tr>
+        }
+        @if (Model.Count == 0) { <tr><td colspan="8" class="muted">لا توجد مشاريع.</td></tr> }
+        </tbody>
+    </table>
+    <script>window.addEventListener('load', function () { setTimeout(function () { window.print(); }, 400); });</script>
+</body>
+</html>

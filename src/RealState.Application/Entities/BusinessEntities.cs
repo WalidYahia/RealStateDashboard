@@ -3,20 +3,39 @@ using RealState.Application.Enums;
 
 namespace RealState.Application.Entities;
 
-/// <summary>A real-estate project/compound being sold.</summary>
+/// <summary>A real-estate project (building, mall or land).</summary>
 public class Project : AuditableEntity, ITenantEntity
 {
     public Guid TenantId { get; set; }
     public string Name { get; set; } = string.Empty;
-    public string? Location { get; set; }
+
+    /// <summary>Sequential human code, e.g. "0001".</summary>
+    public string Code { get; set; } = string.Empty;
+
+    public string? Location { get; set; }         // free text, not a map
+    public ProjectType Type { get; set; }
+    public string? Notes { get; set; }
+
+    public DateTime? PlannedStartDate { get; set; }
+    public DateTime? ActualStartDate { get; set; }
+    public DateTime? PlannedEndDate { get; set; }
+    public DateTime? ActualEndDate { get; set; }
+
+    /// <summary>Main hero image bytes.</summary>
+    public byte[]? HeroImageData { get; set; }
+    public string? HeroImageContentType { get; set; }
+
+    // Retained aggregates used by the executive dashboard (progress/target); not edited directly here.
     public int TotalUnits { get; set; }
     public int SoldUnits { get; set; }
     public decimal TargetAmount { get; set; }
     public decimal AchievedAmount { get; set; }
+    public decimal ProgressPercent { get; set; }
     public Guid? SectionId { get; set; }
 
-    /// <summary>Completion / sell-through percentage (0–100), shown on the dashboard progress bars.</summary>
-    public decimal ProgressPercent { get; set; }
+    public ICollection<ProjectStage> Stages { get; set; } = new List<ProjectStage>();
+    public ICollection<ProjectUnit> Units { get; set; } = new List<ProjectUnit>();
+    public ICollection<ProjectAttachment> Attachments { get; set; } = new List<ProjectAttachment>();
 }
 
 public class Customer : AuditableEntity, ITenantEntity
@@ -25,6 +44,13 @@ public class Customer : AuditableEntity, ITenantEntity
     public string FullName { get; set; } = string.Empty;
     public string? Phone { get; set; }
     public string? Email { get; set; }
+    public CustomerSource Source { get; set; }
+    public string? Notes { get; set; }
+
+    /// <summary>Assigned salesperson (an Employee of type Salesperson). Required in the UI.</summary>
+    public Guid? SalesPersonId { get; set; }
+    public Employee? SalesPerson { get; set; }
+
     public Guid? CityId { get; set; }
     public Guid? CountryId { get; set; }
 }

@@ -1,0 +1,8 @@
+@{
+    var ctrl = ViewContext.RouteData.Values["controller"]?.ToString();
+    string Active(string c) => string.Equals(ctrl, c, StringComparison.OrdinalIgnoreCase) ? "active" : "";
+}
+<div class="subtabs">
+    <a class="subtab @Active("Salespersons")" asp-area="CRM" asp-controller="Salespersons" asp-action="Index">👤 المناديب</a>
+    <a class="subtab @Active("Customers")" asp-area="CRM" asp-controller="Customers" asp-action="Index">🧑‍💼 العملاء</a>
+</div>
