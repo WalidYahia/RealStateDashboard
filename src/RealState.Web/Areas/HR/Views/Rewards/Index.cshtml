@@ -1,0 +1,57 @@
+@model RewardListVm
+@{
+    ViewData["Title"] = "المكافآت";
+    var canManage = ViewData["CanManage"] as bool? ?? false;
+    string N(decimal v) => v.ToString("N0", new System.Globalization.CultureInfo("ar-EG"));
+    string D(DateTime d) => d.ToString("yyyy/MM/dd", System.Globalization.CultureInfo.InvariantCulture);
+    string? F(DateTime? d) => d?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+    string RWD(int n) => "RWD-" + n.ToString("D4");
+}
+<div class="page-head">
+    <h1>المكافآت</h1>
+    @if (canManage) { <button type="button" class="btn-new-tenant" onclick="appOpenModal('@Url.Action("Form")', 'مكافأة جديدة')">➕ مكافأة</button> }
+</div>
+
+@if (TempData["StatusMessage"] is string status) { <div class="status-message">@status</div> }
+
+<div class="card-tile" style="margin-bottom:12px;">
+    <form asp-action="Index" method="get" style="display:flex;gap:10px;align-items:end;flex-wrap:wrap;">
+        <div><label class="form-label">من</label><input type="date" name="from" value="@F(Model.From)" class="form-control" style="margin:0;" dir="ltr" /></div>
+        <div><label class="form-label">إلى</label><input type="date" name="to" value="@F(Model.To)" class="form-control" style="margin:0;" dir="ltr" /></div>
+        <div><label class="form-label">الموظف</label><input type="text" name="q" value="@Model.Q" class="form-control" style="margin:0;" placeholder="اسم الموظف" /></div>
+        <button type="submit" class="btn-primary" style="width:auto;">بحث</button>
+        <a class="btn-sm" asp-action="Index" asp-route-from="2000-01-01" asp-route-to="2100-01-01">الكل</a>
+    </form>
+</div>
+
+<div class="card-tile">
+    <table class="rs-table">
+        <thead><tr><th>الرقم</th><th>الموظف</th><th>التاريخ</th><th>المبلغ</th><th>طريقة الصرف</th><th>الحالة</th><th></th></tr></thead>
+        <tbody>
+        @foreach (var r in Model.Rows)
+        {
+            <tr>
+                <td dir="ltr" style="text-align:right;">@RWD(r.Number)</td>
+                <td>@r.Employee</td>
+                <td dir="ltr" style="text-align:right;">@D(r.Date)</td>
+                <td>@N(r.Amount)</td>
+                <td>@r.PayVia.Ar()</td>
+                <td><span class="badge-role" style="color:@(r.Status == PayStatus.Paid ? "var(--good)" : "var(--muted)")">@r.Status.Ar()</span></td>
+                <td style="white-space:nowrap;">
+                    <a class="btn-sm" asp-action="Print" asp-route-id="@r.Id" target="_blank">🖨</a>
+                    @if (canManage && r.PayVia == RewardPayVia.Salary && r.Status == PayStatus.NotPaid)
+                    {
+                        <form asp-action="TogglePaid" asp-route-id="@r.Id" method="post" style="display:inline;">@Html.AntiForgeryToken()<button type="submit" class="btn-sm">تعليم كمصروف</button></form>
+                    }
+                    @if (canManage && r.Status == PayStatus.NotPaid)
+                    {
+                        <form asp-action="Delete" asp-route-id="@r.Id" method="post" style="display:inline;" data-confirm="حذف المكافأة @RWD(r.Number)؟" data-danger>@Html.AntiForgeryToken()<button type="submit" class="btn-sm btn-danger">حذف</button></form>
+                    }
+                </td>
+            </tr>
+        }
+        @if (Model.Rows.Count == 0) { <tr><td colspan="7" style="color:var(--muted)">لا توجد مكافآت في هذه الفترة.</td></tr> }
+        </tbody>
+    </table>
+    <p style="color:var(--muted);font-size:12px;margin-top:8px;">💡 المكافآت النقدية تُصرف من صفحة المصروفات (النوع: مكافأة). مكافآت الراتب تُعلَّم يدويًا.</p>
+</div>

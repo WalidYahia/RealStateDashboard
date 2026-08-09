@@ -1,0 +1,44 @@
+@model VacationListVm
+@{
+    ViewData["Title"] = "الإجازات";
+    var canManage = ViewData["CanManage"] as bool? ?? false;
+    string D(DateTime d) => d.ToString("yyyy/MM/dd", System.Globalization.CultureInfo.InvariantCulture);
+    string? F(DateTime? d) => d?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+}
+<div class="page-head">
+    <h1>الإجازات</h1>
+    @if (canManage) { <button type="button" class="btn-new-tenant" onclick="appOpenModal('@Url.Action("Form")', 'إجازة جديدة')">➕ إجازة</button> }
+</div>
+
+@if (TempData["StatusMessage"] is string status) { <div class="status-message">@status</div> }
+
+<div class="card-tile" style="margin-bottom:12px;">
+    <form asp-action="Index" method="get" style="display:flex;gap:10px;align-items:end;flex-wrap:wrap;">
+        <div><label class="form-label">من (تاريخ التقديم)</label><input type="date" name="from" value="@F(Model.From)" class="form-control" style="margin:0;" dir="ltr" /></div>
+        <div><label class="form-label">إلى</label><input type="date" name="to" value="@F(Model.To)" class="form-control" style="margin:0;" dir="ltr" /></div>
+        <div><label class="form-label">الموظف</label><input type="text" name="q" value="@Model.Q" class="form-control" style="margin:0;" placeholder="اسم الموظف" /></div>
+        <button type="submit" class="btn-primary" style="width:auto;">بحث</button>
+        <a class="btn-sm" asp-action="Index" asp-route-from="2000-01-01" asp-route-to="2100-01-01">الكل</a>
+    </form>
+</div>
+
+<div class="card-tile">
+    <table class="rs-table">
+        <thead><tr><th>الموظف</th><th>النوع</th><th>تاريخ التقديم</th><th>من</th><th>إلى</th><th>المدة (يوم)</th><th></th></tr></thead>
+        <tbody>
+        @foreach (var r in Model.Rows)
+        {
+            <tr>
+                <td>@r.Employee</td>
+                <td>@r.Type.Ar()</td>
+                <td dir="ltr" style="text-align:right;">@D(r.ApplyDate)</td>
+                <td dir="ltr" style="text-align:right;">@D(r.FromDate)</td>
+                <td dir="ltr" style="text-align:right;">@D(r.ToDate)</td>
+                <td>@r.Days</td>
+                <td>@if (canManage) { <form asp-action="Delete" asp-route-id="@r.Id" method="post" style="display:inline;" data-confirm="حذف الإجازة؟" data-danger>@Html.AntiForgeryToken()<button type="submit" class="btn-sm btn-danger">حذف</button></form> }</td>
+            </tr>
+        }
+        @if (Model.Rows.Count == 0) { <tr><td colspan="7" style="color:var(--muted)">لا توجد إجازات في هذه الفترة.</td></tr> }
+        </tbody>
+    </table>
+</div>

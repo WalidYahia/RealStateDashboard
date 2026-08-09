@@ -7,7 +7,7 @@ namespace RealState.Web.Components;
 public class BrandVm
 {
     public Guid Id { get; set; }
-    public string Name { get; set; } = "RealState";
+    public string Name { get; set; } = "Real-Estate";
     public bool HasLogo { get; set; }
     public long Version { get; set; }
 }

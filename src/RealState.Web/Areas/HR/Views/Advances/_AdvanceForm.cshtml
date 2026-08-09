@@ -1,0 +1,29 @@
+@model AdvanceFormModel
+<form id="appModalForm" asp-area="Hr" asp-controller="Advances" asp-action="Form" method="post">
+    @Html.AntiForgeryToken()
+    <div asp-validation-summary="ModelOnly" class="validation-summary-errors"></div>
+    @if (Model.Employees.Count == 0)
+    {
+        <div class="status-message" style="background:rgba(250,178,25,.12);border-color:var(--warning);color:var(--warning);">أضف موظفًا أولًا.</div>
+    }
+    <div class="form-grid">
+        <div>
+            <label asp-for="EmployeeId" class="form-label"></label>
+            <select asp-for="EmployeeId" class="form-control" asp-items="Model.Employees"><option value="">— اختر الموظف —</option></select>
+            <span asp-validation-for="EmployeeId" class="field-validation-error"></span>
+        </div>
+        <div><label asp-for="Amount" class="form-label"></label><input asp-for="Amount" class="form-control" type="number" step="0.01" min="0" dir="ltr" /><span asp-validation-for="Amount" class="field-validation-error"></span></div>
+        <div><label asp-for="Date" class="form-label"></label><input asp-for="Date" class="form-control" type="date" dir="ltr" /></div>
+        <div>
+            <label asp-for="RepaymentMethod" class="form-label"></label>
+            <select asp-for="RepaymentMethod" class="form-control" data-cascade-init onchange="advMethodChange(this.form)" asp-items="RealState.Web.ArabicLabels.AdvanceRepaymentMethodOptions(Model.RepaymentMethod)"></select>
+        </div>
+        <div class="adv-salary"><label asp-for="InstallmentsCount" class="form-label"></label><input asp-for="InstallmentsCount" class="form-control" type="number" min="1" max="600" dir="ltr" /></div>
+        <div class="adv-salary"><label asp-for="MonthlyStartDate" class="form-label"></label><input asp-for="MonthlyStartDate" class="form-control" type="date" dir="ltr" /></div>
+        <div class="full"><label asp-for="Notes" class="form-label"></label><textarea asp-for="Notes" class="form-control" rows="2"></textarea></div>
+    </div>
+    <button type="submit" class="btn-primary" style="margin-top:12px;" disabled="@(Model.Employees.Count == 0)">💾 حفظ السلفة</button>
+</form>
+<script>
+    // defined globally on the Advances index page (see below); safe no-op if already defined.
+</script>

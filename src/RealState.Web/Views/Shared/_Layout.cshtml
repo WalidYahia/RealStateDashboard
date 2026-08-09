@@ -140,6 +140,25 @@
                         </div>
                     </div>
                 }
+                @if (Can(PermissionNames.HrView))
+                {
+                    var hrArea = ViewContext.RouteData.Values["area"]?.ToString();
+                    var hrCtrl = ViewContext.RouteData.Values["controller"]?.ToString();
+                    var hrOpen = hrArea == "Hr";
+                    <div class="nav-group @(hrOpen ? "open" : "")">
+                        <div class="nav-parent">
+                            <a class="nav-link @(hrOpen ? "active" : "")" href="javascript:" onclick="toggleNavGroup(this)"><span>👔</span> الموارد البشرية</a>
+                            <button type="button" class="nav-caret" onclick="toggleNavGroup(this)">▾</button>
+                        </div>
+                        <div class="subnav">
+                            <a class="subnav-link @(hrOpen && hrCtrl == "Hr" ? "active" : "")" asp-area="Hr" asp-controller="Hr" asp-action="Index">الإعدادات</a>
+                            <a class="subnav-link @(hrOpen && hrCtrl == "Employees" ? "active" : "")" asp-area="Hr" asp-controller="Employees" asp-action="Index">الموظفون</a>
+                            <a class="subnav-link @(hrOpen && hrCtrl == "Vacations" ? "active" : "")" asp-area="Hr" asp-controller="Vacations" asp-action="Index">الإجازات</a>
+                            <a class="subnav-link @(hrOpen && hrCtrl == "Advances" ? "active" : "")" asp-area="Hr" asp-controller="Advances" asp-action="Index">السلف</a>
+                            <a class="subnav-link @(hrOpen && hrCtrl == "Rewards" ? "active" : "")" asp-area="Hr" asp-controller="Rewards" asp-action="Index">المكافآت</a>
+                        </div>
+                    </div>
+                }
                 @if (Can(PermissionNames.ReportsView))
                 {
                     var repCtrl = ViewContext.RouteData.Values["controller"]?.ToString();
@@ -190,7 +209,6 @@
             <header class="topbar">
                 <div class="topbar-title">
                     <h1>@ViewData["Title"]</h1>
-                    <p>رئيس مجلس الإدارة</p>
                 </div>
                 <div class="topbar-meta">
                     @if (User.IsHost())

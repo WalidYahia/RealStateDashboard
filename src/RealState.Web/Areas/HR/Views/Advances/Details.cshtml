@@ -1,0 +1,53 @@
+@model Advance
+@{
+    ViewData["Title"] = $"سلفة ADV-{Model.Number:D4}";
+    var canManage = ViewData["CanManage"] as bool? ?? false;
+    string N(decimal v) => v.ToString("N0", new System.Globalization.CultureInfo("ar-EG"));
+    string D(DateTime? d) => d?.ToString("yyyy/MM/dd") ?? "—";
+    var repaid = Model.Repayments.Where(r => r.Status == PayStatus.Paid).Sum(r => r.Amount);
+}
+<div class="page-head">
+    <div>
+        <h1>سلفة <span class="proj-code">ADV-@Model.Number.ToString("D4")</span></h1>
+        <p style="color:var(--muted);margin:2px 0 0;">@Model.Employee?.FullName · @Model.RepaymentMethod.Ar() · @Model.Status.Ar()</p>
+    </div>
+    <div style="display:flex;gap:8px;">
+        <a class="btn-sm" asp-action="Index">رجوع</a>
+        <a class="btn-new-tenant" asp-action="Print" asp-route-id="@Model.Id" target="_blank">🖨 طباعة (PDF)</a>
+    </div>
+</div>
+
+@if (TempData["StatusMessage"] is string status) { <div class="status-message">@status</div> }
+
+<div class="kpi-grid" style="grid-template-columns: repeat(3, 1fr);">
+    <div class="kpi k-reserve"><div class="kpi-label">قيمة السلفة</div><div class="kpi-value">@N(Model.Amount) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">@Model.Status.Ar()</div></div>
+    <div class="kpi k-collect"><div class="kpi-label">المسدَّد</div><div class="kpi-value">@N(repaid) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">@Model.RepaymentMethod.Ar()</div></div>
+    <div class="kpi k-alerts"><div class="kpi-label">المتبقي</div><div class="kpi-value">@N(Model.Amount - repaid) <span class="kpi-unit">ج.م</span></div></div>
+</div>
+
+<div class="card-tile">
+    <div class="card-head"><h3>جدول السداد</h3></div>
+    <table class="rs-table">
+        <thead><tr><th>#</th><th>الاستحقاق</th><th>المبلغ</th><th>الحالة</th><th>تاريخ السداد</th><th></th></tr></thead>
+        <tbody>
+        @foreach (var r in Model.Repayments)
+        {
+            <tr>
+                <td>@r.SeqNo</td>
+                <td dir="ltr" style="text-align:right;">@D(r.DueDate)</td>
+                <td>@N(r.Amount)</td>
+                <td><span class="badge-role" style="color:@(r.Status == PayStatus.Paid ? "var(--good)" : "var(--muted)")">@r.Status.Ar()</span></td>
+                <td dir="ltr" style="text-align:right;">@D(r.PaidDate)</td>
+                <td>
+                    @if (canManage && r.IncomeTxnId is null)
+                    {
+                        <form asp-action="ToggleRepayment" asp-route-id="@r.Id" asp-route-advanceId="@Model.Id" method="post" style="display:inline;">@Html.AntiForgeryToken()<button type="submit" class="btn-sm">@(r.Status == PayStatus.Paid ? "إلغاء السداد" : "تعليم كمسدَّد")</button></form>
+                    }
+                    else if (r.IncomeTxnId is not null) { <span style="color:var(--muted);font-size:12px;">تحصيل نقدي</span> }
+                </td>
+            </tr>
+        }
+        @if (Model.Repayments.Count == 0) { <tr><td colspan="6" style="color:var(--muted)">@(Model.RepaymentMethod == AdvanceRepaymentMethod.Cash ? "سداد نقدي — يُسجَّل من صفحة الإيرادات." : "لا يوجد جدول سداد.")</td></tr> }
+        </tbody>
+    </table>
+</div>

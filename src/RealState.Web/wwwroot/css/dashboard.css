@@ -59,7 +59,12 @@ body {
 
 /* Admin tables & forms */
 .page-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; }
-.page-head h1 { margin: 0; font-size: 22px; font-weight: 800; }
+    .page-head h1 {
+        margin: 0;
+        font-size: 24px;
+        font-weight: 800;
+        font-family: sans-serif;
+    }
 .badge-role { background: var(--surface-2); border: 1px solid var(--border); color: var(--text-secondary); padding: 3px 9px; border-radius: 8px; font-size: 12px; margin-inline-end: 4px; display: inline-block; }
 .badge-state { padding: 3px 10px; border-radius: 8px; font-size: 12px; font-weight: 700; }
 .state-on { background: rgba(12,163,12,.15); color: var(--good); }
@@ -146,7 +151,12 @@ select.form-control { appearance: auto; }
     display: flex; justify-content: space-between; align-items: center;
     padding: 18px 26px; border-bottom: 1px solid var(--border);
 }
-.topbar-title h1 { margin: 0; font-size: 22px; font-weight: 800; }
+.topbar-title h1 {
+    margin: 0;
+    font-size: 28px;
+    font-weight: 800;
+    font-family: system-ui;
+}
 .topbar-title p { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
 .topbar-meta { display: flex; align-items: center; gap: 22px; }
 .clock { text-align: center; }

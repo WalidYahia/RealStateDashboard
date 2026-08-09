@@ -1,0 +1,68 @@
+@model AdvanceListVm
+@{
+    ViewData["Title"] = "السلف";
+    var canManage = ViewData["CanManage"] as bool? ?? false;
+    string N(decimal v) => v.ToString("N0", new System.Globalization.CultureInfo("ar-EG"));
+    string D(DateTime d) => d.ToString("yyyy/MM/dd", System.Globalization.CultureInfo.InvariantCulture);
+    string? F(DateTime? d) => d?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+    string ADV(int n) => "ADV-" + n.ToString("D4");
+}
+<div class="page-head">
+    <h1>السلف</h1>
+    @if (canManage) { <button type="button" class="btn-new-tenant" onclick="appOpenModal('@Url.Action("Form")', 'سلفة جديدة')">➕ سلفة</button> }
+</div>
+
+@if (TempData["StatusMessage"] is string status) { <div class="status-message">@status</div> }
+
+<div class="card-tile" style="margin-bottom:12px;">
+    <form asp-action="Index" method="get" style="display:flex;gap:10px;align-items:end;flex-wrap:wrap;">
+        <div><label class="form-label">من</label><input type="date" name="from" value="@F(Model.From)" class="form-control" style="margin:0;" dir="ltr" /></div>
+        <div><label class="form-label">إلى</label><input type="date" name="to" value="@F(Model.To)" class="form-control" style="margin:0;" dir="ltr" /></div>
+        <div><label class="form-label">الموظف</label><input type="text" name="q" value="@Model.Q" class="form-control" style="margin:0;" placeholder="اسم الموظف" /></div>
+        <button type="submit" class="btn-primary" style="width:auto;">بحث</button>
+        <a class="btn-sm" asp-action="Index" asp-route-from="2000-01-01" asp-route-to="2100-01-01">الكل</a>
+    </form>
+</div>
+
+<div class="card-tile">
+    <table class="rs-table">
+        <thead><tr><th>الرقم</th><th>الموظف</th><th>التاريخ</th><th>المبلغ</th><th>طريقة السداد</th><th>الحالة</th><th>المسدَّد</th><th>المتبقي</th><th></th></tr></thead>
+        <tbody>
+        @foreach (var r in Model.Rows)
+        {
+            <tr>
+                <td dir="ltr" style="text-align:right;"><a asp-action="Details" asp-route-id="@r.Id" style="color:var(--series-1);text-decoration:none;font-weight:600;">@ADV(r.Number)</a></td>
+                <td>@r.Employee</td>
+                <td dir="ltr" style="text-align:right;">@D(r.Date)</td>
+                <td>@N(r.Amount)</td>
+                <td>@r.RepaymentMethod.Ar()</td>
+                <td><span class="badge-role" style="color:@(r.Status == RealState.Application.Enums.DisbursementStatus.Disbursed ? "var(--good)" : "var(--muted)")">@r.Status.Ar()</span></td>
+                <td class="tag-up">@N(r.Repaid)</td>
+                <td>@N(r.Remaining)</td>
+                <td style="white-space:nowrap;">
+                    <a class="btn-sm" asp-action="Details" asp-route-id="@r.Id">التفاصيل</a>
+                    <a class="btn-sm" asp-action="Print" asp-route-id="@r.Id" target="_blank">🖨</a>
+                    @if (canManage && r.Status == RealState.Application.Enums.DisbursementStatus.NotDisbursed)
+                    {
+                        <form asp-action="Delete" asp-route-id="@r.Id" method="post" style="display:inline;" data-confirm="حذف السلفة @ADV(r.Number)؟" data-danger>@Html.AntiForgeryToken()<button type="submit" class="btn-sm btn-danger">حذف</button></form>
+                    }
+                </td>
+            </tr>
+        }
+        @if (Model.Rows.Count == 0) { <tr><td colspan="9" style="color:var(--muted)">لا توجد سلف في هذه الفترة.</td></tr> }
+        </tbody>
+    </table>
+    <p style="color:var(--muted);font-size:12px;margin-top:8px;">💡 تُصرف السلفة من صفحة المصروفات (النوع: سلفة). سداد السلف النقدية يتم من صفحة الإيرادات (النوع: سلفة).</p>
+</div>
+
+@section Scripts {
+    <script>
+        // Show the from-salary fields only when repayment method = من الراتب (value 0).
+        window.advMethodChange = function (form) {
+            if (!form) return;
+            var sel = form.querySelector('[name="RepaymentMethod"]');
+            var show = sel && sel.value === '0';
+            form.querySelectorAll('.adv-salary').forEach(function (el) { el.style.display = show ? '' : 'none'; });
+        };
+    </script>
+}

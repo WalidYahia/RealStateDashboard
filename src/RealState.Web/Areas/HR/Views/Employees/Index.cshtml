@@ -1,0 +1,59 @@
+@model List<EmployeeListItem>
+@{
+    ViewData["Title"] = "الموظفون";
+    var canManage = ViewData["CanManage"] as bool? ?? false;
+    string N(decimal v) => v.ToString("N0", new System.Globalization.CultureInfo("ar-EG"));
+}
+<div class="page-head"><h1>الموظفون</h1></div>
+
+@if (TempData["StatusMessage"] is string status) { <div class="status-message">@status</div> }
+
+<div class="card-tile">
+    <div class="card-head">
+        <h3>قائمة الموظفين</h3>
+        <div style="display:flex;gap:8px;align-items:center;margin-inline-start:auto;">
+            <input id="empSearch" class="form-control" style="margin:0;width:280px;" placeholder="🔍 بحث بالاسم أو القسم أو الوظيفة..." />
+            @if (canManage) { <button type="button" class="btn-new-tenant" onclick="appOpenModal('@Url.Action("Form")', 'موظف جديد')">➕ موظف جديد</button> }
+        </div>
+    </div>
+    <table class="rs-table" id="empTable">
+        <thead><tr><th>الاسم</th><th>الهاتف</th><th>القسم</th><th>الوظيفة</th><th>نوع التعاقد</th><th>الراتب الأساسي</th><th></th></tr></thead>
+        <tbody>
+        @foreach (var e in Model)
+        {
+            <tr data-search="@((e.Name + " " + e.Department + " " + e.Role).ToLower())">
+                <td><a asp-action="Details" asp-route-id="@e.Id" style="color:var(--series-1);text-decoration:none;font-weight:600;">@e.Name</a></td>
+                <td dir="ltr" style="text-align:right;">@e.Phone</td>
+                <td>@e.Department</td>
+                <td>@e.Role</td>
+                <td>@e.EmploymentType</td>
+                <td>@N(e.BasicSalary)</td>
+                <td style="white-space:nowrap;">
+                    <a class="btn-sm" asp-action="Details" asp-route-id="@e.Id">الملف</a>
+                    @if (canManage)
+                    {
+                        <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("Form", new { id = e.Id })', 'تعديل الموظف')">تعديل</button>
+                        <form asp-action="Delete" asp-route-id="@e.Id" method="post" style="display:inline;" data-confirm="حذف الموظف «@e.Name»؟" data-danger>@Html.AntiForgeryToken()<button type="submit" class="btn-sm btn-danger">حذف</button></form>
+                    }
+                </td>
+            </tr>
+        }
+        @if (Model.Count == 0) { <tr><td colspan="7" style="color:var(--muted)">لا يوجد موظفون بعد.</td></tr> }
+        <tr id="empNoResults" style="display:none;"><td colspan="7" style="color:var(--muted)">لا توجد نتائج.</td></tr>
+        </tbody>
+    </table>
+</div>
+
+@section Scripts {
+    <script>
+        (function () {
+            var box = document.getElementById('empSearch'); if (!box) return;
+            box.addEventListener('input', function () {
+                var q = this.value.trim().toLowerCase();
+                var rows = document.querySelectorAll('#empTable tbody tr[data-search]'); var shown = 0;
+                rows.forEach(function (tr) { var m = tr.dataset.search.indexOf(q) >= 0; tr.style.display = m ? '' : 'none'; if (m) shown++; });
+                document.getElementById('empNoResults').style.display = (rows.length && shown === 0) ? '' : 'none';
+            });
+        })();
+    </script>
+}

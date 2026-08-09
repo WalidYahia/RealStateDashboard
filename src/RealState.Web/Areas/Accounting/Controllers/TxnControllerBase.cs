@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using RealState.Application.Accounting;
 using RealState.Application.Common;
+using RealState.Application.Entities;
 using RealState.Application.Enums;
 using RealState.Application.Interfaces;
 using RealState.Web.Areas.Accounting.Models;
@@ -48,12 +49,16 @@ public abstract class TxnControllerBase : Controller
     public async Task<IActionResult> Form(Guid? id, CancellationToken ct)
     {
         if (!Can(id is null ? CreatePerm : EditPerm)) return Forbid();
-        var model = new TxnFormModel { Safes = await SafesAsync(ct) };
+        var model = new TxnFormModel { Safes = await SafesAsync(ct), IsExpense = TxnType == TxnType.Expense };
         if (id is not null)
         {
             var t = await _db.SafeTransactions.FirstOrDefaultAsync(x => x.Id == id, ct);
             if (t is null || t.Type != TxnType || t.Source != TxnSource.Manual) return NotFound();
             model.Id = t.Id; model.Amount = t.Amount; model.OccurredAt = t.OccurredAt; model.Description = t.Description; model.SafeId = t.SafeId;
+        }
+        else
+        {
+            await LoadHrOptionsAsync(model, ct); // only new entries can be advances/rewards
         }
         return PartialView("_TxnForm", model);
     }
@@ -64,7 +69,18 @@ public abstract class TxnControllerBase : Controller
     {
         if (!Can(model.Id == Guid.Empty ? CreatePerm : EditPerm)) return Forbid();
         model.Safes = await SafesAsync(ct);
-        if (!ModelState.IsValid) return PartialView("_TxnForm", model);
+        model.IsExpense = TxnType == TxnType.Expense;
+
+        // HR-linked new entries route through a dedicated flow (advance disbursement / reward payout / advance repayment).
+        if (model.Id == Guid.Empty && model.Kind != AccountingEntryKind.General)
+        {
+            ModelState.Remove(nameof(model.Description));            // auto-generated
+            if (TxnType == TxnType.Expense) ModelState.Remove(nameof(model.Amount)); // taken from the advance/reward
+            await LoadHrOptionsAsync(model, ct);
+            return await SaveHrEntryAsync(model, ct);
+        }
+
+        if (!ModelState.IsValid) { await LoadHrOptionsAsync(model, ct); return PartialView("_TxnForm", model); }
 
         var label = TxnType == TxnType.Expense ? "مصروف" : "إيراد";
         int serial;
@@ -86,6 +102,87 @@ public abstract class TxnControllerBase : Controller
             TempData["StatusMessage"] = $"تعديل {label} رقم {serial:D4}";
         }
         return Json(new { ok = true });
+    }
+
+    // Advance disbursement / reward payout (on the Expenses form) and advance repayment (on the Incomes form).
+    private async Task<IActionResult> SaveHrEntryAsync(TxnFormModel model, CancellationToken ct)
+    {
+        if (model.SafeId is null || !await _db.Safes.AnyAsync(s => s.Id == model.SafeId && s.IsActive, ct))
+            ModelState.AddModelError(nameof(model.SafeId), "اختر خزنة صالحة.");
+
+        if (TxnType == TxnType.Expense && model.Kind == AccountingEntryKind.Advance)
+        {
+            var adv = await _db.Advances.FirstOrDefaultAsync(a => a.Id == model.AdvanceId && a.Status == DisbursementStatus.NotDisbursed, ct);
+            if (adv is null) ModelState.AddModelError(nameof(model.AdvanceId), "اختر سلفة غير مصروفة.");
+            if (!ModelState.IsValid) return PartialView("_TxnForm", model);
+            var empName = await _db.Employees.Where(e => e.Id == adv!.EmployeeId).Select(e => e.FullName).FirstOrDefaultAsync(ct) ?? "—";
+            var txn = await _accounting.AddTransactionAsync(model.SafeId!.Value, TxnType.Expense, TxnSource.AdvanceDisbursement,
+                adv!.Amount, model.OccurredAt, $"صرف سلفة ADV-{adv.Number:D4} للموظف {empName}", ct: ct);
+            await _db.SaveChangesAsync(ct);
+            adv.Status = DisbursementStatus.Disbursed; adv.ExpenseTxnId = txn.Id;
+            await _db.SaveChangesAsync(ct);
+            TempData["StatusMessage"] = $"تم صرف السلفة ADV-{adv.Number:D4} (مصروف رقم {txn.Serial:D4}).";
+            return Json(new { ok = true });
+        }
+
+        if (TxnType == TxnType.Expense && model.Kind == AccountingEntryKind.Reward)
+        {
+            var rw = await _db.Rewards.FirstOrDefaultAsync(r => r.Id == model.RewardId && r.PayVia == RewardPayVia.Cash && r.Status == PayStatus.NotPaid, ct);
+            if (rw is null) ModelState.AddModelError(nameof(model.RewardId), "اختر مكافأة نقدية غير مصروفة.");
+            if (!ModelState.IsValid) return PartialView("_TxnForm", model);
+            var empName = await _db.Employees.Where(e => e.Id == rw!.EmployeeId).Select(e => e.FullName).FirstOrDefaultAsync(ct) ?? "—";
+            var txn = await _accounting.AddTransactionAsync(model.SafeId!.Value, TxnType.Expense, TxnSource.RewardPayment,
+                rw!.Amount, model.OccurredAt, $"صرف مكافأة RWD-{rw.Number:D4} للموظف {empName}", ct: ct);
+            await _db.SaveChangesAsync(ct);
+            rw.Status = PayStatus.Paid; rw.ExpenseTxnId = txn.Id;
+            await _db.SaveChangesAsync(ct);
+            TempData["StatusMessage"] = $"تم صرف المكافأة RWD-{rw.Number:D4} (مصروف رقم {txn.Serial:D4}).";
+            return Json(new { ok = true });
+        }
+
+        if (TxnType == TxnType.Income && model.Kind == AccountingEntryKind.Advance)
+        {
+            var adv = await _db.Advances.FirstOrDefaultAsync(a => a.Id == model.AdvanceId
+                && a.RepaymentMethod == AdvanceRepaymentMethod.Cash && a.Status == DisbursementStatus.Disbursed, ct);
+            if (adv is null) ModelState.AddModelError(nameof(model.AdvanceId), "اختر سلفة نقدية مصروفة.");
+            var alreadyRepaid = adv is null ? 0 : await _db.AdvanceRepayments.Where(r => r.AdvanceId == adv.Id && r.Status == PayStatus.Paid).SumAsync(r => (decimal?)r.Amount, ct) ?? 0;
+            var remaining = adv is null ? 0 : adv.Amount - alreadyRepaid;
+            if (adv is not null && (model.Amount <= 0 || model.Amount > remaining))
+                ModelState.AddModelError(nameof(model.Amount), $"المبلغ يتجاوز المتبقي على السلفة ({remaining:N0}).");
+            if (!ModelState.IsValid) return PartialView("_TxnForm", model);
+            var empName = await _db.Employees.Where(e => e.Id == adv!.EmployeeId).Select(e => e.FullName).FirstOrDefaultAsync(ct) ?? "—";
+            var txn = await _accounting.AddTransactionAsync(model.SafeId!.Value, TxnType.Income, TxnSource.AdvanceRepayment,
+                model.Amount, model.OccurredAt, $"سداد سلفة ADV-{adv!.Number:D4} من {empName}", ct: ct);
+            var nextSeq = (await _db.AdvanceRepayments.Where(r => r.AdvanceId == adv.Id).MaxAsync(r => (int?)r.SeqNo, ct) ?? 0) + 1;
+            _db.AdvanceRepayments.Add(new AdvanceRepayment { AdvanceId = adv.Id, SeqNo = nextSeq, Amount = model.Amount, Status = PayStatus.Paid, PaidDate = model.OccurredAt.Date, IncomeTxnId = txn.Id });
+            await _db.SaveChangesAsync(ct);
+            TempData["StatusMessage"] = $"تم تحصيل سداد السلفة ADV-{adv.Number:D4} (إيراد رقم {txn.Serial:D4}).";
+            return Json(new { ok = true });
+        }
+
+        ModelState.AddModelError(string.Empty, "لا يوجد بند مطابق للنوع المحدد.");
+        return PartialView("_TxnForm", model);
+    }
+
+    private async Task LoadHrOptionsAsync(TxnFormModel model, CancellationToken ct)
+    {
+        var empNames = await _db.Employees.ToDictionaryAsync(e => e.Id, e => e.FullName, ct);
+        var amounts = new Dictionary<Guid, decimal>();
+        if (TxnType == TxnType.Expense)
+        {
+            var advs = await _db.Advances.Where(a => a.Status == DisbursementStatus.NotDisbursed).OrderBy(a => a.Number).ToListAsync(ct);
+            model.AdvanceOptions = advs.Select(a => { amounts[a.Id] = a.Amount; return new SelectListItem { Value = a.Id.ToString(), Text = $"ADV-{a.Number:D4} — {empNames.GetValueOrDefault(a.EmployeeId, "—")} — {a.Amount:N0} ج.م" }; }).ToList();
+            var rws = await _db.Rewards.Where(r => r.PayVia == RewardPayVia.Cash && r.Status == PayStatus.NotPaid).OrderBy(r => r.Number).ToListAsync(ct);
+            model.RewardOptions = rws.Select(r => { amounts[r.Id] = r.Amount; return new SelectListItem { Value = r.Id.ToString(), Text = $"RWD-{r.Number:D4} — {empNames.GetValueOrDefault(r.EmployeeId, "—")} — {r.Amount:N0} ج.م" }; }).ToList();
+        }
+        else // Income: cash advances that are disbursed and not fully repaid
+        {
+            var advs = await _db.Advances.Where(a => a.RepaymentMethod == AdvanceRepaymentMethod.Cash && a.Status == DisbursementStatus.Disbursed).OrderBy(a => a.Number).ToListAsync(ct);
+            var paid = (await _db.AdvanceRepayments.Where(r => r.Status == PayStatus.Paid).GroupBy(r => r.AdvanceId).Select(g => new { g.Key, Sum = g.Sum(x => x.Amount) }).ToListAsync(ct)).ToDictionary(x => x.Key, x => x.Sum);
+            model.AdvanceOptions = advs.Where(a => a.Amount - paid.GetValueOrDefault(a.Id, 0) > 0)
+                .Select(a => { var rem = a.Amount - paid.GetValueOrDefault(a.Id, 0); amounts[a.Id] = rem; return new SelectListItem { Value = a.Id.ToString(), Text = $"ADV-{a.Number:D4} — {empNames.GetValueOrDefault(a.EmployeeId, "—")} — متبقٍ {rem:N0} ج.م" }; }).ToList();
+        }
+        model.AmountsJson = System.Text.Json.JsonSerializer.Serialize(amounts.ToDictionary(k => k.Key.ToString(), v => v.Value));
     }
 
     [HttpPost]

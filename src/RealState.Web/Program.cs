@@ -79,8 +79,13 @@ builder.Services.AddControllersWithViews(options =>
     options.Filters.Add<RealState.Web.Filters.ActivityLogFilter>();
 });
 
-// Arabic RTL as the only supported culture.
+// Arabic RTL as the only supported culture. Use a Latin '.' decimal separator so HTML number
+// inputs (which submit/expect '.') bind and render fractional decimals correctly. Money display
+// helpers create their own CultureInfo("ar-EG") instances, so this doesn't change their formatting.
 var arabic = new CultureInfo("ar-EG");
+arabic.NumberFormat.NumberDecimalSeparator = ".";
+arabic.NumberFormat.CurrencyDecimalSeparator = ".";
+arabic.NumberFormat.PercentDecimalSeparator = ".";
 builder.Services.Configure<RequestLocalizationOptions>(options =>
 {
     options.DefaultRequestCulture = new RequestCulture(arabic);

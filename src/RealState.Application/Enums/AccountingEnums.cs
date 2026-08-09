@@ -14,4 +14,7 @@ public enum TxnSource
     Collection = 1,      // تحصيل قسط (إيراد)
     ProjectExpense = 2,  // مصروف مرحلة مشروع
     SupplierPayment = 3, // سداد دفعة لمورد (مصروف)
+    AdvanceDisbursement = 4, // صرف سلفة لموظف (مصروف)
+    RewardPayment = 5,       // صرف مكافأة لموظف (مصروف)
+    AdvanceRepayment = 6,    // تحصيل سداد سلفة (إيراد)
 }

@@ -27,6 +27,15 @@ public interface IApplicationDbContext
     DbSet<Campaign> Campaigns { get; }
     DbSet<CampaignUpdate> CampaignUpdates { get; }
     DbSet<Employee> Employees { get; }
+    DbSet<Department> Departments { get; }
+    DbSet<JobRole> JobRoles { get; }
+    DbSet<AttendanceSetting> AttendanceSettings { get; }
+    DbSet<LateDeductionRule> LateDeductionRules { get; }
+    DbSet<EmployeeAttachment> EmployeeAttachments { get; }
+    DbSet<Vacation> Vacations { get; }
+    DbSet<Advance> Advances { get; }
+    DbSet<AdvanceRepayment> AdvanceRepayments { get; }
+    DbSet<Reward> Rewards { get; }
     DbSet<SaleContract> SaleContracts { get; }
     DbSet<Installment> Installments { get; }
     DbSet<Safe> Safes { get; }

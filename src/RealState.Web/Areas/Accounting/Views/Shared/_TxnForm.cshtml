@@ -1,5 +1,8 @@
 @model TxnFormModel
-<form id="appModalForm" asp-action="Form" method="post">
+@{
+    var isNew = Model.Id == Guid.Empty;
+}
+<form id="appModalForm" asp-action="Form" method="post" data-txn-amounts="@Model.AmountsJson" data-txn-expense="@(Model.IsExpense ? "1" : "0")">
     @Html.AntiForgeryToken()
     <div asp-validation-summary="ModelOnly" class="validation-summary-errors"></div>
     <input type="hidden" asp-for="Id" />
@@ -9,10 +12,49 @@
             لا توجد خزائن. أنشئ خزنة أولًا من المحاسبة ← الخزائن.
         </div>
     }
+
+    @if (isNew)
+    {
+        <div class="form-grid">
+            <div>
+                <label asp-for="Kind" class="form-label"></label>
+                <select asp-for="Kind" class="form-control" data-cascade-init onchange="txnKindChange(this.form)">
+                    <option value="@((int)AccountingEntryKind.General)">عام</option>
+                    <option value="@((int)AccountingEntryKind.Advance)">سلفة</option>
+                    @if (Model.IsExpense)
+                    {
+                        <option value="@((int)AccountingEntryKind.Reward)">مكافأة</option>
+                    }
+                </select>
+            </div>
+            <div class="txn-advance full" style="display:none;">
+                <label asp-for="AdvanceId" class="form-label"></label>
+                <select asp-for="AdvanceId" class="form-control" onchange="txnPickAmount(this)">
+                    <option value="">— اختر السلفة —</option>
+                    @foreach (var o in Model.AdvanceOptions) { <option value="@o.Value">@o.Text</option> }
+                </select>
+                <span asp-validation-for="AdvanceId" class="field-validation-error"></span>
+                @if (Model.AdvanceOptions.Count == 0) { <span style="color:var(--muted);font-size:12px;">لا توجد سلف مطابقة.</span> }
+            </div>
+            @if (Model.IsExpense)
+            {
+                <div class="txn-reward full" style="display:none;">
+                    <label asp-for="RewardId" class="form-label"></label>
+                    <select asp-for="RewardId" class="form-control" onchange="txnPickAmount(this)">
+                        <option value="">— اختر المكافأة —</option>
+                        @foreach (var o in Model.RewardOptions) { <option value="@o.Value">@o.Text</option> }
+                    </select>
+                    <span asp-validation-for="RewardId" class="field-validation-error"></span>
+                    @if (Model.RewardOptions.Count == 0) { <span style="color:var(--muted);font-size:12px;">لا توجد مكافآت نقدية مطابقة.</span> }
+                </div>
+            }
+        </div>
+    }
+
     <div class="form-grid">
         <div>
             <label asp-for="Amount" class="form-label"></label>
-            <input asp-for="Amount" class="form-control" type="number" step="0.01" min="0" dir="ltr" />
+            <input asp-for="Amount" id="txnAmount" class="form-control" type="number" step="0.01" min="0" dir="ltr" />
             <span asp-validation-for="Amount" class="field-validation-error"></span>
         </div>
         <div>
@@ -25,7 +67,7 @@
             <select asp-for="SafeId" class="form-control" asp-items="Model.Safes"><option value="">— اختر الخزنة —</option></select>
             <span asp-validation-for="SafeId" class="field-validation-error"></span>
         </div>
-        <div class="full">
+        <div class="full txn-desc">
             <label asp-for="Description" class="form-label"></label>
             <textarea asp-for="Description" class="form-control" rows="2"></textarea>
             <span asp-validation-for="Description" class="field-validation-error"></span>

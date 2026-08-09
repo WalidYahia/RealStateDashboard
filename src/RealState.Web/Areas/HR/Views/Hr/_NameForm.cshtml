@@ -1,0 +1,23 @@
+@model NameFormModel
+@{
+    var isRole = (ViewData["FormAction"] as string) == "RoleForm";
+}
+<form id="appModalForm" asp-area="Hr" asp-controller="Hr" asp-action="@(ViewData["FormAction"] as string ?? "DepartmentForm")" method="post">
+    @Html.AntiForgeryToken()
+    <div asp-validation-summary="ModelOnly" class="validation-summary-errors"></div>
+    <input type="hidden" asp-for="Id" />
+    <div class="form-grid">
+        <div class="full">
+            <label asp-for="Name" class="form-label"></label>
+            <input asp-for="Name" class="form-control" />
+            <span asp-validation-for="Name" class="field-validation-error"></span>
+        </div>
+        @if (isRole)
+        {
+            <div class="full">
+                <label class="form-check"><input asp-for="IsSalesperson" class="form-check-input" /> مندوب مبيعات (يظهر في اختيار مندوب العميل)</label>
+            </div>
+        }
+    </div>
+    <button type="submit" class="btn-primary" style="margin-top:12px;">💾 حفظ</button>
+</form>

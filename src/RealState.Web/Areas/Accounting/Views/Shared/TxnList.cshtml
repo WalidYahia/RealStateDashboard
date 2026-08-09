@@ -178,3 +178,33 @@
         </tbody>
     </table>
 </div>
+
+@section Scripts {
+    <script>
+        // Income/Expense modal: toggle the advance/reward pickers by the chosen "النوع" and auto-fill amount.
+        window.txnKindChange = function (form) {
+            if (!form) return;
+            var kind = form.querySelector('[name="Kind"]');
+            var v = kind ? kind.value : '0';
+            var adv = form.querySelector('.txn-advance');
+            var rew = form.querySelector('.txn-reward');
+            var desc = form.querySelector('.txn-desc');
+            var amt = form.querySelector('#txnAmount');
+            if (adv) adv.style.display = v === '1' ? '' : 'none';
+            if (rew) rew.style.display = v === '2' ? '' : 'none';
+            // description is auto-generated for advance/reward
+            if (desc) desc.style.display = v === '0' ? '' : 'none';
+            var isExpense = form.getAttribute('data-txn-expense') === '1';
+            if (v === '0') { if (amt) { amt.readOnly = false; } }
+            else if (amt) { amt.readOnly = isExpense; if (isExpense) amt.value = 0; }
+        };
+        window.txnPickAmount = function (sel) {
+            var form = sel.form; if (!form) return;
+            var map = {};
+            try { map = JSON.parse(form.getAttribute('data-txn-amounts') || '{}'); } catch (e) { }
+            var amt = form.querySelector('#txnAmount');
+            var val = map[sel.value];
+            if (amt && val != null) amt.value = val;
+        };
+    </script>
+}

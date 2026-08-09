@@ -1,0 +1,142 @@
+@model HrSettingsVm
+@{
+    ViewData["Title"] = "إعدادات الموارد البشرية";
+    var canManage = ViewData["CanManage"] as bool? ?? false;
+    string T(TimeSpan t) => t.ToString(@"hh\:mm");
+}
+<div class="page-head"><h1>إعدادات الموارد البشرية</h1></div>
+
+@if (TempData["StatusMessage"] is string status) { <div class="status-message">@status</div> }
+
+<div class="subtabs" style="margin-top:6px;">
+    <a class="subtab active" data-tab="org" href="javascript:" onclick="hrTab(event,'org')">الأقسام والوظائف</a>
+    <a class="subtab" data-tab="att" href="javascript:" onclick="hrTab(event,'att')">إعدادات الحضور</a>
+</div>
+
+<!-- Tab: departments + roles -->
+<div id="hr-org" class="hr-tab">
+    <div class="grid-row" style="grid-template-columns: 1fr 1fr;">
+        <div class="card-tile">
+            <div class="card-head">
+                <h3>الأقسام</h3>
+                @if (canManage) { <button type="button" class="btn-new-tenant" onclick="appOpenModal('@Url.Action("DepartmentForm")', 'قسم جديد')">➕ قسم</button> }
+            </div>
+            <table class="rs-table">
+                <thead><tr><th>الاسم</th><th></th></tr></thead>
+                <tbody>
+                @foreach (var d in Model.Departments)
+                {
+                    <tr>
+                        <td>@d.Name</td>
+                        <td style="white-space:nowrap;">
+                            @if (canManage)
+                            {
+                                <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("DepartmentForm", new { id = d.Id })', 'تعديل القسم')">تعديل</button>
+                                <form asp-action="DepartmentDelete" asp-route-id="@d.Id" method="post" style="display:inline;" data-confirm="حذف القسم؟" data-danger>@Html.AntiForgeryToken()<button type="submit" class="btn-sm btn-danger">حذف</button></form>
+                            }
+                        </td>
+                    </tr>
+                }
+                @if (Model.Departments.Count == 0) { <tr><td colspan="2" style="color:var(--muted)">لا توجد أقسام.</td></tr> }
+                </tbody>
+            </table>
+        </div>
+
+        <div class="card-tile">
+            <div class="card-head">
+                <h3>الوظائف</h3>
+                @if (canManage) { <button type="button" class="btn-new-tenant" onclick="appOpenModal('@Url.Action("RoleForm")', 'وظيفة جديدة')">➕ وظيفة</button> }
+            </div>
+            <table class="rs-table">
+                <thead><tr><th>الاسم</th><th>مندوب مبيعات</th><th></th></tr></thead>
+                <tbody>
+                @foreach (var r in Model.Roles)
+                {
+                    <tr>
+                        <td>@r.Name</td>
+                        <td>@(r.IsSalesperson ? "نعم" : "—")</td>
+                        <td style="white-space:nowrap;">
+                            @if (canManage)
+                            {
+                                <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("RoleForm", new { id = r.Id })', 'تعديل الوظيفة')">تعديل</button>
+                                <form asp-action="RoleDelete" asp-route-id="@r.Id" method="post" style="display:inline;" data-confirm="حذف الوظيفة؟" data-danger>@Html.AntiForgeryToken()<button type="submit" class="btn-sm btn-danger">حذف</button></form>
+                            }
+                        </td>
+                    </tr>
+                }
+                @if (Model.Roles.Count == 0) { <tr><td colspan="3" style="color:var(--muted)">لا توجد وظائف.</td></tr> }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Tab: attendance + late rules -->
+<div id="hr-att" class="hr-tab" style="display:none;">
+    <div class="card-tile" style="margin-bottom:14px;">
+        <div class="card-head"><h3>إعدادات الحضور والانصراف</h3></div>
+        <form asp-action="SaveAttendance" method="post">
+            @Html.AntiForgeryToken()
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;">
+                <div><label class="form-label">وقت الحضور</label><input type="time" name="TimeIn" value="@T(Model.Attendance.TimeIn)" class="form-control" dir="ltr" disabled="@(!canManage)" /></div>
+                <div><label class="form-label">وقت الانصراف</label><input type="time" name="TimeOut" value="@T(Model.Attendance.TimeOut)" class="form-control" dir="ltr" disabled="@(!canManage)" /></div>
+                <div><label class="form-label">عدد ساعات العمل اليومية</label><input class="form-control" value="@Model.DailyHours.ToString("0.##") ساعة" dir="ltr" readonly /></div>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-top:12px;align-items:end;">
+                <div>
+                    <label class="form-label">الوقت الإضافي</label>
+                    <label class="form-check" style="margin-top:6px;display:inline-flex;width:fit-content;cursor:pointer;"><input type="checkbox" id="otEnabled" name="OvertimeEnabled" value="true" @(Model.Attendance.OvertimeEnabled ? "checked" : "") onchange="otToggle()" disabled="@(!canManage)" /> مُفعّل</label>
+                </div>
+                <div><label class="form-label">الساعة الإضافية تعادل عدد الساعات التالية</label><input type="number" step="0.25" min="0" id="otHours" name="OvertimeNormalHours" value="@Model.Attendance.OvertimeNormalHours.ToString(System.Globalization.CultureInfo.InvariantCulture)" class="form-control" dir="ltr" disabled="@(!canManage)" /></div>
+            </div>
+            @if (canManage) { <button type="submit" class="btn-primary" style="margin-top:12px;width:auto;">💾 حفظ إعدادات الحضور</button> }
+        </form>
+    </div>
+
+    <div class="card-tile">
+        <div class="card-head"><h3>قواعد خصم التأخير</h3></div>
+        <form asp-action="SaveLateRules" method="post">
+            @Html.AntiForgeryToken()
+            <table class="rs-table">
+                <thead><tr><th>مدة التأخير</th><th>قيمة الخصم</th><th>مفعّل</th></tr></thead>
+                <tbody>
+                @for (var i = 0; i < Model.LateRules.Count; i++)
+                {
+                    var rule = Model.LateRules[i];
+                    <tr>
+                        <td>@rule.Bracket.Ar()<input type="hidden" name="Rules[@i].Bracket" value="@((int)rule.Bracket)" /></td>
+                        <td><select name="Rules[@i].Fraction" class="form-control" style="margin:0;max-width:180px;" asp-items="RealState.Web.ArabicLabels.DeductionFractionOptions(rule.Fraction)" disabled="@(!canManage)"></select></td>
+                        <td><input type="checkbox" name="Rules[@i].IsActive" value="true" @(rule.IsActive ? "checked" : "") disabled="@(!canManage)" /></td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+            @if (canManage) { <button type="submit" class="btn-primary" style="margin-top:12px;width:auto;">💾 حفظ قواعد الخصم</button> }
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        var hrCanManage = @(canManage ? "true" : "false");
+        function showHrTab(name) {
+            if (name !== 'att') name = 'org';
+            document.getElementById('hr-org').style.display = name === 'org' ? '' : 'none';
+            document.getElementById('hr-att').style.display = name === 'att' ? '' : 'none';
+            document.querySelectorAll('.subtabs .subtab').forEach(function (a) {
+                a.classList.toggle('active', a.getAttribute('data-tab') === name);
+            });
+            if (history.replaceState) history.replaceState(null, '', '#' + name);
+        }
+        function hrTab(e, name) { e.preventDefault(); showHrTab(name); }
+        // Overtime hours input is editable only when the checkbox is ticked (managers only).
+        function otToggle() {
+            var cb = document.getElementById('otEnabled'), h = document.getElementById('otHours');
+            if (hrCanManage && cb && h) h.disabled = !cb.checked;
+        }
+        document.addEventListener('DOMContentLoaded', function () {
+            otToggle();
+            showHrTab((location.hash || '').replace('#', ''));
+        });
+    </script>
+}

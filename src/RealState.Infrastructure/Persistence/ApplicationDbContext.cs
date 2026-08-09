@@ -47,6 +47,15 @@ public class ApplicationDbContext
     public DbSet<Campaign> Campaigns => Set<Campaign>();
     public DbSet<CampaignUpdate> CampaignUpdates => Set<CampaignUpdate>();
     public DbSet<Employee> Employees => Set<Employee>();
+    public DbSet<Department> Departments => Set<Department>();
+    public DbSet<JobRole> JobRoles => Set<JobRole>();
+    public DbSet<AttendanceSetting> AttendanceSettings => Set<AttendanceSetting>();
+    public DbSet<LateDeductionRule> LateDeductionRules => Set<LateDeductionRule>();
+    public DbSet<EmployeeAttachment> EmployeeAttachments => Set<EmployeeAttachment>();
+    public DbSet<Vacation> Vacations => Set<Vacation>();
+    public DbSet<Advance> Advances => Set<Advance>();
+    public DbSet<AdvanceRepayment> AdvanceRepayments => Set<AdvanceRepayment>();
+    public DbSet<Reward> Rewards => Set<Reward>();
     public DbSet<SaleContract> SaleContracts => Set<SaleContract>();
     public DbSet<Installment> Installments => Set<Installment>();
     public DbSet<Safe> Safes => Set<Safe>();
@@ -125,6 +134,16 @@ public class ApplicationDbContext
         builder.Entity<SupplierPayment>().HasOne(p => p.Supplier).WithMany().HasForeignKey(p => p.SupplierId).OnDelete(DeleteBehavior.Restrict);
         builder.Entity<SupplierPayment>().HasOne(p => p.Order).WithMany(o => o.Payments).HasForeignKey(p => p.SupplierOrderId).OnDelete(DeleteBehavior.Restrict);
         builder.Entity<SupplierPayment>().HasOne<Safe>().WithMany().HasForeignKey(p => p.SafeId).OnDelete(DeleteBehavior.Restrict);
+
+        // HR relationships — restrict most (deletes handled in code); employee attachments & advance
+        // repayments cascade with their parent.
+        builder.Entity<Employee>().HasOne(e => e.Department).WithMany().HasForeignKey(e => e.DepartmentId).OnDelete(DeleteBehavior.Restrict);
+        builder.Entity<Employee>().HasOne(e => e.JobRole).WithMany().HasForeignKey(e => e.JobRoleId).OnDelete(DeleteBehavior.Restrict);
+        builder.Entity<EmployeeAttachment>().HasOne(a => a.Employee).WithMany(e => e.Attachments).HasForeignKey(a => a.EmployeeId).OnDelete(DeleteBehavior.Cascade);
+        builder.Entity<Vacation>().HasOne(v => v.Employee).WithMany().HasForeignKey(v => v.EmployeeId).OnDelete(DeleteBehavior.Restrict);
+        builder.Entity<Advance>().HasOne(a => a.Employee).WithMany().HasForeignKey(a => a.EmployeeId).OnDelete(DeleteBehavior.Restrict);
+        builder.Entity<AdvanceRepayment>().HasOne(r => r.Advance).WithMany(a => a.Repayments).HasForeignKey(r => r.AdvanceId).OnDelete(DeleteBehavior.Cascade);
+        builder.Entity<Reward>().HasOne(r => r.Employee).WithMany().HasForeignKey(r => r.EmployeeId).OnDelete(DeleteBehavior.Restrict);
     }
 
     /// <summary>Builds `e =&gt; !e.IsDeleted &amp;&amp; e.TenantId == currentTenant` for a tenant entity type.</summary>

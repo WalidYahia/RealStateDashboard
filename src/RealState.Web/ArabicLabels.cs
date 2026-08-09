@@ -174,6 +174,104 @@ public static class ArabicLabels
         TxnSource.Collection => "تحصيل قسط",
         TxnSource.ProjectExpense => "مصروف مشروع",
         TxnSource.SupplierPayment => "سداد مورد",
+        TxnSource.AdvanceDisbursement => "صرف سلفة",
+        TxnSource.RewardPayment => "صرف مكافأة",
+        TxnSource.AdvanceRepayment => "سداد سلفة",
         _ => s.ToString()
+    };
+
+    // ---------- HR ----------
+    public static string Ar(this EmploymentType t) => t switch
+    {
+        EmploymentType.Permanent => "دائم",
+        EmploymentType.Temporary => "مؤقت",
+        EmploymentType.Training => "تدريب",
+        _ => t.ToString()
+    };
+    public static List<SelectListItem> EmploymentTypeOptions(EmploymentType? s = null) => Options<EmploymentType>(Ar, s);
+
+    public static string Ar(this VacationType t) => t switch
+    {
+        VacationType.Sick => "مرضية",
+        VacationType.Normal => "اعتيادية",
+        VacationType.Emergency => "عارضة",
+        _ => t.ToString()
+    };
+    public static List<SelectListItem> VacationTypeOptions(VacationType? s = null) => Options<VacationType>(Ar, s);
+
+    public static string Ar(this LateBracket b) => b switch
+    {
+        LateBracket.Upto15 => "حتى 15 دقيقة",
+        LateBracket.Upto30 => "حتى 30 دقيقة",
+        LateBracket.Upto60 => "حتى ساعة",
+        LateBracket.Over60 => "أكثر من ساعة",
+        _ => b.ToString()
+    };
+
+    public static string Ar(this DeductionFraction f) => f switch
+    {
+        DeductionFraction.None => "بدون",
+        DeductionFraction.Quarter => "ربع يوم",
+        DeductionFraction.Half => "نصف يوم",
+        DeductionFraction.Full => "يوم كامل",
+        _ => f.ToString()
+    };
+    public static decimal Value(this DeductionFraction f) => f switch
+    {
+        DeductionFraction.Quarter => 0.25m,
+        DeductionFraction.Half => 0.5m,
+        DeductionFraction.Full => 1m,
+        _ => 0m
+    };
+    public static List<SelectListItem> DeductionFractionOptions(DeductionFraction? s = null) => Options<DeductionFraction>(Ar, s);
+
+    public static string Ar(this AdvanceRepaymentMethod m) => m switch
+    {
+        AdvanceRepaymentMethod.FromSalary => "خصم من الراتب",
+        AdvanceRepaymentMethod.Cash => "نقدًا",
+        _ => m.ToString()
+    };
+    public static List<SelectListItem> AdvanceRepaymentMethodOptions(AdvanceRepaymentMethod? s = null) => Options<AdvanceRepaymentMethod>(Ar, s);
+
+    public static string Ar(this RewardPayVia v) => v switch
+    {
+        RewardPayVia.Salary => "مع الراتب",
+        RewardPayVia.Cash => "نقدًا",
+        _ => v.ToString()
+    };
+    public static List<SelectListItem> RewardPayViaOptions(RewardPayVia? s = null) => Options<RewardPayVia>(Ar, s);
+
+    public static string Ar(this DisbursementStatus s) => s switch
+    {
+        DisbursementStatus.NotDisbursed => "لم يُصرف",
+        DisbursementStatus.Disbursed => "تم الصرف",
+        _ => s.ToString()
+    };
+    public static string Ar(this PayStatus s) => s switch
+    {
+        PayStatus.NotPaid => "لم يُسدَّد",
+        PayStatus.Paid => "تم السداد",
+        _ => s.ToString()
+    };
+
+    public static string Ar(this EmployeeAttachmentKind k) => k switch
+    {
+        EmployeeAttachmentKind.NationalId => "بطاقة الرقم القومي",
+        EmployeeAttachmentKind.PersonalImage => "صورة شخصية",
+        EmployeeAttachmentKind.CriminalRecord => "فيش وتشبيه",
+        EmployeeAttachmentKind.Qualification => "مؤهل دراسي",
+        EmployeeAttachmentKind.Cv => "السيرة الذاتية",
+        EmployeeAttachmentKind.WorkExperience => "خبرات عمل",
+        EmployeeAttachmentKind.Other => "أخرى",
+        _ => k.ToString()
+    };
+    public static List<SelectListItem> AttachmentKindOptions(EmployeeAttachmentKind? s = null) => Options<EmployeeAttachmentKind>(Ar, s);
+
+    public static string Ar(this AccountingEntryKind k) => k switch
+    {
+        AccountingEntryKind.General => "عام",
+        AccountingEntryKind.Advance => "سلفة",
+        AccountingEntryKind.Reward => "مكافأة",
+        _ => k.ToString()
     };
 }

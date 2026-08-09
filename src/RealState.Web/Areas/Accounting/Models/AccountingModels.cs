@@ -53,6 +53,19 @@ public class TxnFormModel
     public Guid? SafeId { get; set; }
 
     public List<SelectListItem> Safes { get; set; } = new();
+
+    // --- HR linkage (advance / reward) ---
+    public bool IsExpense { get; set; }
+    [Display(Name = "النوع")]
+    public AccountingEntryKind Kind { get; set; } = AccountingEntryKind.General;
+    [Display(Name = "السلفة")]
+    public Guid? AdvanceId { get; set; }
+    [Display(Name = "المكافأة")]
+    public Guid? RewardId { get; set; }
+    public List<SelectListItem> AdvanceOptions { get; set; } = new();
+    public List<SelectListItem> RewardOptions { get; set; } = new();
+    /// <summary>JSON map of advance/reward id → amount, for client-side amount auto-fill.</summary>
+    public string AmountsJson { get; set; } = "{}";
 }
 
 public class SafeMovementsVm

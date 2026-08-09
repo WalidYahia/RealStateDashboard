@@ -1,0 +1,24 @@
+@model VacationFormModel
+<form id="appModalForm" asp-area="Hr" asp-controller="Vacations" asp-action="Form" method="post">
+    @Html.AntiForgeryToken()
+    <div asp-validation-summary="ModelOnly" class="validation-summary-errors"></div>
+    @if (Model.Employees.Count == 0)
+    {
+        <div class="status-message" style="background:rgba(250,178,25,.12);border-color:var(--warning);color:var(--warning);">أضف موظفًا أولًا.</div>
+    }
+    <div class="form-grid">
+        <div>
+            <label asp-for="EmployeeId" class="form-label"></label>
+            <select asp-for="EmployeeId" class="form-control" asp-items="Model.Employees"><option value="">— اختر الموظف —</option></select>
+            <span asp-validation-for="EmployeeId" class="field-validation-error"></span>
+        </div>
+        <div>
+            <label asp-for="Type" class="form-label"></label>
+            <select asp-for="Type" class="form-control" asp-items="RealState.Web.ArabicLabels.VacationTypeOptions(Model.Type)"></select>
+        </div>
+        <div><label asp-for="ApplyDate" class="form-label"></label><input asp-for="ApplyDate" class="form-control" type="date" dir="ltr" /></div>
+        <div><label asp-for="FromDate" class="form-label"></label><input asp-for="FromDate" class="form-control" type="date" dir="ltr" /></div>
+        <div><label asp-for="ToDate" class="form-label"></label><input asp-for="ToDate" class="form-control" type="date" dir="ltr" /><span asp-validation-for="ToDate" class="field-validation-error"></span></div>
+    </div>
+    <button type="submit" class="btn-primary" style="margin-top:12px;" disabled="@(Model.Employees.Count == 0)">💾 حفظ</button>
+</form>

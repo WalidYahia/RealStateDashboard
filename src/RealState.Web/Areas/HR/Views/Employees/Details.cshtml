@@ -1,0 +1,86 @@
+@model Employee
+@{
+    ViewData["Title"] = Model.FullName;
+    var canManage = ViewData["CanManage"] as bool? ?? false;
+    var attachments = ViewBag.Attachments as List<EmployeeAttachment> ?? new();
+    string N(decimal v) => v.ToString("N0", new System.Globalization.CultureInfo("ar-EG"));
+    string D(DateTime? d) => d?.ToString("yyyy/MM/dd") ?? "—";
+    string YN(bool b) => b ? "نعم" : "لا";
+}
+<div class="page-head">
+    <div>
+        <h1>@Model.FullName</h1>
+        <p style="color:var(--muted);margin:2px 0 0;">@(Model.JobRole?.Name ?? "—") · @(Model.Department?.Name ?? "—") · @Model.EmploymentType.Ar()</p>
+    </div>
+    <div style="display:flex;gap:8px;">
+        <a class="btn-sm" asp-action="Index">رجوع</a>
+        @if (canManage) { <button type="button" class="btn-new-tenant" onclick="appOpenModal('@Url.Action("Form", new { id = Model.Id })', 'تعديل الموظف')">✏️ تعديل</button> }
+    </div>
+</div>
+
+@if (TempData["StatusMessage"] is string status) { <div class="status-message">@status</div> }
+
+<div class="grid-row" style="grid-template-columns: 1fr 1fr;">
+    <div class="card-tile">
+        <div class="card-head"><h3>البيانات الأساسية</h3></div>
+        <table class="rs-table">
+            <tr><th style="width:170px;">الهاتف</th><td dir="ltr" style="text-align:right;">@Model.Phone</td></tr>
+            <tr><th>هاتف بديل</th><td dir="ltr" style="text-align:right;">@Model.AltPhone</td></tr>
+            <tr><th>تاريخ الميلاد</th><td>@D(Model.BirthDate)</td></tr>
+            <tr><th>الجنسية</th><td>@Model.Nationality</td></tr>
+            <tr><th>الرقم القومي</th><td dir="ltr" style="text-align:right;">@Model.NationalId</td></tr>
+            <tr><th>المؤهل الدراسي</th><td>@Model.AcademicQualification</td></tr>
+            <tr><th>محل الإقامة</th><td>@Model.CurrentLocation</td></tr>
+            <tr><th>البريد الإلكتروني</th><td dir="ltr" style="text-align:right;">@Model.Email</td></tr>
+        </table>
+    </div>
+    <div class="card-tile">
+        <div class="card-head"><h3>بيانات العمل</h3></div>
+        <table class="rs-table">
+            <tr><th style="width:170px;">القسم</th><td>@(Model.Department?.Name ?? "—")</td></tr>
+            <tr><th>الوظيفة</th><td>@(Model.JobRole?.Name ?? "—")</td></tr>
+            <tr><th>تاريخ بدء العمل</th><td>@D(Model.HireDate)</td></tr>
+            <tr><th>نوع التعاقد</th><td>@Model.EmploymentType.Ar()</td></tr>
+            <tr><th>تأمين اجتماعي</th><td>@YN(Model.SocialInsurance)</td></tr>
+            <tr><th>تأمين طبي</th><td>@YN(Model.MedicalInsurance)</td></tr>
+            <tr><th>الراتب الأساسي</th><td>@N(Model.BasicSalary) ج.م</td></tr>
+            <tr><th>الحوافز والعمولات</th><td>@N(Model.IncentivesCommissions) ج.م</td></tr>
+        </table>
+    </div>
+</div>
+
+<div class="card-tile">
+    <div class="card-head"><h3>المرفقات</h3></div>
+    @if (canManage)
+    {
+        <form asp-action="AttachmentUpload" method="post" enctype="multipart/form-data" style="display:flex;gap:8px;align-items:end;flex-wrap:wrap;margin-bottom:14px;">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="employeeId" value="@Model.Id" />
+            <div><label class="form-label">النوع</label><select name="kind" class="form-control" style="margin:0;" asp-items="RealState.Web.ArabicLabels.AttachmentKindOptions()"></select></div>
+            <input type="file" name="file" class="form-control" style="margin:0;max-width:320px;" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt" />
+            <button type="submit" class="btn-primary" style="width:auto;">⬆ رفع</button>
+        </form>
+    }
+    <table class="rs-table">
+        <thead><tr><th>النوع</th><th>الملف</th><th>الحجم</th><th></th></tr></thead>
+        <tbody>
+        @foreach (var a in attachments)
+        {
+            <tr>
+                <td>@a.Kind.Ar()</td>
+                <td>@a.FileName</td>
+                <td dir="ltr" style="text-align:right;">@((a.Size / 1024.0).ToString("N0")) KB</td>
+                <td style="white-space:nowrap;">
+                    <a class="btn-sm" asp-action="AttachmentPreview" asp-route-id="@a.Id" target="_blank">👁 معاينة</a>
+                    <a class="btn-sm" asp-action="AttachmentDownload" asp-route-id="@a.Id" target="_blank">تنزيل</a>
+                    @if (canManage)
+                    {
+                        <form asp-action="AttachmentDelete" asp-route-id="@a.Id" asp-route-employeeId="@Model.Id" method="post" style="display:inline;" data-confirm="حذف المرفق؟" data-danger>@Html.AntiForgeryToken()<button type="submit" class="btn-sm btn-danger">حذف</button></form>
+                    }
+                </td>
+            </tr>
+        }
+        @if (attachments.Count == 0) { <tr><td colspan="4" style="color:var(--muted)">لا توجد مرفقات بعد.</td></tr> }
+        </tbody>
+    </table>
+</div>

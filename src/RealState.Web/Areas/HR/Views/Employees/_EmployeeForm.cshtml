@@ -1,0 +1,34 @@
+@model EmployeeFormModel
+<form id="appModalForm" asp-area="Hr" asp-controller="Employees" asp-action="Form" method="post">
+    @Html.AntiForgeryToken()
+    <div asp-validation-summary="ModelOnly" class="validation-summary-errors"></div>
+    <input type="hidden" asp-for="Id" />
+
+    <h4 style="font-size:14px;margin:4px 0 8px;">البيانات الأساسية</h4>
+    <div class="form-grid">
+        <div class="full"><label asp-for="FullName" class="form-label"></label> <span style="color:var(--critical)">*</span><input asp-for="FullName" class="form-control" /><span asp-validation-for="FullName" class="field-validation-error"></span></div>
+        <div><label asp-for="Phone" class="form-label"></label> <span style="color:var(--critical)">*</span><input asp-for="Phone" class="form-control" dir="ltr" /></div>
+        <div><label asp-for="AltPhone" class="form-label"></label><input asp-for="AltPhone" class="form-control" dir="ltr" /></div>
+        <div><label asp-for="BirthDate" class="form-label"></label><input asp-for="BirthDate" class="form-control" type="date" dir="ltr" /></div>
+        <div><label asp-for="Nationality" class="form-label"></label><input asp-for="Nationality" class="form-control" /></div>
+        <div><label asp-for="NationalId" class="form-label"></label> <span style="color:var(--critical)">*</span><input asp-for="NationalId" class="form-control" dir="ltr" /></div>
+        <div><label asp-for="AcademicQualification" class="form-label"></label> <span style="color:var(--critical)">*</span><input asp-for="AcademicQualification" class="form-control" /></div>
+        <div><label asp-for="CurrentLocation" class="form-label"></label><input asp-for="CurrentLocation" class="form-control" /></div>
+        <div><label asp-for="Email" class="form-label"></label><input asp-for="Email" class="form-control" dir="ltr" /></div>
+    </div>
+
+    <h4 style="font-size:14px;margin:14px 0 8px;">بيانات العمل</h4>
+    <div class="form-grid">
+        <div><label asp-for="DepartmentId" class="form-label"></label> <span style="color:var(--critical)">*</span><select asp-for="DepartmentId" class="form-control" asp-items="Model.Departments"><option value="">—</option></select></div>
+        <div><label asp-for="JobRoleId" class="form-label"></label> <span style="color:var(--critical)">*</span><select asp-for="JobRoleId" class="form-control" asp-items="Model.Roles"><option value="">—</option></select></div>
+        <div><label asp-for="HireDate" class="form-label"></label> <span style="color:var(--critical)">*</span><input asp-for="HireDate" class="form-control" type="date" dir="ltr" /></div>
+        <div><label asp-for="EmploymentType" class="form-label"></label><select asp-for="EmploymentType" class="form-control" asp-items="RealState.Web.ArabicLabels.EmploymentTypeOptions(Model.EmploymentType)"></select></div>
+        <div><label asp-for="BasicSalary" class="form-label"></label> <span style="color:var(--critical)">*</span><input asp-for="BasicSalary" class="form-control" type="number" step="0.01" min="0" dir="ltr" /></div>
+        <div><label asp-for="IncentivesCommissions" class="form-label"></label><input asp-for="IncentivesCommissions" class="form-control" type="number" step="0.01" min="0" dir="ltr" /></div>
+        <div><label class="form-check" style="margin-top:26px;"><input asp-for="SocialInsurance" class="form-check-input" /> تأمين اجتماعي</label></div>
+        <div><label class="form-check" style="margin-top:26px;"><input asp-for="MedicalInsurance" class="form-check-input" /> تأمين طبي</label></div>
+    </div>
+
+    <button type="submit" class="btn-primary" style="margin-top:12px;">💾 حفظ</button>
+    <p style="color:var(--muted);font-size:12px;margin-top:8px;">💡 المرفقات تُضاف من صفحة ملف الموظف بعد الحفظ.</p>
+</form>

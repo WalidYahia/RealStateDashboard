@@ -177,18 +177,24 @@ public class CustomersController : Controller
         return RedirectToAction(nameof(Index));
     }
 
+    // Only employees whose job role is flagged "مندوب مبيعات" are selectable as a customer's salesperson.
+    private async Task<List<Guid>> SalespersonRoleIdsAsync(CancellationToken ct) =>
+        await _db.JobRoles.Where(r => r.IsSalesperson).Select(r => r.Id).ToListAsync(ct);
+
     private async Task ValidateSalespersonAsync(CustomerFormModel model, CancellationToken ct)
     {
         if (model.SalesPersonId is null) return; // [Required] already reports it
+        var salesRoleIds = await SalespersonRoleIdsAsync(ct);
         var exists = await _db.Employees.AnyAsync(
-            e => e.Id == model.SalesPersonId && e.Type == EmployeeType.Salesperson, ct);
+            e => e.Id == model.SalesPersonId && e.JobRoleId != null && salesRoleIds.Contains(e.JobRoleId.Value), ct);
         if (!exists) ModelState.AddModelError(nameof(model.SalesPersonId), "المندوب المحدد غير موجود.");
     }
 
     private async Task<CustomerFormModel> FillAsync(CustomerFormModel model, CancellationToken ct)
     {
+        var salesRoleIds = await SalespersonRoleIdsAsync(ct);
         model.SalesPersons = await _db.Employees
-            .Where(e => e.Type == EmployeeType.Salesperson && e.IsActive)
+            .Where(e => e.IsActive && e.JobRoleId != null && salesRoleIds.Contains(e.JobRoleId.Value))
             .OrderBy(e => e.FullName)
             .Select(e => new SelectListItem { Value = e.Id.ToString(), Text = e.FullName })
             .ToListAsync(ct);

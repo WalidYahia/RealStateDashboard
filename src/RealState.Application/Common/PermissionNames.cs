@@ -77,6 +77,11 @@ public static class PermissionNames
     public const string SuppliersDelete = "Suppliers.Delete";
     public const string SuppliersPay = "Suppliers.Pay";
 
+    // ----- Human Resources ----- (HR.View already exists in some DBs; keep that exact name to avoid
+    // a case-insensitive unique-index collision on the Permissions table)
+    public const string HrView = "HR.View";     // view HR pages (employees, vacations, advances, rewards, settings)
+    public const string HrManage = "HR.Manage"; // create/edit/delete + manage settings
+
     // ----- Reports -----
     public const string ReportsView = "Reports.View";
 
@@ -98,6 +103,7 @@ public static class PermissionNames
     private const string GSalespersons = "مندوبو المبيعات";
     private const string GSuppliers = "الموردون والمقاولون";
     private const string GReports = "التقارير";
+    private const string GHr = "الموارد البشرية";
     private const string GMarketing = "التسويق";
     private const string GUsers = "المستخدمون والصلاحيات";
     private const string GAdmin = "إدارة النظام";
@@ -152,6 +158,9 @@ public static class PermissionNames
         new PermissionInfo(SuppliersPay,    "سداد دفعات للموردين",                     GSuppliers),
 
         new PermissionInfo(ReportsView,     "عرض التقارير (اليومي، العملاء، الموردين)", GReports),
+
+        new PermissionInfo(HrView,   "عرض الموارد البشرية (الموظفون، الإجازات، السلف، المكافآت)", GHr),
+        new PermissionInfo(HrManage, "إدارة الموارد البشرية والإعدادات",                        GHr),
 
         new PermissionInfo(CampaignsView,   "عرض الحملات التسويقية", GMarketing),
         new PermissionInfo(CampaignsCreate, "إضافة حملة",            GMarketing),
