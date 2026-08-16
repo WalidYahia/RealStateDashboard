@@ -1,0 +1,8 @@
+@model int
+<a class="task-bell @(Model > 0 ? "has" : "")" asp-area="Tasks" asp-controller="Tasks" asp-action="Mine" title="مهامي المُسندة إليّ">
+    <span class="bell-ico">🔔</span>
+    @if (Model > 0)
+    {
+        <span class="bell-count">@Model</span>
+    }
+</a>

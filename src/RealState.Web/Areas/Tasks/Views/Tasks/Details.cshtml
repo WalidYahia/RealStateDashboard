@@ -1,0 +1,99 @@
+@model WorkTask
+@{
+    ViewData["Title"] = $"مهمة T-{Model.Number}";
+    var canEdit = ViewData["CanEdit"] as bool? ?? false;
+    var canDelete = ViewData["CanDelete"] as bool? ?? false;
+    var canAct = ViewData["CanAct"] as bool? ?? false;
+    string D(DateTime? d) => d?.ToString("yyyy/MM/dd", System.Globalization.CultureInfo.InvariantCulture) ?? "—";
+    string DT(DateTime? d) => d?.ToString("yyyy/MM/dd HH:mm", System.Globalization.CultureInfo.InvariantCulture) ?? "—";
+    string Size(long b) => b < 1024 ? $"{b} B" : b < 1048576 ? $"{b / 1024} KB" : $"{b / 1048576.0:0.#} MB";
+}
+<div class="page-head">
+    <div>
+        <h1>مهمة <span class="proj-code">T-@Model.Number</span></h1>
+        <p style="color:var(--muted);margin:2px 0 0;">
+            <span style="color:@Model.Status.Color()">@Model.Status.Ar()</span> ·
+            <span style="color:@Model.Severity.Color()">@Model.Severity.Ar()</span> ·
+            المُكلَّف: @Model.Assignee?.FullName
+        </p>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <a class="btn-sm" asp-action="Index">رجوع</a>
+        @if (canAct) { <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("StatusForm", new { id = Model.Id })', 'تحديث الحالة')">🔄 تحديث الحالة</button> }
+        @if (canAct) { <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("LogForm", new { id = Model.Id })', 'إضافة سجل')">📝 إضافة سجل</button> }
+        @if (canEdit) { <button type="button" class="btn-new-tenant" onclick="appOpenModal('@Url.Action("Form", new { id = Model.Id })', 'تعديل المهمة T-@Model.Number')">تعديل</button> }
+        @if (canDelete)
+        {
+            <form asp-action="Delete" asp-route-id="@Model.Id" method="post" style="display:inline;" data-confirm="حذف المهمة T-@Model.Number؟" data-danger>@Html.AntiForgeryToken()<button type="submit" class="btn-sm btn-danger">حذف</button></form>
+        }
+    </div>
+</div>
+
+@if (TempData["StatusMessage"] is string status) { <div class="status-message">@status</div> }
+
+<div class="grid-row" style="grid-template-columns: 1fr 1fr;">
+    <div class="card-tile">
+        <div class="card-head"><h3>تفاصيل المهمة</h3></div>
+        <table class="rs-table">
+            <tbody>
+                <tr><td class="muted">تاريخ الإسناد</td><td dir="ltr" style="text-align:right;">@D(Model.AssignedOn)</td></tr>
+                <tr><td class="muted">أسندها</td><td>@(string.IsNullOrWhiteSpace(Model.AssignedByName) ? "—" : Model.AssignedByName)</td></tr>
+                <tr><td class="muted">المُكلَّف</td><td>@Model.Assignee?.FullName</td></tr>
+                <tr><td class="muted">القسم</td><td>@(Model.Department?.Name ?? "—")</td></tr>
+                <tr><td class="muted">وقت البدء</td><td dir="ltr" style="text-align:right;">@DT(Model.StartAt)</td></tr>
+                <tr><td class="muted">الاستحقاق</td><td dir="ltr" style="text-align:right;">@D(Model.DueAt)</td></tr>
+                <tr><td class="muted">الأهمية</td><td><span class="badge-role" style="color:@Model.Severity.Color()">@Model.Severity.Ar()</span></td></tr>
+                <tr><td class="muted">الحالة</td><td><span class="badge-role" style="color:@Model.Status.Color()">@Model.Status.Ar()</span></td></tr>
+            </tbody>
+        </table>
+        <div style="margin-top:12px;">
+            <div class="muted" style="font-size:12px;margin-bottom:4px;">الوصف</div>
+            <div style="white-space:pre-wrap;line-height:1.7;">@Model.Description</div>
+        </div>
+    </div>
+
+    <div class="card-tile">
+        <div class="card-head"><h3>المرفقات</h3></div>
+        <table class="rs-table">
+            <thead><tr><th>الملف</th><th>الحجم</th><th></th></tr></thead>
+            <tbody>
+            @foreach (var a in Model.Attachments)
+            {
+                <tr>
+                    <td><a asp-action="AttachmentDownload" asp-route-id="@a.Id" style="color:var(--series-1);text-decoration:none;">@a.FileName</a></td>
+                    <td dir="ltr" style="text-align:right;">@Size(a.Size)</td>
+                    <td>
+                        @if (canEdit)
+                        {
+                            <form asp-action="AttachmentDelete" asp-route-id="@a.Id" asp-route-taskId="@Model.Id" method="post" style="display:inline;" data-confirm="حذف المرفق؟" data-danger>@Html.AntiForgeryToken()<button type="submit" class="btn-sm btn-danger">حذف</button></form>
+                        }
+                    </td>
+                </tr>
+            }
+            @if (Model.Attachments.Count == 0) { <tr><td colspan="3" style="color:var(--muted)">لا توجد مرفقات.</td></tr> }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="card-tile" style="margin-top:16px;">
+    <div class="card-head"><h3>سجل المهمة (Time Log)</h3></div>
+    <table class="rs-table">
+        <thead><tr><th style="width:170px;">التاريخ والوقت</th><th>البيان</th><th style="width:180px;">بواسطة</th></tr></thead>
+        <tbody>
+        @foreach (var l in Model.Logs)
+        {
+            <tr>
+                <td dir="ltr" style="text-align:right;">@DT(l.At)</td>
+                <td>@l.Text</td>
+                <td>@l.ByName</td>
+            </tr>
+        }
+        @if (Model.Logs.Count == 0) { <tr><td colspan="3" style="color:var(--muted)">لا توجد سجلات.</td></tr> }
+        </tbody>
+    </table>
+</div>
+
+@section Scripts {
+    <script src="~/js/tasks.js" asp-append-version="true"></script>
+}

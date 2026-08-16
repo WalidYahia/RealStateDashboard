@@ -203,6 +203,55 @@ public class UsersController : Controller
         return RedirectToAction(nameof(Index));
     }
 
+    /// <summary>
+    /// Permanently deletes a user. Their permissions/roles/logins cascade with the account, and their
+    /// activity-log history is removed. Everything else that references the user (linked employee, tasks
+    /// they assigned, task logs, notifications) is <b>unlinked but kept</b> — those records still show the
+    /// user's saved name. IgnoreQueryFilters is used so a SuperAdmin can clean up a user in another tenant.
+    /// </summary>
+    [HttpPost]
+    [Authorize(Policy = PermissionNames.UsersDelete)]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
+    {
+        var user = await _userManager.FindByIdAsync(id.ToString());
+        if (user is null || !CanManage(user)) return NotFound();
+
+        if (await _userManager.IsInRoleAsync(user, AppConstants.SuperAdminRole))
+        {
+            TempData["ErrorMessage"] = "لا يمكن حذف حساب مدير عام.";
+            return RedirectToAction(nameof(Index));
+        }
+        if (_currentUser.UserId == user.Id)
+        {
+            TempData["ErrorMessage"] = "لا يمكنك حذف حسابك الحالي.";
+            return RedirectToAction(nameof(Index));
+        }
+
+        var uid = user.Id;
+
+        foreach (var e in await _db.Employees.IgnoreQueryFilters().Where(e => e.UserId == uid).ToListAsync(ct))
+            e.UserId = null;
+        foreach (var t in await _db.WorkTasks.IgnoreQueryFilters().Where(t => t.AssignedByUserId == uid).ToListAsync(ct))
+            t.AssignedByUserId = null;
+        foreach (var l in await _db.WorkTaskLogs.IgnoreQueryFilters().Where(l => l.ByUserId == uid).ToListAsync(ct))
+            l.ByUserId = null;
+        foreach (var n in await _db.Notifications.IgnoreQueryFilters().Where(n => n.UserId == uid).ToListAsync(ct))
+            n.UserId = null;
+        _db.ActivityLogs.RemoveRange(await _db.ActivityLogs.IgnoreQueryFilters().Where(a => a.UserId == uid).ToListAsync(ct));
+        await _db.SaveChangesAsync(ct);
+
+        var result = await _userManager.DeleteAsync(user);
+        if (!result.Succeeded)
+        {
+            TempData["ErrorMessage"] = "تعذّر حذف المستخدم: " + string.Join("، ", result.Errors.Select(e => e.Description));
+            return RedirectToAction(nameof(Index));
+        }
+
+        TempData["StatusMessage"] = $"تم حذف المستخدم «{user.UserName}» نهائيًا.";
+        return RedirectToAction(nameof(Index));
+    }
+
     [HttpGet]
     [Authorize(Policy = PermissionNames.UsersEdit)]
     public async Task<IActionResult> ResetPassword(Guid id, CancellationToken ct)

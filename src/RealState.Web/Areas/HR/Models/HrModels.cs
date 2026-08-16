@@ -76,8 +76,26 @@ public class EmployeeFormModel
     [Range(0.01, 999999999999, ErrorMessage = "الراتب الأساسي مطلوب")][Display(Name = "الراتب الأساسي")] public decimal BasicSalary { get; set; }
     [Range(0, 999999999999)][Display(Name = "الحوافز والعمولات")] public decimal IncentivesCommissions { get; set; }
 
+    /// <summary>Create a login account for this employee (dummy password, no permissions).</summary>
+    [Display(Name = "إنشاء حساب دخول للموظف")] public bool CreateLogin { get; set; } = true;
+    /// <summary>Set by the client after the user confirms linking to an already-existing account.</summary>
+    public bool ConfirmLinkUser { get; set; }
+    /// <summary>True (edit only) when the employee already has a linked login — the create-login section is then hidden.</summary>
+    public bool HasLogin { get; set; }
+    /// <summary>Login handle / phone of the linked account, shown next to the "already linked" note.</summary>
+    public string? LinkedUserLabel { get; set; }
+
     public List<SelectListItem> Departments { get; set; } = new();
     public List<SelectListItem> Roles { get; set; } = new();
+}
+
+/// <summary>Options for linking an existing employee to an existing user account.</summary>
+public class LinkUserFormModel
+{
+    public Guid EmployeeId { get; set; }
+    public string EmployeeName { get; set; } = string.Empty;
+    [Required(ErrorMessage = "اختر مستخدمًا")][Display(Name = "المستخدم")] public Guid? UserId { get; set; }
+    public List<SelectListItem> Users { get; set; } = new();
 }
 
 public class EmployeeListItem

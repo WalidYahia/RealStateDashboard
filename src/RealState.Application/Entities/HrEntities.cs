@@ -60,6 +60,9 @@ public class Employee : AuditableEntity, ITenantEntity
     public bool IsActive { get; set; } = true;
     public DateTime? HireDate { get; set; } // start date
 
+    /// <summary>The login account created for this employee (default dummy password, no permissions until an admin grants them).</summary>
+    public Guid? UserId { get; set; }
+
     // --- Personal ---
     public DateTime? BirthDate { get; set; }
     public string? Nationality { get; set; }

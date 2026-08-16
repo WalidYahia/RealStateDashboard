@@ -1,0 +1,31 @@
+@model List<TaskRow>
+@{
+    string D(DateTime? d) => d?.ToString("yyyy/MM/dd", System.Globalization.CultureInfo.InvariantCulture) ?? "—";
+    string Trunc(string s) => s.Length > 50 ? s[..50] + "…" : s;
+}
+<table class="rs-table">
+    <thead>
+        <tr><th>رقم المهمة</th><th>تاريخ الإسناد</th><th>أسندها</th><th>المُكلَّف</th><th>الاستحقاق</th><th>الوصف</th><th>الأهمية</th><th>الحالة</th><th></th></tr>
+    </thead>
+    <tbody>
+    @foreach (var r in Model)
+    {
+        <tr>
+            <td dir="ltr" style="text-align:right;"><a asp-action="Details" asp-route-id="@r.Id" style="color:var(--series-1);text-decoration:none;font-weight:700;">T-@r.Number</a></td>
+            <td dir="ltr" style="text-align:right;">@D(r.AssignedOn)</td>
+            <td>@r.AssignedBy</td>
+            <td>@r.Assignee</td>
+            <td dir="ltr" style="text-align:right;">@D(r.DueAt)</td>
+            <td title="@r.Description">@Trunc(r.Description)</td>
+            <td><span class="badge-role" style="color:@r.Severity.Color()">@r.Severity.Ar()</span></td>
+            <td><span class="badge-role" style="color:@r.Status.Color()">@r.Status.Ar()</span></td>
+            <td style="white-space:nowrap;">
+                <a class="btn-sm" asp-action="Details" asp-route-id="@r.Id">التفاصيل</a>
+                <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("StatusForm", new { id = r.Id })', 'تحديث الحالة')">الحالة</button>
+                <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("LogForm", new { id = r.Id })', 'إضافة سجل')">سجل</button>
+            </td>
+        </tr>
+    }
+    @if (Model.Count == 0) { <tr><td colspan="9" style="color:var(--muted)">لا توجد مهام.</td></tr> }
+    </tbody>
+</table>

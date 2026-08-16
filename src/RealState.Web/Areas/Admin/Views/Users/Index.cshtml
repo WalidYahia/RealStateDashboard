@@ -4,6 +4,7 @@
     var canCreate = User.Can(PermissionNames.UsersCreate);
     var canEdit = User.Can(PermissionNames.UsersEdit);
     var canToggle = User.Can(PermissionNames.UsersDelete);
+    var meId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
 }
 
 <div class="page-head">
@@ -55,6 +56,13 @@
                             @Html.AntiForgeryToken()
                             <button type="submit" class="btn-sm @(u.IsActive ? "btn-danger" : "")">@(u.IsActive ? "تعطيل" : "تفعيل")</button>
                         </form>
+                        @if (!u.IsSuperAdmin && u.Id.ToString() != meId)
+                        {
+                            <form asp-action="Delete" asp-route-id="@u.Id" method="post" style="display:inline;" data-confirm="حذف المستخدم «@u.DisplayName» نهائيًا؟ سيتم حذف صلاحياته وسجل نشاطه، وفكّ ارتباطه بالموظف والمهام مع الاحتفاظ بها. لا يمكن التراجع." data-danger>
+                                @Html.AntiForgeryToken()
+                                <button type="submit" class="btn-sm btn-danger">حذف</button>
+                            </form>
+                        }
                     }
                 </td>
             </tr>

@@ -274,4 +274,35 @@ public static class ArabicLabels
         AccountingEntryKind.Reward => "مكافأة",
         _ => k.ToString()
     };
+
+    // ---------- Tasks ----------
+    public static string Ar(this WorkTaskStatus s) => s switch
+    {
+        WorkTaskStatus.Todo => "قيد الانتظار",
+        WorkTaskStatus.InProgress => "قيد التنفيذ",
+        WorkTaskStatus.Completed => "مكتملة",
+        _ => s.ToString()
+    };
+
+    /// <summary>Text color for a status badge.</summary>
+    public static string Color(this WorkTaskStatus s) => s switch
+    {
+        WorkTaskStatus.Completed => "var(--good)",
+        WorkTaskStatus.InProgress => "var(--series-1)",
+        _ => "var(--muted)"
+    };
+
+    public static List<SelectListItem> WorkTaskStatusOptions(WorkTaskStatus? s = null) => Options<WorkTaskStatus>(Ar, s);
+
+    public static string Ar(this TaskSeverity s) => s switch
+    {
+        TaskSeverity.Normal => "عادية",
+        TaskSeverity.Urgent => "عاجلة",
+        _ => s.ToString()
+    };
+
+    /// <summary>Text color for a severity badge.</summary>
+    public static string Color(this TaskSeverity s) => s == TaskSeverity.Urgent ? "var(--critical)" : "var(--good)";
+
+    public static List<SelectListItem> TaskSeverityOptions(TaskSeverity? s = null) => Options<TaskSeverity>(Ar, s);
 }

@@ -15,6 +15,10 @@ public static class AppConstants
     public const string DefaultAdminEmail = "admin@realstate.local";
     public const string DefaultAdminPassword = "ChangeMe123!";
 
+    // Dummy password given to the login account auto-created for a new employee. The employee cannot
+    // do anything until an admin sets a real password and grants permissions.
+    public const string DefaultEmployeePassword = "Welcome@123";
+
     // Static "host" super-user — not stored in the database. Signs in with a cookie that carries
     // every permission, then picks a tenant to operate within. Override in config if needed.
     public const string HostUserName = "syncro";

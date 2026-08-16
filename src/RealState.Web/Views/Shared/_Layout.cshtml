@@ -177,6 +177,25 @@
                         </div>
                     </div>
                 }
+                @{
+                    var tasksArea = ViewContext.RouteData.Values["area"]?.ToString();
+                    var tasksAction = ViewContext.RouteData.Values["action"]?.ToString();
+                    var tasksOpen = tasksArea == "Tasks";
+                    var canTasksView = Can(PermissionNames.TasksView);
+                }
+                <div class="nav-group @(tasksOpen ? "open" : "")">
+                    <div class="nav-parent">
+                        <a class="nav-link @(tasksOpen ? "active" : "")" href="javascript:" onclick="toggleNavGroup(this)"><span>📋</span> إدارة المهام</a>
+                        <button type="button" class="nav-caret" onclick="toggleNavGroup(this)">▾</button>
+                    </div>
+                    <div class="subnav">
+                        @if (canTasksView)
+                        {
+                            <a class="subnav-link @(tasksOpen && tasksAction != "Mine" ? "active" : "")" asp-area="Tasks" asp-controller="Tasks" asp-action="Index">قائمة المهام</a>
+                        }
+                        <a class="subnav-link @(tasksOpen && tasksAction == "Mine" ? "active" : "")" asp-area="Tasks" asp-controller="Tasks" asp-action="Mine">مهامي</a>
+                    </div>
+                </div>
                 @if (Can(PermissionNames.TenantsManage))
                 {
                     <a class="nav-link @NavActive("Tenants")" asp-area="Admin" asp-controller="Tenants" asp-action="Index"><span>🏙️</span> المؤسسات</a>
@@ -230,6 +249,7 @@
                         <div id="topDate">@DateTime.Now.ToString("dddd d MMMM yyyy", new System.Globalization.CultureInfo("ar-EG"))</div>
                         <div id="topTime" class="time">@DateTime.Now.ToString("hh:mm tt", new System.Globalization.CultureInfo("ar-EG"))</div>
                     </div>
+                    @await Component.InvokeAsync("TaskAlerts")
                     <div class="user">
                         <div class="user-name">مرحبًا، @fullName</div>
                         <div class="user-role">رئيس مجلس الإدارة</div>

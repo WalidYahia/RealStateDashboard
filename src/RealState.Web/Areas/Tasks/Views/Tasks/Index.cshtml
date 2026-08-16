@@ -1,0 +1,90 @@
+@model TaskListVm
+@{
+    ViewData["Title"] = "قائمة المهام";
+    var canCreate = ViewData["CanCreate"] as bool? ?? false;
+    var canEdit = ViewData["CanEdit"] as bool? ?? false;
+    var canDelete = ViewData["CanDelete"] as bool? ?? false;
+    string D(DateTime? d) => d?.ToString("yyyy/MM/dd", System.Globalization.CultureInfo.InvariantCulture) ?? "—";
+    string? F(DateTime? d) => d?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+    string Trunc(string s) => s.Length > 60 ? s[..60] + "…" : s;
+}
+<div class="page-head">
+    <h1>قائمة المهام</h1>
+    @if (canCreate) { <button type="button" class="btn-new-tenant" onclick="appOpenModal('@Url.Action("Form")', 'إسناد مهمة')">➕ إسناد مهمة</button> }
+</div>
+
+@if (TempData["StatusMessage"] is string status) { <div class="status-message">@status</div> }
+
+<div class="card-tile" style="margin-bottom:12px;">
+    <form asp-action="Index" method="get" style="display:flex;gap:10px;align-items:end;flex-wrap:wrap;">
+        <div><label class="form-label">من</label><input type="date" name="from" value="@F(Model.From)" class="form-control" style="margin:0;" dir="ltr" /></div>
+        <div><label class="form-label">إلى</label><input type="date" name="to" value="@F(Model.To)" class="form-control" style="margin:0;" dir="ltr" /></div>
+        <div>
+            <label class="form-label">القسم</label>
+            <select name="departmentId" class="form-control" style="margin:0;">
+                <option value="">الكل</option>
+                @foreach (var d in Model.Departments)
+                { <option value="@d.Value" selected="@(Model.DepartmentId?.ToString() == d.Value)">@d.Text</option> }
+            </select>
+        </div>
+        <div>
+            <label class="form-label">المُكلَّف</label>
+            <select name="assigneeId" class="form-control" style="margin:0;">
+                <option value="">الكل</option>
+                @foreach (var e in Model.Employees)
+                { <option value="@e.Value" selected="@(Model.AssigneeId?.ToString() == e.Value)">@e.Text</option> }
+            </select>
+        </div>
+        <div>
+            <label class="form-label">أسندها</label>
+            <select name="assignedById" class="form-control" style="margin:0;">
+                <option value="">الكل</option>
+                @foreach (var a in Model.Assigners)
+                { <option value="@a.Value" selected="@(Model.AssignedById?.ToString() == a.Value)">@a.Text</option> }
+            </select>
+        </div>
+        <button type="submit" class="btn-primary" style="width:auto;">بحث</button>
+        <a class="btn-sm" asp-action="Index">اليوم</a>
+        <a class="btn-sm" asp-action="Index" asp-route-from="2000-01-01" asp-route-to="2100-01-01">الكل</a>
+    </form>
+</div>
+
+<div class="card-tile">
+    <table class="rs-table">
+        <thead>
+            <tr>
+                <th>رقم المهمة</th><th>تاريخ الإسناد</th><th>أسندها</th><th>المُكلَّف</th><th>القسم</th>
+                <th>الاستحقاق</th><th>الوصف</th><th>الأهمية</th><th>الحالة</th><th></th>
+            </tr>
+        </thead>
+        <tbody>
+        @foreach (var r in Model.Rows)
+        {
+            <tr>
+                <td dir="ltr" style="text-align:right;"><a asp-action="Details" asp-route-id="@r.Id" style="color:var(--series-1);text-decoration:none;font-weight:700;">T-@r.Number</a></td>
+                <td dir="ltr" style="text-align:right;">@D(r.AssignedOn)</td>
+                <td>@r.AssignedBy</td>
+                <td>@r.Assignee</td>
+                <td>@r.Department</td>
+                <td dir="ltr" style="text-align:right;">@D(r.DueAt)</td>
+                <td title="@r.Description">@Trunc(r.Description)</td>
+                <td><span class="badge-role" style="color:@r.Severity.Color()">@r.Severity.Ar()</span></td>
+                <td><span class="badge-role" style="color:@r.Status.Color()">@r.Status.Ar()</span></td>
+                <td style="white-space:nowrap;">
+                    <a class="btn-sm" asp-action="Details" asp-route-id="@r.Id">التفاصيل</a>
+                    @if (canEdit) { <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("Form", new { id = r.Id })', 'تعديل المهمة T-@r.Number')">تعديل</button> }
+                    @if (canDelete)
+                    {
+                        <form asp-action="Delete" asp-route-id="@r.Id" method="post" style="display:inline;" data-confirm="حذف المهمة T-@r.Number؟" data-danger>@Html.AntiForgeryToken()<button type="submit" class="btn-sm btn-danger">حذف</button></form>
+                    }
+                </td>
+            </tr>
+        }
+        @if (Model.Rows.Count == 0) { <tr><td colspan="10" style="color:var(--muted)">لا توجد مهام مطابقة.</td></tr> }
+        </tbody>
+    </table>
+</div>
+
+@section Scripts {
+    <script src="~/js/tasks.js" asp-append-version="true"></script>
+}

@@ -1,0 +1,13 @@
+@model LogFormModel
+<form id="appModalForm" asp-area="Tasks" asp-controller="Tasks" asp-action="Log" method="post">
+    @Html.AntiForgeryToken()
+    <input type="hidden" asp-for="TaskId" />
+    <div class="form-grid">
+        <div class="full">
+            <label asp-for="Text" class="form-label"></label>
+            <textarea asp-for="Text" class="form-control" rows="3" placeholder="اكتب البيان..."></textarea>
+            <span asp-validation-for="Text" class="field-validation-error"></span>
+        </div>
+    </div>
+    <div style="margin-top:12px;"><button type="submit" class="btn-primary" style="width:auto;">📝 إضافة</button></div>
+</form>

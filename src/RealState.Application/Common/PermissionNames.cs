@@ -85,6 +85,13 @@ public static class PermissionNames
     // ----- Reports -----
     public const string ReportsView = "Reports.View";
 
+    // ----- Tasks management ----- (personal "my tasks" is available to every signed-in user;
+    // these gate the all-tasks list and its management actions)
+    public const string TasksView = "Tasks.View";
+    public const string TasksCreate = "Tasks.Create";
+    public const string TasksEdit = "Tasks.Edit";
+    public const string TasksDelete = "Tasks.Delete";
+
     // ----- Marketing: campaigns -----
     public const string CampaignsView = "Campaigns.View";
     public const string CampaignsCreate = "Campaigns.Create";
@@ -103,6 +110,7 @@ public static class PermissionNames
     private const string GSalespersons = "مندوبو المبيعات";
     private const string GSuppliers = "الموردون والمقاولون";
     private const string GReports = "التقارير";
+    private const string GTasks = "إدارة المهام";
     private const string GHr = "الموارد البشرية";
     private const string GMarketing = "التسويق";
     private const string GUsers = "المستخدمون والصلاحيات";
@@ -158,6 +166,11 @@ public static class PermissionNames
         new PermissionInfo(SuppliersPay,    "سداد دفعات للموردين",                     GSuppliers),
 
         new PermissionInfo(ReportsView,     "عرض التقارير (اليومي، العملاء، الموردين)", GReports),
+
+        new PermissionInfo(TasksView,   "عرض كل المهام", GTasks),
+        new PermissionInfo(TasksCreate, "إسناد / إنشاء مهمة", GTasks),
+        new PermissionInfo(TasksEdit,   "تعديل المهام", GTasks),
+        new PermissionInfo(TasksDelete, "حذف المهام", GTasks),
 
         new PermissionInfo(HrView,   "عرض الموارد البشرية (الموظفون، الإجازات، السلف، المكافآت)", GHr),
         new PermissionInfo(HrManage, "إدارة الموارد البشرية والإعدادات",                        GHr),

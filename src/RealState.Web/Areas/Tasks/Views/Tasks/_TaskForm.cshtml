@@ -1,0 +1,71 @@
+@model TaskFormModel
+@{
+    var isEdit = Model.Id != Guid.Empty;
+    string? DT(DateTime? d) => d?.ToString("yyyy-MM-ddTHH:mm", System.Globalization.CultureInfo.InvariantCulture);
+    string? D(DateTime? d) => d?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+    var empJson = System.Text.Json.JsonSerializer.Serialize(
+        Model.Employees.Select(e => new { i = e.Id.ToString(), n = e.Name, d = e.DepartmentId?.ToString() ?? "" }));
+}
+<form id="appModalForm" asp-area="Tasks" asp-controller="Tasks" asp-action="Form" method="post" enctype="multipart/form-data">
+    @Html.AntiForgeryToken()
+    <input type="hidden" asp-for="Id" />
+    <div asp-validation-summary="ModelOnly" class="field-validation-error" style="margin-bottom:10px;"></div>
+
+    <div class="form-grid">
+        <div>
+            <label asp-for="AssignedOn" class="form-label"></label>
+            <input asp-for="AssignedOn" type="date" class="form-control" dir="ltr" value="@D(Model.AssignedOn)" />
+        </div>
+        <div>
+            <label asp-for="Severity" class="form-label"></label>
+            <select asp-for="Severity" class="form-control" asp-items="ArabicLabels.TaskSeverityOptions()"></select>
+        </div>
+
+        <div>
+            <label asp-for="DepartmentId" class="form-label"></label>
+            <select asp-for="DepartmentId" class="form-control" asp-items="Model.Departments"
+                    data-cascade-init onchange="taskDeptChange(this)">
+                <option value="">— اختر القسم —</option>
+            </select>
+            <span asp-validation-for="DepartmentId" class="field-validation-error"></span>
+        </div>
+        <div>
+            <label asp-for="AssigneeEmployeeId" class="form-label"></label>
+            <select name="AssigneeEmployeeId" class="form-control" data-selected="@Model.AssigneeEmployeeId">
+                <option value="">— اختر الموظف —</option>
+                @foreach (var e in Model.Employees)
+                {
+                    <option value="@e.Id" selected="@(Model.AssigneeEmployeeId == e.Id)">@e.Name</option>
+                }
+            </select>
+            <span asp-validation-for="AssigneeEmployeeId" class="field-validation-error"></span>
+        </div>
+
+        <div>
+            <label asp-for="StartAt" class="form-label"></label>
+            <input asp-for="StartAt" type="datetime-local" class="form-control" dir="ltr" value="@DT(Model.StartAt)" />
+        </div>
+        <div>
+            <label asp-for="DueAt" class="form-label"></label>
+            <input asp-for="DueAt" type="date" class="form-control" dir="ltr" value="@D(Model.DueAt)" />
+        </div>
+
+        <div class="full">
+            <label asp-for="Description" class="form-label"></label>
+            <textarea asp-for="Description" class="form-control" rows="3" placeholder="اكتب تفاصيل المهمة..."></textarea>
+            <span asp-validation-for="Description" class="field-validation-error"></span>
+        </div>
+
+        <div class="full">
+            <label class="form-label">المرفقات (اختياري)</label>
+            <input type="file" name="files" class="form-control" multiple />
+            <span style="color:var(--muted);font-size:12px;">يمكن اختيار أكثر من ملف — بحد أقصى 15 ميجابايت لكل ملف.</span>
+        </div>
+    </div>
+
+    <script type="application/json" id="taskEmpData">@Html.Raw(empJson)</script>
+
+    <div style="display:flex;gap:8px;margin-top:16px;">
+        <button type="submit" class="btn-primary" style="width:auto;">@(isEdit ? "💾 حفظ التعديلات" : "➕ إسناد المهمة")</button>
+    </div>
+</form>

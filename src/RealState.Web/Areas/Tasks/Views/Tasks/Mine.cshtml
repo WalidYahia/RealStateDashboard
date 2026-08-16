@@ -1,0 +1,81 @@
+@model MyTasksVm
+@{
+    ViewData["Title"] = "مهامي";
+    var canCreate = ViewData["CanCreate"] as bool? ?? false;
+    string? F(DateTime? d) => d?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+}
+<div class="page-head">
+    <h1>مهامي</h1>
+    @if (canCreate) { <button type="button" class="btn-new-tenant" onclick="appOpenModal('@Url.Action("Form")', 'إسناد مهمة')">➕ إسناد مهمة</button> }
+</div>
+
+@if (TempData["StatusMessage"] is string status) { <div class="status-message">@status</div> }
+
+<div class="subtabs" style="margin-top:6px;">
+    <a class="subtab" data-tab="assigned" href="javascript:" onclick="mineTab(event,'assigned')">المهام المُسندة إليّ (@Model.Assigned.Count)</a>
+    <a class="subtab" data-tab="delegated" href="javascript:" onclick="mineTab(event,'delegated')">المهام التي أسندتها (@Model.Delegated.Count)</a>
+</div>
+
+<!-- Tab: assigned to me -->
+<div id="mine-assigned" class="mine-tab">
+    <div class="card-tile" style="margin-bottom:12px;">
+        <form asp-action="Mine" method="get" style="display:flex;gap:10px;align-items:end;flex-wrap:wrap;">
+            <input type="hidden" name="tab" value="assigned" />
+            <div><label class="form-label">من</label><input type="date" name="from" value="@F(Model.From)" class="form-control" style="margin:0;" dir="ltr" /></div>
+            <div><label class="form-label">إلى</label><input type="date" name="to" value="@F(Model.To)" class="form-control" style="margin:0;" dir="ltr" /></div>
+            <div>
+                <label class="form-label">أسندها</label>
+                <select name="assignedById" class="form-control" style="margin:0;">
+                    <option value="">الكل</option>
+                    @foreach (var a in Model.Assigners)
+                    { <option value="@a.Value" selected="@(Model.AssignedById?.ToString() == a.Value)">@a.Text</option> }
+                </select>
+            </div>
+            <button type="submit" class="btn-primary" style="width:auto;">بحث</button>
+            <a class="btn-sm" asp-action="Mine" asp-route-tab="assigned" asp-route-from="2000-01-01" asp-route-to="2100-01-01">الكل</a>
+        </form>
+    </div>
+    <div class="card-tile"><partial name="_MineTable" model="Model.Assigned" /></div>
+</div>
+
+<!-- Tab: assigned by me -->
+<div id="mine-delegated" class="mine-tab" style="display:none;">
+    <div class="card-tile" style="margin-bottom:12px;">
+        <form asp-action="Mine" method="get" style="display:flex;gap:10px;align-items:end;flex-wrap:wrap;">
+            <input type="hidden" name="tab" value="delegated" />
+            <div><label class="form-label">من</label><input type="date" name="from" value="@F(Model.From)" class="form-control" style="margin:0;" dir="ltr" /></div>
+            <div><label class="form-label">إلى</label><input type="date" name="to" value="@F(Model.To)" class="form-control" style="margin:0;" dir="ltr" /></div>
+            <div>
+                <label class="form-label">المُكلَّف</label>
+                <select name="assignedToId" class="form-control" style="margin:0;">
+                    <option value="">الكل</option>
+                    @foreach (var e in Model.Assignees)
+                    { <option value="@e.Value" selected="@(Model.AssignedToId?.ToString() == e.Value)">@e.Text</option> }
+                </select>
+            </div>
+            <button type="submit" class="btn-primary" style="width:auto;">بحث</button>
+            <a class="btn-sm" asp-action="Mine" asp-route-tab="delegated" asp-route-from="2000-01-01" asp-route-to="2100-01-01">الكل</a>
+        </form>
+    </div>
+    <div class="card-tile"><partial name="_MineTable" model="Model.Delegated" /></div>
+</div>
+
+@section Scripts {
+    <script src="~/js/tasks.js" asp-append-version="true"></script>
+    <script>
+        function showMineTab(name) {
+            if (name !== 'delegated') name = 'assigned';
+            document.getElementById('mine-assigned').style.display = name === 'assigned' ? '' : 'none';
+            document.getElementById('mine-delegated').style.display = name === 'delegated' ? '' : 'none';
+            document.querySelectorAll('.subtabs .subtab').forEach(function (a) {
+                a.classList.toggle('active', a.getAttribute('data-tab') === name);
+            });
+            if (history.replaceState) history.replaceState(null, '', '#' + name);
+        }
+        function mineTab(e, name) { e.preventDefault(); showMineTab(name); }
+        document.addEventListener('DOMContentLoaded', function () {
+            var initial = (location.hash || '').replace('#', '') || '@Model.ActiveTab';
+            showMineTab(initial);
+        });
+    </script>
+}

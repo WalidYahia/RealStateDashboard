@@ -1,0 +1,17 @@
+@model StatusFormModel
+<form id="appModalForm" asp-area="Tasks" asp-controller="Tasks" asp-action="Status" method="post">
+    @Html.AntiForgeryToken()
+    <input type="hidden" asp-for="TaskId" />
+    <div class="form-grid">
+        <div class="full">
+            <label asp-for="Status" class="form-label"></label>
+            <select asp-for="Status" class="form-control" asp-items="ArabicLabels.WorkTaskStatusOptions()"></select>
+        </div>
+        <div class="full">
+            <label asp-for="Note" class="form-label"></label>
+            <input asp-for="Note" class="form-control" placeholder="سبب أو ملاحظة تُضاف للسجل (اختياري)" />
+        </div>
+    </div>
+    <p style="color:var(--muted);font-size:12px;margin-top:8px;">سيُضاف تغيير الحالة تلقائيًا إلى سجل المهمة.</p>
+    <div style="margin-top:12px;"><button type="submit" class="btn-primary" style="width:auto;">💾 حفظ</button></div>
+</form>

@@ -13,6 +13,7 @@
         <h3>قائمة الموظفين</h3>
         <div style="display:flex;gap:8px;align-items:center;margin-inline-start:auto;">
             <input id="empSearch" class="form-control" style="margin:0;width:280px;" placeholder="🔍 بحث بالاسم أو القسم أو الوظيفة..." />
+            <a class="btn-sm" asp-action="Print" target="_blank">🖨 طباعة</a>
             @if (canManage) { <button type="button" class="btn-new-tenant" onclick="appOpenModal('@Url.Action("Form")', 'موظف جديد')">➕ موظف جديد</button> }
         </div>
     </div>
@@ -33,7 +34,7 @@
                     @if (canManage)
                     {
                         <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("Form", new { id = e.Id })', 'تعديل الموظف')">تعديل</button>
-                        <form asp-action="Delete" asp-route-id="@e.Id" method="post" style="display:inline;" data-confirm="حذف الموظف «@e.Name»؟" data-danger>@Html.AntiForgeryToken()<button type="submit" class="btn-sm btn-danger">حذف</button></form>
+                        <form asp-action="Delete" asp-route-id="@e.Id" method="post" style="display:inline;" data-confirm="حذف الموظف «@e.Name»؟ سيُحذف حساب الدخول المرتبط به (إن وجد) أيضًا." data-danger>@Html.AntiForgeryToken()<button type="submit" class="btn-sm btn-danger">حذف</button></form>
                     }
                 </td>
             </tr>

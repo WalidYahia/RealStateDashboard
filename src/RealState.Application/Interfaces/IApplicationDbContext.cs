@@ -58,5 +58,9 @@ public interface IApplicationDbContext
     DbSet<Notification> Notifications { get; }
     DbSet<Attachment> Attachments { get; }
 
+    DbSet<WorkTask> WorkTasks { get; }
+    DbSet<WorkTaskLog> WorkTaskLogs { get; }
+    DbSet<WorkTaskAttachment> WorkTaskAttachments { get; }
+
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

@@ -43,6 +43,14 @@ window.appToast = function (msg, icon) {
             .catch(function () { document.getElementById('appModalBody').innerHTML = '<div style="padding:24px;color:var(--danger)">تعذّر تحميل النموذج.</div>'; });
     };
 
+    // Ensure a hidden input with the given name exists on the form and set its value (used to carry a
+    // server-requested confirmation flag back on resubmit).
+    function setHiddenField(form, name, value) {
+        var input = form.querySelector('[name="' + name + '"]');
+        if (!input) { input = document.createElement('input'); input.type = 'hidden'; input.name = name; form.appendChild(input); }
+        input.value = value;
+    }
+
     function submitForm(form) {
         var btn = form.querySelector('button[type="submit"]');
         if (btn) btn.disabled = true;
@@ -64,6 +72,20 @@ window.appToast = function (msg, icon) {
                         }
                         else if (res.json.redirect) { window.location.href = res.json.redirect; }
                         else { window.location.reload(); }
+                        return;
+                    }
+                    // { ok:false, confirm } -> ask, then resubmit with a hidden confirm flag set.
+                    if (res.json.confirm) {
+                        if (preTab) preTab.close();
+                        if (btn) btn.disabled = false;
+                        var field = res.json.confirmField || 'Confirmed';
+                        var proceed = function (yes) { if (yes) { setHiddenField(form, field, 'true'); submitForm(form); } };
+                        if (!window.Swal) { proceed(window.confirm(res.json.confirm)); return; }
+                        Swal.fire({
+                            icon: 'question', title: 'تأكيد', html: res.json.confirm,
+                            showCancelButton: true, confirmButtonText: 'نعم', cancelButtonText: 'إلغاء',
+                            reverseButtons: true, confirmButtonColor: '#3987e5', cancelButtonColor: '#6b7280'
+                        }).then(function (r) { proceed(r.isConfirmed); });
                         return;
                     }
                     // { ok:false, error }
