@@ -75,26 +75,20 @@
                    dir="ltr" />
         </div>
 
-        <div style="flex:1;min-width:180px;">
-            <label class="form-label">بحث بالبيان</label>
-            <input type="text"
-                   name="q"
-                   value="@Model.Q"
-                   class="form-control"
-                   style="margin:0;"
-                   placeholder="اسم الحركة..." />
-        </div>
-
         <button type="submit" class="btn-primary" style="width:auto;">بحث</button>
+        <a class="btn-sm" asp-action="Index">اليوم</a>
+        <a class="btn-sm" asp-action="Index" asp-route-from="@DateTime.Today.AddDays(-7).ToString("yyyy-MM-dd", inv)" asp-route-to="@DateTime.Today.ToString("yyyy-MM-dd", inv)">آخر أسبوع</a>
+        <a class="btn-sm" asp-action="Index" asp-route-from="@DateTime.Today.AddMonths(-1).ToString("yyyy-MM-dd", inv)" asp-route-to="@DateTime.Today.ToString("yyyy-MM-dd", inv)">آخر شهر</a>
 
         <span style="color:var(--muted);font-size:13px;align-self:center;">
-            الإجمالي: <strong>@N(Model.Total)</strong> ج.م
+            الإجمالي: <strong data-live-sum="#txnTable:5">@N(Model.Total)</strong> ج.م
         </span>
     </form>
 </div>
 
 <div class="card-tile">
-    <table class="rs-table">
+    <div class="list-search-bar"><input class="form-control list-search" data-target="#txnTable" placeholder="🔍 بحث في القائمة..." /></div>
+    <table class="rs-table" id="txnTable">
         <thead>
             <tr>
                 <th>#</th>
@@ -169,12 +163,13 @@
 
             @if (Model.Rows.Count == 0)
             {
-                <tr>
+                <tr data-skip-search>
                     <td colspan="7" style="color:var(--muted)">
                         لا توجد حركات.
                     </td>
                 </tr>
             }
+            <tr data-no-results data-skip-search style="display:none;"><td colspan="7" style="color:var(--muted)">لا توجد نتائج مطابقة للبحث.</td></tr>
         </tbody>
     </table>
 </div>

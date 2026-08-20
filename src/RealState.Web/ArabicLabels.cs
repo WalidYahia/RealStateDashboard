@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc.Rendering;
+using RealState.Application.Entities;
 using RealState.Application.Enums;
 
 namespace RealState.Web;
@@ -101,6 +102,7 @@ public static class ArabicLabels
 
     public static string Ar(this CustomerSource s) => s switch
     {
+        CustomerSource.Salesperson => "مندوب مبيعات",
         CustomerSource.Facebook => "فيسبوك",
         CustomerSource.Instagram => "إنستغرام",
         CustomerSource.Google => "جوجل",
@@ -111,7 +113,67 @@ public static class ArabicLabels
         _ => s.ToString()
     };
 
-    public static List<SelectListItem> CustomerSourceOptions(CustomerSource? s = null) => Options<CustomerSource>(Ar, s);
+    /// <summary>Source options with "مندوب مبيعات" pinned to the top.</summary>
+    public static List<SelectListItem> CustomerSourceOptions(CustomerSource? selected = null)
+    {
+        var ordered = new[] { CustomerSource.Salesperson }
+            .Concat(Enum.GetValues<CustomerSource>().Where(s => s != CustomerSource.Salesperson));
+        return ordered.Select(s => new SelectListItem
+        {
+            Value = ((int)s).ToString(),
+            Text = s.Ar(),
+            Selected = selected.HasValue && selected.Value == s
+        }).ToList();
+    }
+
+    // ----- Leads / CRM -----
+    public static string Ar(this LeadInterest i) => i switch
+    {
+        LeadInterest.Interested => "مهتم",
+        LeadInterest.NotInterested => "غير مهتم",
+        _ => i.ToString()
+    };
+    public static string Color(this LeadInterest i) => i == LeadInterest.Interested ? "var(--good)" : "var(--muted)";
+    public static List<SelectListItem> LeadInterestOptions(LeadInterest? s = null) => Options<LeadInterest>(Ar, s);
+
+    public static string Ar(this LeadChannel c) => c switch
+    {
+        LeadChannel.SocialMedia => "وسائل التواصل الاجتماعي",
+        LeadChannel.Campaign => "الحملات",
+        LeadChannel.Salesperson => "مندوب مبيعات",
+        LeadChannel.Other => "أخرى",
+        _ => c.ToString()
+    };
+    public static List<SelectListItem> LeadChannelOptions(LeadChannel? s = null) => Options<LeadChannel>(Ar, s);
+
+    /// <summary>Source sub-options for the social-media channel.</summary>
+    public static readonly CustomerSource[] SocialMediaSources = { CustomerSource.Facebook, CustomerSource.Instagram };
+    /// <summary>Source sub-options for the "other" channel.</summary>
+    public static readonly CustomerSource[] OtherSources = { CustomerSource.Google, CustomerSource.Website, CustomerSource.Referral, CustomerSource.WalkIn, CustomerSource.Other };
+
+    public static List<SelectListItem> SourceOptionsFor(LeadChannel channel, CustomerSource? selected = null)
+    {
+        var set = channel == LeadChannel.SocialMedia ? SocialMediaSources : OtherSources;
+        return set.Select(s => new SelectListItem { Value = ((int)s).ToString(), Text = s.Ar(), Selected = selected == s }).ToList();
+    }
+
+    /// <summary>Human-readable source of a customer/lead: campaign name for the campaign channel, else the source label.</summary>
+    public static string SourceLabel(this Customer c, IReadOnlyDictionary<Guid, string>? campaigns = null)
+    {
+        if (c.Channel == LeadChannel.Campaign && c.SourceCampaignId is Guid id)
+            return campaigns is not null && campaigns.TryGetValue(id, out var n) ? n : "حملة";
+        return c.Source.Ar();
+    }
+
+    public static string Ar(this CustomerLogKind k) => k switch
+    {
+        CustomerLogKind.Manual => "تواصل",
+        CustomerLogKind.Created => "إنشاء",
+        CustomerLogKind.StatusChange => "تغيير الحالة",
+        CustomerLogKind.Conversion => "تحويل لعميل",
+        CustomerLogKind.WhatsApp => "واتساب",
+        _ => k.ToString()
+    };
 
     // ----- Projects enums -----
     public static string Ar(this ProjectType t) => t switch

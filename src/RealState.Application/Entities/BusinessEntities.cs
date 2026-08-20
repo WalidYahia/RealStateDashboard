@@ -47,6 +47,16 @@ public class Customer : AuditableEntity, ITenantEntity
     public CustomerSource Source { get; set; }
     public string? Notes { get; set; }
 
+    /// <summary>Channel a lead came through (drives which kind of value <see cref="Source"/>/<see cref="SourceCampaignId"/> holds).</summary>
+    public LeadChannel? Channel { get; set; }
+    /// <summary>The marketing campaign this lead came from (set only when Channel = Campaign).</summary>
+    public Guid? SourceCampaignId { get; set; }
+
+    /// <summary>True while this record is still a lead (potential customer). Cleared on conversion.</summary>
+    public bool IsLead { get; set; }
+    /// <summary>Optional lead interest (مهتم / غير مهتم).</summary>
+    public LeadInterest? Interest { get; set; }
+
     /// <summary>Assigned salesperson (an Employee of type Salesperson). Required in the UI.</summary>
     public Guid? SalesPersonId { get; set; }
     public Employee? SalesPerson { get; set; }

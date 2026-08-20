@@ -29,18 +29,24 @@ public class OrdersController : Controller
     private bool Can(string permission) => User.HasClaim("permission", permission);
 
     // ---------- Orders list ----------
-    public async Task<IActionResult> Index(CancellationToken ct)
+    public async Task<IActionResult> Index(DateTime? from, DateTime? to, CancellationToken ct)
     {
+        (from, to) = DateFilterDefaults.TodayIfFresh(Request, from, to);
         ViewData["CanCreate"] = Can(PermissionNames.SuppliersCreate);
         ViewData["CanEdit"] = Can(PermissionNames.SuppliersEdit);
         ViewData["CanDelete"] = Can(PermissionNames.SuppliersDelete);
         ViewData["CanPay"] = Can(PermissionNames.SuppliersPay);
-        return View(await BuildRowsAsync(ct));
+        ViewBag.From = from;
+        ViewBag.To = to;
+        return View(await BuildRowsAsync(ct, from, to));
     }
 
-    private async Task<List<OrderListItem>> BuildRowsAsync(CancellationToken ct)
+    private async Task<List<OrderListItem>> BuildRowsAsync(CancellationToken ct, DateTime? from = null, DateTime? to = null)
     {
-        var orders = await _db.SupplierOrders.OrderByDescending(o => o.Number).ToListAsync(ct);
+        var q = _db.SupplierOrders.AsQueryable();
+        if (from.HasValue) q = q.Where(o => o.OrderDate >= from.Value.Date);
+        if (to.HasValue) q = q.Where(o => o.OrderDate < to.Value.Date.AddDays(1));
+        var orders = await q.OrderByDescending(o => o.Number).ToListAsync(ct);
         var supNames = await _db.Suppliers.ToDictionaryAsync(s => s.Id, s => s.Name, ct);
         var projNames = await _db.Projects.ToDictionaryAsync(p => p.Id, p => p.Name, ct);
         var itemsByOrder = (await _db.SupplierOrderItems.GroupBy(i => i.SupplierOrderId)

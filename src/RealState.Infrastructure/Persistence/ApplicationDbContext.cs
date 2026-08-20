@@ -43,6 +43,7 @@ public class ApplicationDbContext
 
     public DbSet<Project> Projects => Set<Project>();
     public DbSet<Customer> Customers => Set<Customer>();
+    public DbSet<CustomerLog> CustomerLogs => Set<CustomerLog>();
     public DbSet<Lead> Leads => Set<Lead>();
     public DbSet<Campaign> Campaigns => Set<Campaign>();
     public DbSet<CampaignUpdate> CampaignUpdates => Set<CampaignUpdate>();
@@ -155,6 +156,9 @@ public class ApplicationDbContext
         builder.Entity<WorkTask>().HasOne(t => t.Assignee).WithMany().HasForeignKey(t => t.AssigneeEmployeeId).OnDelete(DeleteBehavior.Restrict);
         builder.Entity<WorkTaskLog>().HasOne(l => l.Task).WithMany(t => t.Logs).HasForeignKey(l => l.WorkTaskId).OnDelete(DeleteBehavior.Cascade);
         builder.Entity<WorkTaskAttachment>().HasOne(a => a.Task).WithMany(t => t.Attachments).HasForeignKey(a => a.WorkTaskId).OnDelete(DeleteBehavior.Cascade);
+
+        // Customer communication log cascades with its customer.
+        builder.Entity<CustomerLog>().HasOne(l => l.Customer).WithMany().HasForeignKey(l => l.CustomerId).OnDelete(DeleteBehavior.Cascade);
     }
 
     /// <summary>Builds `e =&gt; !e.IsDeleted &amp;&amp; e.TenantId == currentTenant` for a tenant entity type.</summary>

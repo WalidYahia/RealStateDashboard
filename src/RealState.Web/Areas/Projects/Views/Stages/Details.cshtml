@@ -58,7 +58,7 @@
         <h3>سجل الأنشطة</h3>
         @if (canEdit)
         {
-            <button type="button" class="btn-new-tenant" onclick="appOpenModal('@Url.Action("ActivityForm", new { stageId = Model.Id })', 'نشاط جديد')">➕ نشاط</button>
+            <button type="button" class="btn-new-tenant" onclick="addStageActivity()">➕ نشاط</button>
         }
     </div>
     <table class="rs-table">
@@ -88,3 +88,18 @@
         </tbody>
     </table>
 </div>
+
+@section Scripts {
+    <script>
+        var STAGE_STARTED = @(Model.ActualStartDate is null ? "false" : "true");
+        function addStageActivity() {
+            if (!STAGE_STARTED) {
+                var msg = 'لا يمكن إضافة نشاط قبل بدء المرحلة. يجب بدء المرحلة أولًا.';
+                if (window.Swal) { Swal.fire({ icon: 'info', title: 'المرحلة لم تبدأ', html: msg, confirmButtonText: 'حسنًا' }); }
+                else { alert(msg); }
+                return;
+            }
+            appOpenModal('@Url.Action("ActivityForm", new { stageId = Model.Id })', 'نشاط جديد');
+        }
+    </script>
+}

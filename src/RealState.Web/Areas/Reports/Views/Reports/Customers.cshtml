@@ -14,12 +14,15 @@
         <div><label class="form-label">من (تاريخ العقد)</label><input type="date" name="from" value="@F(Model.From)" class="form-control" style="margin:0;" dir="ltr" /></div>
         <div><label class="form-label">إلى</label><input type="date" name="to" value="@F(Model.To)" class="form-control" style="margin:0;" dir="ltr" /></div>
         <button type="submit" class="btn-primary" style="width:auto;">بحث</button>
-        <a class="btn-sm" asp-action="Customers" asp-route-from="2000-01-01" asp-route-to="2100-01-01">الكل</a>
+        <a class="btn-sm" asp-action="Customers">اليوم</a>
+        <a class="btn-sm" asp-action="Customers" asp-route-from="@F(DateTime.Today.AddDays(-7))" asp-route-to="@F(DateTime.Today)">آخر أسبوع</a>
+        <a class="btn-sm" asp-action="Customers" asp-route-from="@F(DateTime.Today.AddMonths(-1))" asp-route-to="@F(DateTime.Today)">آخر شهر</a>
     </form>
 </div>
 
 <div class="card-tile">
-    <table class="rs-table">
+    <div class="list-search-bar"><input class="form-control list-search" data-target="#custRepTable" placeholder="🔍 بحث في القائمة..." /></div>
+    <table class="rs-table" id="custRepTable" data-live-totals>
         <thead>
             <tr><th>العميل</th><th>الهاتف</th><th>عدد العقود</th><th>قيمة العقود</th><th>أقساط متبقية</th><th>المحصَّل</th><th>المتبقي</th></tr>
         </thead>
@@ -38,8 +41,9 @@
         }
         @if (Model.Rows.Count == 0)
         {
-            <tr><td colspan="7" style="color:var(--muted)">لا توجد بيانات في هذه الفترة.</td></tr>
+            <tr data-skip-search><td colspan="7" style="color:var(--muted)">لا توجد بيانات في هذه الفترة.</td></tr>
         }
+        <tr data-no-results data-skip-search style="display:none;"><td colspan="7" style="color:var(--muted)">لا توجد نتائج مطابقة للبحث.</td></tr>
         </tbody>
         <tfoot>
             <tr>

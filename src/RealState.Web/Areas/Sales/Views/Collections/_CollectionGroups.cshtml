@@ -21,10 +21,10 @@
             <option value="customer" selected="@(sort == "customer")">العميل</option>
             <option value="project" selected="@(sort == "project")">المشروع</option>
         </select>
-
-        <input class="form-control"
-               style="margin:0;flex:1;min-width:200px;"
-               placeholder="🔍 بحث بالعميل، الهاتف، المشروع أو الوحدة..."
+    </div>
+    <div class="list-search-bar" style="margin-top:10px;margin-bottom:0;">
+        <input class="form-control list-search"
+               placeholder="🔍 بحث في القائمة..."
                oninput="colFilter(this.value)" />
     </div>
 </div>
@@ -48,24 +48,25 @@
             </span>
         </summary>
 
-        <table class="rs-table" style="margin-top:10px;">
+        @* Fixed layout + shared column widths so every group's table lines up column-for-column. *@
+        <table class="rs-table" style="margin-top:10px;table-layout:fixed;">
             <thead>
                 <tr>
-                    <th>العميل</th>
-                    <th>الوحدة</th>
-                    <th>العقد</th>
-                    <th>القسط</th>
-                    <th>الاستحقاق</th>
-                    <th>القيمة</th>
+                    <th style="width:15%;">العميل</th>
+                    <th style="width:12%;">الوحدة</th>
+                    <th style="width:9%;">العقد</th>
+                    <th style="width:7%;">القسط</th>
+                    <th style="width:11%;">الاستحقاق</th>
+                    <th style="width:10%;">القيمة</th>
 
                     @if (isCollected)
                     {
-                        <th>تاريخ السداد</th>
-                        <th>الإيصال</th>
+                        <th style="width:10%;">تاريخ السداد</th>
+                        <th style="width:8%;">الإيصال</th>
                     }
                     else
                     {
-                        <th>الحالة</th>
+                        <th style="width:9%;">الحالة</th>
                     }
 
                     <th></th>
@@ -116,7 +117,8 @@
                         }
 
                         <td style="white-space:nowrap;">
-                            @if (isCollected)
+                            @* Paid installments can be reprinted / cancelled from any tab (including "جميع الاستحقاقات"). *@
+                            @if (r.Status == InstallmentStatus.Paid)
                             {
                                 <a class="btn-sm"
                                    asp-action="Receipt"
@@ -140,7 +142,7 @@
                                     </form>
                                 }
                             }
-                            else if (r.Status != InstallmentStatus.Paid && canCollect)
+                            else if (canCollect)
                             {
                                 <form class="pay-form"
                                       asp-action="Pay"

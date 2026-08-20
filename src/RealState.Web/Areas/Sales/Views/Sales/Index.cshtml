@@ -32,15 +32,17 @@
             <div><label class="form-label">من (تاريخ العقد)</label><input type="date" name="from" value="@F(Model.From)" class="form-control" style="margin:0;" dir="ltr" /></div>
             <div><label class="form-label">إلى</label><input type="date" name="to" value="@F(Model.To)" class="form-control" style="margin:0;" dir="ltr" /></div>
             <button type="submit" class="btn-primary" style="width:auto;">بحث</button>
-            <a class="btn-sm" asp-action="Index">إعادة تعيين</a>
+            <a class="btn-sm" asp-action="Index">اليوم</a>
+            <a class="btn-sm" asp-action="Index" asp-route-from="@F(DateTime.Today.AddDays(-7))" asp-route-to="@F(DateTime.Today)">آخر أسبوع</a>
+            <a class="btn-sm" asp-action="Index" asp-route-from="@F(DateTime.Today.AddMonths(-1))" asp-route-to="@F(DateTime.Today)">آخر شهر</a>
         </form>
-        <input id="saleSearch" class="form-control" style="margin:0;flex:1;min-width:240px;" placeholder="🔍 بحث بالكود، العميل، المشروع أو الوحدة..." />
     </div>
-    <div style="color:var(--muted);font-size:13px;margin-top:8px;">العقود: <strong>@Model.Rows.Count</strong> · الإجمالي: <strong>@N(Model.TotalValue)</strong> ج.م</div>
+    <div style="color:var(--muted);font-size:13px;margin-top:8px;">العقود: <strong data-live-count="#saleTable">@Model.Rows.Count</strong> · الإجمالي: <strong data-live-sum="#saleTable:6">@N(Model.TotalValue)</strong> ج.م</div>
 </div>
 
 <div class="card-tile">
-    <table class="rs-table">
+    <div class="list-search-bar"><input class="form-control list-search" data-target="#saleTable" placeholder="🔍 بحث في القائمة..." /></div>
+    <table class="rs-table" id="saleTable">
         <thead>
             <tr>
                 <th>الكود</th>
@@ -73,14 +75,22 @@
                     <td style="white-space:nowrap;">
                         <a class="btn-sm" asp-action="Details" asp-route-id="@s.Id" asp-route-from="@F(Model.From)" asp-route-to="@F(Model.To)">التفاصيل</a>
                         <a class="btn-sm" asp-action="Contract" asp-route-id="@s.Id" target="_blank">🖨 العقد</a>
+                        @if (User.Can(PermissionNames.SalesEdit))
+                        {
+                            <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("Form", new { id = s.Id })', 'تعديل عقد البيع @s.Code')">تعديل</button>
+                        }
+                        @if (User.Can(PermissionNames.SalesDelete))
+                        {
+                            <form asp-action="Delete" asp-route-id="@s.Id" asp-route-from="@F(Model.From)" asp-route-to="@F(Model.To)" method="post" style="display:inline;">@Html.AntiForgeryToken()<button type="submit" class="btn-sm btn-danger">حذف</button></form>
+                        }
                     </td>
                 </tr>
             }
             @if (Model.Rows.Count == 0)
             {
-                <tr><td colspan="10" style="color:var(--muted)">لا توجد عقود بيع مطابقة.</td></tr>
+                <tr data-skip-search><td colspan="10" style="color:var(--muted)">لا توجد عقود بيع مطابقة.</td></tr>
             }
-            <tr id="saleNoResults" style="display:none;"><td colspan="10" style="color:var(--muted)">لا توجد نتائج مطابقة للبحث.</td></tr>
+            <tr data-no-results data-skip-search style="display:none;"><td colspan="10" style="color:var(--muted)">لا توجد نتائج مطابقة للبحث.</td></tr>
         </tbody>
     </table>
 </div>
@@ -89,30 +99,24 @@
     <script>
         var SALE_PRICES = @Html.Raw(JsonSerializer.Serialize(unitPrices));
 
+        // When عدد الأقساط = 0, the whole contract value becomes the down payment — confirm before saving.
+        window.saleInstallmentWarn = function (form) {
+            var cntEl = form.querySelector('[name="InstallmentsCount"]');
+            var cnt = parseInt((cntEl && cntEl.value) || '0', 10);
+            if (cnt !== 0) return null;
+            var tpEl = form.querySelector('[name="TotalPrice"]');
+            var tp = parseFloat((tpEl && tpEl.value) || '0');
+            var dp = form.querySelector('[name="DownPayment"]');
+            if (dp) dp.value = tp;   // reflect it for the user
+            return 'عدد الأقساط = 0، لذلك سيُعتبر كامل قيمة العقد (' + (tp ? tp.toLocaleString('en-US') : '0') + ' ج.م) مقدمًا يُحصَّل دفعة واحدة. هل تريد المتابعة؟';
+        };
+
         // Pre-fill the total price from the selected unit (only if empty or unchanged).
         window.saleSetPrice = function (unitId) {
             var price = SALE_PRICES[unitId];
             var tp = document.querySelector('#appModalBody [name="TotalPrice"]');
             if (tp && price != null && (!tp.value || tp.value === '0')) tp.value = price;
         };
-
-        // Client-side text search over the contracts table.
-        (function () {
-            var box = document.getElementById('saleSearch');
-            if (!box) return;
-            box.addEventListener('input', function () {
-                var q = this.value.trim().toLowerCase();
-                var rows = document.querySelectorAll('.rs-table tbody tr[data-search]');
-                var shown = 0;
-                rows.forEach(function (tr) {
-                    var match = tr.getAttribute('data-search').indexOf(q) >= 0;
-                    tr.style.display = match ? '' : 'none';
-                    if (match) shown++;
-                });
-                var nr = document.getElementById('saleNoResults');
-                if (nr) nr.style.display = (rows.length && shown === 0) ? '' : 'none';
-            });
-        })();
 
         // Filter the units dropdown to the chosen project (empty = show all units).
         window.saleFilterUnits = function (projectId) {

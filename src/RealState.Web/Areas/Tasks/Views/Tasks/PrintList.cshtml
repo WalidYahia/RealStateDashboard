@@ -1,0 +1,94 @@
+@model TaskPrintVm
+@{
+    Layout = null;
+    var tenantId = (Guid)ViewBag.TenantId;
+    string D(DateTime? d) => d?.ToString("yyyy/MM/dd", System.Globalization.CultureInfo.InvariantCulture) ?? "—";
+    string DT(DateTime? d) => d?.ToString("yyyy/MM/dd HH:mm", System.Globalization.CultureInfo.InvariantCulture) ?? "—";
+}
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="utf-8" />
+    <title>قائمة المهام</title>
+    <style>
+        body { font-family: "Segoe UI", Tahoma, sans-serif; padding: 24px; color: #111; }
+        .brand { text-align: center; margin-bottom: 6px; } .brand img { max-height: 60px; }
+        h1 { font-size: 19px; text-align: center; margin: 4px 0; }
+        .sub { text-align: center; color: #666; font-size: 12px; margin-bottom: 14px; }
+        table { width: 100%; border-collapse: collapse; font-size: 12px; }
+        th, td { border: 1px solid #ccc; padding: 5px 7px; text-align: start; unicode-bidi: plaintext; vertical-align: top; }
+        th { background: #f2f2f2; }
+        .task { border: 1px solid #ccc; border-radius: 6px; padding: 10px 12px; margin-bottom: 12px; page-break-inside: avoid; }
+        .task .th { font-weight: 700; font-size: 13px; margin-bottom: 4px; }
+        .task .meta { color: #555; font-size: 11px; margin-bottom: 6px; }
+        .task .desc { font-size: 12px; margin-bottom: 8px; white-space: pre-wrap; }
+        .task table { font-size: 11px; }
+        .no-print { margin-bottom: 12px; } @@media print { .no-print { display: none; } }
+    </style>
+</head>
+<body>
+    <div class="no-print"><button onclick="window.print()">🖨 طباعة / حفظ PDF</button></div>
+    <div class="brand"><img src="@Url.Action("Logo", "Branding", new { area = "", id = tenantId })" alt="logo" onerror="this.style.display='none'" /></div>
+    <h1>قائمة المهام@(Model.WithLog ? " — مع سجل المهام" : "")</h1>
+    <div class="sub">
+        @if (Model.From.HasValue || Model.To.HasValue) { <text>الفترة @D(Model.From) — @D(Model.To) · </text> }
+        العدد: @Model.Rows.Count · طُبع @DateTime.Now.ToString("yyyy/MM/dd HH:mm")
+    </div>
+
+    @if (!Model.WithLog)
+    {
+        <table>
+            <thead><tr><th>رقم</th><th>تاريخ الإسناد</th><th>أسندها</th><th>المُكلَّف</th><th>القسم</th><th>الاستحقاق</th><th>الأهمية</th><th>الحالة</th><th>الوصف</th></tr></thead>
+            <tbody>
+            @foreach (var r in Model.Rows)
+            {
+                <tr>
+                    <td>T-@r.Number</td>
+                    <td>@D(r.AssignedOn)</td>
+                    <td>@r.AssignedBy</td>
+                    <td>@r.Assignee</td>
+                    <td>@r.Department</td>
+                    <td>@D(r.DueAt)</td>
+                    <td>@r.Severity.Ar()</td>
+                    <td>@r.Status.Ar()</td>
+                    <td>@r.Description</td>
+                </tr>
+            }
+            @if (Model.Rows.Count == 0) { <tr><td colspan="9">لا توجد مهام.</td></tr> }
+            </tbody>
+        </table>
+    }
+    else
+    {
+        @foreach (var r in Model.Rows)
+        {
+            <div class="task">
+                <div class="th">T-@r.Number — @r.Assignee — @r.Status.Ar() — @r.Severity.Ar()</div>
+                <div class="meta">
+                    تاريخ الإسناد @D(r.AssignedOn) · أسندها @r.AssignedBy · القسم @r.Department · البدء @DT(r.StartAt) · الاستحقاق @D(r.DueAt)
+                </div>
+                <div class="desc">@r.Description</div>
+                @if (r.Logs.Count > 0)
+                {
+                    <table>
+                        <thead><tr><th style="width:130px;">التاريخ والوقت</th><th>البيان</th><th style="width:140px;">بواسطة</th></tr></thead>
+                        <tbody>
+                        @foreach (var l in r.Logs)
+                        {
+                            <tr><td>@DT(l.At)</td><td>@l.Text</td><td>@l.ByName</td></tr>
+                        }
+                        </tbody>
+                    </table>
+                }
+                else
+                {
+                    <div style="color:#888;font-size:11px;">لا توجد سجلات.</div>
+                }
+            </div>
+        }
+        @if (Model.Rows.Count == 0) { <div>لا توجد مهام.</div> }
+    }
+
+    <script>window.addEventListener('load', function () { setTimeout(function () { window.print(); }, 400); });</script>
+</body>
+</html>

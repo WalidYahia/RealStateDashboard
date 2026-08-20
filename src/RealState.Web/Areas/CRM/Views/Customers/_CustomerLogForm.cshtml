@@ -1,0 +1,18 @@
+@model CustomerLogFormModel
+<form id="appModalForm" asp-area="CRM" asp-controller="Customers" asp-action="SaveLog" method="post">
+    @Html.AntiForgeryToken()
+    <input type="hidden" asp-for="Id" />
+    <input type="hidden" asp-for="CustomerId" />
+    <div class="form-grid">
+        <div>
+            <label asp-for="Date" class="form-label"></label>
+            <input asp-for="Date" type="date" class="form-control" dir="ltr" value="@Model.Date.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)" />
+        </div>
+        <div class="full">
+            <label asp-for="Description" class="form-label"></label>
+            <textarea asp-for="Description" class="form-control" rows="3" placeholder="تفاصيل التواصل / الإجراء..."></textarea>
+            <span asp-validation-for="Description" class="field-validation-error"></span>
+        </div>
+    </div>
+    <button type="submit" class="btn-primary" style="margin-top:12px;width:auto;">💾 حفظ</button>
+</form>

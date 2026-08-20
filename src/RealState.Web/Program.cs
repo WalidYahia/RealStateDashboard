@@ -70,6 +70,12 @@ builder.Services.AddAuthorization(options =>
 {
     foreach (var permission in PermissionNames.All)
         options.AddPolicy(permission, policy => policy.RequireClaim("permission", permission));
+
+    // Reaching the Leads section requires any of these (a lead is a customer under the hood).
+    options.AddPolicy(PermissionNames.LeadsAccessPolicy, policy => policy.RequireAssertion(ctx =>
+        ctx.User.HasClaim("permission", PermissionNames.CustomersView) ||
+        ctx.User.HasClaim("permission", PermissionNames.LeadsControl) ||
+        ctx.User.HasClaim("permission", PermissionNames.LeadsConvert)));
 });
 
 builder.Services.AddControllersWithViews(options =>

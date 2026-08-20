@@ -38,7 +38,9 @@
         <div><label class="form-label">من</label><input type="date" name="from" value="@F(Model.From)" class="form-control" style="margin:0;" dir="ltr" /></div>
         <div><label class="form-label">إلى</label><input type="date" name="to" value="@F(Model.To)" class="form-control" style="margin:0;" dir="ltr" /></div>
         <button type="submit" class="btn-primary" style="width:auto;">بحث</button>
-        <a class="btn-sm" asp-action="Details" asp-route-id="@Model.Supplier.Id" asp-route-from="2000-01-01" asp-route-to="2100-01-01">كل الحركات</a>
+        <a class="btn-sm" asp-action="Details" asp-route-id="@Model.Supplier.Id">اليوم</a>
+        <a class="btn-sm" asp-action="Details" asp-route-id="@Model.Supplier.Id" asp-route-from="@F(DateTime.Today.AddDays(-7))" asp-route-to="@F(DateTime.Today)">آخر أسبوع</a>
+        <a class="btn-sm" asp-action="Details" asp-route-id="@Model.Supplier.Id" asp-route-from="@F(DateTime.Today.AddMonths(-1))" asp-route-to="@F(DateTime.Today)">آخر شهر</a>
     </form>
 </div>
 

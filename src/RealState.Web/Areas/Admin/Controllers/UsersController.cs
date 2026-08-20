@@ -92,10 +92,12 @@ public class UsersController : Controller
 
         var email = string.IsNullOrWhiteSpace(model.Email) ? null : model.Email.Trim();
 
-        if (email is not null && await _userManager.FindByEmailAsync(email) is not null)
-            ModelState.AddModelError(nameof(model.Email), "البريد الإلكتروني مستخدم بالفعل.");
-        if (await _userManager.Users.AnyAsync(u => u.PhoneNumber == model.Phone, ct))
-            ModelState.AddModelError(nameof(model.Phone), "رقم الهاتف مستخدم بالفعل.");
+        // Uniqueness is per-tenant (the same phone/email may exist under a different tenant).
+        var normEmail = email is null ? null : _userManager.NormalizeEmail(email);
+        if (email is not null && await _userManager.Users.AnyAsync(u => u.TenantId == model.TenantId && u.NormalizedEmail == normEmail, ct))
+            ModelState.AddModelError(nameof(model.Email), "البريد الإلكتروني مستخدم بالفعل في هذه المؤسسة.");
+        if (await _userManager.Users.AnyAsync(u => u.TenantId == model.TenantId && u.PhoneNumber == model.Phone, ct))
+            ModelState.AddModelError(nameof(model.Phone), "رقم الهاتف مستخدم بالفعل في هذه المؤسسة.");
 
         if (!ModelState.IsValid) return View(model);
 
@@ -159,11 +161,12 @@ public class UsersController : Controller
 
         var email = string.IsNullOrWhiteSpace(model.Email) ? null : model.Email.Trim();
 
-        // Uniqueness (excluding this user); email only when provided.
-        if (email is not null && await _userManager.Users.AnyAsync(u => u.Id != user.Id && u.Email == email, ct))
-            ModelState.AddModelError(nameof(model.Email), "البريد الإلكتروني مستخدم بالفعل.");
-        if (await _userManager.Users.AnyAsync(u => u.Id != user.Id && u.PhoneNumber == model.Phone, ct))
-            ModelState.AddModelError(nameof(model.Phone), "رقم الهاتف مستخدم بالفعل.");
+        // Uniqueness is per-tenant (excluding this user); email only when provided.
+        var normEmail = email is null ? null : _userManager.NormalizeEmail(email);
+        if (email is not null && await _userManager.Users.AnyAsync(u => u.Id != user.Id && u.TenantId == user.TenantId && u.NormalizedEmail == normEmail, ct))
+            ModelState.AddModelError(nameof(model.Email), "البريد الإلكتروني مستخدم بالفعل في هذه المؤسسة.");
+        if (await _userManager.Users.AnyAsync(u => u.Id != user.Id && u.TenantId == user.TenantId && u.PhoneNumber == model.Phone, ct))
+            ModelState.AddModelError(nameof(model.Phone), "رقم الهاتف مستخدم بالفعل في هذه المؤسسة.");
 
         if (!ModelState.IsValid) return View(model);
 

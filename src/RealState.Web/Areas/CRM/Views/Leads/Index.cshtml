@@ -1,57 +1,119 @@
-@model List<Lead>
-@using RealState.Web
+@model LeadListVm
 @{
     ViewData["Title"] = "العملاء المحتملون";
-    string N(decimal v) => v.ToString("N0", new System.Globalization.CultureInfo("ar-EG"));
+    var canControl = User.Can(PermissionNames.LeadsControl);
+    var canCreate = User.Can(PermissionNames.CustomersCreate) || canControl;
+    var canEdit = User.Can(PermissionNames.CustomersEdit) || canControl;
+    var canDelete = User.Can(PermissionNames.CustomersDelete) || canControl;
+    var canConvert = User.Can(PermissionNames.LeadsConvert);
+    string D(DateTime d) => d.ToString("yyyy/MM/dd", System.Globalization.CultureInfo.InvariantCulture);
+    string? F(DateTime? d) => d?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
 }
-<div class="page-head">
-    <h1>العملاء المحتملون (Leads)</h1>
-    @if (User.Can(PermissionNames.CustomersCreate))
-    {
-        <a class="btn-new-tenant" asp-action="Create">➕ عميل محتمل</a>
-    }
+<div class="page-head"><h1>العملاء المحتملون</h1></div>
+
+@if (TempData["StatusMessage"] is string status) { <div class="status-message">@status</div> }
+
+<div class="card-tile" style="margin-bottom:12px;">
+    <form asp-action="Index" method="get" style="display:flex;gap:10px;align-items:end;flex-wrap:wrap;">
+        <div><label class="form-label">من</label><input type="date" name="from" value="@F(Model.From)" class="form-control" style="margin:0;" dir="ltr" /></div>
+        <div><label class="form-label">إلى</label><input type="date" name="to" value="@F(Model.To)" class="form-control" style="margin:0;" dir="ltr" /></div>
+        <div>
+            <label class="form-label">المندوب</label>
+            <select name="salespersonId" class="form-control" style="margin:0;">
+                <option value="">الكل</option>
+                @foreach (var s in Model.Salespersons)
+                { <option value="@s.Value" selected="@(Model.SalespersonId?.ToString() == s.Value)">@s.Text</option> }
+            </select>
+        </div>
+        <div>
+            <label class="form-label">المصدر</label>
+            <select name="source" class="form-control" style="margin:0;">
+                <option value="">الكل</option>
+                @foreach (var s in Model.Sources)
+                { <option value="@s.Value" selected="@(Model.Source == s.Value)">@s.Text</option> }
+            </select>
+        </div>
+        <button type="submit" class="btn-primary" style="width:auto;">بحث</button>
+        <a class="btn-sm" asp-action="Index">اليوم</a>
+        <a class="btn-sm" asp-action="Index" asp-route-from="@F(DateTime.Today.AddDays(-7))" asp-route-to="@F(DateTime.Today)">آخر أسبوع</a>
+        <a class="btn-sm" asp-action="Index" asp-route-from="@F(DateTime.Today.AddMonths(-1))" asp-route-to="@F(DateTime.Today)">آخر شهر</a>
+        <a class="btn-sm" asp-action="Print" asp-route-from="@F(Model.From)" asp-route-to="@F(Model.To)" asp-route-salespersonId="@Model.SalespersonId" asp-route-source="@Model.Source" target="_blank">🖨 طباعة</a>
+    </form>
 </div>
 
-@if (TempData["StatusMessage"] is string status)
-{
-    <div class="status-message">@status</div>
-}
-
 <div class="card-tile">
-    <table class="rs-table">
-        <thead>
-            <tr><th>الاسم</th><th>الهاتف</th><th>المصدر</th><th>الحالة</th><th>القيمة المتوقعة</th><th>التاريخ</th><th></th></tr>
-        </thead>
-        <tbody>
-        @foreach (var l in Model)
+    <div class="card-head">
+        <h3>قائمة العملاء المحتملين</h3>
+        @if (canCreate)
         {
-            <tr>
-                <td>@l.FullName</td>
+            <button type="button" class="btn-new-tenant" onclick="appOpenModal('@Url.Action("Form", "Customers", new { asLead = true })', 'عميل محتمل جديد')">➕ عميل محتمل</button>
+        }
+    </div>
+    <div class="list-search-bar"><input class="form-control list-search" data-target="#leadTable" placeholder="🔍 بحث في القائمة..." /></div>
+    <table class="rs-table" id="leadTable">
+        <thead><tr><th>الاسم</th><th>الهاتف</th><th>تاريخ الإنشاء</th><th>المصدر</th><th>المندوب</th><th>الحالة</th><th>سجلات</th><th></th></tr></thead>
+        <tbody>
+        @foreach (var l in Model.Rows)
+        {
+            <tr data-search="@(((l.Name ?? "") + " " + (l.Phone ?? "")).ToLower())">
+                <td><a asp-controller="Customers" asp-action="Details" asp-route-id="@l.Id" style="color:var(--series-1);text-decoration:none;font-weight:600;">@l.Name</a></td>
                 <td dir="ltr" style="text-align:right;">@l.Phone</td>
-                <td>@l.Source</td>
-                <td><span class="badge-role">@l.Status.Ar()</span></td>
-                <td>@N(l.EstimatedValue)</td>
-                <td>@l.CreatedAt.ToString("yyyy/MM/dd")</td>
+                <td dir="ltr" style="text-align:right;">@D(l.CreatedOn)</td>
+                <td>@l.SourceLabel</td>
+                <td>@l.Salesperson</td>
+                <td>
+                    @if (l.Interest.HasValue) { <span class="badge-role" style="color:@l.Interest.Value.Color()">@l.Interest.Value.Ar()</span> }
+                    else { <span style="color:var(--muted)">—</span> }
+                </td>
+                <td>@l.LogCount</td>
                 <td style="white-space:nowrap;">
-                    @if (User.Can(PermissionNames.CustomersEdit))
+                    <a class="btn-sm" asp-controller="Customers" asp-action="Details" asp-route-id="@l.Id">الملف</a>
+                    @if (canEdit)
                     {
-                        <a class="btn-sm" asp-action="Edit" asp-route-id="@l.Id">تعديل</a>
+                        <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("Form", "Customers", new { id = l.Id })', 'تعديل العميل المحتمل')">تعديل</button>
                     }
-                    @if (User.Can(PermissionNames.CustomersDelete))
+                    @if (canConvert)
                     {
-                        <form asp-action="Delete" asp-route-id="@l.Id" method="post" style="display:inline;"
-                              data-confirm="حذف «@l.FullName»؟" data-danger>
-                            @Html.AntiForgeryToken()
-                            <button type="submit" class="btn-sm btn-danger">حذف</button>
-                        </form>
+                        <form asp-controller="Customers" asp-action="Convert" asp-route-id="@l.Id" method="post" style="display:inline;" data-confirm="تحويل «@l.Name» إلى عميل؟ سيظهر بعدها في صفحة العملاء فقط.">@Html.AntiForgeryToken()<button type="submit" class="btn-sm">↪ تحويل لعميل</button></form>
+                    }
+                    @if (canDelete)
+                    {
+                        <form asp-controller="Customers" asp-action="Delete" asp-route-id="@l.Id" method="post" style="display:inline;" data-confirm="حذف العميل المحتمل «@l.Name»؟" data-danger>@Html.AntiForgeryToken()<button type="submit" class="btn-sm btn-danger">حذف</button></form>
                     }
                 </td>
             </tr>
         }
-        @if (Model.Count == 0)
-        {
-            <tr><td colspan="7" style="color:var(--muted)">لا يوجد عملاء محتملون بعد.</td></tr>
-        }
+        @if (Model.Rows.Count == 0) { <tr data-skip-search><td colspan="8" style="color:var(--muted)">لا يوجد عملاء محتملون مطابقون.</td></tr> }
+        <tr data-no-results data-skip-search style="display:none;"><td colspan="8" style="color:var(--muted)">لا توجد نتائج مطابقة.</td></tr>
         </tbody>
     </table>
 </div>
+
+@section Scripts {
+    <script>
+        // Cascade the lead source from the selected channel (defined on the parent page because modal
+        // inline scripts don't run). social/other options are embedded on #leadSource as data attributes.
+        window.leadChannelChange = function () {
+            var ch = document.getElementById('leadChannel'); if (!ch) return;
+            var val = ch.value; // 0 social, 1 campaign, 2 salesperson, 3 other
+            var src = document.getElementById('leadSource');
+            var camp = document.getElementById('leadCampaign');
+            var isSrc = (val === '0' || val === '3');
+            var wrap = function (id, show) { var e = document.getElementById(id); if (e) e.style.display = show ? '' : 'none'; };
+            wrap('leadSourceWrap', isSrc);
+            wrap('leadCampaignWrap', val === '1');
+            wrap('leadSalespersonWrap', val === '2');
+            wrap('spReq', val === '2');   // salesperson (assignee) is required when the channel is salesperson
+            if (src) src.disabled = !isSrc;
+            if (camp) camp.disabled = (val !== '1');
+            if (src && isSrc) {
+                var data = [];
+                try { data = JSON.parse(src.getAttribute(val === '0' ? 'data-social' : 'data-other') || '[]'); } catch (e) { }
+                var sel = src.getAttribute('data-selected') || src.value || '';
+                var html = '';
+                data.forEach(function (o) { html += '<option value="' + o.v + '"' + (String(o.v) === String(sel) ? ' selected' : '') + '>' + o.t + '</option>'; });
+                src.innerHTML = html;
+            }
+        };
+    </script>
+}

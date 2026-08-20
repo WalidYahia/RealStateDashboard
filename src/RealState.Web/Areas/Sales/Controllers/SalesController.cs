@@ -23,6 +23,8 @@ public class SalesController : Controller
         _currentUser = currentUser;
     }
 
+    private bool Can(string permission) => User.HasClaim("permission", permission);
+
     // Sales summary landing page (analytics cards + charts for all sales).
     public async Task<IActionResult> Summary(CancellationToken ct)
         => View(await BuildSummaryAsync(ct));
@@ -136,18 +138,46 @@ public class SalesController : Controller
         return View("PrintList", new SalesListVm { Rows = await BuildRowsAsync(from, to, ct), From = from, To = to });
     }
 
+    // Create (id null) or edit (id set) — shown in a modal popup.
     [HttpGet]
-    [Authorize(Policy = PermissionNames.SalesCreate)]
-    public async Task<IActionResult> Form(CancellationToken ct)
-        => PartialView("_SaleForm", await FillAsync(new SaleFormModel(), ct));
+    public async Task<IActionResult> Form(Guid? id, CancellationToken ct)
+    {
+        var isEdit = id.HasValue && id.Value != Guid.Empty;
+        if (!Can(isEdit ? PermissionNames.SalesEdit : PermissionNames.SalesCreate)) return Forbid();
+        if (!isEdit) return PartialView("_SaleForm", await FillAsync(new SaleFormModel(), ct));
+
+        var c = await _db.SaleContracts.FirstOrDefaultAsync(x => x.Id == id, ct);
+        if (c is null) return NotFound();
+        var insts = await _db.Installments.Where(i => i.SaleContractId == c.Id).ToListAsync(ct);
+        var firstInst = insts.FirstOrDefault(i => i.Number == 1);
+        var model = new SaleFormModel
+        {
+            Id = c.Id, CustomerId = c.CustomerId, ProjectId = c.ProjectId, UnitId = c.UnitId,
+            ContractDate = c.ContractDate, ReceiveDate = c.ReceiveDate,
+            FirstInstallmentDate = firstInst?.DueDate ?? c.ContractDate,
+            TotalPrice = c.TotalPrice, DownPayment = c.DownPayment, InstallmentsCount = c.InstallmentsCount,
+            Step = c.Step, Notes = c.Notes,
+            CustomerName = await _db.Customers.Where(x => x.Id == c.CustomerId).Select(x => x.FullName).FirstOrDefaultAsync(ct),
+            UnitName = await _db.ProjectUnits.Where(x => x.Id == c.UnitId)
+                .Select(x => x.Name + (string.IsNullOrEmpty(x.Number) ? "" : $" ({x.Number})")).FirstOrDefaultAsync(ct),
+            LockFinancials = insts.Any(i => i.PaidAmount > 0)
+        };
+        return PartialView("_SaleForm", await FillAsync(model, ct));
+    }
 
     [HttpPost]
-    [Authorize(Policy = PermissionNames.SalesCreate)]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Form(SaleFormModel model, CancellationToken ct)
     {
+        var isEdit = model.Id != Guid.Empty;
+        if (!Can(isEdit ? PermissionNames.SalesEdit : PermissionNames.SalesCreate)) return Forbid();
+
+        // With zero installments the whole contract value becomes the down payment (collected as #0).
+        if (model.InstallmentsCount == 0) model.DownPayment = model.TotalPrice;
         if (model.DownPayment > model.TotalPrice)
             ModelState.AddModelError(nameof(model.DownPayment), "المقدم لا يمكن أن يتجاوز السعر الإجمالي.");
+
+        if (isEdit) return await EditContractAsync(model, ct);
 
         var unit = model.UnitId is null ? null : await _db.ProjectUnits.FirstOrDefaultAsync(u => u.Id == model.UnitId, ct);
         if (unit is null) ModelState.AddModelError(nameof(model.UnitId), "الوحدة غير موجودة.");
@@ -170,21 +200,56 @@ public class SalesController : Controller
             Notes = model.Notes
         };
         _db.SaleContracts.Add(contract);
+        GenerateInstallments(contract, model);
 
-        // The down payment is scheduled as installment #0 (due at the contract date) and collected
-        // via "تحصيلات المشاريع" like any installment — it is NOT counted as paid up-front.
-        if (model.DownPayment > 0)
+        unit!.Status = UnitStatus.Sold; // reserve the unit
+        await _db.SaveChangesAsync(ct);
+
+        TempData["StatusMessage"] = $"تم إنشاء عقد البيع «{contract.Code}».";
+        return Json(new { ok = true, redirect = Url.Action("Details", new { id = contract.Id }) });
+    }
+
+    private async Task<IActionResult> EditContractAsync(SaleFormModel model, CancellationToken ct)
+    {
+        var c = await _db.SaleContracts.FirstOrDefaultAsync(x => x.Id == model.Id, ct);
+        if (c is null) return NotFound();
+        var insts = await _db.Installments.Where(i => i.SaleContractId == c.Id).ToListAsync(ct);
+        var locked = insts.Any(i => i.PaidAmount > 0);   // a collection exists → financials are frozen
+
+        if (!ModelState.IsValid)
         {
-            _db.Installments.Add(new Installment
-            {
-                SaleContractId = contract.Id,
-                Number = 0,
-                DueDate = model.ContractDate,
-                Amount = model.DownPayment
-            });
+            model.LockFinancials = locked;
+            return PartialView("_SaleForm", await FillAsync(model, ct));
         }
 
-        // The remaining balance is split into the requested number of installments.
+        // Always editable
+        c.ContractDate = model.ContractDate;
+        c.ReceiveDate = model.ReceiveDate;
+        c.Notes = model.Notes;
+
+        // Financials + installment schedule can only change while nothing has been collected.
+        if (!locked)
+        {
+            c.TotalPrice = model.TotalPrice;
+            c.DownPayment = model.DownPayment;
+            c.InstallmentsCount = model.InstallmentsCount;
+            c.Step = model.Step;
+            _db.Installments.RemoveRange(insts);
+            GenerateInstallments(c, model);
+        }
+
+        await _db.SaveChangesAsync(ct);
+        TempData["StatusMessage"] = $"تم تحديث عقد البيع «{c.Code}».";
+        return Json(new { ok = true, redirect = Url.Action("Details", new { id = c.Id }) });
+    }
+
+    // Builds the installment schedule for a contract: the down payment as installment #0 (due at the
+    // contract date), then the remaining balance split across the requested number of installments.
+    private void GenerateInstallments(SaleContract contract, SaleFormModel model)
+    {
+        if (model.DownPayment > 0)
+            _db.Installments.Add(new Installment { SaleContractId = contract.Id, Number = 0, DueDate = model.ContractDate, Amount = model.DownPayment });
+
         var remaining = model.TotalPrice - model.DownPayment;
         if (model.InstallmentsCount > 0 && remaining > 0)
         {
@@ -195,20 +260,11 @@ public class SalesController : Controller
                 var amount = i == model.InstallmentsCount ? remaining - per * (model.InstallmentsCount - 1) : per;
                 _db.Installments.Add(new Installment
                 {
-                    SaleContractId = contract.Id,
-                    Number = i,
-                    // First installment falls on the chosen "تاريخ أول قسط"; each next one steps by the period.
-                    DueDate = model.FirstInstallmentDate.AddMonths(months * (i - 1)),
-                    Amount = amount
+                    SaleContractId = contract.Id, Number = i,
+                    DueDate = model.FirstInstallmentDate.AddMonths(months * (i - 1)), Amount = amount
                 });
             }
         }
-
-        unit!.Status = UnitStatus.Sold; // reserve the unit
-        await _db.SaveChangesAsync(ct);
-
-        TempData["StatusMessage"] = $"تم إنشاء عقد البيع «{contract.Code}».";
-        return Json(new { ok = true, redirect = Url.Action("Details", new { id = contract.Id }) });
     }
 
     public async Task<IActionResult> Details(Guid id, DateTime? from, DateTime? to, CancellationToken ct)
@@ -235,20 +291,34 @@ public class SalesController : Controller
     [HttpPost]
     [Authorize(Policy = PermissionNames.SalesDelete)]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
+    public async Task<IActionResult> Delete(Guid id, DateTime? from, DateTime? to, CancellationToken ct)
     {
+        // Preserve the caller's date filter so the list stays on the same view after the action.
+        var back = new
+        {
+            from = from?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture),
+            to = to?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)
+        };
+
         var c = await _db.SaleContracts.FirstOrDefaultAsync(x => x.Id == id, ct);
         if (c is null) return NotFound();
 
+        var insts = await _db.Installments.Where(i => i.SaleContractId == id).ToListAsync(ct);
+        // A contract with any collected installment cannot be deleted — cancel the collections first.
+        if (insts.Any(i => i.PaidAmount > 0))
+        {
+            TempData["ErrorMessage"] = $"لا يمكن حذف عقد البيع «{c.Code}» لوجود أقساط محصَّلة. يجب إلغاء التحصيلات المرتبطة أولًا.";
+            return RedirectToAction(nameof(Index), back);
+        }
+
         var unit = await _db.ProjectUnits.FirstOrDefaultAsync(u => u.Id == c.UnitId, ct);
         if (unit is not null) unit.Status = UnitStatus.Available; // release the unit
-        foreach (var inst in await _db.Installments.Where(i => i.SaleContractId == id).ToListAsync(ct))
-            _db.Installments.Remove(inst);
+        _db.Installments.RemoveRange(insts);
         _db.SaleContracts.Remove(c);
         await _db.SaveChangesAsync(ct);
 
         TempData["StatusMessage"] = $"تم حذف عقد البيع «{c.Code}».";
-        return RedirectToAction(nameof(Index));
+        return RedirectToAction(nameof(Index), back);
     }
 
     // ---------- helpers ----------
@@ -297,7 +367,8 @@ public class SalesController : Controller
     {
         // Materialize first, then ToString() client-side so ids are lowercase and match the units'
         // data-project attribute (Guid.ToString() inside an EF query returns UPPERCASE on SQL Server).
-        var customers = await _db.Customers.OrderBy(c => c.FullName).Select(c => new { c.Id, c.FullName }).ToListAsync(ct);
+        // Only actual customers (leads must be converted first) can be put on a sale contract.
+        var customers = await _db.Customers.Where(c => !c.IsLead).OrderBy(c => c.FullName).Select(c => new { c.Id, c.FullName }).ToListAsync(ct);
         model.Customers = customers.Select(c => new SelectListItem { Value = c.Id.ToString(), Text = c.FullName }).ToList();
 
         var projects = await _db.Projects.OrderBy(p => p.Name).Select(p => new { p.Id, p.Code, p.Name }).ToListAsync(ct);

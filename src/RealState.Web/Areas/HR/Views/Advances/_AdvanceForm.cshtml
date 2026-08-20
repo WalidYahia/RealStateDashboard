@@ -1,6 +1,7 @@
 @model AdvanceFormModel
 <form id="appModalForm" asp-area="Hr" asp-controller="Advances" asp-action="Form" method="post">
     @Html.AntiForgeryToken()
+    <input type="hidden" asp-for="Id" />
     <div asp-validation-summary="ModelOnly" class="validation-summary-errors"></div>
     @if (Model.Employees.Count == 0)
     {
@@ -22,7 +23,7 @@
         <div class="adv-salary"><label asp-for="MonthlyStartDate" class="form-label"></label><input asp-for="MonthlyStartDate" class="form-control" type="date" dir="ltr" /></div>
         <div class="full"><label asp-for="Notes" class="form-label"></label><textarea asp-for="Notes" class="form-control" rows="2"></textarea></div>
     </div>
-    <button type="submit" class="btn-primary" style="margin-top:12px;" disabled="@(Model.Employees.Count == 0)">💾 حفظ السلفة</button>
+    <button type="submit" class="btn-primary" style="margin-top:12px;" disabled="@(Model.Employees.Count == 0)">@(Model.Id == Guid.Empty ? "💾 حفظ السلفة" : "💾 حفظ التعديلات")</button>
 </form>
 <script>
     // defined globally on the Advances index page (see below); safe no-op if already defined.

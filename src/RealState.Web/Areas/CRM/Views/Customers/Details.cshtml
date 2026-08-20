@@ -3,23 +3,46 @@
     var c = Model.Customer;
     ViewData["Title"] = c.FullName;
     var salesName = ViewBag.SalesName as string;
+    var sourceLabel = ViewBag.SourceLabel as string ?? c.Source.Ar();
     string N(decimal v) => v.ToString("N0", new System.Globalization.CultureInfo("ar-EG"));
     string D(DateTime? d) => d?.ToString("yyyy/MM/dd") ?? "—";
+    var canConvert = Model.CanConvert;
 }
 <div class="page-head">
     <div>
-        <h1>@c.FullName</h1>
-        <p style="color:var(--muted);margin:2px 0 0;">@c.Source.Ar() · المندوب: @(salesName ?? "—")</p>
+        <h1>@c.FullName @if (c.IsLead) { <span class="badge-role" style="color:var(--warning)">عميل محتمل</span> }</h1>
+        <p style="color:var(--muted);margin:2px 0 0;">
+            @sourceLabel · المندوب: @(salesName ?? "—")
+            @if (c.Interest.HasValue) { <text> · <span style="color:@c.Interest.Value.Color()">@c.Interest.Value.Ar()</span></text> }
+        </p>
     </div>
     <div style="display:flex;gap:8px;">
-        <a class="btn-sm" asp-action="Index">رجوع للعملاء</a>
-        <a class="btn-new-tenant" asp-action="PrintStatement" asp-route-id="@c.Id" target="_blank">🖨 كشف الحساب (PDF)</a>
+        @if (c.IsLead)
+        {
+            <a class="btn-sm" asp-controller="Leads" asp-action="Index">رجوع للعملاء المحتملين</a>
+            @if (canConvert)
+            {
+                <form asp-action="Convert" asp-route-id="@c.Id" method="post" style="display:inline;" data-confirm="تحويل «@c.FullName» إلى عميل؟ سيظهر بعدها في صفحة العملاء فقط.">@Html.AntiForgeryToken()<button type="submit" class="btn-new-tenant">↪ تحويل إلى عميل</button></form>
+            }
+        }
+        else
+        {
+            <a class="btn-sm" asp-action="Index">رجوع للعملاء</a>
+        }
+        @if (!c.IsLead)
+        {
+            <a class="btn-new-tenant" asp-action="PrintStatement" asp-route-id="@c.Id" target="_blank">🖨 كشف الحساب (PDF)</a>
+        }
     </div>
 </div>
 
 <div class="subtabs">
     <a class="subtab active" data-cs="info" href="javascript:" onclick="csTab(event,'info')">البيانات</a>
-    <a class="subtab" data-cs="statement" href="javascript:" onclick="csTab(event,'statement')">كشف الحساب</a>
+    <a class="subtab" data-cs="comm" href="javascript:" onclick="csTab(event,'comm')">التواصل والسجل</a>
+    @if (!c.IsLead)
+    {
+        <a class="subtab" data-cs="statement" href="javascript:" onclick="csTab(event,'statement')">كشف الحساب</a>
+    }
 </div>
 
 <!-- info -->
@@ -29,7 +52,7 @@
             <tr><th style="width:160px;">الاسم</th><td>@c.FullName</td></tr>
             <tr><th>الهاتف</th><td dir="ltr" style="text-align:right;">@c.Phone</td></tr>
             <tr><th>البريد الإلكتروني</th><td dir="ltr" style="text-align:right;">@c.Email</td></tr>
-            <tr><th>المصدر</th><td>@c.Source.Ar()</td></tr>
+            <tr><th>المصدر</th><td>@sourceLabel</td></tr>
             <tr><th>المندوب</th><td>@(salesName ?? "—")</td></tr>
             <tr><th>ملاحظات</th><td>@(string.IsNullOrEmpty(c.Notes) ? "—" : c.Notes)</td></tr>
         </table>
@@ -84,13 +107,81 @@
     }
 </div>
 
+<!-- communications + action log -->
+<div id="cs-comm" class="cstab" style="display:none;">
+    <div class="card-tile">
+        <div class="card-head">
+            <h3>التواصل والإجراءات</h3>
+            <div style="display:flex;gap:8px;align-items:center;margin-inline-start:auto;flex-wrap:wrap;">
+                <span style="color:var(--muted);font-size:13px;">الحالة:
+                    @if (c.Interest.HasValue) { <span class="badge-role" style="color:@c.Interest.Value.Color()">@c.Interest.Value.Ar()</span> }
+                    else { <span>—</span> }
+                </span>
+                <a class="btn-sm" asp-action="PrintLog" asp-route-id="@c.Id" target="_blank">🖨 طباعة السجل</a>
+                @if (Model.CanControl)
+                {
+                    <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("StatusForm", new { id = c.Id })', 'تحديث الحالة')">تحديث الحالة</button>
+                }
+                @if (Model.CanLog)
+                {
+                    <button type="button" class="btn-sm" onclick="waNotify()">📲 إشعار واتساب</button>
+                    <button type="button" class="btn-new-tenant" onclick="appOpenModal('@Url.Action("LogForm", new { customerId = c.Id })', 'إضافة سجل تواصل')">➕ سجل تواصل</button>
+                }
+            </div>
+        </div>
+        @if (!Model.CanLog)
+        {
+            <p style="color:var(--muted);font-size:12px;">يتحكم في سجل التواصل مندوب العميل المعيَّن فقط.</p>
+        }
+        <table class="rs-table">
+            <thead><tr><th style="width:120px;">التاريخ</th><th style="width:110px;">النوع</th><th>الوصف</th><th style="width:150px;">بواسطة</th><th></th></tr></thead>
+            <tbody>
+            @foreach (var log in Model.Logs)
+            {
+                <tr>
+                    <td dir="ltr" style="text-align:right;">@log.Date.ToString("yyyy/MM/dd", System.Globalization.CultureInfo.InvariantCulture)</td>
+                    <td>@log.Kind.Ar()</td>
+                    <td>@log.Description</td>
+                    <td>@log.ByName</td>
+                    <td style="white-space:nowrap;">
+                        @if (Model.CanLog && log.Kind == CustomerLogKind.Manual)
+                        {
+                            <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("LogForm", new { customerId = c.Id, id = log.Id })', 'تعديل السجل')">تعديل</button>
+                            <form asp-action="DeleteLog" asp-route-id="@log.Id" asp-route-customerId="@c.Id" method="post" style="display:inline;" data-confirm="حذف السجل؟" data-danger>@Html.AntiForgeryToken()<button type="submit" class="btn-sm btn-danger">حذف</button></form>
+                        }
+                    </td>
+                </tr>
+            }
+            @if (Model.Logs.Count == 0)
+            {
+                <tr><td colspan="5" style="color:var(--muted)">@(c.IsLead ? "لا توجد سجلات تواصل بعد." : "لا توجد بيانات تواصل تاريخية مع هذا العميل.")</td></tr>
+            }
+            </tbody>
+        </table>
+    </div>
+</div>
+
 @section Scripts {
     <script>
+        // Lead profiles open on the communication tab; the active tab is kept in the URL hash so a
+        // reload after adding a log / updating status stays on the same tab.
+        var CS_DEFAULT = '@(c.IsLead ? "comm" : "info")';
         function csTab(e, name) {
-            e.preventDefault();
+            if (e) e.preventDefault();
+            var el = document.getElementById('cs-' + name);
+            if (!el) { name = CS_DEFAULT; el = document.getElementById('cs-' + name); }
             document.querySelectorAll('.cstab').forEach(function (t) { t.style.display = 'none'; });
-            document.getElementById('cs-' + name).style.display = '';
+            if (el) el.style.display = '';
             document.querySelectorAll('.subtabs .subtab').forEach(function (a) { a.classList.toggle('active', a.getAttribute('data-cs') === name); });
+            if (history.replaceState) history.replaceState(null, '', '#' + name);
         }
+        function waNotify() {
+            var msg = 'خدمة الإشعار عبر واتساب غير مفعّلة حالياً.';
+            if (window.appToast) { appToast(msg, 'info'); } else { alert(msg); }
+        }
+        document.addEventListener('DOMContentLoaded', function () {
+            var h = (location.hash || '').replace('#', '');
+            csTab(null, h || CS_DEFAULT);
+        });
     </script>
 }

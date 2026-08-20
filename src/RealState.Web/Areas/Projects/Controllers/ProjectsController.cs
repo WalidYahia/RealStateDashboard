@@ -294,11 +294,11 @@ public class ProjectsController : Controller
 
         if (model.Id == Guid.Empty)
         {
+            // Actual start/end are computed from the stages (first started / last ended), never from this form.
             var project = new Project
             {
                 Name = model.Name, Code = model.Code, Type = model.Type, Location = model.Location,
-                PlannedStartDate = model.PlannedStartDate, ActualStartDate = model.ActualStartDate,
-                PlannedEndDate = model.PlannedEndDate, ActualEndDate = model.ActualEndDate,
+                PlannedStartDate = model.PlannedStartDate, PlannedEndDate = model.PlannedEndDate,
                 Notes = model.Notes, HeroImageData = imgData, HeroImageContentType = imgType
             };
             _db.Projects.Add(project);
@@ -308,8 +308,8 @@ public class ProjectsController : Controller
             var p = await _db.Projects.FirstOrDefaultAsync(x => x.Id == model.Id, ct);
             if (p is null) return NotFound();
             p.Name = model.Name; p.Code = model.Code; p.Type = model.Type; p.Location = model.Location;
-            p.PlannedStartDate = model.PlannedStartDate; p.ActualStartDate = model.ActualStartDate;
-            p.PlannedEndDate = model.PlannedEndDate; p.ActualEndDate = model.ActualEndDate;
+            p.PlannedStartDate = model.PlannedStartDate;
+            p.PlannedEndDate = model.PlannedEndDate;
             p.Notes = model.Notes;
             if (imgData != null) { p.HeroImageData = imgData; p.HeroImageContentType = imgType; }
             else if (model.RemoveHeroImage) { p.HeroImageData = null; p.HeroImageContentType = null; }
@@ -334,9 +334,39 @@ public class ProjectsController : Controller
     {
         var p = await _db.Projects.FirstOrDefaultAsync(x => x.Id == id, ct);
         if (p is null) return NotFound();
+
+        // A project with any sale contract cannot be deleted (delete/handle the contracts first).
+        var contractCount = await _db.SaleContracts.CountAsync(c => c.ProjectId == id, ct);
+        if (contractCount > 0)
+        {
+            // Stay on the project page so the user sees the message in context.
+            TempData["ErrorMessage"] = $"لا يمكن حذف المشروع «{p.Name}» لارتباطه بعقود بيع (عدد: {contractCount}). يجب حذف العقود المرتبطة أولًا.";
+            return RedirectToAction(nameof(Details), new { id });
+        }
+
+        var stageIds = await _db.ProjectStages.Where(s => s.ProjectId == id).Select(s => s.Id).ToListAsync(ct);
+        var orderIds = await _db.SupplierOrders.Where(o => o.ProjectId == id).Select(o => o.Id).ToListAsync(ct);
+
+        // Reverse the project-charged money (stage expenses + supplier-order payments) — safe balances
+        // recompute since they're derived from these transactions.
+        _db.SafeTransactions.RemoveRange(await _db.SafeTransactions.Where(t => t.ProjectId == id).ToListAsync(ct));
+
+        // Supplier orders tied to this project (+ their items and payments).
+        _db.SupplierPayments.RemoveRange(await _db.SupplierPayments.Where(x => x.SupplierOrderId != null && orderIds.Contains(x.SupplierOrderId.Value)).ToListAsync(ct));
+        _db.SupplierOrderItems.RemoveRange(await _db.SupplierOrderItems.Where(x => orderIds.Contains(x.SupplierOrderId)).ToListAsync(ct));
+        _db.SupplierOrders.RemoveRange(await _db.SupplierOrders.Where(o => o.ProjectId == id).ToListAsync(ct));
+
+        // Stages + their activities/expenses, then units and attachments.
+        _db.StageActivities.RemoveRange(await _db.StageActivities.Where(a => stageIds.Contains(a.StageId)).ToListAsync(ct));
+        _db.StageExpenses.RemoveRange(await _db.StageExpenses.Where(e => stageIds.Contains(e.StageId)).ToListAsync(ct));
+        _db.ProjectStages.RemoveRange(await _db.ProjectStages.Where(s => s.ProjectId == id).ToListAsync(ct));
+        _db.ProjectUnits.RemoveRange(await _db.ProjectUnits.Where(u => u.ProjectId == id).ToListAsync(ct));
+        _db.ProjectAttachments.RemoveRange(await _db.ProjectAttachments.Where(a => a.ProjectId == id).ToListAsync(ct));
+
         _db.Projects.Remove(p);
-        await _db.SaveChangesAsync(ct);
-        TempData["StatusMessage"] = $"تم حذف المشروع «{p.Name}».";
+        await _db.SaveChangesAsync(ct);   // one transactional soft-delete of the whole graph
+
+        TempData["StatusMessage"] = $"تم حذف المشروع «{p.Name}» وكل بياناته وعكس المصروفات المرتبطة به.";
         return RedirectToAction(nameof(Index));
     }
 
@@ -385,7 +415,21 @@ public class ProjectsController : Controller
     public async Task<IActionResult> UnitDelete(Guid id, Guid projectId, CancellationToken ct)
     {
         var u = await _db.ProjectUnits.FirstOrDefaultAsync(x => x.Id == id, ct);
-        if (u is not null) { _db.ProjectUnits.Remove(u); await _db.SaveChangesAsync(ct); }
+        if (u is null) return DetailsTab(projectId, "units");
+
+        // A unit that's on a sale contract cannot be deleted — tell the user which contract/customer.
+        var contract = await _db.SaleContracts.FirstOrDefaultAsync(c => c.UnitId == id, ct);
+        if (contract is not null)
+        {
+            var custName = await _db.Customers.Where(c => c.Id == contract.CustomerId).Select(c => c.FullName).FirstOrDefaultAsync(ct) ?? "—";
+            TempData["ErrorMessage"] = $"لا يمكن حذف الوحدة «{u.Name}» لأنها مرتبطة بعقد بيع رقم «{contract.Code}» للعميل «{custName}». يجب حذف العقد أولًا.";
+            return DetailsTab(projectId, "units");
+        }
+
+        _db.ProjectUnits.Remove(u);
+        await _db.SaveChangesAsync(ct);
+        // Descriptive status → the activity-log filter records it as the delete action's description.
+        TempData["StatusMessage"] = $"تم حذف الوحدة «{u.Name}»{(string.IsNullOrEmpty(u.Number) ? "" : $" ({u.Number})")} — المساحة: {u.AreaSqm:0.##} م² — السعر: {u.Price:N0} ج.م — الحالة: {u.Status.Ar()}";
         return DetailsTab(projectId, "units");
     }
 

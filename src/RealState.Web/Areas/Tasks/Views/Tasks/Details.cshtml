@@ -19,6 +19,7 @@
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;">
         <a class="btn-sm" asp-action="Index">رجوع</a>
+        <a class="btn-sm" asp-action="PrintOne" asp-route-id="@Model.Id" target="_blank">🖨 طباعة</a>
         @if (canAct) { <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("StatusForm", new { id = Model.Id })', 'تحديث الحالة')">🔄 تحديث الحالة</button> }
         @if (canAct) { <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("LogForm", new { id = Model.Id })', 'إضافة سجل')">📝 إضافة سجل</button> }
         @if (canEdit) { <button type="button" class="btn-new-tenant" onclick="appOpenModal('@Url.Action("Form", new { id = Model.Id })', 'تعديل المهمة T-@Model.Number')">تعديل</button> }

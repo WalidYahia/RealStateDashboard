@@ -1,0 +1,15 @@
+@model LeadStatusFormModel
+<form id="appModalForm" asp-area="CRM" asp-controller="Customers" asp-action="UpdateStatus" method="post">
+    @Html.AntiForgeryToken()
+    <input type="hidden" asp-for="CustomerId" />
+    <div class="form-grid">
+        <div class="full">
+            <label asp-for="Interest" class="form-label"></label>
+            <select asp-for="Interest" class="form-control" asp-items="RealState.Web.ArabicLabels.LeadInterestOptions(Model.Interest)">
+                <option value="">— بدون —</option>
+            </select>
+        </div>
+    </div>
+    <p style="color:var(--muted);font-size:12px;margin-top:8px;">سيُسجَّل تغيير الحالة تلقائيًا في سجل التواصل.</p>
+    <button type="submit" class="btn-primary" style="margin-top:12px;width:auto;">💾 حفظ</button>
+</form>

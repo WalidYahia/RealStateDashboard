@@ -19,12 +19,12 @@
                 <option value="">— اختر المرحلة —</option>
             </select>
             <span asp-validation-for="Name" class="field-validation-error"></span>
+            <span style="color:var(--muted);font-size:12px;">💡 يمكنك تعريف جميع المراحل من «الإعدادات ← تعريف مراحل المشاريع».</span>
         </div>
 
         <div><label asp-for="PlannedStartDate" class="form-label"></label><input asp-for="PlannedStartDate" class="form-control" type="date" dir="ltr" /></div>
-        <div><label asp-for="ActualStartDate" class="form-label"></label><input asp-for="ActualStartDate" class="form-control" type="date" dir="ltr" /></div>
         <div><label asp-for="PlannedEndDate" class="form-label"></label><input asp-for="PlannedEndDate" class="form-control" type="date" dir="ltr" /></div>
-        <div><label asp-for="ActualEndDate" class="form-label"></label><input asp-for="ActualEndDate" class="form-control" type="date" dir="ltr" /></div>
+        @* Actual start/end dates are set as the stage progresses (from the "بدء/إنهاء المرحلة" action), never here. *@
 
         <div class="full">
             <label asp-for="Notes" class="form-label"></label>

@@ -18,6 +18,10 @@ public class StagesController : Controller
 
     private bool Can(string permission) => User.HasClaim("permission", permission);
 
+    // Auto-generated activities that mark a stage's start/end (their presence tracks the stage status).
+    private const string StartActivity = "بدء المرحلة";
+    private const string EndActivity = "إنهاء المرحلة";
+
     // ---------- Stages list for a project ----------
     public async Task<IActionResult> Index(Guid projectId, CancellationToken ct)
     {
@@ -64,20 +68,21 @@ public class StagesController : Controller
 
         if (!await _db.Projects.AnyAsync(p => p.Id == model.ProjectId, ct)) return NotFound();
 
+        // Actual start/end dates are owned by the stage state action, not this form — never written here.
         if (model.Id == Guid.Empty)
             _db.ProjectStages.Add(new ProjectStage
             {
                 ProjectId = model.ProjectId, Name = model.Name,
-                PlannedStartDate = model.PlannedStartDate, ActualStartDate = model.ActualStartDate,
-                PlannedEndDate = model.PlannedEndDate, ActualEndDate = model.ActualEndDate, Notes = model.Notes
+                PlannedStartDate = model.PlannedStartDate, PlannedEndDate = model.PlannedEndDate, Notes = model.Notes
             });
         else
         {
             var s = await _db.ProjectStages.FirstOrDefaultAsync(x => x.Id == model.Id, ct);
             if (s is null) return NotFound();
             s.Name = model.Name;
-            s.PlannedStartDate = model.PlannedStartDate; s.ActualStartDate = model.ActualStartDate;
-            s.PlannedEndDate = model.PlannedEndDate; s.ActualEndDate = model.ActualEndDate; s.Notes = model.Notes;
+            s.PlannedStartDate = model.PlannedStartDate;
+            s.PlannedEndDate = model.PlannedEndDate;
+            s.Notes = model.Notes;
         }
         await _db.SaveChangesAsync(ct);
         return Json(new { ok = true });
@@ -133,24 +138,33 @@ public class StagesController : Controller
         {
             if (stage.ActualStartDate is null) stage.ActualStartDate = model.Date; // ending implies started
             stage.ActualEndDate = model.Date;
-            _db.StageActivities.Add(new StageActivity { StageId = stage.Id, Activity = "إنهاء المرحلة", Date = model.Date });
+            _db.StageActivities.Add(new StageActivity { StageId = stage.Id, Activity = EndActivity, Date = model.Date });
             TempData["StatusMessage"] = $"تم إنهاء المرحلة «{stage.Name}».";
         }
         else
         {
             stage.ActualStartDate = model.Date;
             stage.ActualEndDate = null; // re-opening clears the end
-            _db.StageActivities.Add(new StageActivity { StageId = stage.Id, Activity = "بدء المرحلة", Date = model.Date });
+            _db.StageActivities.Add(new StageActivity { StageId = stage.Id, Activity = StartActivity, Date = model.Date });
             TempData["StatusMessage"] = $"تم بدء المرحلة «{stage.Name}».";
         }
+        await RecalcProjectActualsAsync(stage.ProjectId, ct);
         await _db.SaveChangesAsync(ct);
         return Json(new { ok = true });
     }
 
     // ---------- Activities ----------
+    // Activities can only be added after the stage is started.
     [HttpGet]
     [Authorize(Policy = PermissionNames.ProjectsEdit)]
-    public IActionResult ActivityForm(Guid stageId) => PartialView("_ActivityForm", new ActivityFormModel { StageId = stageId });
+    public async Task<IActionResult> ActivityForm(Guid stageId, CancellationToken ct)
+    {
+        var stage = await _db.ProjectStages.FirstOrDefaultAsync(s => s.Id == stageId, ct);
+        if (stage is null) return NotFound();
+        if (stage.ActualStartDate is null)
+            return Content("<div style=\"padding:18px;color:var(--warning);text-align:center;\">لا يمكن إضافة نشاط قبل بدء المرحلة. ابدأ المرحلة أولًا.</div>", "text/html");
+        return PartialView("_ActivityForm", new ActivityFormModel { StageId = stageId });
+    }
 
     [HttpPost]
     [Authorize(Policy = PermissionNames.ProjectsEdit)]
@@ -158,6 +172,11 @@ public class StagesController : Controller
     public async Task<IActionResult> ActivityForm(ActivityFormModel model, CancellationToken ct)
     {
         if (!ModelState.IsValid) return PartialView("_ActivityForm", model);
+        var stage = await _db.ProjectStages.FirstOrDefaultAsync(s => s.Id == model.StageId, ct);
+        if (stage is null) return NotFound();
+        if (stage.ActualStartDate is null)
+            return Json(new { ok = false, error = "لا يمكن إضافة نشاط قبل بدء المرحلة." });
+
         _db.StageActivities.Add(new StageActivity { StageId = model.StageId, Activity = model.Activity, Date = model.Date });
         await _db.SaveChangesAsync(ct);
         return Json(new { ok = true });
@@ -169,8 +188,42 @@ public class StagesController : Controller
     public async Task<IActionResult> ActivityDelete(Guid id, Guid stageId, CancellationToken ct)
     {
         var a = await _db.StageActivities.FirstOrDefaultAsync(x => x.Id == id, ct);
-        if (a is not null) { _db.StageActivities.Remove(a); await _db.SaveChangesAsync(ct); }
+        if (a is null) return RedirectToAction(nameof(Details), new { id = stageId });
+        var stage = await _db.ProjectStages.FirstOrDefaultAsync(s => s.Id == stageId, ct);
+
+        if (a.Activity == StartActivity)
+        {
+            // The "start" activity can only be removed when it's the last one; removing it un-starts the stage.
+            var others = await _db.StageActivities.CountAsync(x => x.StageId == stageId && x.Id != id, ct);
+            if (others > 0)
+            {
+                TempData["ErrorMessage"] = "لا يمكن حذف نشاط «بدء المرحلة» قبل حذف باقي أنشطة المرحلة.";
+                return RedirectToAction(nameof(Details), new { id = stageId });
+            }
+            if (stage is not null) { stage.ActualStartDate = null; stage.ActualEndDate = null; } // → «لم تبدأ»
+        }
+        else if (a.Activity == EndActivity && stage is not null)
+        {
+            stage.ActualEndDate = null; // removing the end reverts the stage to «قيد التنفيذ»
+        }
+
+        _db.StageActivities.Remove(a);
+        if (stage is not null) await RecalcProjectActualsAsync(stage.ProjectId, ct);
+        await _db.SaveChangesAsync(ct);
         return RedirectToAction(nameof(Details), new { id = stageId });
+    }
+
+    // The project's actual start = the earliest stage actual start; actual end = the latest stage
+    // actual end, but only once every stage has ended. Kept in sync as stages start/end.
+    private async Task RecalcProjectActualsAsync(Guid projectId, CancellationToken ct)
+    {
+        var project = await _db.Projects.FirstOrDefaultAsync(p => p.Id == projectId, ct);
+        if (project is null) return;
+        var stages = await _db.ProjectStages.Where(s => s.ProjectId == projectId).ToListAsync(ct);
+        var starts = stages.Where(s => s.ActualStartDate.HasValue).Select(s => s.ActualStartDate!.Value).ToList();
+        project.ActualStartDate = starts.Count > 0 ? starts.Min() : (DateTime?)null;
+        project.ActualEndDate = stages.Count > 0 && stages.All(s => s.ActualEndDate.HasValue)
+            ? stages.Max(s => s.ActualEndDate!.Value) : (DateTime?)null;
     }
 
     private async Task<List<SelectListItem>> DefinitionsAsync(CancellationToken ct) =>

@@ -1,0 +1,59 @@
+@model WorkTask
+@{
+    Layout = null;
+    var tenantId = (Guid)ViewBag.TenantId;
+    string D(DateTime? d) => d?.ToString("yyyy/MM/dd", System.Globalization.CultureInfo.InvariantCulture) ?? "—";
+    string DT(DateTime? d) => d?.ToString("yyyy/MM/dd HH:mm", System.Globalization.CultureInfo.InvariantCulture) ?? "—";
+}
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="utf-8" />
+    <title>مهمة T-@Model.Number</title>
+    <style>
+        body { font-family: "Segoe UI", Tahoma, sans-serif; padding: 24px; color: #111; }
+        .brand { text-align: center; margin-bottom: 6px; } .brand img { max-height: 60px; }
+        h1 { font-size: 19px; text-align: center; margin: 4px 0; }
+        h3 { font-size: 14px; margin: 16px 0 6px; }
+        .sub { text-align: center; color: #666; font-size: 12px; margin-bottom: 14px; }
+        table { width: 100%; border-collapse: collapse; font-size: 12px; }
+        th, td { border: 1px solid #ccc; padding: 5px 7px; text-align: start; unicode-bidi: plaintext; vertical-align: top; }
+        th { background: #f2f2f2; }
+        .desc { font-size: 12px; white-space: pre-wrap; border: 1px solid #ccc; border-radius: 6px; padding: 8px 10px; margin-top: 8px; }
+        .no-print { margin-bottom: 12px; } @@media print { .no-print { display: none; } }
+    </style>
+</head>
+<body>
+    <div class="no-print"><button onclick="window.print()">🖨 طباعة / حفظ PDF</button></div>
+    <div class="brand"><img src="@Url.Action("Logo", "Branding", new { area = "", id = tenantId })" alt="logo" onerror="this.style.display='none'" /></div>
+    <h1>مهمة T-@Model.Number</h1>
+    <div class="sub">طُبع @DateTime.Now.ToString("yyyy/MM/dd HH:mm")</div>
+
+    <table>
+        <tr><th style="width:170px;">الحالة</th><td>@Model.Status.Ar()</td></tr>
+        <tr><th>الأهمية</th><td>@Model.Severity.Ar()</td></tr>
+        <tr><th>تاريخ الإسناد</th><td>@D(Model.AssignedOn)</td></tr>
+        <tr><th>أسندها</th><td>@(string.IsNullOrWhiteSpace(Model.AssignedByName) ? "—" : Model.AssignedByName)</td></tr>
+        <tr><th>المُكلَّف</th><td>@(Model.Assignee?.FullName ?? "—")</td></tr>
+        <tr><th>القسم</th><td>@(Model.Department?.Name ?? "—")</td></tr>
+        <tr><th>وقت البدء</th><td>@DT(Model.StartAt)</td></tr>
+        <tr><th>الاستحقاق</th><td>@D(Model.DueAt)</td></tr>
+    </table>
+
+    <div class="desc">@Model.Description</div>
+
+    <h3>سجل المهمة (Time Log)</h3>
+    <table>
+        <thead><tr><th style="width:140px;">التاريخ والوقت</th><th>البيان</th><th style="width:150px;">بواسطة</th></tr></thead>
+        <tbody>
+        @foreach (var l in Model.Logs)
+        {
+            <tr><td>@DT(l.At)</td><td>@l.Text</td><td>@l.ByName</td></tr>
+        }
+        @if (Model.Logs.Count == 0) { <tr><td colspan="3">لا توجد سجلات.</td></tr> }
+        </tbody>
+    </table>
+
+    <script>window.addEventListener('load', function () { setTimeout(function () { window.print(); }, 400); });</script>
+</body>
+</html>

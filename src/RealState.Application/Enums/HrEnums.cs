@@ -102,4 +102,5 @@ public enum CustomerSource
     Referral = 4,
     WalkIn = 5,
     Other = 6,
+    Salesperson = 7, // shown as the top option in the source dropdown
 }

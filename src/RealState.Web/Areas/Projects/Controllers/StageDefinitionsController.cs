@@ -56,7 +56,18 @@ public class StageDefinitionsController : Controller
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
     {
         var s = await _db.StageDefinitions.FirstOrDefaultAsync(x => x.Id == id, ct);
-        if (s is not null) { _db.StageDefinitions.Remove(s); await _db.SaveChangesAsync(ct); }
+        if (s is null) return RedirectToAction(nameof(Index));
+
+        // A definition used by any project stage cannot be deleted.
+        var usedCount = await _db.ProjectStages.CountAsync(ps => ps.Name == s.Name, ct);
+        if (usedCount > 0)
+        {
+            TempData["ErrorMessage"] = $"لا يمكن حذف المرحلة «{s.Name}» لأنها مستخدمة في {usedCount} مرحلة بمشاريع قائمة.";
+            return RedirectToAction(nameof(Index));
+        }
+
+        _db.StageDefinitions.Remove(s);
+        await _db.SaveChangesAsync(ct);
         TempData["StatusMessage"] = "تم الحذف.";
         return RedirectToAction(nameof(Index));
     }

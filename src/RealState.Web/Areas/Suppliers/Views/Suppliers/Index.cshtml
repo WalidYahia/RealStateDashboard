@@ -12,14 +12,12 @@
 <div class="card-tile">
     <div class="card-head">
         <h3>قائمة الموردين</h3>
-        <div style="display:flex;gap:8px;align-items:center;margin-inline-start:auto;">
-            <input id="supSearch" class="form-control" style="margin:0;width:260px;" placeholder="🔍 بحث بالاسم أو رقم الهاتف..." />
-            @if (User.Can(PermissionNames.SuppliersCreate))
-            {
-                <button type="button" class="btn-new-tenant" onclick="appOpenModal('@Url.Action("Form")', 'مورد جديد')">➕ مورد جديد</button>
-            }
-        </div>
+        @if (User.Can(PermissionNames.SuppliersCreate))
+        {
+            <button type="button" class="btn-new-tenant" onclick="appOpenModal('@Url.Action("Form")', 'مورد جديد')">➕ مورد جديد</button>
+        }
     </div>
+    <div class="list-search-bar"><input class="form-control list-search" data-target="#supTable" placeholder="🔍 بحث في القائمة..." /></div>
     <table class="rs-table" id="supTable">
         <thead><tr><th>الاسم</th><th>الهاتف</th><th>البريد الإلكتروني</th><th></th></tr></thead>
         <tbody>
@@ -47,29 +45,9 @@
         }
         @if (Model.Count == 0)
         {
-            <tr><td colspan="4" style="color:var(--muted)">لا يوجد موردون بعد.</td></tr>
+            <tr data-skip-search><td colspan="4" style="color:var(--muted)">لا يوجد موردون بعد.</td></tr>
         }
-        <tr id="supNoResults" style="display:none;"><td colspan="4" style="color:var(--muted)">لا توجد نتائج مطابقة للبحث.</td></tr>
+        <tr data-no-results data-skip-search style="display:none;"><td colspan="4" style="color:var(--muted)">لا توجد نتائج مطابقة للبحث.</td></tr>
         </tbody>
     </table>
 </div>
-
-@section Scripts {
-    <script>
-        (function () {
-            var box = document.getElementById('supSearch');
-            if (!box) return;
-            box.addEventListener('input', function () {
-                var q = this.value.trim().toLowerCase();
-                var rows = document.querySelectorAll('#supTable tbody tr[data-search]');
-                var shown = 0;
-                rows.forEach(function (tr) {
-                    var match = tr.dataset.search.indexOf(q) >= 0;
-                    tr.style.display = match ? '' : 'none';
-                    if (match) shown++;
-                });
-                document.getElementById('supNoResults').style.display = (rows.length && shown === 0) ? '' : 'none';
-            });
-        })();
-    </script>
-}

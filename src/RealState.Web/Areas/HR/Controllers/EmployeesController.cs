@@ -136,12 +136,17 @@ public class EmployeesController : Controller
     {
         var email = string.IsNullOrWhiteSpace(model.Email) ? null : model.Email.Trim();
         var phone = model.Phone?.Trim();
+        var tenant = _currentUser.TenantId;
 
+        // Only ever match a user WITHIN the current tenant — never link an employee to another tenant's account.
         ApplicationUser? existing = null;
         if (!string.IsNullOrWhiteSpace(phone))
-            existing = await _userManager.Users.FirstOrDefaultAsync(u => u.PhoneNumber == phone);
+            existing = await _userManager.Users.FirstOrDefaultAsync(u => u.TenantId == tenant && u.PhoneNumber == phone);
         if (existing is null && email is not null)
-            existing = await _userManager.FindByEmailAsync(email);
+        {
+            var normEmail = _userManager.NormalizeEmail(email);
+            existing = await _userManager.Users.FirstOrDefaultAsync(u => u.TenantId == tenant && u.NormalizedEmail == normEmail);
+        }
 
         if (existing is not null)
         {

@@ -12,8 +12,9 @@
 @if (TempData["StatusMessage"] is string status) { <div class="status-message">@status</div> }
 
 <div class="subtabs" style="margin-top:6px;">
-    <a class="subtab" data-tab="assigned" href="javascript:" onclick="mineTab(event,'assigned')">المهام المُسندة إليّ (@Model.Assigned.Count)</a>
-    <a class="subtab" data-tab="delegated" href="javascript:" onclick="mineTab(event,'delegated')">المهام التي أسندتها (@Model.Delegated.Count)</a>
+    <a class="subtab" data-tab="assigned" href="javascript:" onclick="mineTab(event,'assigned')">المُسندة إليّ (@Model.Assigned.Count)</a>
+    <a class="subtab" data-tab="delegated" href="javascript:" onclick="mineTab(event,'delegated')">التي أسندتها (@Model.Delegated.Count)</a>
+    <a class="subtab" data-tab="self" href="javascript:" onclick="mineTab(event,'self')">أسندتها لنفسي (@Model.SelfAssigned.Count)</a>
 </div>
 
 <!-- Tab: assigned to me -->
@@ -25,14 +26,32 @@
             <div><label class="form-label">إلى</label><input type="date" name="to" value="@F(Model.To)" class="form-control" style="margin:0;" dir="ltr" /></div>
             <div>
                 <label class="form-label">أسندها</label>
-                <select name="assignedById" class="form-control" style="margin:0;">
+                <select name="assignedBy" class="form-control" style="margin:0;">
                     <option value="">الكل</option>
                     @foreach (var a in Model.Assigners)
-                    { <option value="@a.Value" selected="@(Model.AssignedById?.ToString() == a.Value)">@a.Text</option> }
+                    { <option value="@a.Value" selected="@(Model.AssignedBy == a.Value)">@a.Text</option> }
+                </select>
+            </div>
+            <div>
+                <label class="form-label">الحالة</label>
+                <select name="status" class="form-control" style="margin:0;">
+                    <option value="">الكل</option>
+                    @foreach (var st in Enum.GetValues<WorkTaskStatus>())
+                    { <option value="@((int)st)" selected="@(Model.Status == st)">@st.Ar()</option> }
+                </select>
+            </div>
+            <div>
+                <label class="form-label">الأهمية</label>
+                <select name="severity" class="form-control" style="margin:0;">
+                    <option value="">الكل</option>
+                    @foreach (var sv in Enum.GetValues<TaskSeverity>())
+                    { <option value="@((int)sv)" selected="@(Model.Severity == sv)">@sv.Ar()</option> }
                 </select>
             </div>
             <button type="submit" class="btn-primary" style="width:auto;">بحث</button>
-            <a class="btn-sm" asp-action="Mine" asp-route-tab="assigned" asp-route-from="2000-01-01" asp-route-to="2100-01-01">الكل</a>
+            <a class="btn-sm" asp-action="Mine" asp-route-tab="assigned" asp-route-from="@F(DateTime.Today)" asp-route-to="@F(DateTime.Today)">اليوم</a>
+            <a class="btn-sm" asp-action="Mine" asp-route-tab="assigned" asp-route-from="@F(DateTime.Today.AddDays(-7))" asp-route-to="@F(DateTime.Today)">آخر أسبوع</a>
+            <a class="btn-sm" asp-action="Mine" asp-route-tab="assigned" asp-route-from="@F(DateTime.Today.AddMonths(-1))" asp-route-to="@F(DateTime.Today)">آخر شهر</a>
         </form>
     </div>
     <div class="card-tile"><partial name="_MineTable" model="Model.Assigned" /></div>
@@ -53,20 +72,72 @@
                     { <option value="@e.Value" selected="@(Model.AssignedToId?.ToString() == e.Value)">@e.Text</option> }
                 </select>
             </div>
+            <div>
+                <label class="form-label">الحالة</label>
+                <select name="status" class="form-control" style="margin:0;">
+                    <option value="">الكل</option>
+                    @foreach (var st in Enum.GetValues<WorkTaskStatus>())
+                    { <option value="@((int)st)" selected="@(Model.Status == st)">@st.Ar()</option> }
+                </select>
+            </div>
+            <div>
+                <label class="form-label">الأهمية</label>
+                <select name="severity" class="form-control" style="margin:0;">
+                    <option value="">الكل</option>
+                    @foreach (var sv in Enum.GetValues<TaskSeverity>())
+                    { <option value="@((int)sv)" selected="@(Model.Severity == sv)">@sv.Ar()</option> }
+                </select>
+            </div>
             <button type="submit" class="btn-primary" style="width:auto;">بحث</button>
-            <a class="btn-sm" asp-action="Mine" asp-route-tab="delegated" asp-route-from="2000-01-01" asp-route-to="2100-01-01">الكل</a>
+            <a class="btn-sm" asp-action="Mine" asp-route-tab="delegated" asp-route-from="@F(DateTime.Today)" asp-route-to="@F(DateTime.Today)">اليوم</a>
+            <a class="btn-sm" asp-action="Mine" asp-route-tab="delegated" asp-route-from="@F(DateTime.Today.AddDays(-7))" asp-route-to="@F(DateTime.Today)">آخر أسبوع</a>
+            <a class="btn-sm" asp-action="Mine" asp-route-tab="delegated" asp-route-from="@F(DateTime.Today.AddMonths(-1))" asp-route-to="@F(DateTime.Today)">آخر شهر</a>
         </form>
     </div>
     <div class="card-tile"><partial name="_MineTable" model="Model.Delegated" /></div>
+</div>
+
+<!-- Tab: assigned by me, to myself -->
+<div id="mine-self" class="mine-tab" style="display:none;">
+    <div class="card-tile" style="margin-bottom:12px;">
+        <form asp-action="Mine" method="get" style="display:flex;gap:10px;align-items:end;flex-wrap:wrap;">
+            <input type="hidden" name="tab" value="self" />
+            <div><label class="form-label">من</label><input type="date" name="from" value="@F(Model.From)" class="form-control" style="margin:0;" dir="ltr" /></div>
+            <div><label class="form-label">إلى</label><input type="date" name="to" value="@F(Model.To)" class="form-control" style="margin:0;" dir="ltr" /></div>
+            <div>
+                <label class="form-label">الحالة</label>
+                <select name="status" class="form-control" style="margin:0;">
+                    <option value="">الكل</option>
+                    @foreach (var st in Enum.GetValues<WorkTaskStatus>())
+                    { <option value="@((int)st)" selected="@(Model.Status == st)">@st.Ar()</option> }
+                </select>
+            </div>
+            <div>
+                <label class="form-label">الأهمية</label>
+                <select name="severity" class="form-control" style="margin:0;">
+                    <option value="">الكل</option>
+                    @foreach (var sv in Enum.GetValues<TaskSeverity>())
+                    { <option value="@((int)sv)" selected="@(Model.Severity == sv)">@sv.Ar()</option> }
+                </select>
+            </div>
+            <button type="submit" class="btn-primary" style="width:auto;">بحث</button>
+            <a class="btn-sm" asp-action="Mine" asp-route-tab="self" asp-route-from="@F(DateTime.Today)" asp-route-to="@F(DateTime.Today)">اليوم</a>
+            <a class="btn-sm" asp-action="Mine" asp-route-tab="self" asp-route-from="@F(DateTime.Today.AddDays(-7))" asp-route-to="@F(DateTime.Today)">آخر أسبوع</a>
+            <a class="btn-sm" asp-action="Mine" asp-route-tab="self" asp-route-from="@F(DateTime.Today.AddMonths(-1))" asp-route-to="@F(DateTime.Today)">آخر شهر</a>
+        </form>
+    </div>
+    <div class="card-tile"><partial name="_MineTable" model="Model.SelfAssigned" /></div>
 </div>
 
 @section Scripts {
     <script src="~/js/tasks.js" asp-append-version="true"></script>
     <script>
         function showMineTab(name) {
-            if (name !== 'delegated') name = 'assigned';
-            document.getElementById('mine-assigned').style.display = name === 'assigned' ? '' : 'none';
-            document.getElementById('mine-delegated').style.display = name === 'delegated' ? '' : 'none';
+            if (name !== 'delegated' && name !== 'self') name = 'assigned';
+            ['assigned', 'delegated', 'self'].forEach(function (n) {
+                var el = document.getElementById('mine-' + n);
+                if (el) el.style.display = n === name ? '' : 'none';
+            });
             document.querySelectorAll('.subtabs .subtab').forEach(function (a) {
                 a.classList.toggle('active', a.getAttribute('data-tab') === name);
             });

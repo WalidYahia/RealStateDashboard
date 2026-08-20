@@ -26,9 +26,8 @@
         </div>
 
         <div><label asp-for="PlannedStartDate" class="form-label"></label><input asp-for="PlannedStartDate" class="form-control" type="date" dir="ltr" /></div>
-        <div><label asp-for="ActualStartDate" class="form-label"></label><input asp-for="ActualStartDate" class="form-control" type="date" dir="ltr" /></div>
         <div><label asp-for="PlannedEndDate" class="form-label"></label><input asp-for="PlannedEndDate" class="form-control" type="date" dir="ltr" /></div>
-        <div><label asp-for="ActualEndDate" class="form-label"></label><input asp-for="ActualEndDate" class="form-control" type="date" dir="ltr" /></div>
+        @* Actual start/end dates are computed automatically (first stage started / last stage ended). *@
 
         <div class="full">
             <label asp-for="Notes" class="form-label"></label>

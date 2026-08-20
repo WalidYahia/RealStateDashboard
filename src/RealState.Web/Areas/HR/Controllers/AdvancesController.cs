@@ -42,11 +42,23 @@ public class AdvancesController : Controller
         return View(new AdvanceListVm { Rows = rows.OrderByDescending(r => r.Number).ToList(), From = from, To = to, Q = q });
     }
 
+    // Create (id null) or edit (id set — only while the advance is still "لم يُصرف").
     [HttpGet]
-    public async Task<IActionResult> Form(CancellationToken ct)
+    public async Task<IActionResult> Form(Guid? id, CancellationToken ct)
     {
         if (!CanManage()) return Forbid();
-        return PartialView("_AdvanceForm", await FillAsync(new AdvanceFormModel(), ct));
+        if (id is null) return PartialView("_AdvanceForm", await FillAsync(new AdvanceFormModel(), ct));
+
+        var a = await _db.Advances.FirstOrDefaultAsync(x => x.Id == id, ct);
+        if (a is null) return NotFound();
+        if (a.Status != DisbursementStatus.NotDisbursed)
+            return Content("<div style=\"padding:18px;color:var(--warning);text-align:center;\">لا يمكن تعديل سلفة تم صرفها.</div>", "text/html");
+        return PartialView("_AdvanceForm", await FillAsync(new AdvanceFormModel
+        {
+            Id = a.Id, Date = a.Date, EmployeeId = a.EmployeeId, Amount = a.Amount,
+            RepaymentMethod = a.RepaymentMethod, InstallmentsCount = a.InstallmentsCount == 0 ? 1 : a.InstallmentsCount,
+            MonthlyStartDate = a.MonthlyStartDate ?? DateTime.Today, Notes = a.Notes
+        }, ct));
     }
 
     [HttpPost]
@@ -55,6 +67,25 @@ public class AdvancesController : Controller
     {
         if (!CanManage()) return Forbid();
         if (!ModelState.IsValid) return PartialView("_AdvanceForm", await FillAsync(model, ct));
+
+        if (model.Id != Guid.Empty)
+        {
+            var a = await _db.Advances.FirstOrDefaultAsync(x => x.Id == model.Id, ct);
+            if (a is null) return NotFound();
+            if (a.Status != DisbursementStatus.NotDisbursed)
+                return Json(new { ok = false, error = "لا يمكن تعديل سلفة تم صرفها." });
+
+            a.Date = model.Date; a.EmployeeId = model.EmployeeId!.Value; a.Amount = model.Amount;
+            a.RepaymentMethod = model.RepaymentMethod; a.Notes = model.Notes;
+            a.InstallmentsCount = model.RepaymentMethod == AdvanceRepaymentMethod.FromSalary ? Math.Max(1, model.InstallmentsCount) : 0;
+            a.MonthlyStartDate = model.RepaymentMethod == AdvanceRepaymentMethod.FromSalary ? model.MonthlyStartDate : null;
+            // Regenerate the repayment schedule (nothing is paid while «لم يُصرف»).
+            foreach (var r in await _db.AdvanceRepayments.Where(r => r.AdvanceId == a.Id).ToListAsync(ct)) _db.AdvanceRepayments.Remove(r);
+            GenerateRepayments(a, model);
+            await _db.SaveChangesAsync(ct);
+            TempData["StatusMessage"] = $"تم تحديث السلفة ADV-{a.Number:D4}.";
+            return Json(new { ok = true });
+        }
 
         var number = (await _db.Advances.MaxAsync(a => (int?)a.Number, ct) ?? 0) + 1;
         var advance = new Advance
@@ -66,24 +97,26 @@ public class AdvancesController : Controller
             Status = DisbursementStatus.NotDisbursed
         };
         _db.Advances.Add(advance);
-
-        // From-salary: generate the repayment schedule (marked paid manually later — no payroll engine).
-        if (advance.InstallmentsCount > 0)
-        {
-            var per = Math.Round(model.Amount / advance.InstallmentsCount, 2);
-            var start = model.MonthlyStartDate ?? model.Date;
-            for (var i = 1; i <= advance.InstallmentsCount; i++)
-            {
-                var amount = i == advance.InstallmentsCount ? model.Amount - per * (advance.InstallmentsCount - 1) : per;
-                _db.AdvanceRepayments.Add(new AdvanceRepayment
-                {
-                    AdvanceId = advance.Id, SeqNo = i, Amount = amount, DueDate = start.AddMonths(i - 1), Status = PayStatus.NotPaid
-                });
-            }
-        }
+        GenerateRepayments(advance, model);
         await _db.SaveChangesAsync(ct);
         TempData["StatusMessage"] = $"تم تسجيل السلفة ADV-{number:D4} (بانتظار الصرف من صفحة المصروفات).";
         return Json(new { ok = true });
+    }
+
+    // From-salary advances get a repayment schedule (marked paid manually later — no payroll engine).
+    private void GenerateRepayments(Advance advance, AdvanceFormModel model)
+    {
+        if (advance.InstallmentsCount <= 0) return;
+        var per = Math.Round(model.Amount / advance.InstallmentsCount, 2);
+        var start = model.MonthlyStartDate ?? model.Date;
+        for (var i = 1; i <= advance.InstallmentsCount; i++)
+        {
+            var amount = i == advance.InstallmentsCount ? model.Amount - per * (advance.InstallmentsCount - 1) : per;
+            _db.AdvanceRepayments.Add(new AdvanceRepayment
+            {
+                AdvanceId = advance.Id, SeqNo = i, Amount = amount, DueDate = start.AddMonths(i - 1), Status = PayStatus.NotPaid
+            });
+        }
     }
 
     [HttpPost]
@@ -93,16 +126,30 @@ public class AdvancesController : Controller
     {
         var a = await _db.Advances.FirstOrDefaultAsync(x => x.Id == id, ct);
         if (a is null) return NotFound();
-        if (a.Status == DisbursementStatus.Disbursed || await _db.AdvanceRepayments.AnyAsync(r => r.AdvanceId == id && r.Status == PayStatus.Paid, ct))
+
+        // Allowed while nothing has been repaid (whether "لم يُصرف" or "تم الصرف" with المسدَّد = 0); blocked once any repayment is collected.
+        var repaid = await _db.AdvanceRepayments.Where(r => r.AdvanceId == id && r.Status == PayStatus.Paid)
+            .SumAsync(r => (decimal?)r.Amount, ct) ?? 0;
+        if (repaid > 0)
         {
-            TempData["ErrorMessage"] = "لا يمكن حذف سلفة تم صرفها أو بدأ سدادها.";
+            TempData["ErrorMessage"] = $"لا يمكن حذف السلفة ADV-{a.Number:D4} لوجود مبالغ مسدَّدة.";
             return RedirectToAction(nameof(Index));
         }
+
+        // If it was disbursed, reverse the disbursement expense so the safe balance is restored.
+        if (a.ExpenseTxnId is Guid txnId)
+        {
+            var txn = await _db.SafeTransactions.FirstOrDefaultAsync(t => t.Id == txnId, ct);
+            if (txn is not null) _db.SafeTransactions.Remove(txn);
+        }
+
         var reps = await _db.AdvanceRepayments.Where(r => r.AdvanceId == id).ToListAsync(ct);
         foreach (var r in reps) _db.AdvanceRepayments.Remove(r);
         _db.Advances.Remove(a);
         await _db.SaveChangesAsync(ct);
-        TempData["StatusMessage"] = $"تم حذف السلفة ADV-{a.Number:D4}.";
+        TempData["StatusMessage"] = a.Status == DisbursementStatus.Disbursed
+            ? $"تم إلغاء السلفة ADV-{a.Number:D4} وعكس مصروف صرفها."
+            : $"تم حذف السلفة ADV-{a.Number:D4}.";
         return RedirectToAction(nameof(Index));
     }
 

@@ -31,7 +31,9 @@
             <select name="actionType" class="form-control" style="margin:0;" asp-items="Model.ActionTypes"><option value="">— الكل —</option></select>
         </div>
         <button type="submit" class="btn-primary" style="width:auto;">تصفية</button>
-        <a class="btn-sm" asp-action="Index">إعادة تعيين</a>
+        <a class="btn-sm" asp-action="Index">اليوم</a>
+        <a class="btn-sm" asp-action="Index" asp-route-from="@F(DateTime.Today.AddDays(-7))" asp-route-to="@F(DateTime.Today)">آخر أسبوع</a>
+        <a class="btn-sm" asp-action="Index" asp-route-from="@F(DateTime.Today.AddMonths(-1))" asp-route-to="@F(DateTime.Today)">آخر شهر</a>
         <span style="color:var(--muted);font-size:13px;align-self:center;">النتائج: <strong>@Model.Rows.Count</strong></span>
     </form>
 </div>

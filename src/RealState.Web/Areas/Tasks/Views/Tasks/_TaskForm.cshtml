@@ -1,10 +1,7 @@
 @model TaskFormModel
 @{
     var isEdit = Model.Id != Guid.Empty;
-    string? DT(DateTime? d) => d?.ToString("yyyy-MM-ddTHH:mm", System.Globalization.CultureInfo.InvariantCulture);
     string? D(DateTime? d) => d?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
-    var empJson = System.Text.Json.JsonSerializer.Serialize(
-        Model.Employees.Select(e => new { i = e.Id.ToString(), n = e.Name, d = e.DepartmentId?.ToString() ?? "" }));
 }
 <form id="appModalForm" asp-area="Tasks" asp-controller="Tasks" asp-action="Form" method="post" enctype="multipart/form-data">
     @Html.AntiForgeryToken()
@@ -22,16 +19,8 @@
         </div>
 
         <div>
-            <label asp-for="DepartmentId" class="form-label"></label>
-            <select asp-for="DepartmentId" class="form-control" asp-items="Model.Departments"
-                    data-cascade-init onchange="taskDeptChange(this)">
-                <option value="">— اختر القسم —</option>
-            </select>
-            <span asp-validation-for="DepartmentId" class="field-validation-error"></span>
-        </div>
-        <div>
             <label asp-for="AssigneeEmployeeId" class="form-label"></label>
-            <select name="AssigneeEmployeeId" class="form-control" data-selected="@Model.AssigneeEmployeeId">
+            <select name="AssigneeEmployeeId" class="form-control" data-searchable data-search-placeholder="🔍 ابحث عن الموظف...">
                 <option value="">— اختر الموظف —</option>
                 @foreach (var e in Model.Employees)
                 {
@@ -39,11 +28,6 @@
                 }
             </select>
             <span asp-validation-for="AssigneeEmployeeId" class="field-validation-error"></span>
-        </div>
-
-        <div>
-            <label asp-for="StartAt" class="form-label"></label>
-            <input asp-for="StartAt" type="datetime-local" class="form-control" dir="ltr" value="@DT(Model.StartAt)" />
         </div>
         <div>
             <label asp-for="DueAt" class="form-label"></label>
@@ -62,8 +46,6 @@
             <span style="color:var(--muted);font-size:12px;">يمكن اختيار أكثر من ملف — بحد أقصى 15 ميجابايت لكل ملف.</span>
         </div>
     </div>
-
-    <script type="application/json" id="taskEmpData">@Html.Raw(empJson)</script>
 
     <div style="display:flex;gap:8px;margin-top:16px;">
         <button type="submit" class="btn-primary" style="width:auto;">@(isEdit ? "💾 حفظ التعديلات" : "➕ إسناد المهمة")</button>

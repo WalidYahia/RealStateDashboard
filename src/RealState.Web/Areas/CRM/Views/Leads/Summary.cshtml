@@ -1,0 +1,45 @@
+@model CrmSummaryVm
+@{
+    ViewData["Title"] = "إدارة علاقات العملاء";
+}
+<div class="page-head">
+    <h1>إدارة علاقات العملاء</h1>
+    <a class="btn-sm" asp-controller="Leads" asp-action="Index">قائمة العملاء المحتملين ←</a>
+</div>
+
+<div class="kpi-grid" style="grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));">
+    <div class="kpi k-leads"><div class="kpi-label">إجمالي العملاء المحتملين</div><div class="kpi-value">@Model.TotalLeads</div></div>
+    <div class="kpi k-reserve"><div class="kpi-label">جدد هذا الشهر</div><div class="kpi-value">@Model.NewLeadsThisMonth</div><div class="kpi-foot">عملاء محتملون</div></div>
+    <div class="kpi k-tasks"><div class="kpi-label">العملاء الفعليين</div><div class="kpi-value">@Model.TotalCustomers</div></div>
+    <div class="kpi k-collect"><div class="kpi-label">جدد هذا الشهر</div><div class="kpi-value">@Model.NewCustomersThisMonth</div><div class="kpi-foot">عملاء فعليون</div></div>
+    <div class="kpi k-sales"><div class="kpi-label">عدد المناديب</div><div class="kpi-value">@Model.Salespersons</div></div>
+</div>
+
+<div class="grid-row" style="grid-template-columns: 1fr 1fr; margin-top:16px;">
+    <div class="card-tile">
+        <div class="card-head"><h3>العملاء المحتملون حسب المصدر</h3></div>
+        <table class="rs-table">
+            <thead><tr><th>المصدر</th><th style="width:100px;">العدد</th></tr></thead>
+            <tbody>
+            @foreach (var r in Model.BySource)
+            {
+                <tr><td>@r.Label</td><td>@r.Count</td></tr>
+            }
+            @if (Model.BySource.Count == 0) { <tr><td colspan="2" style="color:var(--muted)">لا توجد بيانات.</td></tr> }
+            </tbody>
+        </table>
+    </div>
+    <div class="card-tile">
+        <div class="card-head"><h3>العملاء المحتملون حسب المندوب</h3></div>
+        <table class="rs-table">
+            <thead><tr><th>المندوب</th><th style="width:100px;">العدد</th></tr></thead>
+            <tbody>
+            @foreach (var r in Model.BySalesperson)
+            {
+                <tr><td>@r.Label</td><td>@r.Count</td></tr>
+            }
+            @if (Model.BySalesperson.Count == 0) { <tr><td colspan="2" style="color:var(--muted)">لا توجد بيانات.</td></tr> }
+            </tbody>
+        </table>
+    </div>
+</div>

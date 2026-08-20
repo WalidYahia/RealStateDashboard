@@ -20,7 +20,9 @@
         <div><label class="form-label">إلى</label><input type="date" name="to" value="@F(Model.To)" class="form-control" style="margin:0;" dir="ltr" /></div>
         <div><label class="form-label">الموظف</label><input type="text" name="q" value="@Model.Q" class="form-control" style="margin:0;" placeholder="اسم الموظف" /></div>
         <button type="submit" class="btn-primary" style="width:auto;">بحث</button>
-        <a class="btn-sm" asp-action="Index" asp-route-from="2000-01-01" asp-route-to="2100-01-01">الكل</a>
+        <a class="btn-sm" asp-action="Index">اليوم</a>
+        <a class="btn-sm" asp-action="Index" asp-route-from="@F(DateTime.Today.AddDays(-7))" asp-route-to="@F(DateTime.Today)">آخر أسبوع</a>
+        <a class="btn-sm" asp-action="Index" asp-route-from="@F(DateTime.Today.AddMonths(-1))" asp-route-to="@F(DateTime.Today)">آخر شهر</a>
     </form>
 </div>
 
@@ -44,7 +46,15 @@
                     <a class="btn-sm" asp-action="Print" asp-route-id="@r.Id" target="_blank">🖨</a>
                     @if (canManage && r.Status == RealState.Application.Enums.DisbursementStatus.NotDisbursed)
                     {
-                        <form asp-action="Delete" asp-route-id="@r.Id" method="post" style="display:inline;" data-confirm="حذف السلفة @ADV(r.Number)؟" data-danger>@Html.AntiForgeryToken()<button type="submit" class="btn-sm btn-danger">حذف</button></form>
+                        <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("Form", new { id = r.Id })', 'تعديل السلفة @ADV(r.Number)')">تعديل</button>
+                    }
+                    @if (canManage && r.Repaid == 0)
+                    {
+                        var isDisb = r.Status == RealState.Application.Enums.DisbursementStatus.Disbursed;
+                        <form asp-action="Delete" asp-route-id="@r.Id" method="post" style="display:inline;"
+                              data-confirm="@(isDisb ? $"إلغاء السلفة {ADV(r.Number)} وعكس مصروف صرفها؟" : $"حذف السلفة {ADV(r.Number)}؟")" data-danger>
+                            @Html.AntiForgeryToken()<button type="submit" class="btn-sm btn-danger">@(isDisb ? "إلغاء" : "حذف")</button>
+                        </form>
                     }
                 </td>
             </tr>

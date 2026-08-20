@@ -1,15 +1,24 @@
 @model CustomerFormModel
+@{
+    var socialJson = System.Text.Json.JsonSerializer.Serialize(
+        RealState.Web.ArabicLabels.SocialMediaSources.Select(s => new { v = (int)s, t = s.Ar() }));
+    var otherJson = System.Text.Json.JsonSerializer.Serialize(
+        RealState.Web.ArabicLabels.OtherSources.Select(s => new { v = (int)s, t = s.Ar() }));
+}
 <form id="appModalForm" asp-area="CRM" asp-controller="Customers" asp-action="Form" method="post">
     @Html.AntiForgeryToken()
     <div asp-validation-summary="ModelOnly" class="validation-summary-errors"></div>
     <input type="hidden" asp-for="Id" />
-    @if (Model.SalesPersons.Count == 0)
-    {
-        <div class="status-message" style="background:rgba(250,178,25,.12);border-color:var(--warning);color:var(--warning);">
-            لا يوجد مناديب بعد. أضف مندوبًا من تبويب المناديب قبل إضافة عميل.
-        </div>
-    }
+    <input type="hidden" asp-for="IsLead" />
     <div class="form-grid">
+        @if (Model.IsLead && Model.Id == Guid.Empty)
+        {
+            <div>
+                <label asp-for="CreatedOn" class="form-label"></label>
+                <input asp-for="CreatedOn" class="form-control" type="date" dir="ltr"
+                       value="@Model.CreatedOn.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)" />
+            </div>
+        }
         <div class="full">
             <label asp-for="FullName" class="form-label"></label>
             <input asp-for="FullName" class="form-control" />
@@ -25,14 +34,42 @@
             <input asp-for="Email" class="form-control" dir="ltr" />
             <span asp-validation-for="Email" class="field-validation-error"></span>
         </div>
+        @if (Model.IsLead)
+        {
+            <div>
+                <label asp-for="Channel" class="form-label"></label>
+                <select asp-for="Channel" id="leadChannel" class="form-control"
+                        asp-items="RealState.Web.ArabicLabels.LeadChannelOptions(Model.Channel)"
+                        data-cascade-init onchange="leadChannelChange()"></select>
+            </div>
+            <div id="leadSourceWrap">
+                <label class="form-label">المصدر</label>
+                <select name="Source" id="leadSource" class="form-control"
+                        data-selected="@((int)Model.Source)" data-social="@socialJson" data-other="@otherJson"></select>
+            </div>
+            <div id="leadCampaignWrap">
+                <label class="form-label">المصدر (الحملة)</label>
+                <select asp-for="SourceCampaignId" id="leadCampaign" class="form-control" asp-items="Model.Campaigns">
+                    <option value="">— اختر الحملة —</option>
+                </select>
+            </div>
+            <div id="leadSalespersonWrap">
+                <label class="form-label">المصدر</label>
+                <input class="form-control" value="مندوب مبيعات" disabled />
+            </div>
+        }
+        else
+        {
+            <div>
+                <label asp-for="Source" class="form-label"></label>
+                <select asp-for="Source" class="form-control" asp-items="RealState.Web.ArabicLabels.CustomerSourceOptions(Model.Source)"></select>
+            </div>
+        }
         <div>
-            <label asp-for="Source" class="form-label"></label>
-            <select asp-for="Source" class="form-control" asp-items="RealState.Web.ArabicLabels.CustomerSourceOptions(Model.Source)"></select>
-        </div>
-        <div>
-            <label asp-for="SalesPersonId" class="form-label"></label> <span style="color:var(--critical)">*</span>
+            <label asp-for="SalesPersonId" class="form-label"></label>
+            <span id="spReq" style="color:var(--critical);display:none;">*</span>
             <select asp-for="SalesPersonId" class="form-control" asp-items="Model.SalesPersons">
-                <option value="">— اختر المندوب —</option>
+                <option value="">— بدون —</option>
             </select>
             <span asp-validation-for="SalesPersonId" class="field-validation-error"></span>
         </div>
@@ -41,5 +78,5 @@
             <textarea asp-for="Notes" class="form-control" rows="2"></textarea>
         </div>
     </div>
-    <button type="submit" class="btn-primary" style="margin-top:12px;" disabled="@(Model.SalesPersons.Count == 0)">💾 حفظ</button>
+    <button type="submit" class="btn-primary" style="margin-top:12px;">💾 حفظ</button>
 </form>

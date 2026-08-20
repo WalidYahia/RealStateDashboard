@@ -33,6 +33,7 @@ public static class PermissionNames
     // ----- Sales contracts -----
     public const string SalesView = "Sales.View";
     public const string SalesCreate = "Sales.Create";
+    public const string SalesEdit = "Sales.Edit";
     public const string SalesDelete = "Sales.Delete";
 
     // ----- Collections -----
@@ -70,6 +71,14 @@ public static class PermissionNames
     public const string SalespersonsEdit = "Salespersons.Edit";
     public const string SalespersonsDelete = "Salespersons.Delete";
 
+    // ----- CRM: leads (potential customers) ----- (in addition to a lead's own assigned salesperson)
+    public const string LeadsControl = "Leads.Control";  // manage leads + status
+    public const string LeadsConvert = "Leads.Convert";  // convert a lead into a customer
+
+    /// <summary>Composite authorization policy for reaching the Leads section:
+    /// satisfied by Customers.View, Leads.Control, or Leads.Convert. Not a grantable permission.</summary>
+    public const string LeadsAccessPolicy = "LeadsAccess";
+
     // ----- Suppliers / contractors + orders -----
     public const string SuppliersView = "Suppliers.View";
     public const string SuppliersCreate = "Suppliers.Create";
@@ -87,7 +96,8 @@ public static class PermissionNames
 
     // ----- Tasks management ----- (personal "my tasks" is available to every signed-in user;
     // these gate the all-tasks list and its management actions)
-    public const string TasksView = "Tasks.View";
+    public const string TasksView = "Tasks.View";        // reach the tasks list page (scoped to own tasks by default)
+    public const string TasksViewAll = "Tasks.ViewAll";  // see everyone's tasks, not just mine/by-me
     public const string TasksCreate = "Tasks.Create";
     public const string TasksEdit = "Tasks.Edit";
     public const string TasksDelete = "Tasks.Delete";
@@ -107,6 +117,7 @@ public static class PermissionNames
     private const string GExpenses = "المصروفات";
     private const string GIncomes = "الإيرادات";
     private const string GCustomers = "العملاء";
+    private const string GLeads = "العملاء المحتملون";
     private const string GSalespersons = "مندوبو المبيعات";
     private const string GSuppliers = "الموردون والمقاولون";
     private const string GReports = "التقارير";
@@ -128,6 +139,7 @@ public static class PermissionNames
 
         new PermissionInfo(SalesView,   "عرض عقود البيع", GSales),
         new PermissionInfo(SalesCreate, "إنشاء عقد بيع",  GSales),
+        new PermissionInfo(SalesEdit,   "تعديل عقود البيع", GSales),
         new PermissionInfo(SalesDelete, "حذف عقود البيع", GSales),
 
         new PermissionInfo(CollectionsView,    "عرض التحصيلات", GCollections),
@@ -159,6 +171,9 @@ public static class PermissionNames
         new PermissionInfo(SalespersonsEdit,   "تعديل المندوبين", GSalespersons),
         new PermissionInfo(SalespersonsDelete, "حذف المندوبين", GSalespersons),
 
+        new PermissionInfo(LeadsControl, "التحكم في العملاء المحتملين (سجل التواصل والحالة)", GLeads),
+        new PermissionInfo(LeadsConvert, "تحويل العميل المحتمل إلى عميل",                     GLeads),
+
         new PermissionInfo(SuppliersView,   "عرض الموردين وأوامر التوريد وكشوف الحساب", GSuppliers),
         new PermissionInfo(SuppliersCreate, "إضافة مورد / أمر توريد",                  GSuppliers),
         new PermissionInfo(SuppliersEdit,   "تعديل الموردين وأوامر التوريد",           GSuppliers),
@@ -167,7 +182,8 @@ public static class PermissionNames
 
         new PermissionInfo(ReportsView,     "عرض التقارير (اليومي، العملاء، الموردين)", GReports),
 
-        new PermissionInfo(TasksView,   "عرض كل المهام", GTasks),
+        new PermissionInfo(TasksView,    "عرض قائمة المهام (مهامي فقط افتراضيًا)", GTasks),
+        new PermissionInfo(TasksViewAll, "عرض كل المهام (لكل المستخدمين)",          GTasks),
         new PermissionInfo(TasksCreate, "إسناد / إنشاء مهمة", GTasks),
         new PermissionInfo(TasksEdit,   "تعديل المهام", GTasks),
         new PermissionInfo(TasksDelete, "حذف المهام", GTasks),

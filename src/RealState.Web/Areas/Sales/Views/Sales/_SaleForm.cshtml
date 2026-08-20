@@ -1,39 +1,66 @@
 @model SaleFormModel
-<form id="appModalForm" asp-area="Sales" asp-controller="Sales" asp-action="Form" method="post">
+@{
+    var isEdit = Model.Id != Guid.Empty;
+    var lockFin = isEdit && Model.LockFinancials;
+    string? ro = lockFin ? "readonly" : null;
+}
+<form id="appModalForm" asp-area="Sales" asp-controller="Sales" asp-action="Form" method="post" data-warn-fn="saleInstallmentWarn">
     @Html.AntiForgeryToken()
     <div asp-validation-summary="ModelOnly" class="validation-summary-errors"></div>
     <input type="hidden" asp-for="Id" />
 
-    @if (Model.Customers.Count == 0 || Model.UnitOptions.Count == 0)
+    @if (!isEdit && (Model.Customers.Count == 0 || Model.UnitOptions.Count == 0))
     {
         <div class="status-message" style="background:rgba(250,178,25,.12);border-color:var(--warning);color:var(--warning);">
             يلزم وجود عميل واحد على الأقل ووحدة متاحة (غير مباعة) قبل إنشاء عقد بيع.
         </div>
     }
+    @if (lockFin)
+    {
+        <div class="status-message" style="background:rgba(250,178,25,.12);border-color:var(--warning);color:var(--warning);">
+            تم تحصيل أقساط لهذا العقد — يمكن تعديل التواريخ والملاحظات فقط (لا يمكن تعديل القيم المالية أو جدول الأقساط).
+        </div>
+    }
 
     <div class="form-grid">
-        <div>
-            <label asp-for="CustomerId" class="form-label"></label>
-            <select asp-for="CustomerId" class="form-control" asp-items="Model.Customers"><option value="">— اختر العميل —</option></select>
-            <span asp-validation-for="CustomerId" class="field-validation-error"></span>
-        </div>
-        <div>
-            <label asp-for="ProjectId" class="form-label"></label>
-            <select asp-for="ProjectId" class="form-control" data-cascade-init
-                    onchange="window.saleFilterUnits && saleFilterUnits(this.value)"
-                    asp-items="Model.Projects"><option value="">— كل المشاريع —</option></select>
-        </div>
-        <div>
-            <label asp-for="UnitId" class="form-label"></label>
-            <select asp-for="UnitId" class="form-control" onchange="window.saleSetPrice && saleSetPrice(this.value)">
-                <option value="">— اختر الوحدة —</option>
-                @foreach (var u in Model.UnitOptions)
-                {
-                    <option value="@u.Id" data-project="@u.ProjectId" selected="@(Model.UnitId == u.Id)">@u.Label</option>
-                }
-            </select>
-            <span asp-validation-for="UnitId" class="field-validation-error"></span>
-        </div>
+        @if (isEdit)
+        {
+            <div>
+                <label class="form-label">العميل</label>
+                <input class="form-control" value="@Model.CustomerName" disabled />
+                <input type="hidden" asp-for="CustomerId" />
+            </div>
+            <div>
+                <label class="form-label">الوحدة</label>
+                <input class="form-control" value="@Model.UnitName" disabled />
+                <input type="hidden" asp-for="UnitId" />
+            </div>
+        }
+        else
+        {
+            <div>
+                <label asp-for="CustomerId" class="form-label"></label>
+                <select asp-for="CustomerId" class="form-control" asp-items="Model.Customers"><option value="">— اختر العميل —</option></select>
+                <span asp-validation-for="CustomerId" class="field-validation-error"></span>
+            </div>
+            <div>
+                <label asp-for="ProjectId" class="form-label"></label>
+                <select asp-for="ProjectId" class="form-control" data-cascade-init
+                        onchange="window.saleFilterUnits && saleFilterUnits(this.value)"
+                        asp-items="Model.Projects"><option value="">— كل المشاريع —</option></select>
+            </div>
+            <div>
+                <label asp-for="UnitId" class="form-label"></label>
+                <select asp-for="UnitId" class="form-control" onchange="window.saleSetPrice && saleSetPrice(this.value)">
+                    <option value="">— اختر الوحدة —</option>
+                    @foreach (var u in Model.UnitOptions)
+                    {
+                        <option value="@u.Id" data-project="@u.ProjectId" selected="@(Model.UnitId == u.Id)">@u.Label</option>
+                    }
+                </select>
+                <span asp-validation-for="UnitId" class="field-validation-error"></span>
+            </div>
+        }
 
         <div>
             <label asp-for="ContractDate" class="form-label"></label>
@@ -47,27 +74,27 @@
         </div>
         <div>
             <label asp-for="FirstInstallmentDate" class="form-label"></label>
-            <input asp-for="FirstInstallmentDate" class="form-control" type="date" dir="ltr" />
+            <input asp-for="FirstInstallmentDate" class="form-control" type="date" dir="ltr" readonly="@ro" />
             <span asp-validation-for="FirstInstallmentDate" class="field-validation-error"></span>
         </div>
         <div>
             <label asp-for="TotalPrice" class="form-label"></label>
-            <input asp-for="TotalPrice" class="form-control" type="number" step="0.01" min="0" dir="ltr" />
+            <input asp-for="TotalPrice" class="form-control" type="number" step="0.01" min="0" dir="ltr" readonly="@ro" />
             <span asp-validation-for="TotalPrice" class="field-validation-error"></span>
         </div>
         <div>
             <label asp-for="DownPayment" class="form-label"></label>
-            <input asp-for="DownPayment" class="form-control" type="number" step="0.01" min="0" dir="ltr" />
+            <input asp-for="DownPayment" class="form-control" type="number" step="0.01" min="0" dir="ltr" readonly="@ro" />
             <span asp-validation-for="DownPayment" class="field-validation-error"></span>
         </div>
         <div>
             <label asp-for="InstallmentsCount" class="form-label"></label>
-            <input asp-for="InstallmentsCount" class="form-control" type="number" min="0" max="600" dir="ltr" />
+            <input asp-for="InstallmentsCount" class="form-control" type="number" min="0" max="600" dir="ltr" readonly="@ro" />
             <span asp-validation-for="InstallmentsCount" class="field-validation-error"></span>
         </div>
         <div>
             <label asp-for="Step" class="form-label"></label>
-            <select asp-for="Step" class="form-control" asp-items="RealState.Web.ArabicLabels.InstallmentStepOptions(Model.Step)"></select>
+            <select asp-for="Step" class="form-control" asp-items="RealState.Web.ArabicLabels.InstallmentStepOptions(Model.Step)" disabled="@lockFin"></select>
         </div>
         <div class="full">
             <label asp-for="Notes" class="form-label"></label>
@@ -75,5 +102,7 @@
         </div>
     </div>
 
-    <button type="submit" class="btn-primary" style="margin-top:12px;" disabled="@(Model.Customers.Count == 0 || Model.UnitOptions.Count == 0)">💾 إنشاء العقد وجدول الأقساط</button>
+    <button type="submit" class="btn-primary" style="margin-top:12px;" disabled="@(!isEdit && (Model.Customers.Count == 0 || Model.UnitOptions.Count == 0))">
+        @(isEdit ? "💾 حفظ التعديلات" : "💾 إنشاء العقد وجدول الأقساط")
+    </button>
 </form>

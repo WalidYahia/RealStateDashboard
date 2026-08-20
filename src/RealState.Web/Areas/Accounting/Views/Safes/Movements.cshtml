@@ -21,13 +21,16 @@
         <input type="hidden" name="id" value="@Model.SafeId" />
         <div><label class="form-label">من</label><input type="date" name="from" value="@F(Model.From)" class="form-control" style="margin:0;" dir="ltr" /></div>
         <div><label class="form-label">إلى</label><input type="date" name="to" value="@F(Model.To)" class="form-control" style="margin:0;" dir="ltr" /></div>
-        <div style="flex:1;min-width:180px;"><label class="form-label">بحث بالبيان</label><input type="text" name="q" value="@Model.Q" class="form-control" style="margin:0;" placeholder="اسم الحركة..." /></div>
         <button type="submit" class="btn-primary" style="width:auto;">بحث</button>
+        <a class="btn-sm" asp-action="Movements" asp-route-id="@Model.SafeId">اليوم</a>
+        <a class="btn-sm" asp-action="Movements" asp-route-id="@Model.SafeId" asp-route-from="@F(DateTime.Today.AddDays(-7))" asp-route-to="@F(DateTime.Today)">آخر أسبوع</a>
+        <a class="btn-sm" asp-action="Movements" asp-route-id="@Model.SafeId" asp-route-from="@F(DateTime.Today.AddMonths(-1))" asp-route-to="@F(DateTime.Today)">آخر شهر</a>
     </form>
 </div>
 
 <div class="card-tile">
-    <table class="rs-table">
+    <div class="list-search-bar"><input class="form-control list-search" data-target="#movTable" placeholder="🔍 بحث في القائمة..." /></div>
+    <table class="rs-table" id="movTable">
         <thead><tr><th>#</th><th>التاريخ/الوقت</th><th>النوع</th><th>المصدر</th><th>البيان</th><th>المبلغ</th><th>الرصيد</th></tr></thead>
         <tbody>
         @foreach (var t in Model.Transactions)
@@ -44,8 +47,9 @@
         }
         @if (Model.Transactions.Count == 0)
         {
-            <tr><td colspan="7" style="color:var(--muted)">لا توجد حركات.</td></tr>
+            <tr data-skip-search><td colspan="7" style="color:var(--muted)">لا توجد حركات.</td></tr>
         }
+        <tr data-no-results data-skip-search style="display:none;"><td colspan="7" style="color:var(--muted)">لا توجد نتائج مطابقة للبحث.</td></tr>
         </tbody>
         @if (Model.Transactions.Count > 0)
         {

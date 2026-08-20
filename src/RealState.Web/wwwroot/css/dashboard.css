@@ -46,8 +46,8 @@ body {
     position: sticky; top: 0; align-self: start; height: 100vh; overflow-y: auto;
 }
 
-.brand { display: flex; align-items: center; gap: 10px; padding: 6px 8px 22px; min-height: 40px; }
-.brand-logo { max-height: 48px; max-width: 180px; object-fit: contain; }
+.brand { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 6px 8px 22px; min-height: 40px; }
+.brand-logo { max-height: 66px; max-width: 210px; object-fit: contain; }
 .brand-fallback { font-weight: 700; letter-spacing: .5px; line-height: 1.2; font-size: 17px; }
 
 /* New-tenant quick action in the top bar */
@@ -284,6 +284,24 @@ select.form-control { appearance: auto; }
     border-radius: 10px; padding: 11px 13px; margin-bottom: 14px; font-size: 14px;
 }
 .form-control:focus { outline: none; border-color: var(--series-1); }
+
+/* Inline list-search header: a full-width search bar at the top of a list card. */
+.list-search-bar { margin-bottom: 12px; }
+.list-search { width: 100%; margin: 0; }
+.list-search::placeholder { color: #fff; opacity: 1; }          /* white when not focused */
+.list-search:focus::placeholder { color: var(--muted); }         /* dim once focused */
+
+/* Searchable <select> enhancement: a filter input over an options dropdown (task assignee picker). */
+.ss-wrap { position: relative; }
+.ss-native { display: none !important; }
+.ss-menu {
+    position: absolute; z-index: 60; top: 100%; inset-inline: 0; margin-top: 4px; max-height: 240px;
+    overflow-y: auto; background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px;
+    box-shadow: 0 10px 30px rgba(0,0,0,.45);
+}
+.ss-opt { padding: 9px 12px; cursor: pointer; color: var(--text-primary); font-size: 14px; }
+.ss-opt:hover, .ss-opt.ss-active { background: rgba(255,255,255,.08); }
+.ss-empty { padding: 9px 12px; color: var(--muted); font-size: 13px; }
 .btn-primary {
     width: 100%; background: var(--series-1); border: none; color: #fff; font-weight: 700;
     padding: 12px; border-radius: 10px; cursor: pointer; font-size: 15px;

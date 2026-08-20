@@ -23,6 +23,7 @@ public interface IApplicationDbContext
 
     DbSet<Project> Projects { get; }
     DbSet<Customer> Customers { get; }
+    DbSet<CustomerLog> CustomerLogs { get; }
     DbSet<Lead> Leads { get; }
     DbSet<Campaign> Campaigns { get; }
     DbSet<CampaignUpdate> CampaignUpdates { get; }

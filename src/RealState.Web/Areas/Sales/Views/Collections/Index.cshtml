@@ -49,13 +49,14 @@
         }
         function colReload(sort) { colLoad(COL.base + '?sort=' + encodeURIComponent(sort)); }
         function colFilter(q) {
-            q = (q || '').trim().toLowerCase();
-            document.querySelectorAll('#colTab [data-search]').forEach(function (tr) {
-                tr.style.display = tr.getAttribute('data-search').indexOf(q) >= 0 ? '' : 'none';
+            var nq = window.appSearchNormalize(q);
+            // Search across every column via the row's full text content.
+            document.querySelectorAll('#colTab tbody > tr').forEach(function (tr) {
+                tr.style.display = window.appSearchNormalize(tr.textContent).indexOf(nq) >= 0 ? '' : 'none';
             });
             // hide groups with no visible rows
             document.querySelectorAll('#colTab details.col-group').forEach(function (g) {
-                var any = Array.prototype.some.call(g.querySelectorAll('[data-search]'), function (tr) { return tr.style.display !== 'none'; });
+                var any = Array.prototype.some.call(g.querySelectorAll('tbody > tr'), function (tr) { return tr.style.display !== 'none'; });
                 g.style.display = any ? '' : 'none';
             });
         }

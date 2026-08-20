@@ -25,6 +25,13 @@
         {
             <button type="button" class="btn-new-tenant" onclick="appOpenModal('@Url.Action("Form", new { id = p.Id })', 'تعديل المشروع')">✏️ تعديل</button>
         }
+        @if (User.Can(PermissionNames.ProjectsDelete))
+        {
+            <form asp-action="Delete" asp-route-id="@p.Id" method="post" style="display:inline;">
+                @Html.AntiForgeryToken()
+                <button type="submit" class="btn-sm btn-danger">🗑 حذف المشروع</button>
+            </form>
+        }
     </div>
 </div>
 
@@ -129,7 +136,7 @@
                             }
                             @if (User.Can(PermissionNames.ProjectsDelete))
                             {
-                                <form asp-action="UnitDelete" method="post" style="display:inline;" data-confirm="حذف الوحدة؟" data-danger>
+                                <form asp-action="UnitDelete" method="post" style="display:inline;">
                                     @Html.AntiForgeryToken()
                                     <input type="hidden" name="id" value="@u.Id" /><input type="hidden" name="projectId" value="@p.Id" />
                                     <button type="submit" class="btn-sm btn-danger">حذف</button>

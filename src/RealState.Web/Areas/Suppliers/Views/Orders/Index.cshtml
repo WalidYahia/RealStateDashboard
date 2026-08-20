@@ -7,6 +7,7 @@
     var canPay = ViewData["CanPay"] as bool? ?? false;
     string N(decimal v) => v.ToString("N0", new System.Globalization.CultureInfo("ar-EG"));
     string D(DateTime d) => d.ToString("yyyy/MM/dd", System.Globalization.CultureInfo.InvariantCulture);
+    string? F(DateTime? d) => d?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
     string PO(int n) => "PO-" + n.ToString("D4");
     var total = Model.Sum(r => r.Total);
 }
@@ -26,14 +27,23 @@
     <div class="status-message">@status</div>
 }
 
+<div class="card-tile" style="margin-bottom:12px;">
+    <form asp-action="Index" method="get" style="display:flex;gap:10px;align-items:end;flex-wrap:wrap;">
+        <div><label class="form-label">من (تاريخ الأمر)</label><input type="date" name="from" value="@F((DateTime?)ViewBag.From)" class="form-control" style="margin:0;" dir="ltr" /></div>
+        <div><label class="form-label">إلى</label><input type="date" name="to" value="@F((DateTime?)ViewBag.To)" class="form-control" style="margin:0;" dir="ltr" /></div>
+        <button type="submit" class="btn-primary" style="width:auto;">بحث</button>
+        <a class="btn-sm" asp-action="Index">اليوم</a>
+        <a class="btn-sm" asp-action="Index" asp-route-from="@F(DateTime.Today.AddDays(-7))" asp-route-to="@F(DateTime.Today)">آخر أسبوع</a>
+        <a class="btn-sm" asp-action="Index" asp-route-from="@F(DateTime.Today.AddMonths(-1))" asp-route-to="@F(DateTime.Today)">آخر شهر</a>
+    </form>
+</div>
+
 <div class="card-tile">
     <div class="card-head">
         <h3>الأوامر</h3>
-        <div style="display:flex;gap:8px;align-items:center;margin-inline-start:auto;">
-            <input id="ordSearch" class="form-control" style="margin:0;width:260px;" placeholder="🔍 بحث بالرقم أو المورد أو المشروع..." />
-            <span class="pill">الأوامر: @Model.Count · الإجمالي: @N(total) ج.م</span>
-        </div>
+        <span class="pill">الأوامر: <span data-live-count="#ordTable">@Model.Count</span> · الإجمالي: <span data-live-sum="#ordTable:4">@N(total)</span> ج.م</span>
     </div>
+    <div class="list-search-bar"><input class="form-control list-search" data-target="#ordTable" placeholder="🔍 بحث في القائمة..." /></div>
     <table class="rs-table" id="ordTable">
         <thead>
             <tr><th>الرقم</th><th>التاريخ</th><th>المورد</th><th>المشروع</th><th>الإجمالي</th><th>المسدَّد</th><th>المتبقي</th><th></th></tr>
@@ -72,31 +82,15 @@
         }
         @if (Model.Count == 0)
         {
-            <tr><td colspan="8" style="color:var(--muted)">لا توجد أوامر توريد بعد.</td></tr>
+            <tr data-skip-search><td colspan="8" style="color:var(--muted)">لا توجد أوامر توريد بعد.</td></tr>
         }
-        <tr id="ordNoResults" style="display:none;"><td colspan="8" style="color:var(--muted)">لا توجد نتائج مطابقة للبحث.</td></tr>
+        <tr data-no-results data-skip-search style="display:none;"><td colspan="8" style="color:var(--muted)">لا توجد نتائج مطابقة للبحث.</td></tr>
         </tbody>
     </table>
 </div>
 
 @section Scripts {
     <script>
-        (function () {
-            var box = document.getElementById('ordSearch');
-            if (!box) return;
-            box.addEventListener('input', function () {
-                var q = this.value.trim().toLowerCase();
-                var rows = document.querySelectorAll('#ordTable tbody tr[data-search]');
-                var shown = 0;
-                rows.forEach(function (tr) {
-                    var match = tr.dataset.search.indexOf(q) >= 0;
-                    tr.style.display = match ? '' : 'none';
-                    if (match) shown++;
-                });
-                document.getElementById('ordNoResults').style.display = (rows.length && shown === 0) ? '' : 'none';
-            });
-        })();
-
         // Dynamic line items inside the order modal (defined globally — modal-injected scripts don't run).
         window.__ordSeq = 1000;
         window.addOrderItem = function () {

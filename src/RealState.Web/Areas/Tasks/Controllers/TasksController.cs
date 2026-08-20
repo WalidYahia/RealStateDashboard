@@ -24,7 +24,7 @@ public class TasksController : Controller
         _currentUser = currentUser;
     }
 
-    private bool CanView() => User.HasClaim("permission", PermissionNames.TasksView);
+    private bool CanViewAll() => User.HasClaim("permission", PermissionNames.TasksViewAll);
     private bool CanCreate() => User.HasClaim("permission", PermissionNames.TasksCreate);
     private bool CanEdit() => User.HasClaim("permission", PermissionNames.TasksEdit);
     private bool CanDelete() => User.HasClaim("permission", PermissionNames.TasksDelete);
@@ -39,25 +39,22 @@ public class TasksController : Controller
 
     // ---------------- List of all tasks ----------------
     [Authorize(Policy = PermissionNames.TasksView)]
-    public async Task<IActionResult> Index(DateTime? from, DateTime? to, Guid? assigneeId, Guid? assignedById, Guid? departmentId, CancellationToken ct)
+    public async Task<IActionResult> Index(DateTime? from, DateTime? to, Guid? assigneeId, string? assignedBy,
+        Guid? departmentId, WorkTaskStatus? status, TaskSeverity? severity, CancellationToken ct)
     {
         (from, to) = DateFilterDefaults.TodayIfFresh(Request, from, to);
         var empNames = await _db.Employees.ToDictionaryAsync(e => e.Id, e => e.FullName, ct);
         var depNames = await _db.Departments.ToDictionaryAsync(d => d.Id, d => d.Name, ct);
 
-        var q = _db.WorkTasks.AsNoTracking().AsQueryable();
-        if (from.HasValue) q = q.Where(t => t.AssignedOn >= from.Value.Date);
-        if (to.HasValue) q = q.Where(t => t.AssignedOn < to.Value.Date.AddDays(1));
-        if (assigneeId.HasValue) q = q.Where(t => t.AssigneeEmployeeId == assigneeId.Value);
-        if (assignedById.HasValue) q = q.Where(t => t.AssignedByUserId == assignedById.Value);
-        if (departmentId.HasValue) q = q.Where(t => t.DepartmentId == departmentId.Value);
-
-        var tasks = await q.OrderByDescending(t => t.Number).ToListAsync(ct);
+        var query = await ScopeToVisibleAsync(
+            FilterTasks(from, to, assigneeId, assignedBy, departmentId, status, severity), ct);
+        var tasks = await query.OrderByDescending(t => t.Number).ToListAsync(ct);
 
         var vm = new TaskListVm
         {
             Rows = tasks.Select(t => Row(t, empNames, depNames)).ToList(),
-            From = from, To = to, AssigneeId = assigneeId, AssignedById = assignedById, DepartmentId = departmentId,
+            From = from, To = to, AssigneeId = assigneeId, AssignedBy = assignedBy, DepartmentId = departmentId,
+            Status = status, Severity = severity,
             Employees = await EmployeeOptionsAsync(ct),
             Departments = await DepartmentOptionsAsync(ct),
             Assigners = await AssignerOptionsAsync(ct)
@@ -68,8 +65,84 @@ public class TasksController : Controller
         return View(vm);
     }
 
-    // ---------------- My tasks (two tabs) ----------------
-    public async Task<IActionResult> Mine(DateTime? from, DateTime? to, Guid? assignedById, Guid? assignedToId, string? tab, CancellationToken ct)
+    // Restrict the all-tasks query to tasks the current user may see: everything if they hold
+    // Tasks.ViewAll, otherwise only tasks they assigned or that are assigned to them.
+    private async Task<IQueryable<WorkTask>> ScopeToVisibleAsync(IQueryable<WorkTask> q, CancellationToken ct)
+    {
+        if (CanViewAll()) return q;
+        var uid = _currentUser.UserId;
+        var myEmpIds = await MyEmployeeIdsAsync(ct);
+        return q.Where(t => t.AssignedByUserId == uid || myEmpIds.Contains(t.AssigneeEmployeeId));
+    }
+
+    // Shared filter for the all-tasks list and its print.
+    private IQueryable<WorkTask> FilterTasks(DateTime? from, DateTime? to, Guid? assigneeId, string? assignedBy,
+        Guid? departmentId, WorkTaskStatus? status, TaskSeverity? severity)
+    {
+        var q = _db.WorkTasks.AsNoTracking().AsQueryable();
+        if (from.HasValue) q = q.Where(t => t.AssignedOn >= from.Value.Date);
+        if (to.HasValue) q = q.Where(t => t.AssignedOn < to.Value.Date.AddDays(1));
+        if (assigneeId.HasValue) q = q.Where(t => t.AssigneeEmployeeId == assigneeId.Value);
+        if (!string.IsNullOrEmpty(assignedBy)) q = q.Where(t => t.AssignedByName == assignedBy);
+        if (departmentId.HasValue) q = q.Where(t => t.DepartmentId == departmentId.Value);
+        if (status.HasValue) q = q.Where(t => t.Status == status.Value);
+        if (severity.HasValue) q = q.Where(t => t.Severity == severity.Value);
+        return q;
+    }
+
+    // ---------------- Print (list only / with time log) ----------------
+    [HttpGet]
+    [Authorize(Policy = PermissionNames.TasksView)]
+    public async Task<IActionResult> PrintList(DateTime? from, DateTime? to, Guid? assigneeId, string? assignedBy,
+        Guid? departmentId, WorkTaskStatus? status, TaskSeverity? severity, bool withLog, CancellationToken ct)
+    {
+        var empNames = await _db.Employees.ToDictionaryAsync(e => e.Id, e => e.FullName, ct);
+        var depNames = await _db.Departments.ToDictionaryAsync(d => d.Id, d => d.Name, ct);
+        var query = await ScopeToVisibleAsync(
+            FilterTasks(from, to, assigneeId, assignedBy, departmentId, status, severity), ct);
+        var tasks = await query.OrderBy(t => t.Number).ToListAsync(ct);
+
+        var logsByTask = new Dictionary<Guid, List<WorkTaskLog>>();
+        if (withLog)
+        {
+            var ids = tasks.Select(t => t.Id).ToList();
+            logsByTask = (await _db.WorkTaskLogs.Where(l => ids.Contains(l.WorkTaskId)).OrderBy(l => l.At).ToListAsync(ct))
+                .GroupBy(l => l.WorkTaskId).ToDictionary(g => g.Key, g => g.ToList());
+        }
+
+        var vm = new TaskPrintVm
+        {
+            WithLog = withLog, From = from, To = to,
+            Rows = tasks.Select(t => new TaskPrintRow
+            {
+                Number = t.Number, AssignedOn = t.AssignedOn,
+                AssignedBy = string.IsNullOrWhiteSpace(t.AssignedByName) ? "—" : t.AssignedByName,
+                Assignee = empNames.GetValueOrDefault(t.AssigneeEmployeeId, "—"),
+                Department = t.DepartmentId.HasValue ? depNames.GetValueOrDefault(t.DepartmentId.Value, "—") : "—",
+                StartAt = t.StartAt, DueAt = t.DueAt, Description = t.Description, Severity = t.Severity, Status = t.Status,
+                Logs = logsByTask.GetValueOrDefault(t.Id, new()).Select(l => new TaskLogLine(l.At, l.Text, l.ByName)).ToList()
+            }).ToList()
+        };
+        ViewBag.TenantId = _currentUser.TenantId;
+        return View("PrintList", vm);
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> PrintOne(Guid id, CancellationToken ct)
+    {
+        var t = await _db.WorkTasks.FirstOrDefaultAsync(x => x.Id == id, ct);
+        if (t is null) return NotFound();
+        if (!await CanSeeAsync(t, ct)) return Forbid();
+        t.Department = t.DepartmentId.HasValue ? await _db.Departments.FirstOrDefaultAsync(x => x.Id == t.DepartmentId, ct) : null;
+        t.Assignee = await _db.Employees.FirstOrDefaultAsync(x => x.Id == t.AssigneeEmployeeId, ct);
+        t.Logs = await _db.WorkTaskLogs.Where(l => l.WorkTaskId == id).OrderBy(l => l.At).ToListAsync(ct);
+        ViewBag.TenantId = _currentUser.TenantId;
+        return View("PrintOne", t);
+    }
+
+    // ---------------- My tasks (three tabs) ----------------
+    public async Task<IActionResult> Mine(DateTime? from, DateTime? to, string? assignedBy, Guid? assignedToId,
+        WorkTaskStatus? status, TaskSeverity? severity, string? tab, CancellationToken ct)
     {
         (from, to) = DateFilterDefaults.TodayIfFresh(Request, from, to);
         var empNames = await _db.Employees.ToDictionaryAsync(e => e.Id, e => e.FullName, ct);
@@ -77,28 +150,42 @@ public class TasksController : Controller
         var myEmpIds = await MyEmployeeIdsAsync(ct);
         var uid = _currentUser.UserId;
 
-        // Tab 1: assigned to me
-        var a = _db.WorkTasks.AsNoTracking().Where(t => myEmpIds.Contains(t.AssigneeEmployeeId));
-        if (from.HasValue) a = a.Where(t => t.AssignedOn >= from.Value.Date);
-        if (to.HasValue) a = a.Where(t => t.AssignedOn < to.Value.Date.AddDays(1));
-        if (assignedById.HasValue) a = a.Where(t => t.AssignedByUserId == assignedById.Value);
+        // Common filters (date + status + severity) applied to every tab.
+        IQueryable<WorkTask> Base(IQueryable<WorkTask> q)
+        {
+            if (from.HasValue) q = q.Where(t => t.AssignedOn >= from.Value.Date);
+            if (to.HasValue) q = q.Where(t => t.AssignedOn < to.Value.Date.AddDays(1));
+            if (status.HasValue) q = q.Where(t => t.Status == status.Value);
+            if (severity.HasValue) q = q.Where(t => t.Severity == severity.Value);
+            return q;
+        }
+
+        // Tab 1: assigned to me (excluding what I assigned to myself — that's tab 3 only)
+        var a = Base(_db.WorkTasks.AsNoTracking()
+            .Where(t => myEmpIds.Contains(t.AssigneeEmployeeId) && t.AssignedByUserId != uid));
+        if (!string.IsNullOrEmpty(assignedBy)) a = a.Where(t => t.AssignedByName == assignedBy);
         var assigned = await a.OrderByDescending(t => t.Number).ToListAsync(ct);
 
-        // Tab 2: assigned by me
-        var d = _db.WorkTasks.AsNoTracking().Where(t => t.AssignedByUserId == uid);
-        if (from.HasValue) d = d.Where(t => t.AssignedOn >= from.Value.Date);
-        if (to.HasValue) d = d.Where(t => t.AssignedOn < to.Value.Date.AddDays(1));
+        // Tab 2: assigned by me (excluding what I assigned to myself — that's tab 3 only)
+        var d = Base(_db.WorkTasks.AsNoTracking()
+            .Where(t => t.AssignedByUserId == uid && !myEmpIds.Contains(t.AssigneeEmployeeId)));
         if (assignedToId.HasValue) d = d.Where(t => t.AssigneeEmployeeId == assignedToId.Value);
         var delegated = await d.OrderByDescending(t => t.Number).ToListAsync(ct);
+
+        // Tab 3: assigned by me, to myself
+        var self = await Base(_db.WorkTasks.AsNoTracking()
+            .Where(t => t.AssignedByUserId == uid && myEmpIds.Contains(t.AssigneeEmployeeId)))
+            .OrderByDescending(t => t.Number).ToListAsync(ct);
 
         var vm = new MyTasksVm
         {
             Assigned = assigned.Select(t => Row(t, empNames, depNames)).ToList(),
             Delegated = delegated.Select(t => Row(t, empNames, depNames)).ToList(),
-            From = from, To = to, AssignedById = assignedById, AssignedToId = assignedToId,
+            SelfAssigned = self.Select(t => Row(t, empNames, depNames)).ToList(),
+            From = from, To = to, AssignedBy = assignedBy, AssignedToId = assignedToId, Status = status, Severity = severity,
             Assigners = await AssignerOptionsAsync(ct),
             Assignees = await EmployeeOptionsAsync(ct),
-            ActiveTab = tab == "delegated" ? "delegated" : "assigned"
+            ActiveTab = tab is "delegated" or "self" ? tab : "assigned"
         };
         ViewData["CanCreate"] = CanCreate();
         return View(vm);
@@ -134,8 +221,8 @@ public class TasksController : Controller
         {
             var t = await _db.WorkTasks.FirstOrDefaultAsync(x => x.Id == id, ct);
             if (t is null) return NotFound();
-            model.Id = t.Id; model.AssignedOn = t.AssignedOn; model.DepartmentId = t.DepartmentId;
-            model.AssigneeEmployeeId = t.AssigneeEmployeeId; model.StartAt = t.StartAt; model.DueAt = t.DueAt;
+            model.Id = t.Id; model.AssignedOn = t.AssignedOn;
+            model.AssigneeEmployeeId = t.AssigneeEmployeeId; model.DueAt = t.DueAt;
             model.Description = t.Description; model.Severity = t.Severity;
         }
         return PartialView("_TaskForm", await FillAsync(model, ct));
@@ -149,12 +236,16 @@ public class TasksController : Controller
         if (isEdit ? !CanEdit() : !CanCreate()) return Forbid();
         if (!ModelState.IsValid) return PartialView("_TaskForm", await FillAsync(model, ct));
 
+        // The task's department follows its assignee (the form no longer asks for it explicitly).
+        var deptId = await _db.Employees.Where(e => e.Id == model.AssigneeEmployeeId)
+            .Select(e => e.DepartmentId).FirstOrDefaultAsync(ct);
+
         if (isEdit)
         {
             var t = await _db.WorkTasks.FirstOrDefaultAsync(x => x.Id == model.Id, ct);
             if (t is null) return NotFound();
-            t.AssignedOn = model.AssignedOn; t.DepartmentId = model.DepartmentId;
-            t.AssigneeEmployeeId = model.AssigneeEmployeeId!.Value; t.StartAt = model.StartAt; t.DueAt = model.DueAt;
+            t.AssignedOn = model.AssignedOn; t.DepartmentId = deptId;
+            t.AssigneeEmployeeId = model.AssigneeEmployeeId!.Value; t.DueAt = model.DueAt;
             t.Description = model.Description; t.Severity = model.Severity;
             await SaveAttachmentsAsync(t.Id, files, ct);
             await _db.SaveChangesAsync(ct);
@@ -165,8 +256,8 @@ public class TasksController : Controller
             var number = (await _db.WorkTasks.MaxAsync(x => (int?)x.Number, ct) ?? 0) + 1;
             var t = new WorkTask
             {
-                Number = number, AssignedOn = model.AssignedOn, DepartmentId = model.DepartmentId,
-                AssigneeEmployeeId = model.AssigneeEmployeeId!.Value, StartAt = model.StartAt, DueAt = model.DueAt,
+                Number = number, AssignedOn = model.AssignedOn, DepartmentId = deptId,
+                AssigneeEmployeeId = model.AssigneeEmployeeId!.Value, DueAt = model.DueAt,
                 Description = model.Description, Severity = model.Severity, Status = WorkTaskStatus.Todo,
                 AssignedByUserId = _currentUser.UserId, AssignedByName = CurrentName()
             };
@@ -284,7 +375,7 @@ public class TasksController : Controller
     /// <summary>Can the current user see this task (has all-tasks view, or is its assignee/assigner)?</summary>
     private async Task<bool> CanSeeAsync(WorkTask t, CancellationToken ct)
     {
-        if (CanView()) return true;
+        if (CanViewAll()) return true;
         if (t.AssignedByUserId == _currentUser.UserId) return true;
         var myEmpIds = await MyEmployeeIdsAsync(ct);
         return myEmpIds.Contains(t.AssigneeEmployeeId);
@@ -316,9 +407,6 @@ public class TasksController : Controller
 
     private async Task<TaskFormModel> FillAsync(TaskFormModel m, CancellationToken ct)
     {
-        m.Departments = await DepartmentOptionsAsync(ct);
-        // Materialize before ToString(): Guid.ToString() in an EF projection is UPPERCASE, but the
-        // Razor-rendered employee data (below) is lowercase — the JS cascade compares them.
         var emps = await _db.Employees.Where(e => e.IsActive).OrderBy(e => e.FullName)
             .Select(e => new { e.Id, e.FullName, e.DepartmentId }).ToListAsync(ct);
         m.Employees = emps.Select(e => new EmpOption(e.Id, e.FullName, e.DepartmentId)).ToList();
@@ -339,15 +427,15 @@ public class TasksController : Controller
         return emps.Select(e => new SelectListItem { Value = e.Id.ToString(), Text = e.FullName }).ToList();
     }
 
+    // Distinct assigner names (denormalized on each task, so this works for host-created tasks too,
+    // whose AssignedByUserId is null). The list filters by name.
     private async Task<List<SelectListItem>> AssignerOptionsAsync(CancellationToken ct)
     {
-        var rows = await _db.WorkTasks.AsNoTracking()
-            .Where(t => t.AssignedByUserId != null)
-            .Select(t => new { t.AssignedByUserId, t.AssignedByName })
+        var names = await _db.WorkTasks.AsNoTracking()
+            .Select(t => t.AssignedByName)
+            .Where(n => n != null && n != "")
             .Distinct().ToListAsync(ct);
-        return rows
-            .GroupBy(r => r.AssignedByUserId!.Value)
-            .Select(g => new SelectListItem { Value = g.Key.ToString(), Text = g.First().AssignedByName })
-            .OrderBy(s => s.Text).ToList();
+        return names.OrderBy(n => n)
+            .Select(n => new SelectListItem { Value = n, Text = n }).ToList();
     }
 }

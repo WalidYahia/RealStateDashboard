@@ -51,6 +51,14 @@ public class SaleFormModel
     public List<SelectListItem> Customers { get; set; } = new();
     public List<SelectListItem> Projects { get; set; } = new();
     public List<SaleUnitOption> UnitOptions { get; set; } = new(); // rendered with data-project for filtering
+
+    // --- Edit mode ---
+    /// <summary>Display name of the (locked) customer when editing.</summary>
+    public string? CustomerName { get; set; }
+    /// <summary>Display name of the (locked) unit when editing.</summary>
+    public string? UnitName { get; set; }
+    /// <summary>True when a collection already exists — financial fields & schedule can't change (dates/notes only).</summary>
+    public bool LockFinancials { get; set; }
 }
 
 /// <summary>An available unit option carrying its project id so the units list can be filtered client-side.</summary>
