@@ -15,8 +15,6 @@
 <div class="page-head">
     <h1>قائمة المهام</h1>
     <div style="display:flex;gap:8px;flex-wrap:wrap;">
-        <a class="btn-sm" target="_blank" asp-action="PrintList" asp-route-from="@F(Model.From)" asp-route-to="@F(Model.To)" asp-route-departmentId="@Model.DepartmentId" asp-route-assigneeId="@Model.AssigneeId" asp-route-assignedBy="@Model.AssignedBy" asp-route-status="@SInt(Model.Status)" asp-route-severity="@VInt(Model.Severity)" asp-route-withLog="false">🖨 طباعة القائمة</a>
-        <a class="btn-sm" target="_blank" asp-action="PrintList" asp-route-from="@F(Model.From)" asp-route-to="@F(Model.To)" asp-route-departmentId="@Model.DepartmentId" asp-route-assigneeId="@Model.AssigneeId" asp-route-assignedBy="@Model.AssignedBy" asp-route-status="@SInt(Model.Status)" asp-route-severity="@VInt(Model.Severity)" asp-route-withLog="true">🖨 طباعة مع السجل</a>
         @if (canCreate) { <button type="button" class="btn-new-tenant" onclick="appOpenModal('@Url.Action("Form")', 'إسناد مهمة')">➕ إسناد مهمة</button> }
     </div>
 </div>
@@ -24,53 +22,63 @@
 @if (TempData["StatusMessage"] is string status) { <div class="status-message">@status</div> }
 
 <div class="card-tile" style="margin-bottom:12px;">
-    <form asp-action="Index" method="get" style="display:flex;gap:10px;align-items:end;flex-wrap:wrap;">
-        <div><label class="form-label">من</label><input type="date" name="from" value="@F(Model.From)" class="form-control" style="margin:0;" dir="ltr" /></div>
-        <div><label class="form-label">إلى</label><input type="date" name="to" value="@F(Model.To)" class="form-control" style="margin:0;" dir="ltr" /></div>
-        <div>
-            <label class="form-label">القسم</label>
-            <select name="departmentId" class="form-control" style="margin:0;">
-                <option value="">الكل</option>
-                @foreach (var d in Model.Departments)
-                { <option value="@d.Value" selected="@(Model.DepartmentId?.ToString() == d.Value)">@d.Text</option> }
-            </select>
+    <form asp-action="Index" method="get" class="filter-form">
+        <div class="filter-row">
+            <div class="fld"><label class="form-label">من</label><input type="date" name="from" value="@F(Model.From)" class="form-control" dir="ltr" /></div>
+            <div class="fld"><label class="form-label">إلى</label><input type="date" name="to" value="@F(Model.To)" class="form-control" dir="ltr" /></div>
+            <div class="filter-presets">
+                <button type="button" class="btn-sm date-preset" data-from="@F(DateTime.Today)" data-to="@F(DateTime.Today)">اليوم</button>
+                <button type="button" class="btn-sm date-preset" data-from="@F(DateTime.Today.AddDays(-7))" data-to="@F(DateTime.Today)">آخر أسبوع</button>
+                <button type="button" class="btn-sm date-preset" data-from="@F(DateTime.Today.AddMonths(-1))" data-to="@F(DateTime.Today)">آخر شهر</button>
+            </div>
         </div>
-        <div>
-            <label class="form-label">المُكلَّف</label>
-            <select name="assigneeId" class="form-control" style="margin:0;">
-                <option value="">الكل</option>
-                @foreach (var e in Model.Employees)
-                { <option value="@e.Value" selected="@(Model.AssigneeId?.ToString() == e.Value)">@e.Text</option> }
-            </select>
+        <div class="filter-row">
+            <div class="fld">
+                <label class="form-label">القسم</label>
+                <select name="departmentId" class="form-control">
+                    <option value="">الكل</option>
+                    @foreach (var d in Model.Departments)
+                    { <option value="@d.Value" selected="@(Model.DepartmentId?.ToString() == d.Value)">@d.Text</option> }
+                </select>
+            </div>
+            <div class="fld">
+                <label class="form-label">المُكلَّف</label>
+                <select name="assigneeId" class="form-control">
+                    <option value="">الكل</option>
+                    @foreach (var e in Model.Employees)
+                    { <option value="@e.Value" selected="@(Model.AssigneeId?.ToString() == e.Value)">@e.Text</option> }
+                </select>
+            </div>
+            <div class="fld">
+                <label class="form-label">أسندها</label>
+                <select name="assignedBy" class="form-control">
+                    <option value="">الكل</option>
+                    @foreach (var a in Model.Assigners)
+                    { <option value="@a.Value" selected="@(Model.AssignedBy == a.Value)">@a.Text</option> }
+                </select>
+            </div>
+            <div class="fld">
+                <label class="form-label">الحالة</label>
+                <select name="status" class="form-control">
+                    <option value="">الكل</option>
+                    @foreach (var st in Enum.GetValues<WorkTaskStatus>())
+                    { <option value="@((int)st)" selected="@(Model.Status == st)">@st.Ar()</option> }
+                </select>
+            </div>
+            <div class="fld">
+                <label class="form-label">الأهمية</label>
+                <select name="severity" class="form-control">
+                    <option value="">الكل</option>
+                    @foreach (var sv in Enum.GetValues<TaskSeverity>())
+                    { <option value="@((int)sv)" selected="@(Model.Severity == sv)">@sv.Ar()</option> }
+                </select>
+            </div>
+            <div class="filter-actions">
+                <button type="submit" class="btn-primary">بحث</button>
+                <a class="btn-sm" target="_blank" asp-action="PrintList" asp-route-from="@F(Model.From)" asp-route-to="@F(Model.To)" asp-route-departmentId="@Model.DepartmentId" asp-route-assigneeId="@Model.AssigneeId" asp-route-assignedBy="@Model.AssignedBy" asp-route-status="@SInt(Model.Status)" asp-route-severity="@VInt(Model.Severity)" asp-route-withLog="false">🖨 طباعة القائمة</a>
+                <a class="btn-sm" target="_blank" asp-action="PrintList" asp-route-from="@F(Model.From)" asp-route-to="@F(Model.To)" asp-route-departmentId="@Model.DepartmentId" asp-route-assigneeId="@Model.AssigneeId" asp-route-assignedBy="@Model.AssignedBy" asp-route-status="@SInt(Model.Status)" asp-route-severity="@VInt(Model.Severity)" asp-route-withLog="true">🖨 طباعة مع السجل</a>
+            </div>
         </div>
-        <div>
-            <label class="form-label">أسندها</label>
-            <select name="assignedBy" class="form-control" style="margin:0;">
-                <option value="">الكل</option>
-                @foreach (var a in Model.Assigners)
-                { <option value="@a.Value" selected="@(Model.AssignedBy == a.Value)">@a.Text</option> }
-            </select>
-        </div>
-        <div>
-            <label class="form-label">الحالة</label>
-            <select name="status" class="form-control" style="margin:0;">
-                <option value="">الكل</option>
-                @foreach (var st in Enum.GetValues<WorkTaskStatus>())
-                { <option value="@((int)st)" selected="@(Model.Status == st)">@st.Ar()</option> }
-            </select>
-        </div>
-        <div>
-            <label class="form-label">الأهمية</label>
-            <select name="severity" class="form-control" style="margin:0;">
-                <option value="">الكل</option>
-                @foreach (var sv in Enum.GetValues<TaskSeverity>())
-                { <option value="@((int)sv)" selected="@(Model.Severity == sv)">@sv.Ar()</option> }
-            </select>
-        </div>
-        <button type="submit" class="btn-primary" style="width:auto;">بحث</button>
-        <a class="btn-sm" asp-action="Index">اليوم</a>
-        <a class="btn-sm" asp-action="Index" asp-route-from="@F(DateTime.Today.AddDays(-7))" asp-route-to="@F(DateTime.Today)">آخر أسبوع</a>
-        <a class="btn-sm" asp-action="Index" asp-route-from="@F(DateTime.Today.AddMonths(-1))" asp-route-to="@F(DateTime.Today)">آخر شهر</a>
     </form>
 </div>
 

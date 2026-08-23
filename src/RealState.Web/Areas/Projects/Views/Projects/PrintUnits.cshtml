@@ -12,6 +12,7 @@
     <partial name="_PrintStyles" />
 </head>
 <body>
+    @await Component.InvokeAsync("ReportBackground", new { part = "open" })
     <div class="no-print"><button onclick="window.print()">🖨 طباعة / حفظ PDF</button></div>
     <h1>وحدات المشروع: @p.Name</h1>
     <div class="sub">الكود #@p.Code · إجمالي الوحدات @Model.Count · @DateTime.Now.ToString("yyyy/MM/dd HH:mm")</div>
@@ -26,5 +27,6 @@
         </tbody>
     </table>
     <script>window.addEventListener('load', function () { setTimeout(function () { window.print(); }, 400); });</script>
+    @await Component.InvokeAsync("ReportBackground", new { part = "close" })
 </body>
 </html>

@@ -27,8 +27,8 @@
     </style>
 </head>
 <body>
+    @await Component.InvokeAsync("ReportBackground", new { part = "open" })
     <div class="no-print"><button onclick="window.print()">🖨 طباعة / حفظ PDF</button></div>
-    <div class="brand"><img src="@Url.Action("Logo", "Branding", new { area = "", id = tenantId })" alt="logo" onerror="this.style.display='none'" /></div>
     <h1>قائمة المهام@(Model.WithLog ? " — مع سجل المهام" : "")</h1>
     <div class="sub">
         @if (Model.From.HasValue || Model.To.HasValue) { <text>الفترة @D(Model.From) — @D(Model.To) · </text> }
@@ -90,5 +90,6 @@
     }
 
     <script>window.addEventListener('load', function () { setTimeout(function () { window.print(); }, 400); });</script>
+    @await Component.InvokeAsync("ReportBackground", new { part = "close" })
 </body>
 </html>

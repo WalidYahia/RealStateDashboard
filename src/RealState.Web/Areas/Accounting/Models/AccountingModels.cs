@@ -54,8 +54,11 @@ public class TxnFormModel
 
     public List<SelectListItem> Safes { get; set; } = new();
 
-    // --- HR linkage (advance / reward) ---
+    // --- Category (البند) + HR linkage (advance / reward) ---
     public bool IsExpense { get; set; }
+    [Display(Name = "البند")]
+    public Guid? CategoryId { get; set; }
+    public List<RealState.Application.Entities.TxnCategory> Categories { get; set; } = new();
     [Display(Name = "النوع")]
     public AccountingEntryKind Kind { get; set; } = AccountingEntryKind.General;
     [Display(Name = "السلفة")]
@@ -88,6 +91,12 @@ public class TxnListVm
     public DateTime? From { get; set; }
     public DateTime? To { get; set; }
     public string? Q { get; set; }
+
+    /// <summary>Selected «المصدر» filter value (null = all). Encoded as "c:{categoryId}" or "s:{sourceInt}".</summary>
+    public string? Source { get; set; }
+    /// <summary>«المصدر» options: the predefined categories (بنود) followed by the system sources for this Type.</summary>
+    public List<SelectListItem> SourceOptions { get; set; } = new();
+
     public decimal Total => Rows.Sum(r => r.Amount);
 }
 
@@ -101,7 +110,10 @@ public class TxnRow
     public decimal Amount { get; set; }
     public DateTime OccurredAt { get; set; }
     public string Description { get; set; } = string.Empty;
+    public string? CategoryName { get; set; }
     public bool IsManual => Source == TxnSource.Manual;
+    /// <summary>An advance disbursement expense — deletable here to "un-disburse" the advance.</summary>
+    public bool IsAdvanceDisbursement => Source == TxnSource.AdvanceDisbursement;
 
     /// <summary>Safe balance immediately after this transaction (populated on the movements screen).</summary>
     public decimal RunningBalance { get; set; }

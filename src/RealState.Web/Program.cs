@@ -64,6 +64,9 @@ builder.Services.ConfigureApplicationCookie(options =>
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
+builder.Services.AddMemoryCache();
+builder.Services.AddScoped<RealState.Web.Services.Reports.IReportTemplateService, RealState.Web.Services.Reports.ReportTemplateService>();
+builder.Services.AddScoped<RealState.Web.Services.ITxnCategoryService, RealState.Web.Services.TxnCategoryService>();
 
 // One authorization policy per permission; matched by the "permission" claim.
 builder.Services.AddAuthorization(options =>

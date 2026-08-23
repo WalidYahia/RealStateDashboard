@@ -107,6 +107,7 @@ public class EmployeeListItem
     public string Role { get; set; } = "—";
     public string EmploymentType { get; set; } = string.Empty;
     public decimal BasicSalary { get; set; }
+    public string? NationalId { get; set; }
 }
 
 // ---------- Vacations ----------

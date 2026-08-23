@@ -6,13 +6,17 @@
 }
 <div class="page-head">
     <h1>التقرير اليومي</h1>
-    <a class="btn-new-tenant" asp-action="DailyPrint" asp-route-date="@DI(Model.Date)" target="_blank">🖨 طباعة (PDF)</a>
 </div>
 
 <div class="card-tile" style="margin-bottom:12px;">
-    <form asp-action="Daily" method="get" style="display:flex;gap:10px;align-items:end;flex-wrap:wrap;">
-        <div><label class="form-label">اليوم</label><input type="date" name="date" value="@DI(Model.Date)" class="form-control" style="margin:0;" dir="ltr" /></div>
-        <button type="submit" class="btn-primary" style="width:auto;">عرض</button>
+    <form asp-action="Daily" method="get" class="filter-form">
+        <div class="filter-row">
+            <div class="fld"><label class="form-label">اليوم</label><input type="date" name="date" value="@DI(Model.Date)" class="form-control" dir="ltr" /></div>
+            <div class="filter-actions">
+                <button type="submit" class="btn-primary">عرض</button>
+                <a class="btn-sm" asp-action="DailyPrint" asp-route-date="@DI(Model.Date)" target="_blank">🖨 طباعة (PDF)</a>
+            </div>
+        </div>
     </form>
 </div>
 

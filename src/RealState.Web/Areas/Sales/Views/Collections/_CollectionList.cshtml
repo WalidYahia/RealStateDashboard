@@ -1,6 +1,7 @@
 @model List<CollectionRow>
 @{
     string N(decimal v) => v.ToString("N0", new System.Globalization.CultureInfo("ar-EG"));
+    string RawNum(decimal v) => v.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
     var payable = (bool?)ViewData["Payable"] ?? false;
     var canEdit = User.Can(PermissionNames.CollectionsCollect);
 }
@@ -10,6 +11,8 @@
         <tbody>
         @foreach (var r in Model)
         {
+            var rem = r.Amount - r.PaidAmount;
+            var isDown = r.Number <= 0;
             <tr>
                 <td>@r.CustomerName</td>
                 <td>@r.UnitLabel</td>
@@ -17,15 +20,23 @@
                 <td dir="ltr" style="text-align:right;">@r.ContractCode</td>
                 <td>@ArabicLabels.InstNo(r.Number)</td>
                 <td dir="ltr" style="text-align:right;">@r.DueDate.ToString("yyyy/MM/dd")</td>
-                <td>@N(r.Amount)</td>
+                <td>
+                    @N(r.Amount)
+                    @if (r.PaidAmount > 0 && rem > 0)
+                    {
+                        <div style="color:var(--muted);font-size:12px;">محصّل: @N(r.PaidAmount) · المتبقي: @N(rem)</div>
+                    }
+                </td>
                 <td><span class="badge-state @r.Status.BadgeClass()">@r.Status.Ar() @(r.Status == InstallmentStatus.Overdue ? "⚠" : "")</span></td>
                 <td>
                     @if (payable && canEdit)
                     {
                         <form class="pay-form" asp-action="Pay" asp-route-id="@r.InstallmentId" method="post" style="display:inline;"
-                              data-msg="تحصيل @ArabicLabels.InstPhrase(r.Number) من «@r.CustomerName» بقيمة @N(r.Amount) ج.م؟">
+                              data-partial="@(isDown ? "true" : "false")" data-remaining="@RawNum(rem)"
+                              data-msg="@(isDown ? $"تحصيل المقدم من «{r.CustomerName}»" : $"تحصيل القسط رقم {r.Number} من «{r.CustomerName}» بقيمة {N(rem)} ج.م؟")">
                             @Html.AntiForgeryToken()
                             <input type="hidden" name="safeId" class="pay-safe" />
+                            <input type="hidden" name="amount" class="pay-amount" />
                             <button type="submit" class="btn-sm" style="background:var(--aqua);color:#fff;border-color:var(--aqua);">💳 تحصيل</button>
                         </form>
                     }

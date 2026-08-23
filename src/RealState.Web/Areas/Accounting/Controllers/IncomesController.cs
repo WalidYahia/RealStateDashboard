@@ -9,8 +9,9 @@ namespace RealState.Web.Areas.Accounting.Controllers;
 [Area("Accounting")]
 public class IncomesController : TxnControllerBase
 {
-    public IncomesController(IApplicationDbContext db, IAccountingService accounting, ICurrentUserService currentUser)
-        : base(db, accounting, currentUser) { }
+    public IncomesController(IApplicationDbContext db, IAccountingService accounting, ICurrentUserService currentUser,
+        RealState.Web.Services.ITxnCategoryService categories)
+        : base(db, accounting, currentUser, categories) { }
 
     protected override TxnType TxnType => TxnType.Income;
     protected override string ViewPerm => PermissionNames.IncomesView;

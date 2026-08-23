@@ -3,8 +3,9 @@
     ViewData["Title"] = $"أمر توريد PO-{Model.Number:D4}";
     var canPay = ViewData["CanPay"] as bool? ?? false;
     string N(decimal v) => v.ToString("N0", new System.Globalization.CultureInfo("ar-EG"));
+    string Q(decimal v) => v.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
     string D(DateTime d) => d.ToString("yyyy/MM/dd", System.Globalization.CultureInfo.InvariantCulture);
-    var total = Model.Items.Sum(i => i.Cost);
+    var total = Model.Items.Sum(i => i.LineTotal);
     var paid = Model.Payments.Sum(p => p.Amount);
     var remaining = total - paid;
 }
@@ -41,14 +42,14 @@
 <div class="card-tile" style="margin-bottom:14px;">
     <div class="card-head"><h3>البنود</h3></div>
     <table class="rs-table">
-        <thead><tr><th>البند</th><th>التكلفة</th></tr></thead>
+        <thead><tr><th>البند</th><th>تكلفة الوحدة</th><th>الكمية</th><th>الإجمالي</th></tr></thead>
         <tbody>
         @foreach (var it in Model.Items)
         {
-            <tr><td>@it.Name</td><td>@N(it.Cost)</td></tr>
+            <tr><td>@it.Name</td><td>@N(it.Cost)</td><td dir="ltr" style="text-align:right;">@Q(it.Quantity)</td><td>@N(it.LineTotal)</td></tr>
         }
         </tbody>
-        <tfoot><tr><th>الإجمالي</th><th>@N(total) ج.م</th></tr></tfoot>
+        <tfoot><tr><th colspan="3">الإجمالي</th><th>@N(total) ج.م</th></tr></tfoot>
     </table>
     @if (!string.IsNullOrWhiteSpace(Model.Notes))
     {
@@ -59,15 +60,15 @@
 <div class="card-tile">
     <div class="card-head"><h3>الدفعات</h3></div>
     <table class="rs-table">
-        <thead><tr><th>إيصال الدفع</th><th>التاريخ</th><th>المبلغ</th><th></th></tr></thead>
+        <thead><tr><th>رقم الإيصال</th><th>التاريخ</th><th>المبلغ</th><th></th></tr></thead>
         <tbody>
         @foreach (var p in Model.Payments)
         {
             <tr>
-                <td dir="ltr" style="text-align:right;">P-@p.ReceiptNo.ToString("D5")</td>
+                <td dir="ltr" style="text-align:right;">@p.ReceiptNo.ToString("D5")</td>
                 <td dir="ltr" style="text-align:right;">@D(p.PaidDate)</td>
                 <td class="tag-up">@N(p.Amount)</td>
-                <td><a class="btn-sm" asp-action="Receipt" asp-route-id="@p.Id" target="_blank">🖨 إيصال دفع</a></td>
+                <td><a class="btn-sm" asp-action="Receipt" asp-route-id="@p.Id" target="_blank">🖨 إيصال صرف نقدية</a></td>
             </tr>
         }
         @if (Model.Payments.Count == 0)

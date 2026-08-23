@@ -17,12 +17,15 @@ public abstract class TxnControllerBase : Controller
     protected readonly IApplicationDbContext _db;
     protected readonly IAccountingService _accounting;
     protected readonly ICurrentUserService _currentUser;
+    protected readonly RealState.Web.Services.ITxnCategoryService _categories;
 
-    protected TxnControllerBase(IApplicationDbContext db, IAccountingService accounting, ICurrentUserService currentUser)
+    protected TxnControllerBase(IApplicationDbContext db, IAccountingService accounting, ICurrentUserService currentUser,
+        RealState.Web.Services.ITxnCategoryService categories)
     {
         _db = db;
         _accounting = accounting;
         _currentUser = currentUser;
+        _categories = categories;
     }
 
     protected abstract TxnType TxnType { get; }
@@ -35,14 +38,14 @@ public abstract class TxnControllerBase : Controller
 
     private bool Can(string permission) => User.HasClaim("permission", permission);
 
-    public async Task<IActionResult> Index(DateTime? from, DateTime? to, string? q, CancellationToken ct)
+    public async Task<IActionResult> Index(DateTime? from, DateTime? to, string? q, string? source, CancellationToken ct)
     {
         if (!Can(ViewPerm)) return Forbid();
         (from, to) = DateFilterDefaults.TodayIfFresh(Request, from, to);
         ViewData["CanCreate"] = Can(CreatePerm);
         ViewData["CanEdit"] = Can(EditPerm);
         ViewData["CanDelete"] = Can(DeletePerm);
-        return View("TxnList", await BuildListAsync(from, to, q, ct));
+        return View("TxnList", await BuildListAsync(from, to, q, source, ct));
     }
 
     [HttpGet]
@@ -55,10 +58,13 @@ public abstract class TxnControllerBase : Controller
             var t = await _db.SafeTransactions.FirstOrDefaultAsync(x => x.Id == id, ct);
             if (t is null || t.Type != TxnType || t.Source != TxnSource.Manual) return NotFound();
             model.Id = t.Id; model.Amount = t.Amount; model.OccurredAt = t.OccurredAt; model.Description = t.Description; model.SafeId = t.SafeId;
+            model.CategoryId = t.CategoryId;
+            await LoadCategoriesAsync(model, includeHrKinds: false, ct);   // edit can't switch to an advance/reward
         }
         else
         {
             await LoadHrOptionsAsync(model, ct); // only new entries can be advances/rewards
+            await LoadCategoriesAsync(model, includeHrKinds: true, ct);
         }
         return PartialView("_TxnForm", model);
     }
@@ -68,8 +74,19 @@ public abstract class TxnControllerBase : Controller
     public async Task<IActionResult> Form(TxnFormModel model, CancellationToken ct)
     {
         if (!Can(model.Id == Guid.Empty ? CreatePerm : EditPerm)) return Forbid();
+        var isNew = model.Id == Guid.Empty;
         model.Safes = await SafesAsync(ct);
         model.IsExpense = TxnType == TxnType.Expense;
+        await LoadCategoriesAsync(model, includeHrKinds: isNew, ct);
+
+        // The chosen category (بند) decides the behaviour: advance/reward run the HR flow, everything else
+        // is a plain manual entry that just carries the category.
+        if (model.CategoryId is Guid catId)
+        {
+            var cat = await _db.TxnCategories.FirstOrDefaultAsync(c => c.Id == catId && c.Type == TxnType, ct);
+            model.Kind = cat?.BuiltInKind ?? AccountingEntryKind.General;
+        }
+        else model.Kind = AccountingEntryKind.General;
 
         // HR-linked new entries route through a dedicated flow (advance disbursement / reward payout / advance repayment).
         if (model.Id == Guid.Empty && model.Kind != AccountingEntryKind.General)
@@ -88,6 +105,7 @@ public abstract class TxnControllerBase : Controller
         {
             var txn = await _accounting.AddTransactionAsync(model.SafeId!.Value, TxnType, TxnSource.Manual,
                 model.Amount, model.OccurredAt, model.Description, ct: ct);
+            txn.CategoryId = model.CategoryId;
             await _db.SaveChangesAsync(ct);
             serial = txn.Serial;
             TempData["StatusMessage"] = $"تسجيل {label} رقم {serial:D4}";
@@ -97,6 +115,7 @@ public abstract class TxnControllerBase : Controller
             var t = await _db.SafeTransactions.FirstOrDefaultAsync(x => x.Id == model.Id, ct);
             if (t is null || t.Source != TxnSource.Manual || t.Type != TxnType) return NotFound();
             t.Amount = model.Amount; t.OccurredAt = model.OccurredAt; t.Description = model.Description; t.SafeId = model.SafeId!.Value;
+            t.CategoryId = model.CategoryId;
             await _db.SaveChangesAsync(ct);
             serial = t.Serial;
             TempData["StatusMessage"] = $"تعديل {label} رقم {serial:D4}";
@@ -190,17 +209,49 @@ public abstract class TxnControllerBase : Controller
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
     {
         if (!Can(DeletePerm)) return Forbid();
-        var t = await _db.SafeTransactions.FirstOrDefaultAsync(x => x.Id == id, ct);
-        if (t is not null && t.Source == TxnSource.Manual) { _db.SafeTransactions.Remove(t); await _db.SaveChangesAsync(ct); }
+        var t = await _db.SafeTransactions.FirstOrDefaultAsync(x => x.Id == id && x.Type == TxnType, ct);
+        if (t is null) return RedirectToAction(nameof(Index));
+
+        if (t.Source == TxnSource.Manual)
+        {
+            _db.SafeTransactions.Remove(t);
+            await _db.SaveChangesAsync(ct);
+            return RedirectToAction(nameof(Index));
+        }
+
+        // The advance-disbursement expense may be deleted here to "un-disburse" its advance — under the
+        // same restriction as deleting the advance (only while nothing has been repaid). It flips the
+        // advance back to «لم يُصرف» so it can then be deleted from the advances page.
+        if (t.Source == TxnSource.AdvanceDisbursement)
+        {
+            var adv = await _db.Advances.FirstOrDefaultAsync(a => a.ExpenseTxnId == t.Id, ct);
+            if (adv is not null)
+            {
+                var repaid = await _db.AdvanceRepayments.Where(r => r.AdvanceId == adv.Id && r.Status == PayStatus.Paid)
+                    .SumAsync(r => (decimal?)r.Amount, ct) ?? 0;
+                if (repaid > 0)
+                {
+                    TempData["ErrorMessage"] = $"لا يمكن حذف مصروف صرف السلفة ADV-{adv.Number:D4} لوجود مبالغ مسدَّدة عليها.";
+                    return RedirectToAction(nameof(Index));
+                }
+                adv.Status = DisbursementStatus.NotDisbursed;
+                adv.ExpenseTxnId = null;
+            }
+            _db.SafeTransactions.Remove(t);
+            await _db.SaveChangesAsync(ct);
+            TempData["StatusMessage"] = adv is not null
+                ? $"تم حذف مصروف صرف السلفة ADV-{adv.Number:D4} وإعادتها إلى «لم يُصرف»."
+                : "تم حذف المصروف.";
+        }
         return RedirectToAction(nameof(Index));
     }
 
     [HttpGet]
-    public async Task<IActionResult> PrintList(DateTime? from, DateTime? to, string? q, CancellationToken ct)
+    public async Task<IActionResult> PrintList(DateTime? from, DateTime? to, string? q, string? source, CancellationToken ct)
     {
         if (!Can(ViewPerm)) return Forbid();
         ViewBag.TenantId = _currentUser.TenantId;
-        return View("PrintList", await BuildListAsync(from, to, q, ct));
+        return View("PrintList", await BuildListAsync(from, to, q, source, ct));
     }
 
     // Printable voucher for a single income/expense transaction (opens in a new tab).
@@ -212,28 +263,88 @@ public abstract class TxnControllerBase : Controller
         if (t is null) return NotFound();
         ViewBag.SafeName = await _db.Safes.Where(s => s.Id == t.SafeId).Select(s => s.Name).FirstOrDefaultAsync(ct);
         ViewBag.TenantId = _currentUser.TenantId;
+
+        // Enrich a collection voucher with the customer + what it settles (البيان already carries this,
+        // but the dedicated rows keep the unified receipt consistent with the sales/collections view).
+        if (t.Source == TxnSource.Collection && t.InstallmentId is Guid instId)
+        {
+            var inst = await _db.Installments.FirstOrDefaultAsync(i => i.Id == instId, ct);
+            if (inst is not null)
+            {
+                var contract = await _db.SaleContracts.FirstOrDefaultAsync(s => s.Id == inst.SaleContractId, ct);
+                if (contract is not null)
+                    ViewBag.Party = await _db.Customers.Where(c => c.Id == contract.CustomerId).Select(c => c.FullName).FirstOrDefaultAsync(ct);
+                ViewBag.PartyLabel = "العميل";
+                ViewBag.About = $"تحصيل {ArabicLabels.InstPhrase(inst.Number)}";
+            }
+        }
         return View("PrintOne", t);
     }
 
-    private async Task<TxnListVm> BuildListAsync(DateTime? from, DateTime? to, string? q, CancellationToken ct)
+    // System (non-manual) sources per direction — shown in «المصدر» alongside the predefined categories.
+    // Manual entries are represented by their category (بند) instead, so Manual is intentionally omitted.
+    private static readonly TxnSource[] IncomeSources = { TxnSource.Collection, TxnSource.AdvanceRepayment };
+    private static readonly TxnSource[] ExpenseSources = { TxnSource.ProjectExpense, TxnSource.SupplierPayment, TxnSource.AdvanceDisbursement, TxnSource.RewardPayment };
+
+    private async Task<TxnListVm> BuildListAsync(DateTime? from, DateTime? to, string? q, string? source, CancellationToken ct)
     {
         var safeNames = await _db.Safes.ToDictionaryAsync(s => s.Id, s => s.Name, ct);
+        var catNames = await _db.TxnCategories.ToDictionaryAsync(c => c.Id, c => c.Name, ct);
         var txns = await _db.SafeTransactions.Where(t => t.Type == TxnType).ToListAsync(ct);
+
+        // Parse the encoded «المصدر» selection: "c:{guid}" filters by category, "s:{int}" by system source.
+        Guid? catFilter = null; TxnSource? srcFilter = null;
+        if (!string.IsNullOrEmpty(source))
+        {
+            if (source.StartsWith("c:") && Guid.TryParse(source[2..], out var cg)) catFilter = cg;
+            else if (source.StartsWith("s:") && int.TryParse(source[2..], out var si)) srcFilter = (TxnSource)si;
+        }
 
         var filtered = txns.AsEnumerable();
         if (from.HasValue) filtered = filtered.Where(t => t.OccurredAt >= from.Value);
         if (to.HasValue) filtered = filtered.Where(t => t.OccurredAt < to.Value.Date.AddDays(1));
+        if (catFilter is Guid cid0) filtered = filtered.Where(t => t.CategoryId == cid0);
+        else if (srcFilter is TxnSource src0) filtered = filtered.Where(t => t.Source == src0 && t.CategoryId == null);
         if (!string.IsNullOrWhiteSpace(q)) filtered = filtered.Where(t => t.Description.Contains(q, StringComparison.OrdinalIgnoreCase));
 
         return new TxnListVm
         {
             Type = TxnType, From = from, To = to, Q = q,
+            Source = source, SourceOptions = await BuildSourceOptionsAsync(source, ct),
             Rows = filtered.OrderByDescending(t => t.OccurredAt).Select(t => new TxnRow
             {
                 Id = t.Id, Serial = t.Serial, SafeName = safeNames.GetValueOrDefault(t.SafeId, "—"),
-                Type = t.Type, Source = t.Source, Amount = t.Amount, OccurredAt = t.OccurredAt, Description = t.Description
+                Type = t.Type, Source = t.Source, Amount = t.Amount, OccurredAt = t.OccurredAt, Description = t.Description,
+                CategoryName = t.CategoryId is Guid cid ? catNames.GetValueOrDefault(cid) : null
             }).ToList()
         };
+    }
+
+    // Ensure the built-in categories exist and load the categories for the entry form (البند dropdown).
+    // When !includeHrKinds only plain categories (عام + user-defined) are offered — an edit can't be
+    // switched into an advance/reward disbursement.
+    private async Task LoadCategoriesAsync(TxnFormModel model, bool includeHrKinds, CancellationToken ct)
+    {
+        await _categories.EnsureBuiltInsAsync(ct);
+        var cats = await _categories.ListAsync(TxnType, activeOnly: true, ct);
+        if (!includeHrKinds) cats = cats.Where(c => c.BuiltInKind == AccountingEntryKind.General).ToList();
+        model.Categories = cats;
+        model.CategoryId ??= cats.FirstOrDefault(c => c.IsBuiltIn && c.BuiltInKind == AccountingEntryKind.General)?.Id;
+    }
+
+    // «المصدر» filter options: the predefined categories (بنود) first — matching the category names shown
+    // in the list — then the system-generated sources (collections, disbursements, …).
+    private async Task<List<SelectListItem>> BuildSourceOptionsAsync(string? selected, CancellationToken ct)
+    {
+        await _categories.EnsureBuiltInsAsync(ct);
+        var opts = new List<SelectListItem>();
+        var cats = (await _categories.ListAsync(TxnType, activeOnly: false, ct))
+            .Where(c => c.BuiltInKind == AccountingEntryKind.General);   // عام + user-defined (assignable to entries)
+        foreach (var c in cats)
+            opts.Add(new SelectListItem(c.Name, $"c:{c.Id}", selected == $"c:{c.Id}"));
+        foreach (var s in TxnType == TxnType.Income ? IncomeSources : ExpenseSources)
+            opts.Add(new SelectListItem(s.Ar(), $"s:{(int)s}", selected == $"s:{(int)s}"));
+        return opts;
     }
 
     private async Task<List<SelectListItem>> SafesAsync(CancellationToken ct) =>

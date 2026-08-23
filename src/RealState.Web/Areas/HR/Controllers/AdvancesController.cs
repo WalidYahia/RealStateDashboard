@@ -87,7 +87,11 @@ public class AdvancesController : Controller
             return Json(new { ok = true });
         }
 
-        var number = (await _db.Advances.MaxAsync(a => (int?)a.Number, ct) ?? 0) + 1;
+        // Year-prefixed serial (ADV-2026 0001 = 20260001), resetting each year.
+        var yearBase = model.Date.Year * 10000;
+        var maxThisYear = await _db.Advances.Where(a => a.Number >= yearBase && a.Number < yearBase + 10000)
+            .MaxAsync(a => (int?)a.Number, ct) ?? yearBase;
+        var number = maxThisYear + 1;
         var advance = new Advance
         {
             Number = number, Date = model.Date, EmployeeId = model.EmployeeId!.Value, Amount = model.Amount,
@@ -127,7 +131,15 @@ public class AdvancesController : Controller
         var a = await _db.Advances.FirstOrDefaultAsync(x => x.Id == id, ct);
         if (a is null) return NotFound();
 
-        // Allowed while nothing has been repaid (whether "لم يُصرف" or "تم الصرف" with المسدَّد = 0); blocked once any repayment is collected.
+        // A disbursed advance (linked to an expense) can only be removed from the Expenses page: delete its
+        // disbursement expense there first (which returns it to «لم يُصرف»), then delete the advance here.
+        if (a.Status == DisbursementStatus.Disbursed || a.ExpenseTxnId is not null)
+        {
+            TempData["ErrorMessage"] = $"لا يمكن حذف السلفة ADV-{a.Number:D4} لأنها مصروفة. احذف مصروف صرفها من صفحة المصروفات أولًا.";
+            return RedirectToAction(nameof(Index));
+        }
+
+        // (Defensive) block if any repayment was somehow marked collected.
         var repaid = await _db.AdvanceRepayments.Where(r => r.AdvanceId == id && r.Status == PayStatus.Paid)
             .SumAsync(r => (decimal?)r.Amount, ct) ?? 0;
         if (repaid > 0)
@@ -136,20 +148,11 @@ public class AdvancesController : Controller
             return RedirectToAction(nameof(Index));
         }
 
-        // If it was disbursed, reverse the disbursement expense so the safe balance is restored.
-        if (a.ExpenseTxnId is Guid txnId)
-        {
-            var txn = await _db.SafeTransactions.FirstOrDefaultAsync(t => t.Id == txnId, ct);
-            if (txn is not null) _db.SafeTransactions.Remove(txn);
-        }
-
         var reps = await _db.AdvanceRepayments.Where(r => r.AdvanceId == id).ToListAsync(ct);
         foreach (var r in reps) _db.AdvanceRepayments.Remove(r);
         _db.Advances.Remove(a);
         await _db.SaveChangesAsync(ct);
-        TempData["StatusMessage"] = a.Status == DisbursementStatus.Disbursed
-            ? $"تم إلغاء السلفة ADV-{a.Number:D4} وعكس مصروف صرفها."
-            : $"تم حذف السلفة ADV-{a.Number:D4}.";
+        TempData["StatusMessage"] = $"تم حذف السلفة ADV-{a.Number:D4}.";
         return RedirectToAction(nameof(Index));
     }
 

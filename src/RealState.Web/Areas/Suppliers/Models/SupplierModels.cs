@@ -36,6 +36,13 @@ public class OrderItemInput
     [Range(0, 999999999999, ErrorMessage = "قيمة غير صالحة")]
     [Display(Name = "التكلفة")]
     public decimal Cost { get; set; }
+
+    [Range(0, 999999999999, ErrorMessage = "قيمة غير صالحة")]
+    [Display(Name = "الكمية")]
+    public decimal Quantity { get; set; } = 1m;
+
+    /// <summary>Line total = unit cost × quantity.</summary>
+    public decimal LineTotal => Cost * Quantity;
 }
 
 public class OrderFormModel
@@ -84,7 +91,7 @@ public class SupplierLedgerRow
 {
     public SupplierLedgerKind Kind { get; set; }
     public Guid Id { get; set; }                    // payment id (for the receipt link)
-    public string Source { get; set; } = string.Empty;    // المصدر — e.g. "أمر توريد رقم PO-0002" / "إيصال دفع"
+    public string Source { get; set; } = string.Empty;    // المصدر — e.g. "أمر توريد رقم PO-0002" / "إيصال صرف نقدية"
     public DateTime Date { get; set; }
     public string Statement { get; set; } = string.Empty; // البيان
     public int ReceiptNo { get; set; }              // for payments

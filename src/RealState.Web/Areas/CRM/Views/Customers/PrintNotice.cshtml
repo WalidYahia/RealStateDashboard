@@ -27,9 +27,9 @@
     </style>
 </head>
 <body>
+    @await Component.InvokeAsync("ReportBackground", new { part = "open" })
     <div class="no-print"><button onclick="window.print()">🖨 طباعة / حفظ PDF</button></div>
     <div class="card">
-        <div class="brand"><img src="@Url.Action("Logo", "Branding", new { area = "", id = tenantId })" alt="logo" onerror="this.style.display='none'" /></div>
         <h1>إشعار استحقاق قسط</h1>
         <div class="sub">رقم العقد @contract?.Code · تاريخ الإصدار @DateTime.Now.ToString("yyyy/MM/dd")</div>
         @if (overdue) { <div class="flag">⚠ قسط متأخر عن موعد استحقاقه</div> }
@@ -48,5 +48,6 @@
         <p style="margin-top:20px;font-size:12px;color:#555;">يرجى سداد القيمة المستحقة في أقرب وقت. هذا الإشعار للعلم فقط وليس إيصال سداد.</p>
     </div>
     <script>window.addEventListener('load', function () { setTimeout(function () { window.print(); }, 500); });</script>
+    @await Component.InvokeAsync("ReportBackground", new { part = "close" })
 </body>
 </html>

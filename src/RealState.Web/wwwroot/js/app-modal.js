@@ -182,6 +182,11 @@ window.appToast = function (msg, icon) {
         document.querySelectorAll('#appModalBody select[data-searchable]').forEach(function (s) {
             window.appEnhanceSearchSelect(s);
         });
+        // Run any page-defined init function named by [data-modal-init] on the freshly-loaded content.
+        document.querySelectorAll('#appModalBody [data-modal-init]').forEach(function (el) {
+            var fn = el.getAttribute('data-modal-init');
+            if (fn && typeof window[fn] === 'function') window[fn]();
+        });
 
         var form = document.querySelector('#appModalBody #appModalForm');
         if (!form) return;
@@ -333,4 +338,35 @@ window.appToast = function (msg, icon) {
         if (nr) nr.style.display = (total && shown === 0) ? '' : 'none';
         lsRefreshAggregates();
     }, true);
+
+    // Date-range presets (اليوم / آخر أسبوع / آخر شهر): clicking one only fills the from/to inputs of
+    // its form and highlights itself — it does NOT submit. Only the بحث button submits.
+    function dpSetInput(input, dateStr, isEnd) {
+        if (!input || !dateStr) return;
+        input.value = (input.type === 'datetime-local') ? dateStr + (isEnd ? 'T23:59' : 'T00:00') : dateStr;
+    }
+    function dpSyncActive(form) {
+        var from = form.querySelector('[name="from"]'), to = form.querySelector('[name="to"]');
+        var fv = from ? (from.value || '').slice(0, 10) : '', tv = to ? (to.value || '').slice(0, 10) : '';
+        form.querySelectorAll('.date-preset').forEach(function (b) {
+            var on = fv && tv && b.getAttribute('data-from') === fv && b.getAttribute('data-to') === tv;
+            b.classList.toggle('active', !!on);
+        });
+    }
+    document.addEventListener('click', function (e) {
+        var btn = e.target.closest ? e.target.closest('.date-preset') : null;
+        if (!btn) return;
+        var form = btn.closest('form'); if (!form) return;
+        e.preventDefault();
+        dpSetInput(form.querySelector('[name="from"]'), btn.getAttribute('data-from'), false);
+        dpSetInput(form.querySelector('[name="to"]'), btn.getAttribute('data-to'), true);
+        dpSyncActive(form);
+    }, false);
+    document.addEventListener('DOMContentLoaded', function () {
+        var seen = [];
+        document.querySelectorAll('.date-preset').forEach(function (b) {
+            var f = b.closest('form');
+            if (f && seen.indexOf(f) < 0) { seen.push(f); dpSyncActive(f); }
+        });
+    });
 })();

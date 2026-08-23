@@ -23,9 +23,9 @@
     </style>
 </head>
 <body>
+    @await Component.InvokeAsync("ReportBackground", new { part = "open" })
     <div class="no-print"><button onclick="window.print()">🖨 طباعة / حفظ PDF</button></div>
     <div class="receipt">
-        <div class="brand"><img src="@Url.Action("Logo", "Branding", new { area = "", id = tenantId })" alt="logo" onerror="this.style.display='none'" /></div>
         <h1>سند مكافأة</h1>
         <div class="sub">مكافأة رقم RWD-@Model.Number.ToString("D4") · تاريخ الإصدار @DateTime.Now.ToString("yyyy/MM/dd")</div>
         <div class="amount">@N(Model.Amount) ج.م</div>
@@ -39,5 +39,6 @@
         <p style="margin-top:34px;font-size:13px;text-align:end;">توقيع المستلم: ____________________</p>
     </div>
     <script>window.addEventListener('load', function () { setTimeout(function () { window.print(); }, 500); });</script>
+    @await Component.InvokeAsync("ReportBackground", new { part = "close" })
 </body>
 </html>

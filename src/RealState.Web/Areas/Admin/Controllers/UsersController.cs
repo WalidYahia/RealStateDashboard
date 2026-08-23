@@ -77,6 +77,7 @@ public class UsersController : Controller
             TenantId = _currentUser.TenantId,
             Tenants = await TenantOptionsAsync(ct)
         };
+        ViewData["Grantable"] = await GrantablePermissionsAsync();
         return View(model);
     }
 
@@ -87,6 +88,7 @@ public class UsersController : Controller
     {
         model.CanChooseTenant = IsSuper;
         model.Tenants = await TenantOptionsAsync(ct);
+        ViewData["Grantable"] = await GrantablePermissionsAsync();
 
         if (!IsSuper) model.TenantId = _currentUser.TenantId;
 
@@ -146,6 +148,7 @@ public class UsersController : Controller
             TenantName = tenantName ?? "—",
             IsSuperAdmin = await _userManager.IsInRoleAsync(user, AppConstants.SuperAdminRole)
         };
+        ViewData["Grantable"] = await GrantablePermissionsAsync();
         return View(model);
     }
 
@@ -158,6 +161,7 @@ public class UsersController : Controller
         if (user is null || !CanManage(user)) return NotFound();
 
         model.IsSuperAdmin = await _userManager.IsInRoleAsync(user, AppConstants.SuperAdminRole);
+        ViewData["Grantable"] = await GrantablePermissionsAsync();
 
         var email = string.IsNullOrWhiteSpace(model.Email) ? null : model.Email.Trim();
 
@@ -296,22 +300,44 @@ public class UsersController : Controller
     /// </summary>
     private async Task SetUserPermissionsAsync(ApplicationUser user, IEnumerable<string> wanted)
     {
+        // A scoped manager may only grant/revoke within their own permission set; permissions the target
+        // already holds outside that scope are preserved (never stripped by someone who can't see them).
+        var grantable = await GrantablePermissionsAsync();      // null = full scope (SuperAdmin / host)
         var wantedSet = wanted.Intersect(PermissionNames.All).ToHashSet();
+        if (grantable != null) wantedSet.IntersectWith(grantable);
 
         var current = (await _userManager.GetClaimsAsync(user))
             .Where(c => c.Type == PermissionClaimType).ToList();
         var currentVals = current.Select(c => c.Value).ToHashSet();
 
-        var toRemove = current.Where(c => !wantedSet.Contains(c.Value)).ToList();
+        var toRemove = current
+            .Where(c => (grantable == null || grantable.Contains(c.Value)) && !wantedSet.Contains(c.Value))
+            .ToList();
         var toAdd = wantedSet.Where(v => !currentVals.Contains(v))
             .Select(v => new Claim(PermissionClaimType, v)).ToList();
 
         if (toRemove.Count > 0) await _userManager.RemoveClaimsAsync(user, toRemove);
         if (toAdd.Count > 0) await _userManager.AddClaimsAsync(user, toAdd);
 
-        // Regular users derive their access from claims only — remove any legacy role memberships.
-        var roles = await _userManager.GetRolesAsync(user);
-        if (roles.Count > 0) await _userManager.RemoveFromRolesAsync(user, roles);
+        // Regular users derive their access from claims only — remove any legacy role memberships. Only a
+        // full-scope manager may do this, so a scoped one can't drop role-based access they cannot see.
+        if (grantable == null)
+        {
+            var roles = await _userManager.GetRolesAsync(user);
+            if (roles.Count > 0) await _userManager.RemoveFromRolesAsync(user, roles);
+        }
+    }
+
+    /// <summary>
+    /// The set of permissions the current manager may see and grant: <c>null</c> when they can grant
+    /// everything (a SuperAdmin / host), otherwise only the permissions they themselves hold — so a
+    /// scoped admin never sees or hands out privileges beyond their own.
+    /// </summary>
+    private async Task<HashSet<string>?> GrantablePermissionsAsync()
+    {
+        if (IsSuper) return null;
+        var me = await _userManager.GetUserAsync(User);
+        return me is null ? new HashSet<string>() : await EffectivePermissionsAsync(me);
     }
 
     /// <summary>Direct permission claims plus any permissions inherited from the user's roles.</summary>

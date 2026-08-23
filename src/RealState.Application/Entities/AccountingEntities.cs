@@ -40,4 +40,7 @@ public class SafeTransaction : AuditableEntity, ITenantEntity
     /// <summary>Optional project this expense/income is charged to (project expenses + supplier-order payments).</summary>
     public Guid? ProjectId { get; set; }
     public Project? Project { get; set; }
+
+    /// <summary>Optional predefined category (بند) chosen when recording a manual expense/income.</summary>
+    public Guid? CategoryId { get; set; }
 }

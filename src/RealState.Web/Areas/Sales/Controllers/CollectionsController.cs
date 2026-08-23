@@ -91,7 +91,7 @@ public class CollectionsController : Controller
     [HttpPost]
     [Authorize(Policy = PermissionNames.CollectionsCollect)]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Pay(Guid id, Guid safeId, CancellationToken ct)
+    public async Task<IActionResult> Pay(Guid id, Guid safeId, decimal? amount, CancellationToken ct)
     {
         var inst = await _db.Installments.FirstOrDefaultAsync(i => i.Id == id, ct);
         if (inst is null) return NotFound();
@@ -100,27 +100,40 @@ public class CollectionsController : Controller
             TempData["StatusMessage"] = "يجب اختيار خزنة صالحة لاستلام التحصيل.";
             return RedirectToAction(nameof(Index));
         }
-        if (inst.PaidAmount < inst.Amount)
+
+        var remaining = inst.Amount - inst.PaidAmount;
+        if (remaining <= 0) return RedirectToAction(nameof(Receipt), new { id });   // already fully collected
+
+        // The down payment (المقدم, Number 0) may be collected in several parts, each a separate income
+        // receipt; a regular installment (قسط) is always collected in full.
+        var pay = inst.Number <= 0 && amount.HasValue ? amount.Value : remaining;
+        if (pay <= 0)
         {
-            inst.PaidAmount = inst.Amount;
-            inst.PaidDate = DateTime.Today;
-            var maxNo = await _db.Installments.MaxAsync(i => (int?)i.ReceiptNo, ct) ?? 0;
-            inst.ReceiptNo = maxNo + 1;
-
-            // Auto-record the collection as an income movement on the chosen safe.
-            var contract = await _db.SaleContracts.FirstOrDefaultAsync(s => s.Id == inst.SaleContractId, ct);
-            var custName = "—";
-            if (contract != null)
-            {
-                var cust = await _db.Customers.FirstOrDefaultAsync(c => c.Id == contract.CustomerId, ct);
-                custName = cust?.FullName ?? "—";
-            }
-            await _accounting.AddTransactionAsync(safeId, TxnType.Income, TxnSource.Collection, inst.Amount,
-                DateTime.Now, $"تحصيل {(inst.Number <= 0 ? "المقدم" : $"قسط رقم {inst.Number}")} — {custName} (إيصال C-{inst.ReceiptNo:D5})",
-                installmentId: inst.Id, ct: ct);
-
-            await _db.SaveChangesAsync(ct);
+            TempData["StatusMessage"] = "أدخل مبلغًا أكبر من صفر.";
+            return RedirectToAction(nameof(Index));
         }
+        if (pay > remaining) pay = remaining;   // never collect more than what's left
+
+        inst.PaidAmount += pay;
+        inst.PaidDate = DateTime.Today;
+        var maxNo = await _db.Installments.MaxAsync(i => (int?)i.ReceiptNo, ct) ?? 0;
+        inst.ReceiptNo = maxNo + 1;
+
+        // Auto-record this collection as its own income movement on the chosen safe.
+        var contract = await _db.SaleContracts.FirstOrDefaultAsync(s => s.Id == inst.SaleContractId, ct);
+        var custName = "—";
+        if (contract != null)
+        {
+            var cust = await _db.Customers.FirstOrDefaultAsync(c => c.Id == contract.CustomerId, ct);
+            custName = cust?.FullName ?? "—";
+        }
+        var label = inst.Number <= 0 ? "المقدم" : $"قسط رقم {inst.Number}";
+        var partial = inst.Number <= 0 && pay < inst.Amount ? " (دفعة جزئية)" : "";
+        await _accounting.AddTransactionAsync(safeId, TxnType.Income, TxnSource.Collection, pay,
+            DateTime.Now, $"تحصيل {label}{partial} — {custName}",
+            installmentId: inst.Id, ct: ct);
+
+        await _db.SaveChangesAsync(ct);
         return RedirectToAction(nameof(Receipt), new { id });
     }
 
@@ -140,16 +153,25 @@ public class CollectionsController : Controller
         return RedirectToAction(nameof(Index));
     }
 
+    // The collection receipt IS the unified cash-receipt voucher (إيصال استلام نقدية) of this
+    // collection's most recent income movement — collections no longer have a separate receipt document.
     [HttpGet]
     public async Task<IActionResult> Receipt(Guid id, CancellationToken ct)
     {
         var inst = await _db.Installments.FirstOrDefaultAsync(i => i.Id == id, ct);
         if (inst is null) return NotFound();
+        var txn = await _db.SafeTransactions.Where(t => t.InstallmentId == inst.Id && t.Type == TxnType.Income)
+            .OrderByDescending(t => t.OccurredAt).ThenByDescending(t => t.Serial).FirstOrDefaultAsync(ct);
+        if (txn is null) return RedirectToAction(nameof(Index));   // nothing collected yet
+
         var contract = await _db.SaleContracts.FirstOrDefaultAsync(s => s.Id == inst.SaleContractId, ct);
-        ViewBag.Contract = contract;
-        ViewBag.Customer = contract is null ? null : await _db.Customers.FirstOrDefaultAsync(c => c.Id == contract.CustomerId, ct);
+        if (contract is not null)
+            ViewBag.Party = await _db.Customers.Where(c => c.Id == contract.CustomerId).Select(c => c.FullName).FirstOrDefaultAsync(ct);
+        ViewBag.PartyLabel = "العميل";
+        ViewBag.About = $"تحصيل {ArabicLabels.InstPhrase(inst.Number)}";
+        ViewBag.SafeName = await _db.Safes.Where(s => s.Id == txn.SafeId).Select(s => s.Name).FirstOrDefaultAsync(ct);
         ViewBag.TenantId = _currentUser.TenantId;
-        return View("Receipt", inst);
+        return View("~/Areas/Accounting/Views/Shared/PrintOne.cshtml", txn);
     }
 
     [HttpGet]

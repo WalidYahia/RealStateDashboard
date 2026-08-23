@@ -36,7 +36,7 @@
                     var curAction = ViewContext.RouteData.Values["action"]?.ToString();
                     var curArea = ViewContext.RouteData.Values["area"]?.ToString();
                     var projOpen = curCtrl == "Projects";
-                    var setOpen = curCtrl == "Account" || curCtrl == "StageDefinitions" || curCtrl == "Settings" || curCtrl == "ActivityLog";
+                    var setOpen = curCtrl == "Account" || curCtrl == "StageDefinitions" || curCtrl == "Settings" || curCtrl == "TxnCategories" || curCtrl == "ActivityLog";
                     var salesOpen = curCtrl is "Sales" or "Collections";
                     var canSalespersons = Can(PermissionNames.SalespersonsView);
                     var canCustomers = Can(PermissionNames.CustomersView);
@@ -241,6 +241,10 @@
                         {
                             <a class="subnav-link @NavActive("Settings")" asp-area="" asp-controller="Settings" asp-action="Branding">بيانات المؤسسة</a>
                             <a class="subnav-link @NavActive("StageDefinitions")" asp-area="Projects" asp-controller="StageDefinitions" asp-action="Index">مراحل المشاريع</a>
+                        }
+                        @if (Can(PermissionNames.TxnCategoriesManage))
+                        {
+                            <a class="subnav-link @NavActive("TxnCategories")" asp-area="" asp-controller="TxnCategories" asp-action="Index">بنود المصروفات والإيرادات</a>
                         }
                         @if (Can(PermissionNames.ActivityLogView))
                         {

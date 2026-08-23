@@ -16,11 +16,14 @@ public class SettingsController : Controller
 
     private readonly ApplicationDbContext _db;
     private readonly ICurrentUserService _currentUser;
+    private readonly RealState.Web.Services.Reports.IReportTemplateService _reportTemplate;
 
-    public SettingsController(ApplicationDbContext db, ICurrentUserService currentUser)
+    public SettingsController(ApplicationDbContext db, ICurrentUserService currentUser,
+        RealState.Web.Services.Reports.IReportTemplateService reportTemplate)
     {
         _db = db;
         _currentUser = currentUser;
+        _reportTemplate = reportTemplate;
     }
 
     [HttpGet]
@@ -28,6 +31,7 @@ public class SettingsController : Controller
     {
         var t = await _db.Tenants.FirstOrDefaultAsync(x => x.Id == _currentUser.TenantId, ct);
         if (t is null) return NotFound();
+        ViewBag.ReportTemplate = await _reportTemplate.GetActiveAsync(ct);   // print/report template (or null)
         return View(new BrandingSettingsModel { Name = t.Name, HasLogo = t.LogoData != null });
     }
 

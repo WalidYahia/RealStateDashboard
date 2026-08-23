@@ -39,14 +39,15 @@ public class EmployeesController : Controller
             Department = e.DepartmentId.HasValue ? deps.GetValueOrDefault(e.DepartmentId.Value, "—") : "—",
             Role = e.JobRoleId.HasValue ? roles.GetValueOrDefault(e.JobRoleId.Value, "—") : "—",
             EmploymentType = e.EmploymentType.Ar(),
-            BasicSalary = e.BasicSalary
+            BasicSalary = e.BasicSalary,
+            NationalId = e.NationalId
         }).ToList();
         ViewData["CanManage"] = CanManage();
         return View(rows);
     }
 
     [HttpGet]
-    public async Task<IActionResult> Print(CancellationToken ct)
+    public async Task<IActionResult> Print(bool withSalary, bool withNationalId, CancellationToken ct)
     {
         var deps = await _db.Departments.ToDictionaryAsync(d => d.Id, d => d.Name, ct);
         var roles = await _db.JobRoles.ToDictionaryAsync(r => r.Id, r => r.Name, ct);
@@ -56,9 +57,12 @@ public class EmployeesController : Controller
             Department = e.DepartmentId.HasValue ? deps.GetValueOrDefault(e.DepartmentId.Value, "—") : "—",
             Role = e.JobRoleId.HasValue ? roles.GetValueOrDefault(e.JobRoleId.Value, "—") : "—",
             EmploymentType = e.EmploymentType.Ar(),
-            BasicSalary = e.BasicSalary
+            BasicSalary = e.BasicSalary,
+            NationalId = e.NationalId
         }).ToList();
         ViewBag.TenantId = _currentUser.TenantId;
+        ViewBag.WithSalary = withSalary;
+        ViewBag.WithNationalId = withNationalId;
         return View("Print", rows);
     }
 

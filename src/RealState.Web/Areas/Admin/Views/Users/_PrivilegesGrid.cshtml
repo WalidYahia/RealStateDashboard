@@ -2,7 +2,12 @@
 @using RealState.Application.Common
 @{
     var selected = new HashSet<string>(Model ?? new List<string>());
-    var groups = PermissionNames.Catalog.GroupBy(p => p.Group).ToList();
+    // A scoped manager only sees the permissions they can grant (their own); null = show every permission.
+    var grantable = ViewData["Grantable"] as HashSet<string>;
+    var catalog = grantable is null
+        ? PermissionNames.Catalog
+        : PermissionNames.Catalog.Where(p => grantable.Contains(p.Name)).ToList();
+    var groups = catalog.GroupBy(p => p.Group).ToList();
 }
 <style>
     .priv-toolbar { display:flex; gap:8px; align-items:center; margin-bottom:12px; flex-wrap:wrap; }

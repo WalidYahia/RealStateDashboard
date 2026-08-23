@@ -14,7 +14,12 @@ public class AccountingService : IAccountingService
         Guid safeId, TxnType type, TxnSource source, decimal amount, DateTime occurredAt, string description,
         Guid? installmentId = null, Guid? stageExpenseId = null, Guid? projectId = null, CancellationToken ct = default)
     {
-        var serial = (await _db.SafeTransactions.Where(t => t.Type == type).MaxAsync(t => (int?)t.Serial, ct) ?? 0) + 1;
+        // Serial is year-prefixed and resets each year, per transaction type (e.g. 2026 + 00001 = 202600001).
+        var yearBase = occurredAt.Year * 100000;
+        var maxThisYear = await _db.SafeTransactions
+            .Where(t => t.Type == type && t.Serial >= yearBase && t.Serial < yearBase + 100000)
+            .MaxAsync(t => (int?)t.Serial, ct) ?? yearBase;
+        var serial = maxThisYear + 1;
         var txn = new SafeTransaction
         {
             SafeId = safeId,

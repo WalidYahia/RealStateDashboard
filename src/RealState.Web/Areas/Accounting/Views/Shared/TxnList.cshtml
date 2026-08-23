@@ -25,15 +25,6 @@
     <h1>@(isIncome ? "الإيرادات" : "المصروفات")</h1>
 
     <div style="display:flex;gap:8px;">
-        <a class="btn-sm"
-           asp-action="PrintList"
-           asp-route-from="@DTLn(Model.From)"
-           asp-route-to="@DTLn(Model.To)"
-           asp-route-q="@Model.Q"
-           target="_blank">
-            🖨 طباعة (PDF)
-        </a>
-
         @if (canCreate)
         {
             <button type="button"
@@ -51,38 +42,36 @@
 }
 
 <div class="card-tile" style="margin-bottom:12px;">
-    <form asp-action="Index"
-          method="get"
-          style="display:flex;gap:10px;align-items:end;flex-wrap:wrap;">
-
-        <div>
-            <label class="form-label">من</label>
-            <input type="datetime-local"
-                   name="from"
-                   value="@DTLn(Model.From)"
-                   class="form-control"
-                   style="margin:0;"
-                   dir="ltr" />
+    <form asp-action="Index" method="get" class="filter-form">
+        <div class="filter-row">
+            <div class="fld">
+                <label class="form-label">من</label>
+                <input type="datetime-local" name="from" value="@DTLn(Model.From)" class="form-control" dir="ltr" />
+            </div>
+            <div class="fld">
+                <label class="form-label">إلى</label>
+                <input type="datetime-local" name="to" value="@DTLn(Model.To)" class="form-control" dir="ltr" />
+            </div>
+            <div class="filter-presets">
+                <button type="button" class="btn-sm date-preset" data-from="@DateTime.Today.ToString("yyyy-MM-dd", inv)" data-to="@DateTime.Today.ToString("yyyy-MM-dd", inv)">اليوم</button>
+                <button type="button" class="btn-sm date-preset" data-from="@DateTime.Today.AddDays(-7).ToString("yyyy-MM-dd", inv)" data-to="@DateTime.Today.ToString("yyyy-MM-dd", inv)">آخر أسبوع</button>
+                <button type="button" class="btn-sm date-preset" data-from="@DateTime.Today.AddMonths(-1).ToString("yyyy-MM-dd", inv)" data-to="@DateTime.Today.ToString("yyyy-MM-dd", inv)">آخر شهر</button>
+            </div>
         </div>
-
-        <div>
-            <label class="form-label">إلى</label>
-            <input type="datetime-local"
-                   name="to"
-                   value="@DTLn(Model.To)"
-                   class="form-control"
-                   style="margin:0;"
-                   dir="ltr" />
+        <div class="filter-row">
+            <div class="fld">
+                <label class="form-label">المصدر</label>
+                <select name="source" class="form-control" asp-items="Model.SourceOptions">
+                    <option value="">الكل</option>
+                </select>
+            </div>
+            <div class="filter-actions">
+                <button type="submit" class="btn-primary">بحث</button>
+            </div>
         </div>
-
-        <button type="submit" class="btn-primary" style="width:auto;">بحث</button>
-        <a class="btn-sm" asp-action="Index">اليوم</a>
-        <a class="btn-sm" asp-action="Index" asp-route-from="@DateTime.Today.AddDays(-7).ToString("yyyy-MM-dd", inv)" asp-route-to="@DateTime.Today.ToString("yyyy-MM-dd", inv)">آخر أسبوع</a>
-        <a class="btn-sm" asp-action="Index" asp-route-from="@DateTime.Today.AddMonths(-1).ToString("yyyy-MM-dd", inv)" asp-route-to="@DateTime.Today.ToString("yyyy-MM-dd", inv)">آخر شهر</a>
-
-        <span style="color:var(--muted);font-size:13px;align-self:center;">
+        <div style="color:var(--muted);font-size:13px;">
             الإجمالي: <strong data-live-sum="#txnTable:5">@N(Model.Total)</strong> ج.م
-        </span>
+        </div>
     </form>
 </div>
 
@@ -119,7 +108,7 @@
 
                     <td>@t.SafeName</td>
 
-                    <td>@t.Source.Ar()</td>
+                    <td>@(t.CategoryName ?? t.Source.Ar())</td>
 
                     <td>@t.Description</td>
 
@@ -151,6 +140,19 @@
                                 </form>
                             }
                         }
+                        else if (t.IsAdvanceDisbursement && canDelete)
+                        {
+                            <form asp-action="Delete"
+                                  asp-route-id="@t.Id"
+                                  method="post"
+                                  style="display:inline;"
+                                  data-confirm="حذف مصروف صرف السلفة سيعيدها إلى حالة «لم يُصرف» ويعكس المبلغ من الخزنة. هل تريد المتابعة؟" data-danger>
+                                @Html.AntiForgeryToken()
+                                <button type="submit" class="btn-sm btn-danger">
+                                    حذف
+                                </button>
+                            </form>
+                        }
                         else
                         {
                             <span style="color:var(--muted);font-size:12px;">
@@ -179,8 +181,10 @@
         // Income/Expense modal: toggle the advance/reward pickers by the chosen "النوع" and auto-fill amount.
         window.txnKindChange = function (form) {
             if (!form) return;
-            var kind = form.querySelector('[name="Kind"]');
-            var v = kind ? kind.value : '0';
+            // The chosen category (البند) carries data-kind: 0 general, 1 advance, 2 reward.
+            var cat = form.querySelector('[name="CategoryId"]');
+            var opt = cat ? cat.options[cat.selectedIndex] : null;
+            var v = opt ? (opt.getAttribute('data-kind') || '0') : '0';
             var adv = form.querySelector('.txn-advance');
             var rew = form.querySelector('.txn-reward');
             var desc = form.querySelector('.txn-desc');

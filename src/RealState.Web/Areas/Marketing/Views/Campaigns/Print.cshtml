@@ -20,6 +20,7 @@
     </style>
 </head>
 <body>
+    @await Component.InvokeAsync("ReportBackground", new { part = "open" })
     <div class="no-print">
         <button onclick="window.print()">🖨 طباعة / حفظ PDF</button>
     </div>
@@ -40,5 +41,6 @@
         </tbody>
     </table>
     <script>window.addEventListener('load', () => setTimeout(() => window.print(), 400));</script>
+    @await Component.InvokeAsync("ReportBackground", new { part = "close" })
 </body>
 </html>

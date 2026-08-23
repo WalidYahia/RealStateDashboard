@@ -49,7 +49,7 @@ public class ReportsController : Controller
         var orders = await _db.SupplierOrders.Where(o => o.OrderDate >= day && o.OrderDate < next).ToListAsync(ct);
         var orderIds = orders.Select(o => o.Id).ToList();
         var itemSums = (await _db.SupplierOrderItems.Where(i => orderIds.Contains(i.SupplierOrderId))
-            .GroupBy(i => i.SupplierOrderId).Select(g => new { g.Key, Sum = g.Sum(x => x.Cost) }).ToListAsync(ct))
+            .GroupBy(i => i.SupplierOrderId).Select(g => new { g.Key, Sum = g.Sum(x => x.Cost * x.Quantity) }).ToListAsync(ct))
             .ToDictionary(x => x.Key, x => x.Sum);
         vm.Orders = orders.OrderBy(o => o.Number).Select(o => new DailyOrderRow(
             $"PO-{o.Number:D4}", supNames.GetValueOrDefault(o.SupplierId, "—"),
@@ -146,7 +146,7 @@ public class ReportsController : Controller
 
         var orderIds = orders.Select(o => o.Id).ToList();
         var itemSums = (await _db.SupplierOrderItems.Where(i => orderIds.Contains(i.SupplierOrderId))
-            .GroupBy(i => i.SupplierOrderId).Select(g => new { g.Key, Sum = g.Sum(x => x.Cost) }).ToListAsync(ct))
+            .GroupBy(i => i.SupplierOrderId).Select(g => new { g.Key, Sum = g.Sum(x => x.Cost * x.Quantity) }).ToListAsync(ct))
             .ToDictionary(x => x.Key, x => x.Sum);
         var paidByOrder = (await _db.SupplierPayments.Where(p => p.SupplierOrderId != null && orderIds.Contains(p.SupplierOrderId!.Value))
             .GroupBy(p => p.SupplierOrderId!.Value).Select(g => new { g.Key, Sum = g.Sum(x => x.Amount) }).ToListAsync(ct))

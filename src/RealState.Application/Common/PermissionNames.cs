@@ -94,6 +94,9 @@ public static class PermissionNames
     // ----- Reports -----
     public const string ReportsView = "Reports.View";
 
+    // ----- Accounting: expense/income categories (بنود) -----
+    public const string TxnCategoriesManage = "TxnCategories.Manage";
+
     // ----- Tasks management ----- (personal "my tasks" is available to every signed-in user;
     // these gate the all-tasks list and its management actions)
     public const string TasksView = "Tasks.View";        // reach the tasks list page (scoped to own tasks by default)
@@ -181,6 +184,8 @@ public static class PermissionNames
         new PermissionInfo(SuppliersPay,    "سداد دفعات للموردين",                     GSuppliers),
 
         new PermissionInfo(ReportsView,     "عرض التقارير (اليومي، العملاء، الموردين)", GReports),
+
+        new PermissionInfo(TxnCategoriesManage, "إدارة بنود المصروفات والإيرادات", GExpenses),
 
         new PermissionInfo(TasksView,    "عرض قائمة المهام (مهامي فقط افتراضيًا)", GTasks),
         new PermissionInfo(TasksViewAll, "عرض كل المهام (لكل المستخدمين)",          GTasks),

@@ -6,17 +6,23 @@
 }
 <div class="page-head">
     <h1>تقرير العملاء</h1>
-    <a class="btn-new-tenant" asp-action="CustomersPrint" asp-route-from="@F(Model.From)" asp-route-to="@F(Model.To)" target="_blank">🖨 طباعة (PDF)</a>
 </div>
 
 <div class="card-tile" style="margin-bottom:12px;">
-    <form asp-action="Customers" method="get" style="display:flex;gap:10px;align-items:end;flex-wrap:wrap;">
-        <div><label class="form-label">من (تاريخ العقد)</label><input type="date" name="from" value="@F(Model.From)" class="form-control" style="margin:0;" dir="ltr" /></div>
-        <div><label class="form-label">إلى</label><input type="date" name="to" value="@F(Model.To)" class="form-control" style="margin:0;" dir="ltr" /></div>
-        <button type="submit" class="btn-primary" style="width:auto;">بحث</button>
-        <a class="btn-sm" asp-action="Customers">اليوم</a>
-        <a class="btn-sm" asp-action="Customers" asp-route-from="@F(DateTime.Today.AddDays(-7))" asp-route-to="@F(DateTime.Today)">آخر أسبوع</a>
-        <a class="btn-sm" asp-action="Customers" asp-route-from="@F(DateTime.Today.AddMonths(-1))" asp-route-to="@F(DateTime.Today)">آخر شهر</a>
+    <form asp-action="Customers" method="get" class="filter-form">
+        <div class="filter-row">
+            <div class="fld"><label class="form-label">من (تاريخ العقد)</label><input type="date" name="from" value="@F(Model.From)" class="form-control" dir="ltr" /></div>
+            <div class="fld"><label class="form-label">إلى</label><input type="date" name="to" value="@F(Model.To)" class="form-control" dir="ltr" /></div>
+            <div class="filter-presets">
+                <button type="button" class="btn-sm date-preset" data-from="@F(DateTime.Today)" data-to="@F(DateTime.Today)">اليوم</button>
+                <button type="button" class="btn-sm date-preset" data-from="@F(DateTime.Today.AddDays(-7))" data-to="@F(DateTime.Today)">آخر أسبوع</button>
+                <button type="button" class="btn-sm date-preset" data-from="@F(DateTime.Today.AddMonths(-1))" data-to="@F(DateTime.Today)">آخر شهر</button>
+            </div>
+            <div class="filter-actions">
+                <button type="submit" class="btn-primary">بحث</button>
+                <a class="btn-sm" asp-action="CustomersPrint" asp-route-from="@F(Model.From)" asp-route-to="@F(Model.To)" target="_blank">🖨 طباعة (PDF)</a>
+            </div>
+        </div>
     </form>
 </div>
 

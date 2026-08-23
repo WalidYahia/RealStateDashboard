@@ -34,10 +34,10 @@ public class SupplierOrder : AuditableEntity, ITenantEntity
     public ICollection<SupplierPayment> Payments { get; set; } = new List<SupplierPayment>();
 
     /// <summary>Total cost = sum of the line items (computed when items are loaded).</summary>
-    public decimal TotalCost => Items?.Sum(i => i.Cost) ?? 0m;
+    public decimal TotalCost => Items?.Sum(i => i.Cost * i.Quantity) ?? 0m;
 }
 
-/// <summary>A single line item (بند) on a supplier order: a description and its cost.</summary>
+/// <summary>A single line item (بند) on a supplier order: a description, unit cost and quantity.</summary>
 public class SupplierOrderItem : AuditableEntity, ITenantEntity
 {
     public Guid TenantId { get; set; }
@@ -45,7 +45,15 @@ public class SupplierOrderItem : AuditableEntity, ITenantEntity
     public SupplierOrder? Order { get; set; }
 
     public string Name { get; set; } = string.Empty;
+
+    /// <summary>Unit cost (تكلفة الوحدة).</summary>
     public decimal Cost { get; set; }
+
+    /// <summary>Quantity ordered (الكمية). Defaults to 1 (legacy rows had no quantity).</summary>
+    public decimal Quantity { get; set; } = 1m;
+
+    /// <summary>Line total = unit cost × quantity (الإجمالي).</summary>
+    public decimal LineTotal => Cost * Quantity;
 }
 
 /// <summary>A payment made to a supplier (against their overall balance) — a safe Expense movement.</summary>

@@ -13,8 +13,8 @@
     <partial name="_PrintStyles" />
 </head>
 <body>
+    @await Component.InvokeAsync("ReportBackground", new { part = "open" })
     <div class="no-print"><button onclick="window.print()">🖨 طباعة / حفظ PDF</button></div>
-    <div style="text-align:center;margin-bottom:6px;"><img src="@Url.Action("Logo", "Branding", new { area = "", id = tenantId })" alt="logo" style="max-height:60px;" onerror="this.style.display='none'" /></div>
     <h1>ملخص المشاريع</h1>
     <div class="sub">عدد المشاريع @Model.Count · @DateTime.Now.ToString("yyyy/MM/dd HH:mm")</div>
     <table>
@@ -37,5 +37,6 @@
         </tbody>
     </table>
     <script>window.addEventListener('load', function () { setTimeout(function () { window.print(); }, 400); });</script>
+    @await Component.InvokeAsync("ReportBackground", new { part = "close" })
 </body>
 </html>

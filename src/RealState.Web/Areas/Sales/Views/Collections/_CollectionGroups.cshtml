@@ -3,6 +3,7 @@
 
 @{
     string N(decimal v) => v.ToString("N0", new CultureInfo("ar-EG"));
+    string RawNum(decimal v) => v.ToString("0.##", CultureInfo.InvariantCulture);
     string D(DateTime d) => d.ToString("yyyy/MM/dd", CultureInfo.InvariantCulture);
 
     var sort = (string?)ViewData["Sort"] ?? "unit";
@@ -76,6 +77,8 @@
             <tbody>
                 @foreach (var r in g.OrderBy(x => x.DueDate))
                 {
+                    var rem = r.Amount - r.PaidAmount;
+                    var isDown = r.Number <= 0;
                     <tr data-search="@r.Search">
                         <td>@r.CustomerName</td>
 
@@ -93,7 +96,13 @@
                             <span dir="ltr">@D(r.DueDate)</span>
                         </td>
 
-                        <td>@N(r.Amount)</td>
+                        <td>
+                            @N(r.Amount)
+                            @if (!isCollected && r.PaidAmount > 0 && rem > 0)
+                            {
+                                <div style="color:var(--muted);font-size:12px;">محصّل: @N(r.PaidAmount) · المتبقي: @N(rem)</div>
+                            }
+                        </td>
 
                         @if (isCollected)
                         {
@@ -149,9 +158,11 @@
                                       asp-route-id="@r.InstallmentId"
                                       method="post"
                                       style="display:inline;"
-                                      data-msg="تحصيل @ArabicLabels.InstPhrase(r.Number) من «@r.CustomerName» بقيمة @N(r.Amount) ج.م؟">
+                                      data-partial="@(isDown ? "true" : "false")" data-remaining="@RawNum(rem)"
+                                      data-msg="@(isDown ? $"تحصيل المقدم من «{r.CustomerName}»" : $"تحصيل القسط رقم {r.Number} من «{r.CustomerName}» بقيمة {N(rem)} ج.م؟")">
                                     @Html.AntiForgeryToken()
                                     <input type="hidden" name="safeId" class="pay-safe" />
+                                    <input type="hidden" name="amount" class="pay-amount" />
                                     <button type="submit"
                                             class="btn-sm"
                                             style="background:var(--aqua);color:#fff;border-color:var(--aqua);">

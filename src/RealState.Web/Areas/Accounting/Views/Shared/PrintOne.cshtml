@@ -5,9 +5,12 @@
     var safeName = ViewBag.SafeName as string;
     var tenantId = (Guid)ViewBag.TenantId;
     string N(decimal v) => v.ToString("N0", new System.Globalization.CultureInfo("ar-EG"));
-    var title = isIncome ? "سند قبض" : "سند صرف";
-    var receiptLabel = isIncome ? "إيصال استلام" : "إيصال دفع";
+    var title = isIncome ? "إيصال استلام نقدية" : "إيصال صرف نقدية";
     var accent = isIncome ? "#199e70" : "#b3540f";
+    // Optional context supplied by the calling flow (collection / supplier payment / …).
+    var partyLabel = ViewBag.PartyLabel as string;   // e.g. العميل / المورد / الموظف
+    var party = ViewBag.Party as string;
+    var about = ViewBag.About as string;             // "عن" line
 }
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -28,17 +31,20 @@
     </style>
 </head>
 <body>
+    @await Component.InvokeAsync("ReportBackground", new { part = "open" })
     <div class="no-print"><button onclick="window.print()">🖨 طباعة / حفظ PDF</button></div>
     <div class="receipt">
-        <div class="brand"><img src="@Url.Action("Logo", "Branding", new { area = "", id = tenantId })" alt="logo" onerror="this.style.display='none'" /></div>
         <h1>@title</h1>
-        <div class="sub">@receiptLabel رقم @Model.Serial.ToString("D5") · تاريخ الإصدار @DateTime.Now.ToString("yyyy/MM/dd")</div>
+        <div class="sub">رقم @Model.Serial.ToString("D5") · تاريخ الإصدار @DateTime.Now.ToString("yyyy/MM/dd")</div>
 
         <div class="amount">@N(Model.Amount) ج.م</div>
 
         <table>
-            <tr><th>النوع</th><td>@Model.Type.Ar()</td></tr>
-            <tr><th>المصدر</th><td>@Model.Source.Ar()</td></tr>
+            @if (!string.IsNullOrWhiteSpace(party))
+            {
+                <tr><th>@(partyLabel ?? "الطرف")</th><td>@party</td></tr>
+            }
+            <tr><th>عن</th><td>@(about ?? Model.Source.Ar())</td></tr>
             <tr><th>الخزنة</th><td>@(safeName ?? "—")</td></tr>
             <tr><th>التاريخ</th><td>@Model.OccurredAt.ToString("yyyy/MM/dd HH:mm")</td></tr>
             <tr><th>البيان</th><td>@Model.Description</td></tr>
@@ -48,5 +54,6 @@
         <p style="margin-top:34px;font-size:13px;text-align:end;">التوقيع: ____________________</p>
     </div>
     <script>window.addEventListener('load', function () { setTimeout(function () { window.print(); }, 500); });</script>
+    @await Component.InvokeAsync("ReportBackground", new { part = "close" })
 </body>
 </html>

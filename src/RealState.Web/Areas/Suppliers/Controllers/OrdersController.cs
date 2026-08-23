@@ -50,7 +50,7 @@ public class OrdersController : Controller
         var supNames = await _db.Suppliers.ToDictionaryAsync(s => s.Id, s => s.Name, ct);
         var projNames = await _db.Projects.ToDictionaryAsync(p => p.Id, p => p.Name, ct);
         var itemsByOrder = (await _db.SupplierOrderItems.GroupBy(i => i.SupplierOrderId)
-            .Select(g => new { g.Key, Sum = g.Sum(x => x.Cost), Count = g.Count() }).ToListAsync(ct))
+            .Select(g => new { g.Key, Sum = g.Sum(x => x.Cost * x.Quantity), Count = g.Count() }).ToListAsync(ct))
             .ToDictionary(x => x.Key, x => (x.Sum, x.Count));
         var paidByOrder = (await _db.SupplierPayments.Where(p => p.SupplierOrderId != null)
             .GroupBy(p => p.SupplierOrderId!.Value).Select(g => new { g.Key, Sum = g.Sum(x => x.Amount) }).ToListAsync(ct))
@@ -91,7 +91,7 @@ public class OrdersController : Controller
             ProjectId = o.ProjectId,
             OrderDate = o.OrderDate,
             Notes = o.Notes,
-            Items = items.Select(i => new OrderItemInput { Name = i.Name, Cost = i.Cost }).ToList()
+            Items = items.Select(i => new OrderItemInput { Name = i.Name, Cost = i.Cost, Quantity = i.Quantity }).ToList()
         }, ct));
     }
 
@@ -102,6 +102,7 @@ public class OrdersController : Controller
         if (!Can(model.Id == Guid.Empty ? PermissionNames.SuppliersCreate : PermissionNames.SuppliersEdit)) return Forbid();
 
         var items = (model.Items ?? new()).Where(i => !string.IsNullOrWhiteSpace(i.Name)).ToList();
+        foreach (var it in items) if (it.Quantity <= 0) it.Quantity = 1m;   // a blank quantity means one unit
         if (items.Count == 0) ModelState.AddModelError(string.Empty, "أضف بندًا واحدًا على الأقل.");
         if (model.SupplierId is null || !await _db.Suppliers.AnyAsync(s => s.Id == model.SupplierId, ct))
             ModelState.AddModelError(nameof(model.SupplierId), "المورد غير موجود.");
@@ -112,7 +113,7 @@ public class OrdersController : Controller
         {
             var order = new SupplierOrder
             {
-                Number = await NextNumberAsync(ct),
+                Number = await NextNumberAsync(model.OrderDate.Year, ct),
                 OrderDate = model.OrderDate,
                 SupplierId = model.SupplierId!.Value,
                 ProjectId = model.ProjectId,
@@ -120,7 +121,7 @@ public class OrdersController : Controller
             };
             _db.SupplierOrders.Add(order);
             foreach (var it in items)
-                _db.SupplierOrderItems.Add(new SupplierOrderItem { SupplierOrderId = order.Id, Name = it.Name, Cost = it.Cost });
+                _db.SupplierOrderItems.Add(new SupplierOrderItem { SupplierOrderId = order.Id, Name = it.Name, Cost = it.Cost, Quantity = it.Quantity });
             await _db.SaveChangesAsync(ct);
             TempData["StatusMessage"] = $"تم إنشاء أمر التوريد PO-{order.Number:D4}.";
         }
@@ -130,9 +131,9 @@ public class OrdersController : Controller
             if (order is null) return NotFound();
             // Don't allow the order total to drop below what's already been paid on it (would overpay it).
             var alreadyPaid = await _db.SupplierPayments.Where(p => p.SupplierOrderId == order.Id).SumAsync(p => (decimal?)p.Amount, ct) ?? 0;
-            if (items.Sum(i => i.Cost) < alreadyPaid)
+            if (items.Sum(i => i.LineTotal) < alreadyPaid)
             {
-                ModelState.AddModelError(string.Empty, $"لا يمكن أن يقل إجمالي الأمر ({items.Sum(i => i.Cost):N0}) عن المبلغ المسدَّد عليه ({alreadyPaid:N0}).");
+                ModelState.AddModelError(string.Empty, $"لا يمكن أن يقل إجمالي الأمر ({items.Sum(i => i.LineTotal):N0}) عن المبلغ المسدَّد عليه ({alreadyPaid:N0}).");
                 return PartialView("_OrderForm", await FillAsync(model, ct));
             }
             order.OrderDate = model.OrderDate;
@@ -142,7 +143,7 @@ public class OrdersController : Controller
             var old = await _db.SupplierOrderItems.Where(i => i.SupplierOrderId == order.Id).ToListAsync(ct);
             foreach (var o in old) _db.SupplierOrderItems.Remove(o);
             foreach (var it in items)
-                _db.SupplierOrderItems.Add(new SupplierOrderItem { SupplierOrderId = order.Id, Name = it.Name, Cost = it.Cost });
+                _db.SupplierOrderItems.Add(new SupplierOrderItem { SupplierOrderId = order.Id, Name = it.Name, Cost = it.Cost, Quantity = it.Quantity });
             await _db.SaveChangesAsync(ct);
             TempData["StatusMessage"] = $"تم تعديل أمر التوريد PO-{order.Number:D4}.";
         }
@@ -264,23 +265,37 @@ public class OrdersController : Controller
             Description = model.Description
         };
         _db.SupplierPayments.Add(payment);
-        txn.Description = $"{desc} (إيصال دفع P-{txn.Serial:D5})";
+        txn.Description = $"{desc} (إيصال صرف نقدية رقم {txn.Serial:D5})";
         await _db.SaveChangesAsync(ct);
 
-        TempData["StatusMessage"] = $"تم سداد {model.Amount:N0} ج.م على أمر التوريد PO-{order.Number:D4} (إيصال دفع P-{txn.Serial:D5}).";
+        TempData["StatusMessage"] = $"تم سداد {model.Amount:N0} ج.م على أمر التوريد PO-{order.Number:D4} (إيصال صرف نقدية رقم {txn.Serial:D5}).";
         return Json(new { ok = true, openTab = Url.Action("Receipt", new { id = payment.Id }) });
     }
 
+    // The supplier pay receipt IS the unified cash-payment voucher (إيصال صرف نقدية) of the linked
+    // expense movement — supplier payments no longer have a separate receipt document.
     [HttpGet]
     public async Task<IActionResult> Receipt(Guid id, CancellationToken ct)
     {
         var payment = await _db.SupplierPayments.FirstOrDefaultAsync(p => p.Id == id, ct);
         if (payment is null) return NotFound();
-        ViewBag.Supplier = await _db.Suppliers.FirstOrDefaultAsync(s => s.Id == payment.SupplierId, ct);
-        ViewBag.Order = payment.SupplierOrderId.HasValue
+        var txn = await _db.SafeTransactions.FirstOrDefaultAsync(
+            t => t.Type == TxnType.Expense && t.Source == TxnSource.SupplierPayment && t.Serial == payment.ReceiptNo, ct)
+            ?? new SafeTransaction
+            {
+                Type = TxnType.Expense, Source = TxnSource.SupplierPayment, Serial = payment.ReceiptNo,
+                Amount = payment.Amount, OccurredAt = payment.PaidDate, SafeId = payment.SafeId,
+                Description = payment.Description ?? ""
+            };
+        var supplier = await _db.Suppliers.FirstOrDefaultAsync(s => s.Id == payment.SupplierId, ct);
+        var order = payment.SupplierOrderId.HasValue
             ? await _db.SupplierOrders.FirstOrDefaultAsync(o => o.Id == payment.SupplierOrderId, ct) : null;
+        ViewBag.PartyLabel = "المورد";
+        ViewBag.Party = supplier?.Name;
+        ViewBag.About = order != null ? $"سداد أمر توريد PO-{order.Number:D4}" : "سداد للمورد";
+        ViewBag.SafeName = await _db.Safes.Where(s => s.Id == payment.SafeId).Select(s => s.Name).FirstOrDefaultAsync(ct);
         ViewBag.TenantId = _currentUser.TenantId;
-        return View("Receipt", payment);
+        return View("~/Areas/Accounting/Views/Shared/PrintOne.cshtml", txn);
     }
 
     // ---------- helpers ----------
@@ -298,14 +313,20 @@ public class OrdersController : Controller
 
     private async Task<(decimal Total, decimal Paid, string SupplierName)> OrderTotalsAsync(SupplierOrder order, CancellationToken ct)
     {
-        var total = await _db.SupplierOrderItems.Where(i => i.SupplierOrderId == order.Id).SumAsync(i => (decimal?)i.Cost, ct) ?? 0;
+        var total = await _db.SupplierOrderItems.Where(i => i.SupplierOrderId == order.Id).SumAsync(i => (decimal?)(i.Cost * i.Quantity), ct) ?? 0;
         var paid = await _db.SupplierPayments.Where(p => p.SupplierOrderId == order.Id).SumAsync(p => (decimal?)p.Amount, ct) ?? 0;
         var name = await _db.Suppliers.Where(s => s.Id == order.SupplierId).Select(s => s.Name).FirstOrDefaultAsync(ct) ?? "—";
         return (total, paid, name);
     }
 
-    private async Task<int> NextNumberAsync(CancellationToken ct)
-        => (await _db.SupplierOrders.MaxAsync(o => (int?)o.Number, ct) ?? 0) + 1;
+    // Year-prefixed serial (PO-2026 0001 = 20260001), resetting each year.
+    private async Task<int> NextNumberAsync(int year, CancellationToken ct)
+    {
+        var yearBase = year * 10000;
+        var maxThisYear = await _db.SupplierOrders.Where(o => o.Number >= yearBase && o.Number < yearBase + 10000)
+            .MaxAsync(o => (int?)o.Number, ct) ?? yearBase;
+        return maxThisYear + 1;
+    }
 
     private async Task<List<SelectListItem>> SafesAsync(CancellationToken ct)
         => await _db.Safes.Where(s => s.IsActive).OrderBy(s => s.Name)

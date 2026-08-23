@@ -18,7 +18,8 @@
         </p>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;">
-        <a class="btn-sm" asp-action="Index">رجوع</a>
+        @* Go back to the exact list the user came from (keeps its filter/scroll, no reload) — fall back to the list if opened directly. *@
+        <a class="btn-sm" href="@Url.Action("Index")" onclick="if (history.length > 1) { history.back(); return false; }">رجوع</a>
         <a class="btn-sm" asp-action="PrintOne" asp-route-id="@Model.Id" target="_blank">🖨 طباعة</a>
         @if (canAct) { <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("StatusForm", new { id = Model.Id })', 'تحديث الحالة')">🔄 تحديث الحالة</button> }
         @if (canAct) { <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("LogForm", new { id = Model.Id })', 'إضافة سجل')">📝 إضافة سجل</button> }

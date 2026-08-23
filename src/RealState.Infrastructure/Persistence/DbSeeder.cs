@@ -25,6 +25,11 @@ public static class DbSeeder
         // separately. (Re-enable the calls below to restore full bootstrap seeding.)
         await SeedPermissionsAsync(db);
 
+        // One-time data fix: bring legacy income/expense serials onto the year-prefixed scheme.
+        await MigrateTransactionSerialsAsync(db);
+        // One-time data fix: year-prefix advance (ADV) and supplier-order (PO) serials.
+        await MigrateAdvanceAndOrderSerialsAsync(db);
+
         // var userManager = sp.GetRequiredService<UserManager<ApplicationUser>>();
         // var roleManager = sp.GetRequiredService<RoleManager<ApplicationRole>>();
         // await SeedTenantAsync(db);
@@ -69,6 +74,86 @@ public static class DbSeeder
                 db.Permissions.Add(new Permission { Name = info.Name, DisplayName = info.Display, Group = info.Group });
                 changed = true;
             }
+        }
+
+        if (changed) await db.SaveChangesAsync();
+    }
+
+    /// <summary>
+    /// One-time data fix: renumber existing safe-transaction serials onto the year-prefixed scheme
+    /// (year × 100000 + sequence — e.g. 202600001 — reset per year, per transaction type, per tenant),
+    /// preserving each group's chronological order. Supplier-payment receipt numbers (which mirror the
+    /// expense serial) are remapped to match. Idempotent: skips once every serial is already prefixed.
+    /// </summary>
+    private static async Task MigrateTransactionSerialsAsync(ApplicationDbContext db)
+    {
+        // Legacy serials are small counters; year-prefixed ones are >= 100,000,000 (year × 100000).
+        const int YearPrefixFloor = 100_000_000;
+
+        var txns = await db.SafeTransactions.IgnoreQueryFilters().ToListAsync();
+        if (txns.Count == 0 || txns.All(t => t.Serial >= YearPrefixFloor)) return;   // nothing legacy to fix
+
+        // (tenant, type, old serial) -> new serial, so supplier-payment receipt numbers can follow.
+        var remap = new Dictionary<(Guid Tenant, TxnType Type, int OldSerial), int>();
+
+        var groups = txns.GroupBy(t => (t.TenantId, t.Type, Year: t.OccurredAt.Year)).ToList();
+        foreach (var g in groups)
+        {
+            var yearBase = g.Key.Year * 100000;
+            var ordered = g.OrderBy(t => t.Serial).ThenBy(t => t.CreatedAt).ToList();   // fix order before mutating
+            var seq = 0;
+            foreach (var t in ordered)
+            {
+                var newSerial = yearBase + (++seq);
+                remap[(t.TenantId, t.Type, t.Serial)] = newSerial;
+                t.Serial = newSerial;
+            }
+        }
+
+        // Supplier payment ReceiptNo == the linked Expense transaction's serial — keep it in sync.
+        var payments = await db.SupplierPayments.IgnoreQueryFilters().ToListAsync();
+        foreach (var p in payments)
+            if (remap.TryGetValue((p.TenantId, TxnType.Expense, p.ReceiptNo), out var ns))
+                p.ReceiptNo = ns;
+
+        await db.SaveChangesAsync();
+    }
+
+    /// <summary>
+    /// One-time data fix: renumber existing advance (ADV) and supplier-order (PO) serials onto the
+    /// year-prefixed scheme (year × 10000 + sequence — e.g. 20260001 — reset per year, per tenant),
+    /// preserving each group's order. Idempotent: skips once every serial is already prefixed.
+    /// </summary>
+    private static async Task MigrateAdvanceAndOrderSerialsAsync(ApplicationDbContext db)
+    {
+        const int YearPrefixFloor = 1_000_000;   // year-prefixed serials are >= ~20,000,000; legacy are small
+
+        var advances = await db.Advances.IgnoreQueryFilters().ToListAsync();
+        var orders = await db.SupplierOrders.IgnoreQueryFilters().ToListAsync();
+        var changed = false;
+
+        if (advances.Any(a => a.Number < YearPrefixFloor))
+        {
+            foreach (var g in advances.GroupBy(a => (a.TenantId, Year: a.Date.Year)).ToList())
+            {
+                var yearBase = g.Key.Year * 10000;
+                var seq = 0;
+                foreach (var a in g.OrderBy(a => a.Number).ThenBy(a => a.CreatedAt).ToList())
+                    a.Number = yearBase + (++seq);
+            }
+            changed = true;
+        }
+
+        if (orders.Any(o => o.Number < YearPrefixFloor))
+        {
+            foreach (var g in orders.GroupBy(o => (o.TenantId, Year: o.OrderDate.Year)).ToList())
+            {
+                var yearBase = g.Key.Year * 10000;
+                var seq = 0;
+                foreach (var o in g.OrderBy(o => o.Number).ThenBy(o => o.CreatedAt).ToList())
+                    o.Number = yearBase + (++seq);
+            }
+            changed = true;
         }
 
         if (changed) await db.SaveChangesAsync();

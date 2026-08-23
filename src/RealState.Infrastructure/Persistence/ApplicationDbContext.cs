@@ -33,6 +33,8 @@ public class ApplicationDbContext
     public DbSet<Permission> Permissions => Set<Permission>();
     public DbSet<RolePermission> RolePermissions => Set<RolePermission>();
     public DbSet<Setting> Settings => Set<Setting>();
+    public DbSet<ReportTemplate> ReportTemplates => Set<ReportTemplate>();
+    public DbSet<TxnCategory> TxnCategories => Set<TxnCategory>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<ActivityLog> ActivityLogs => Set<ActivityLog>();
 

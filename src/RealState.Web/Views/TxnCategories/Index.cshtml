@@ -1,0 +1,64 @@
+@model RealState.Web.Controllers.TxnCategoriesVm
+@using RealState.Application.Enums
+@{
+    ViewData["Title"] = "بنود المصروفات والإيرادات";
+}
+<div class="page-head"><h1>بنود المصروفات والإيرادات</h1></div>
+
+@if (TempData["StatusMessage"] is string status) { <div class="status-message">@status</div> }
+
+<p style="color:var(--muted);font-size:13px;max-width:760px;margin-bottom:14px;">
+    البنود المُعرّفة هنا تظهر كقائمة اختيار عند تسجيل مصروف أو إيراد. البنود المُدمجة (عام / سلفة / مكافأة)
+    مرتبطة بسلوك النظام ولا يمكن تعديلها أو حذفها.
+</p>
+
+@{
+    async Task RenderSection(string title, TxnType type, List<RealState.Application.Entities.TxnCategory> items)
+    {
+        <div class="card-tile" style="max-width:620px;margin-bottom:16px;">
+            <div class="card-head"><h3>@title</h3></div>
+            <table class="rs-table">
+                <thead><tr><th>البند</th><th style="width:170px;"></th></tr></thead>
+                <tbody>
+                @foreach (var c in items)
+                {
+                    <tr>
+                        @if (c.IsBuiltIn)
+                        {
+                            <td>@c.Name</td>
+                            <td><span class="badge-role" style="color:var(--muted)">مدمج</span></td>
+                        }
+                        else
+                        {
+                            <td>
+                                <form asp-action="Update" method="post" style="display:flex;gap:6px;align-items:center;">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="id" value="@c.Id" />
+                                    <input name="name" value="@c.Name" class="form-control" style="margin:0;max-width:280px;" />
+                                    <button type="submit" class="btn-sm">حفظ</button>
+                                </form>
+                            </td>
+                            <td>
+                                <form asp-action="Delete" method="post" style="display:inline;" data-confirm="حذف البند «@c.Name»؟" data-danger>
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="id" value="@c.Id" />
+                                    <button type="submit" class="btn-sm btn-danger">حذف</button>
+                                </form>
+                            </td>
+                        }
+                    </tr>
+                }
+                </tbody>
+            </table>
+            <form asp-action="Create" method="post" style="display:flex;gap:8px;align-items:center;margin-top:10px;">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="type" value="@((int)type)" />
+                <input name="name" class="form-control" style="margin:0;flex:1;" placeholder="اسم بند جديد..." />
+                <button type="submit" class="btn-primary" style="width:auto;">➕ إضافة</button>
+            </form>
+        </div>
+    }
+}
+
+@{ await RenderSection("المصروفات", TxnType.Expense, Model.Expense); }
+@{ await RenderSection("الإيرادات", TxnType.Income, Model.Income); }

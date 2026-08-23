@@ -13,6 +13,8 @@ public interface IApplicationDbContext
     DbSet<Permission> Permissions { get; }
     DbSet<RolePermission> RolePermissions { get; }
     DbSet<Setting> Settings { get; }
+    DbSet<ReportTemplate> ReportTemplates { get; }
+    DbSet<TxnCategory> TxnCategories { get; }
     DbSet<AuditLog> AuditLogs { get; }
     DbSet<ActivityLog> ActivityLogs { get; }
 

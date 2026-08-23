@@ -35,4 +35,44 @@
     </form>
 </div>
 
+@{
+    var tpl = ViewBag.ReportTemplate as RealState.Application.Entities.ReportTemplate;
+}
+<div class="card-tile" style="max-width:620px;margin-top:16px;">
+    <h3 style="margin:0 0 8px;">قالب الطباعة والتقارير</h3>
+    <p style="color:var(--muted);font-size:13px;margin-bottom:14px;">
+        يُستخدم هذا القالب كخلفية/تصميم لكل التقارير والمطبوعات في النظام.
+        الملف: <strong>PDF من صفحة واحدة فقط</strong> · بحد أقصى 10 ميجابايت · يُفضّل مقاس A4.
+    </p>
+
+    @if (tpl is not null)
+    {
+        <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;margin-bottom:14px;">
+            <div style="border:1px solid var(--border);border-radius:8px;padding:6px;background:#fff;">
+                <img src="@Url.Action("Background", "ReportTemplate", new { v = tpl.UploadedAt.Ticks })" alt="معاينة القالب" style="display:block;width:200px;height:auto;" />
+            </div>
+            <table class="rs-table" style="flex:1;min-width:220px;">
+                <tbody>
+                    <tr><td class="muted">القالب الحالي</td><td>@tpl.OriginalFileName</td></tr>
+                    <tr><td class="muted">تاريخ الرفع</td><td dir="ltr" style="text-align:right;">@tpl.UploadedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</td></tr>
+                    <tr><td class="muted">عدد الصفحات</td><td>@tpl.PageCount</td></tr>
+                </tbody>
+            </table>
+        </div>
+    }
+    else
+    {
+        <div class="status-message" style="background:rgba(250,178,25,.12);border-color:var(--warning);color:var(--warning);margin-bottom:14px;">
+            لا يوجد قالب مُفعّل — ستُطبع التقارير بدون خلفية حتى ترفع قالبًا.
+        </div>
+    }
+
+    <form asp-controller="ReportTemplate" asp-action="Upload" method="post" enctype="multipart/form-data">
+        @Html.AntiForgeryToken()
+        <label class="form-label">@(tpl is null ? "رفع قالب (PDF)" : "استبدال القالب (PDF)")</label>
+        <input type="file" name="template" accept="application/pdf,.pdf" class="form-control" required />
+        <button type="submit" class="btn-primary" style="margin-top:12px;">@(tpl is null ? "رفع القالب" : "استبدال القالب")</button>
+    </form>
+</div>
+
 @section Scripts { <partial name="_ValidationScriptsPartial" /> }

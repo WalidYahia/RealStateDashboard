@@ -131,7 +131,7 @@ public class SuppliersController : Controller
                 Source = $"أمر توريد رقم PO-{o.Number:D4}",
                 Date = o.OrderDate,
                 Statement = items.Count > 0 ? string.Join("، ", items.Select(i => i.Name)) : "أمر توريد",
-                Amount = items.Sum(i => i.Cost)
+                Amount = items.Sum(i => i.Cost * i.Quantity)
             });
         }
         foreach (var p in payments)
@@ -140,9 +140,9 @@ public class SuppliersController : Controller
             {
                 Kind = SupplierLedgerKind.Payment,
                 Id = p.Id,
-                Source = "إيصال دفع",
+                Source = "إيصال صرف نقدية",
                 Date = p.PaidDate,
-                Statement = $"إيصال دفع رقم P-{p.ReceiptNo:D5}",
+                Statement = $"إيصال صرف نقدية رقم {p.ReceiptNo:D5}",
                 ReceiptNo = p.ReceiptNo,
                 Amount = p.Amount
             });
@@ -171,14 +171,14 @@ public class SuppliersController : Controller
         var paidByOrder = payments.Where(p => p.SupplierOrderId.HasValue)
             .GroupBy(p => p.SupplierOrderId!.Value).ToDictionary(g => g.Key, g => g.Sum(x => x.Amount));
         var hasPayable = orders.Any(o =>
-            (itemsByOrder.TryGetValue(o.Id, out var it) ? it.Sum(x => x.Cost) : 0) - paidByOrder.GetValueOrDefault(o.Id, 0) > 0);
+            (itemsByOrder.TryGetValue(o.Id, out var it) ? it.Sum(x => x.Cost * x.Quantity) : 0) - paidByOrder.GetValueOrDefault(o.Id, 0) > 0);
 
         return new SupplierStatementVm
         {
             Supplier = supplier,
             From = from,
             To = to,
-            TotalObligations = orders.Sum(o => itemsByOrder.TryGetValue(o.Id, out var it) ? it.Sum(x => x.Cost) : 0),
+            TotalObligations = orders.Sum(o => itemsByOrder.TryGetValue(o.Id, out var it) ? it.Sum(x => x.Cost * x.Quantity) : 0),
             TotalPaid = payments.Sum(p => p.Amount),
             OrdersCount = orders.Count,
             PaymentsCount = payments.Count,
@@ -199,7 +199,7 @@ public class SuppliersController : Controller
         var orders = await _db.SupplierOrders.Where(o => o.SupplierId == id).OrderBy(o => o.Number).ToListAsync(ct);
         var orderIds = orders.Select(o => o.Id).ToList();
         var itemSums = (await _db.SupplierOrderItems.Where(i => orderIds.Contains(i.SupplierOrderId))
-            .GroupBy(i => i.SupplierOrderId).Select(g => new { g.Key, Sum = g.Sum(x => x.Cost) }).ToListAsync(ct))
+            .GroupBy(i => i.SupplierOrderId).Select(g => new { g.Key, Sum = g.Sum(x => x.Cost * x.Quantity) }).ToListAsync(ct))
             .ToDictionary(x => x.Key, x => x.Sum);
         var paidSums = (await _db.SupplierPayments.Where(p => p.SupplierOrderId != null && orderIds.Contains(p.SupplierOrderId!.Value))
             .GroupBy(p => p.SupplierOrderId!.Value).Select(g => new { g.Key, Sum = g.Sum(x => x.Amount) }).ToListAsync(ct))

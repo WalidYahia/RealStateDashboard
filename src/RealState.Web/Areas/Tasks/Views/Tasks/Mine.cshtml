@@ -20,38 +20,46 @@
 <!-- Tab: assigned to me -->
 <div id="mine-assigned" class="mine-tab">
     <div class="card-tile" style="margin-bottom:12px;">
-        <form asp-action="Mine" method="get" style="display:flex;gap:10px;align-items:end;flex-wrap:wrap;">
+        <form asp-action="Mine" method="get" class="filter-form">
             <input type="hidden" name="tab" value="assigned" />
-            <div><label class="form-label">من</label><input type="date" name="from" value="@F(Model.From)" class="form-control" style="margin:0;" dir="ltr" /></div>
-            <div><label class="form-label">إلى</label><input type="date" name="to" value="@F(Model.To)" class="form-control" style="margin:0;" dir="ltr" /></div>
-            <div>
-                <label class="form-label">أسندها</label>
-                <select name="assignedBy" class="form-control" style="margin:0;">
-                    <option value="">الكل</option>
-                    @foreach (var a in Model.Assigners)
-                    { <option value="@a.Value" selected="@(Model.AssignedBy == a.Value)">@a.Text</option> }
-                </select>
+            <div class="filter-row">
+                <div class="fld"><label class="form-label">من</label><input type="date" name="from" value="@F(Model.From)" class="form-control" dir="ltr" /></div>
+                <div class="fld"><label class="form-label">إلى</label><input type="date" name="to" value="@F(Model.To)" class="form-control" dir="ltr" /></div>
+                <div class="filter-presets">
+                    <button type="button" class="btn-sm date-preset" data-from="@F(DateTime.Today)" data-to="@F(DateTime.Today)">اليوم</button>
+                    <button type="button" class="btn-sm date-preset" data-from="@F(DateTime.Today.AddDays(-7))" data-to="@F(DateTime.Today)">آخر أسبوع</button>
+                    <button type="button" class="btn-sm date-preset" data-from="@F(DateTime.Today.AddMonths(-1))" data-to="@F(DateTime.Today)">آخر شهر</button>
+                </div>
             </div>
-            <div>
-                <label class="form-label">الحالة</label>
-                <select name="status" class="form-control" style="margin:0;">
-                    <option value="">الكل</option>
-                    @foreach (var st in Enum.GetValues<WorkTaskStatus>())
-                    { <option value="@((int)st)" selected="@(Model.Status == st)">@st.Ar()</option> }
-                </select>
+            <div class="filter-row">
+                <div class="fld">
+                    <label class="form-label">أسندها</label>
+                    <select name="assignedBy" class="form-control">
+                        <option value="">الكل</option>
+                        @foreach (var a in Model.Assigners)
+                        { <option value="@a.Value" selected="@(Model.AssignedBy == a.Value)">@a.Text</option> }
+                    </select>
+                </div>
+                <div class="fld">
+                    <label class="form-label">الحالة</label>
+                    <select name="status" class="form-control">
+                        <option value="">الكل</option>
+                        @foreach (var st in Enum.GetValues<WorkTaskStatus>())
+                        { <option value="@((int)st)" selected="@(Model.Status == st)">@st.Ar()</option> }
+                    </select>
+                </div>
+                <div class="fld">
+                    <label class="form-label">الأهمية</label>
+                    <select name="severity" class="form-control">
+                        <option value="">الكل</option>
+                        @foreach (var sv in Enum.GetValues<TaskSeverity>())
+                        { <option value="@((int)sv)" selected="@(Model.Severity == sv)">@sv.Ar()</option> }
+                    </select>
+                </div>
+                <div class="filter-actions">
+                    <button type="submit" class="btn-primary">بحث</button>
+                </div>
             </div>
-            <div>
-                <label class="form-label">الأهمية</label>
-                <select name="severity" class="form-control" style="margin:0;">
-                    <option value="">الكل</option>
-                    @foreach (var sv in Enum.GetValues<TaskSeverity>())
-                    { <option value="@((int)sv)" selected="@(Model.Severity == sv)">@sv.Ar()</option> }
-                </select>
-            </div>
-            <button type="submit" class="btn-primary" style="width:auto;">بحث</button>
-            <a class="btn-sm" asp-action="Mine" asp-route-tab="assigned" asp-route-from="@F(DateTime.Today)" asp-route-to="@F(DateTime.Today)">اليوم</a>
-            <a class="btn-sm" asp-action="Mine" asp-route-tab="assigned" asp-route-from="@F(DateTime.Today.AddDays(-7))" asp-route-to="@F(DateTime.Today)">آخر أسبوع</a>
-            <a class="btn-sm" asp-action="Mine" asp-route-tab="assigned" asp-route-from="@F(DateTime.Today.AddMonths(-1))" asp-route-to="@F(DateTime.Today)">آخر شهر</a>
         </form>
     </div>
     <div class="card-tile"><partial name="_MineTable" model="Model.Assigned" /></div>
@@ -60,38 +68,46 @@
 <!-- Tab: assigned by me -->
 <div id="mine-delegated" class="mine-tab" style="display:none;">
     <div class="card-tile" style="margin-bottom:12px;">
-        <form asp-action="Mine" method="get" style="display:flex;gap:10px;align-items:end;flex-wrap:wrap;">
+        <form asp-action="Mine" method="get" class="filter-form">
             <input type="hidden" name="tab" value="delegated" />
-            <div><label class="form-label">من</label><input type="date" name="from" value="@F(Model.From)" class="form-control" style="margin:0;" dir="ltr" /></div>
-            <div><label class="form-label">إلى</label><input type="date" name="to" value="@F(Model.To)" class="form-control" style="margin:0;" dir="ltr" /></div>
-            <div>
-                <label class="form-label">المُكلَّف</label>
-                <select name="assignedToId" class="form-control" style="margin:0;">
-                    <option value="">الكل</option>
-                    @foreach (var e in Model.Assignees)
-                    { <option value="@e.Value" selected="@(Model.AssignedToId?.ToString() == e.Value)">@e.Text</option> }
-                </select>
+            <div class="filter-row">
+                <div class="fld"><label class="form-label">من</label><input type="date" name="from" value="@F(Model.From)" class="form-control" dir="ltr" /></div>
+                <div class="fld"><label class="form-label">إلى</label><input type="date" name="to" value="@F(Model.To)" class="form-control" dir="ltr" /></div>
+                <div class="filter-presets">
+                    <button type="button" class="btn-sm date-preset" data-from="@F(DateTime.Today)" data-to="@F(DateTime.Today)">اليوم</button>
+                    <button type="button" class="btn-sm date-preset" data-from="@F(DateTime.Today.AddDays(-7))" data-to="@F(DateTime.Today)">آخر أسبوع</button>
+                    <button type="button" class="btn-sm date-preset" data-from="@F(DateTime.Today.AddMonths(-1))" data-to="@F(DateTime.Today)">آخر شهر</button>
+                </div>
             </div>
-            <div>
-                <label class="form-label">الحالة</label>
-                <select name="status" class="form-control" style="margin:0;">
-                    <option value="">الكل</option>
-                    @foreach (var st in Enum.GetValues<WorkTaskStatus>())
-                    { <option value="@((int)st)" selected="@(Model.Status == st)">@st.Ar()</option> }
-                </select>
+            <div class="filter-row">
+                <div class="fld">
+                    <label class="form-label">المُكلَّف</label>
+                    <select name="assignedToId" class="form-control">
+                        <option value="">الكل</option>
+                        @foreach (var e in Model.Assignees)
+                        { <option value="@e.Value" selected="@(Model.AssignedToId?.ToString() == e.Value)">@e.Text</option> }
+                    </select>
+                </div>
+                <div class="fld">
+                    <label class="form-label">الحالة</label>
+                    <select name="status" class="form-control">
+                        <option value="">الكل</option>
+                        @foreach (var st in Enum.GetValues<WorkTaskStatus>())
+                        { <option value="@((int)st)" selected="@(Model.Status == st)">@st.Ar()</option> }
+                    </select>
+                </div>
+                <div class="fld">
+                    <label class="form-label">الأهمية</label>
+                    <select name="severity" class="form-control">
+                        <option value="">الكل</option>
+                        @foreach (var sv in Enum.GetValues<TaskSeverity>())
+                        { <option value="@((int)sv)" selected="@(Model.Severity == sv)">@sv.Ar()</option> }
+                    </select>
+                </div>
+                <div class="filter-actions">
+                    <button type="submit" class="btn-primary">بحث</button>
+                </div>
             </div>
-            <div>
-                <label class="form-label">الأهمية</label>
-                <select name="severity" class="form-control" style="margin:0;">
-                    <option value="">الكل</option>
-                    @foreach (var sv in Enum.GetValues<TaskSeverity>())
-                    { <option value="@((int)sv)" selected="@(Model.Severity == sv)">@sv.Ar()</option> }
-                </select>
-            </div>
-            <button type="submit" class="btn-primary" style="width:auto;">بحث</button>
-            <a class="btn-sm" asp-action="Mine" asp-route-tab="delegated" asp-route-from="@F(DateTime.Today)" asp-route-to="@F(DateTime.Today)">اليوم</a>
-            <a class="btn-sm" asp-action="Mine" asp-route-tab="delegated" asp-route-from="@F(DateTime.Today.AddDays(-7))" asp-route-to="@F(DateTime.Today)">آخر أسبوع</a>
-            <a class="btn-sm" asp-action="Mine" asp-route-tab="delegated" asp-route-from="@F(DateTime.Today.AddMonths(-1))" asp-route-to="@F(DateTime.Today)">آخر شهر</a>
         </form>
     </div>
     <div class="card-tile"><partial name="_MineTable" model="Model.Delegated" /></div>
@@ -100,30 +116,38 @@
 <!-- Tab: assigned by me, to myself -->
 <div id="mine-self" class="mine-tab" style="display:none;">
     <div class="card-tile" style="margin-bottom:12px;">
-        <form asp-action="Mine" method="get" style="display:flex;gap:10px;align-items:end;flex-wrap:wrap;">
+        <form asp-action="Mine" method="get" class="filter-form">
             <input type="hidden" name="tab" value="self" />
-            <div><label class="form-label">من</label><input type="date" name="from" value="@F(Model.From)" class="form-control" style="margin:0;" dir="ltr" /></div>
-            <div><label class="form-label">إلى</label><input type="date" name="to" value="@F(Model.To)" class="form-control" style="margin:0;" dir="ltr" /></div>
-            <div>
-                <label class="form-label">الحالة</label>
-                <select name="status" class="form-control" style="margin:0;">
-                    <option value="">الكل</option>
-                    @foreach (var st in Enum.GetValues<WorkTaskStatus>())
-                    { <option value="@((int)st)" selected="@(Model.Status == st)">@st.Ar()</option> }
-                </select>
+            <div class="filter-row">
+                <div class="fld"><label class="form-label">من</label><input type="date" name="from" value="@F(Model.From)" class="form-control" dir="ltr" /></div>
+                <div class="fld"><label class="form-label">إلى</label><input type="date" name="to" value="@F(Model.To)" class="form-control" dir="ltr" /></div>
+                <div class="filter-presets">
+                    <button type="button" class="btn-sm date-preset" data-from="@F(DateTime.Today)" data-to="@F(DateTime.Today)">اليوم</button>
+                    <button type="button" class="btn-sm date-preset" data-from="@F(DateTime.Today.AddDays(-7))" data-to="@F(DateTime.Today)">آخر أسبوع</button>
+                    <button type="button" class="btn-sm date-preset" data-from="@F(DateTime.Today.AddMonths(-1))" data-to="@F(DateTime.Today)">آخر شهر</button>
+                </div>
             </div>
-            <div>
-                <label class="form-label">الأهمية</label>
-                <select name="severity" class="form-control" style="margin:0;">
-                    <option value="">الكل</option>
-                    @foreach (var sv in Enum.GetValues<TaskSeverity>())
-                    { <option value="@((int)sv)" selected="@(Model.Severity == sv)">@sv.Ar()</option> }
-                </select>
+            <div class="filter-row">
+                <div class="fld">
+                    <label class="form-label">الحالة</label>
+                    <select name="status" class="form-control">
+                        <option value="">الكل</option>
+                        @foreach (var st in Enum.GetValues<WorkTaskStatus>())
+                        { <option value="@((int)st)" selected="@(Model.Status == st)">@st.Ar()</option> }
+                    </select>
+                </div>
+                <div class="fld">
+                    <label class="form-label">الأهمية</label>
+                    <select name="severity" class="form-control">
+                        <option value="">الكل</option>
+                        @foreach (var sv in Enum.GetValues<TaskSeverity>())
+                        { <option value="@((int)sv)" selected="@(Model.Severity == sv)">@sv.Ar()</option> }
+                    </select>
+                </div>
+                <div class="filter-actions">
+                    <button type="submit" class="btn-primary">بحث</button>
+                </div>
             </div>
-            <button type="submit" class="btn-primary" style="width:auto;">بحث</button>
-            <a class="btn-sm" asp-action="Mine" asp-route-tab="self" asp-route-from="@F(DateTime.Today)" asp-route-to="@F(DateTime.Today)">اليوم</a>
-            <a class="btn-sm" asp-action="Mine" asp-route-tab="self" asp-route-from="@F(DateTime.Today.AddDays(-7))" asp-route-to="@F(DateTime.Today)">آخر أسبوع</a>
-            <a class="btn-sm" asp-action="Mine" asp-route-tab="self" asp-route-from="@F(DateTime.Today.AddMonths(-1))" asp-route-to="@F(DateTime.Today)">آخر شهر</a>
         </form>
     </div>
     <div class="card-tile"><partial name="_MineTable" model="Model.SelfAssigned" /></div>

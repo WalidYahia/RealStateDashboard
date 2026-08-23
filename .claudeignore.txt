@@ -1,0 +1,6 @@
+bin/
+obj/
+wwwroot/lib/
+packages/
+TestResults/
+*.min.js

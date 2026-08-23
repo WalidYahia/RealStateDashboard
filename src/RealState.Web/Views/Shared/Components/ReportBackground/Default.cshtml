@@ -1,0 +1,27 @@
+@model RealState.Web.Components.ReportBackgroundVm
+@if (Model.Show && Model.Part == "open")
+{
+    <style>
+        /* Tenant letterhead: a full-page background <img> (prints without "Background graphics" and
+           repeats on every page), plus a table frame whose thead/tfoot spacers reserve the header/footer
+           bands on EVERY printed page, so the report content flows only in the safe area between them. */
+        .rpt-bg { position: fixed; inset: 0; z-index: -1; }
+        .rpt-bg img { width: 100%; height: 100%; object-fit: fill; }
+        .rpt-frame { width: 100%; border-collapse: collapse; }
+        .rpt-frame > thead > tr > td, .rpt-frame > tfoot > tr > td, .rpt-frame > tbody > tr > td { padding: 0; border: 0; background: none; }
+        .rpt-hspace { height: 40mm; }   /* top safe-area: header band + gap before content */
+        .rpt-fspace { height: 40mm; }   /* bottom safe-area: gap after content + footer band */
+        .rpt-frame > tbody > tr > td { padding: 0 15mm; }   /* side safe-area */
+        @@media print {
+            @@page { size: A4; margin: 0; }
+            html, body { margin: 0 !important; padding: 0 !important; }
+        }
+    </style>
+    <div class="rpt-bg"><img src="@Url.Action("Background", "ReportTemplate", new { area = "" })" alt="" /></div>
+    @Html.Raw("<table class=\"rpt-frame\"><thead><tr><td><div class=\"rpt-hspace\"></div></td></tr></thead>"
+            + "<tfoot><tr><td><div class=\"rpt-fspace\"></div></td></tr></tfoot><tbody><tr><td>")
+}
+else if (Model.Show && Model.Part == "close")
+{
+    @Html.Raw("</td></tr></tbody></table>")
+}

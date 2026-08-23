@@ -25,8 +25,8 @@
     </style>
 </head>
 <body>
+    @await Component.InvokeAsync("ReportBackground", new { part = "open" })
     <div class="no-print"><button onclick="window.print()">🖨 طباعة / حفظ PDF</button></div>
-    <div class="brand"><img src="@Url.Action("Logo", "Branding", new { area = "", id = tenantId })" alt="logo" onerror="this.style.display='none'" /></div>
     <h1>قائمة العملاء المحتملين</h1>
     <div class="sub">
         @if (from.HasValue || to.HasValue) { <text>الفترة @D(from ?? DateTime.MinValue) — @D(to ?? DateTime.MaxValue) · </text> }
@@ -57,5 +57,6 @@
     </table>
 
     <script>window.addEventListener('load', function () { setTimeout(function () { window.print(); }, 400); });</script>
+    @await Component.InvokeAsync("ReportBackground", new { part = "close" })
 </body>
 </html>

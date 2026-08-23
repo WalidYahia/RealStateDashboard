@@ -48,3 +48,6 @@ Thumbs.db
 # Environment / secrets
 *.env
 appsettings.*.local.json
+
+# Uploaded report templates (runtime business data — back up separately)
+App_Data/

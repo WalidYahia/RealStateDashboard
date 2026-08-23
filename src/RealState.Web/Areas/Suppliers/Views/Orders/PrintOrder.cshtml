@@ -3,8 +3,9 @@
     Layout = null;
     var tenantId = (Guid)ViewBag.TenantId;
     string N(decimal v) => v.ToString("N0", new System.Globalization.CultureInfo("ar-EG"));
+    string Q(decimal v) => v.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
     string D(DateTime d) => d.ToString("yyyy/MM/dd", System.Globalization.CultureInfo.InvariantCulture);
-    var total = Model.Items.Sum(i => i.Cost);
+    var total = Model.Items.Sum(i => i.LineTotal);
 }
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -27,8 +28,8 @@
     </style>
 </head>
 <body>
+    @await Component.InvokeAsync("ReportBackground", new { part = "open" })
     <div class="no-print"><button onclick="window.print()">🖨 طباعة / حفظ PDF</button></div>
-    <div class="brand"><img src="@Url.Action("Logo", "Branding", new { area = "", id = tenantId })" alt="logo" onerror="this.style.display='none'" /></div>
     <h1>أمر توريد رقم PO-@Model.Number.ToString("D4")</h1>
     <div class="sub">تاريخ التحرير: @DateTime.Now.ToString("yyyy/MM/dd")</div>
 
@@ -41,17 +42,17 @@
 
     <h2>البنود</h2>
     <table>
-        <thead><tr><th>#</th><th>البند</th><th>التكلفة (ج.م)</th></tr></thead>
+        <thead><tr><th>#</th><th>البند</th><th>تكلفة الوحدة (ج.م)</th><th>الكمية</th><th>الإجمالي (ج.م)</th></tr></thead>
         <tbody>
         @{ var n = 0; }
         @foreach (var it in Model.Items)
         {
             n++;
-            <tr><td>@n</td><td>@it.Name</td><td>@N(it.Cost)</td></tr>
+            <tr><td>@n</td><td>@it.Name</td><td>@N(it.Cost)</td><td>@Q(it.Quantity)</td><td>@N(it.LineTotal)</td></tr>
         }
         </tbody>
         <tfoot>
-            <tr><th colspan="2">الإجمالي</th><th>@N(total) ج.م</th></tr>
+            <tr><th colspan="4">الإجمالي</th><th>@N(total) ج.م</th></tr>
         </tfoot>
     </table>
 
@@ -64,5 +65,6 @@
     <div class="sign"><div>توقيع المسؤول</div><div>توقيع المورد</div></div>
 
     <script>window.addEventListener('load', function () { setTimeout(function () { window.print(); }, 500); });</script>
+    @await Component.InvokeAsync("ReportBackground", new { part = "close" })
 </body>
 </html>

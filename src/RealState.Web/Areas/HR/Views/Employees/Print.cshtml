@@ -2,8 +2,11 @@
 @{
     Layout = null;
     var tenantId = (Guid)ViewBag.TenantId;
+    var withSalary = ViewBag.WithSalary as bool? ?? false;
+    var withNationalId = ViewBag.WithNationalId as bool? ?? false;
     string N(decimal v) => v.ToString("N0", new System.Globalization.CultureInfo("ar-EG"));
     var totalSalary = Model.Sum(e => e.BasicSalary);
+    var baseCols = 6 + (withNationalId ? 1 : 0);   // # + الاسم + الهاتف + القسم + الوظيفة + نوع التعاقد (+ الرقم القومي)
 }
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -23,13 +26,19 @@
     </style>
 </head>
 <body>
+    @await Component.InvokeAsync("ReportBackground", new { part = "open" })
     <div class="no-print"><button onclick="window.print()">🖨 طباعة / حفظ PDF</button></div>
-    <div class="brand"><img src="@Url.Action("Logo", "Branding", new { area = "", id = tenantId })" alt="logo" onerror="this.style.display='none'" /></div>
     <h1>قائمة الموظفين</h1>
     <div class="sub">عدد الموظفين: @Model.Count · طُبع @DateTime.Now.ToString("yyyy/MM/dd HH:mm")</div>
 
     <table>
-        <thead><tr><th>#</th><th>الاسم</th><th>الهاتف</th><th>القسم</th><th>الوظيفة</th><th>نوع التعاقد</th><th>الراتب الأساسي</th></tr></thead>
+        <thead>
+            <tr>
+                <th>#</th><th>الاسم</th><th>الهاتف</th><th>القسم</th><th>الوظيفة</th><th>نوع التعاقد</th>
+                @if (withNationalId) { <th>الرقم القومي</th> }
+                @if (withSalary) { <th>الراتب الأساسي</th> }
+            </tr>
+        </thead>
         <tbody>
         @{ var i = 1; }
         @foreach (var e in Model)
@@ -41,17 +50,22 @@
                 <td>@e.Department</td>
                 <td>@e.Role</td>
                 <td>@e.EmploymentType</td>
-                <td>@N(e.BasicSalary)</td>
+                @if (withNationalId) { <td dir="ltr" style="text-align:right;">@e.NationalId</td> }
+                @if (withSalary) { <td>@N(e.BasicSalary)</td> }
             </tr>
             i++;
         }
-        @if (Model.Count == 0) { <tr><td colspan="7">لا يوجد موظفون.</td></tr> }
+        @if (Model.Count == 0) { <tr><td colspan="@(baseCols + (withSalary ? 1 : 0))">لا يوجد موظفون.</td></tr> }
         </tbody>
-        <tfoot>
-            <tr><th colspan="6">إجمالي الرواتب الأساسية</th><th>@N(totalSalary)</th></tr>
-        </tfoot>
+        @if (withSalary)
+        {
+            <tfoot>
+                <tr><th colspan="@baseCols">إجمالي الرواتب الأساسية</th><th>@N(totalSalary)</th></tr>
+            </tfoot>
+        }
     </table>
 
     <script>window.addEventListener('load', function () { setTimeout(function () { window.print(); }, 400); });</script>
+    @await Component.InvokeAsync("ReportBackground", new { part = "close" })
 </body>
 </html>

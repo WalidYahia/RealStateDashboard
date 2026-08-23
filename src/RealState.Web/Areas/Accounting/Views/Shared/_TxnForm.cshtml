@@ -13,20 +13,18 @@
         </div>
     }
 
-    @if (isNew)
-    {
-        <div class="form-grid">
-            <div>
-                <label asp-for="Kind" class="form-label"></label>
-                <select asp-for="Kind" class="form-control" data-cascade-init onchange="txnKindChange(this.form)">
-                    <option value="@((int)AccountingEntryKind.General)">عام</option>
-                    <option value="@((int)AccountingEntryKind.Advance)">سلفة</option>
-                    @if (Model.IsExpense)
-                    {
-                        <option value="@((int)AccountingEntryKind.Reward)">مكافأة</option>
-                    }
-                </select>
-            </div>
+    <div class="form-grid">
+        <div>
+            <label asp-for="CategoryId" class="form-label"></label>
+            <select asp-for="CategoryId" class="form-control" data-cascade-init onchange="txnKindChange(this.form)">
+                @foreach (var c in Model.Categories)
+                {
+                    <option value="@c.Id" data-kind="@((int)c.BuiltInKind)">@c.Name</option>
+                }
+            </select>
+        </div>
+        @if (isNew)
+        {
             <div class="txn-advance full" style="display:none;">
                 <label asp-for="AdvanceId" class="form-label"></label>
                 <select asp-for="AdvanceId" class="form-control" onchange="txnPickAmount(this)">
@@ -48,8 +46,8 @@
                     @if (Model.RewardOptions.Count == 0) { <span style="color:var(--muted);font-size:12px;">لا توجد مكافآت نقدية مطابقة.</span> }
                 </div>
             }
-        </div>
-    }
+        }
+    </div>
 
     <div class="form-grid">
         <div>

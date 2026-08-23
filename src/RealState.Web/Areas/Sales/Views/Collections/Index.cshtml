@@ -78,19 +78,37 @@
                         Swal.fire({ icon: 'warning', title: 'لا توجد خزائن', html: 'أنشئ خزنة أولًا من المحاسبة ← الخزائن قبل التحصيل.' });
                         return;
                     }
+                    // The down payment (المقدم) may be collected in parts: show an editable amount field.
+                    var partial = f.dataset.partial === 'true';
+                    var remaining = parseFloat(f.dataset.remaining || '0') || 0;
+                    var html = f.dataset.msg
+                        + '<div style="margin-top:14px;text-align:right;"><label style="display:block;margin-bottom:6px;font-size:14px;">الخزنة المستلمة للمبلغ</label><select id="swalSafe" class="swal2-select" style="width:100%;margin:0;">' + colSafeOptions() + '</select></div>';
+                    if (partial) {
+                        html += '<div style="margin-top:12px;text-align:right;"><label style="display:block;margin-bottom:6px;font-size:14px;">المبلغ المحصّل (المتبقي ' + remaining.toLocaleString('en-US') + ' ج.م)</label>'
+                            + '<input id="swalAmount" type="number" step="0.01" min="0.01" max="' + remaining + '" value="' + remaining + '" class="swal2-input" style="width:100%;margin:0;"></div>';
+                    }
                     Swal.fire({
-                        icon: 'question', title: 'تأكيد التحصيل',
-                        html: f.dataset.msg + '<div style="margin-top:14px;text-align:right;"><label style="display:block;margin-bottom:6px;font-size:14px;">الخزنة المستلمة للمبلغ</label><select id="swalSafe" class="swal2-select" style="width:100%;margin:0;">' + colSafeOptions() + '</select></div>',
+                        icon: 'question', title: 'تأكيد التحصيل', html: html,
                         showCancelButton: true, confirmButtonText: 'نعم، حصّل واطبع الإيصال', cancelButtonText: 'رجوع',
                         reverseButtons: true, confirmButtonColor: '#199e70', cancelButtonColor: '#6b7280',
                         preConfirm: function () {
-                            var v = document.getElementById('swalSafe').value;
-                            if (!v) { Swal.showValidationMessage('اختر الخزنة'); }
-                            return v;
+                            var safe = document.getElementById('swalSafe').value;
+                            if (!safe) { Swal.showValidationMessage('اختر الخزنة'); return false; }
+                            var amt = null;
+                            if (partial) {
+                                amt = parseFloat(document.getElementById('swalAmount').value);
+                                if (isNaN(amt) || amt <= 0) { Swal.showValidationMessage('أدخل مبلغًا صحيحًا'); return false; }
+                                if (amt > remaining + 0.001) { Swal.showValidationMessage('المبلغ يتجاوز المتبقي'); return false; }
+                            }
+                            return { safe: safe, amount: amt };
                         }
                     }).then(function (r) {
                         if (r.isConfirmed) {
-                            f.querySelector('.pay-safe').value = r.value;
+                            f.querySelector('.pay-safe').value = r.value.safe;
+                            if (partial && r.value.amount != null) {
+                                var amtEl = f.querySelector('.pay-amount');
+                                if (amtEl) amtEl.value = r.value.amount;
+                            }
                             f.target = '_blank';   // open the printable receipt in a new tab
                             f.submit();
                             // refresh the list in place so the collected installment updates
