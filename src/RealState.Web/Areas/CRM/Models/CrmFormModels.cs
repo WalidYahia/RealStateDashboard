@@ -76,6 +76,10 @@ public class LeadRow
     public string? Platform { get; set; }
     public string? UnitType { get; set; }      // "نوع الوحدة المهتم بها" question answer
     public string? PaymentPlan { get; set; }   // "خطة السداد المهتم بها" question answer
+
+    // Most recent communication-log entry for the lead.
+    public string? LatestLog { get; set; }
+    public DateTime? LatestLogAt { get; set; }
 }
 
 /// <summary>Leads list with its filters and filter option lists.</summary>

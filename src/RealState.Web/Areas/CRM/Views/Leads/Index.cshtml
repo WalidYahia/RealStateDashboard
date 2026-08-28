@@ -139,7 +139,7 @@
     </div>
     <div class="list-search-bar"><input class="form-control list-search" data-target="#leadTable" placeholder="🔍 بحث في القائمة..." /></div>
     <table class="rs-table" id="leadTable">
-        <thead><tr>@if (canAssign) { <th class="bulk-col" style="width:34px;"><input type="checkbox" id="leadSelectAll" onclick="leadToggleAll(this)" /></th> }<th>الاسم</th><th>الهاتف</th><th>تاريخ الإنشاء</th><th>المصدر</th><th>الحملة</th><th>المنصة</th><th>نوع الوحدة</th><th>خطة السداد</th><th>المندوب</th><th>الحالة</th><th>سجلات</th><th></th></tr></thead>
+        <thead><tr>@if (canAssign) { <th class="bulk-col" style="width:34px;"><input type="checkbox" id="leadSelectAll" onclick="leadToggleAll(this)" /></th> }<th>الاسم</th><th>الهاتف</th><th>تاريخ الإنشاء</th><th>المصدر</th><th>الحملة</th><th>المنصة</th><th>المندوب</th><th>الحالة</th><th>سجلات</th><th>آخر سجل</th><th></th></tr></thead>
         <tbody>
         @foreach (var l in Model.Rows)
         {
@@ -151,14 +151,20 @@
                 <td>@l.SourceLabel</td>
                 <td>@(l.CampaignName ?? "—")</td>
                 <td dir="ltr" style="text-align:right;">@(l.Platform ?? "—")</td>
-                <td>@(l.UnitType ?? "—")</td>
-                <td>@(l.PaymentPlan ?? "—")</td>
                 <td>@l.Salesperson</td>
                 <td>
                     @if (l.Interest.HasValue) { <span class="badge-role" style="color:@l.Interest.Value.Color()">@l.Interest.Value.Ar()</span> }
                     else { <span style="color:var(--muted)">—</span> }
                 </td>
                 <td>@l.LogCount</td>
+                <td style="max-width:240px;text-align:right;">
+                    @if (string.IsNullOrEmpty(l.LatestLog)) { <span style="color:var(--muted)">—</span> }
+                    else
+                    {
+                        <div title="@l.LatestLog" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">@l.LatestLog</div>
+                        @if (l.LatestLogAt.HasValue) { <div style="color:var(--muted);font-size:11px;text-align:right;" dir="ltr">@D(l.LatestLogAt.Value)</div> }
+                    }
+                </td>
                 <td style="white-space:nowrap;">
                     <a class="btn-sm" asp-controller="Customers" asp-action="Details" asp-route-id="@l.Id" asp-route-returnUrl="@returnUrl">الملف</a>
                     @if (canEdit)
@@ -168,8 +174,8 @@
                 </td>
             </tr>
         }
-        @if (Model.Rows.Count == 0) { <tr data-skip-search><td colspan="@(canAssign ? 13 : 12)" style="color:var(--muted)">لا يوجد عملاء محتملون مطابقون.</td></tr> }
-        <tr data-no-results data-skip-search style="display:none;"><td colspan="@(canAssign ? 13 : 12)" style="color:var(--muted)">لا توجد نتائج مطابقة.</td></tr>
+        @if (Model.Rows.Count == 0) { <tr data-skip-search><td colspan="@(canAssign ? 12 : 11)" style="color:var(--muted)">لا يوجد عملاء محتملون مطابقون.</td></tr> }
+        <tr data-no-results data-skip-search style="display:none;"><td colspan="@(canAssign ? 12 : 11)" style="color:var(--muted)">لا توجد نتائج مطابقة.</td></tr>
         </tbody>
     </table>
 </div>

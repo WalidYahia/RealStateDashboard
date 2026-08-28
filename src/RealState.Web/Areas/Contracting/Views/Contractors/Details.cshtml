@@ -69,17 +69,17 @@
                 var isOrder = r.Kind == ContractorLedgerKind.Order;
                 <tr>
                     <td>@(i++)</td>
-                    <td>@(isOrder ? r.Project : "—")</td>
+                    <td>@(isOrder ? r.Project : "")</td>
                     <td dir="ltr" style="text-align:right;">@D(r.Date)</td>
                     <td>@r.Statement</td>
-                    <td>@(isOrder ? r.Unit : "—")</td>
-                    <td>@(isOrder ? N(r.Quantity) : "—")</td>
-                    <td>@(isOrder ? N(r.Rate) : "—")</td>
-                    <td>@(isOrder ? P(r.ExecutionPercent) : "—")</td>
-                    <td>@(isOrder ? N(r.Due) : "—")</td>
-                    <td>@(isOrder ? P(r.UpliftPercent) : "—")</td>
-                    <td>@(isOrder ? N(r.Deductions) : "—")</td>
-                    <td>@(isOrder ? N(r.ActualTotal) : "—")</td>
+                    <td>@(isOrder ? r.Unit : "")</td>
+                    <td>@(isOrder ? N(r.Quantity) : "")</td>
+                    <td>@(isOrder ? N(r.Rate) : "")</td>
+                    <td>@(isOrder ? P(r.ExecutionPercent) : "")</td>
+                    <td>@(isOrder ? N(r.Due) : "")</td>
+                    <td>@(isOrder ? P(r.UpliftPercent) : "")</td>
+                    <td>@(isOrder ? N(r.Deductions) : "")</td>
+                    <td>@(isOrder ? N(r.ActualTotal) : "")</td>
                     <td class="tag-up">@(isOrder ? "" : N(r.Payment))</td>
                     <td><strong>@N(r.Balance)</strong></td>
                     <td>@(string.IsNullOrEmpty(r.Notes) ? "" : r.Notes)</td>

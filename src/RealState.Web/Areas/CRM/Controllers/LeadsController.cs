@@ -123,9 +123,9 @@ public class LeadsController : Controller
         if (await RestrictedSalespersonIdAsync(ct) is Guid myEmpId) q = q.Where(c => c.SalesPersonId == myEmpId);
         var leads = await q.OrderByDescending(c => c.CreatedAt).ToListAsync(ct);
         var leadIds = leads.Select(c => c.Id).ToList();
-        var counts = (await _db.CustomerLogs.Where(l => leadIds.Contains(l.CustomerId))
-                .GroupBy(l => l.CustomerId).Select(g => new { g.Key, C = g.Count() }).ToListAsync(ct))
-            .ToDictionary(x => x.Key, x => x.C);
+        // Communication logs per lead → count + most recent entry.
+        var logsByLead = (await _db.CustomerLogs.Where(l => leadIds.Contains(l.CustomerId)).ToListAsync(ct))
+            .GroupBy(l => l.CustomerId).ToDictionary(g => g.Key, g => g.ToList());
 
         // Latest campaign-import row per lead (for the campaign/platform/interest columns).
         var campaignByLead = (await _db.CampaignLeads.Where(cl => leadIds.Contains(cl.CustomerId)).ToListAsync(ct))
@@ -135,16 +135,20 @@ public class LeadsController : Controller
         return leads.Select(c =>
         {
             campaignByLead.TryGetValue(c.Id, out var cl);
+            logsByLead.TryGetValue(c.Id, out var clogs);
+            var latest = clogs?.OrderByDescending(l => l.Date).ThenByDescending(l => l.CreatedAt).FirstOrDefault();
             return new LeadRow
             {
                 Id = c.Id, Name = c.FullName, Phone = c.Phone, CreatedOn = c.CreatedAt,
                 SalespersonId = c.SalesPersonId, SourceLabel = c.SourceLabel(campNames),
                 Salesperson = c.SalesPersonId.HasValue ? salesNames.GetValueOrDefault(c.SalesPersonId.Value, "—") : "—",
-                Interest = c.Interest, LogCount = counts.GetValueOrDefault(c.Id, 0),
+                Interest = c.Interest, LogCount = clogs?.Count ?? 0,
                 CampaignName = cl?.CampaignName,
                 Platform = cl?.Platform,
                 UnitType = ExtraByKeyword(cl?.ExtraFieldsJson, "نوع"),
-                PaymentPlan = ExtraByKeyword(cl?.ExtraFieldsJson, "سداد")
+                PaymentPlan = ExtraByKeyword(cl?.ExtraFieldsJson, "سداد"),
+                LatestLog = latest?.Description,
+                LatestLogAt = latest?.Date
             };
         }).ToList();
     }
