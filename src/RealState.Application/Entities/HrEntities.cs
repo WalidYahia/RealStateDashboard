@@ -114,6 +114,18 @@ public class Vacation : AuditableEntity, ITenantEntity
     public int Days => (ToDate.Date - FromDate.Date).Days + 1;
 }
 
+/// <summary>An hourly permission/leave request (طلب إذن) — a late arrival, early leave, or personal permission.</summary>
+public class LeaveRequest : AuditableEntity, ITenantEntity
+{
+    public Guid TenantId { get; set; }
+    public Guid EmployeeId { get; set; }
+    public Employee? Employee { get; set; }
+
+    public LeaveRequestType Type { get; set; }
+    public DateTime Date { get; set; } = DateTime.Today;
+    public decimal Hours { get; set; }
+}
+
 /// <summary>An employee salary advance (سلفة).</summary>
 public class Advance : AuditableEntity, ITenantEntity
 {

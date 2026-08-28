@@ -21,6 +21,28 @@ public class VacationsController : Controller
     public async Task<IActionResult> Index(DateTime? from, DateTime? to, string? q, CancellationToken ct)
     {
         (from, to) = DateFilterDefaults.TodayIfFresh(Request, from, to);
+        ViewData["CanManage"] = CanManage();
+        return View(await BuildVmAsync(from, to, q, ct));
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> PrintList(DateTime? from, DateTime? to, string? q, CancellationToken ct)
+        => View("PrintList", await BuildVmAsync(from, to, q, ct));
+
+    [HttpGet]
+    public async Task<IActionResult> PrintOne(Guid id, CancellationToken ct)
+    {
+        var v = await _db.Vacations.FirstOrDefaultAsync(x => x.Id == id, ct);
+        if (v is null) return NotFound();
+        var name = await _db.Employees.Where(e => e.Id == v.EmployeeId).Select(e => e.FullName).FirstOrDefaultAsync(ct);
+        return View("PrintOne", new VacationRow
+        {
+            Id = v.Id, Employee = name ?? "—", Type = v.Type, ApplyDate = v.ApplyDate, FromDate = v.FromDate, ToDate = v.ToDate
+        });
+    }
+
+    private async Task<VacationListVm> BuildVmAsync(DateTime? from, DateTime? to, string? q, CancellationToken ct)
+    {
         var empNames = await _db.Employees.ToDictionaryAsync(e => e.Id, e => e.FullName, ct);
         var vacs = await _db.Vacations.ToListAsync(ct);
         var rows = vacs.Select(v => new VacationRow
@@ -31,9 +53,7 @@ public class VacationsController : Controller
         if (from.HasValue) rows = rows.Where(r => r.ApplyDate >= from.Value);
         if (to.HasValue) rows = rows.Where(r => r.ApplyDate < to.Value.Date.AddDays(1));
         if (!string.IsNullOrWhiteSpace(q)) rows = rows.Where(r => r.Employee.Contains(q, StringComparison.OrdinalIgnoreCase));
-
-        ViewData["CanManage"] = CanManage();
-        return View(new VacationListVm { Rows = rows.OrderByDescending(r => r.ApplyDate).ToList(), From = from, To = to, Q = q });
+        return new VacationListVm { Rows = rows.OrderByDescending(r => r.ApplyDate).ToList(), From = from, To = to, Q = q };
     }
 
     [HttpGet]

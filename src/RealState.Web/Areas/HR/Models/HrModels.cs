@@ -141,6 +141,34 @@ public class VacationListVm
     public string? Q { get; set; }
 }
 
+// ---------- Leave / permission requests (إذن تأخير/إنصراف) ----------
+public class LeaveRequestFormModel
+{
+    public Guid Id { get; set; }
+    [Required(ErrorMessage = "الموظف مطلوب")][Display(Name = "الموظف")] public Guid? EmployeeId { get; set; }
+    [Display(Name = "نوع الإذن")] public LeaveRequestType Type { get; set; }
+    [DataType(DataType.Date)][Display(Name = "التاريخ")] public DateTime Date { get; set; } = DateTime.Today;
+    [Range(0.01, 24, ErrorMessage = "عدد الساعات بين 0 و 24")][Display(Name = "عدد الساعات")] public decimal Hours { get; set; }
+    public List<SelectListItem> Employees { get; set; } = new();
+}
+
+public class LeaveRequestRow
+{
+    public Guid Id { get; set; }
+    public string Employee { get; set; } = string.Empty;
+    public LeaveRequestType Type { get; set; }
+    public DateTime Date { get; set; }
+    public decimal Hours { get; set; }
+}
+
+public class LeaveRequestListVm
+{
+    public List<LeaveRequestRow> Rows { get; set; } = new();
+    public DateTime? From { get; set; }
+    public DateTime? To { get; set; }
+    public string? Q { get; set; }
+}
+
 // ---------- Advances ----------
 public class AdvanceFormModel
 {

@@ -270,6 +270,15 @@ public static class ArabicLabels
     };
     public static List<SelectListItem> VacationTypeOptions(VacationType? s = null) => Options<VacationType>(Ar, s);
 
+    public static string Ar(this LeaveRequestType t) => t switch
+    {
+        LeaveRequestType.Late => "تأخير",
+        LeaveRequestType.EarlyLeave => "انصراف مبكر",
+        LeaveRequestType.Personal => "إذن شخصي",
+        _ => t.ToString()
+    };
+    public static List<SelectListItem> LeaveRequestTypeOptions(LeaveRequestType? s = null) => Options<LeaveRequestType>(Ar, s);
+
     public static string Ar(this LateBracket b) => b switch
     {
         LateBracket.Upto15 => "حتى 15 دقيقة",

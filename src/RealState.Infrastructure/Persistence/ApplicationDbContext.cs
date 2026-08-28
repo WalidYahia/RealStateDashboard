@@ -57,6 +57,7 @@ public class ApplicationDbContext
     public DbSet<LateDeductionRule> LateDeductionRules => Set<LateDeductionRule>();
     public DbSet<EmployeeAttachment> EmployeeAttachments => Set<EmployeeAttachment>();
     public DbSet<Vacation> Vacations => Set<Vacation>();
+    public DbSet<LeaveRequest> LeaveRequests => Set<LeaveRequest>();
     public DbSet<Advance> Advances => Set<Advance>();
     public DbSet<AdvanceRepayment> AdvanceRepayments => Set<AdvanceRepayment>();
     public DbSet<Reward> Rewards => Set<Reward>();
@@ -164,6 +165,7 @@ public class ApplicationDbContext
         builder.Entity<Employee>().HasOne(e => e.JobRole).WithMany().HasForeignKey(e => e.JobRoleId).OnDelete(DeleteBehavior.Restrict);
         builder.Entity<EmployeeAttachment>().HasOne(a => a.Employee).WithMany(e => e.Attachments).HasForeignKey(a => a.EmployeeId).OnDelete(DeleteBehavior.Cascade);
         builder.Entity<Vacation>().HasOne(v => v.Employee).WithMany().HasForeignKey(v => v.EmployeeId).OnDelete(DeleteBehavior.Restrict);
+        builder.Entity<LeaveRequest>().HasOne(l => l.Employee).WithMany().HasForeignKey(l => l.EmployeeId).OnDelete(DeleteBehavior.Restrict);
         builder.Entity<Advance>().HasOne(a => a.Employee).WithMany().HasForeignKey(a => a.EmployeeId).OnDelete(DeleteBehavior.Restrict);
         builder.Entity<AdvanceRepayment>().HasOne(r => r.Advance).WithMany(a => a.Repayments).HasForeignKey(r => r.AdvanceId).OnDelete(DeleteBehavior.Cascade);
         builder.Entity<Reward>().HasOne(r => r.Employee).WithMany().HasForeignKey(r => r.EmployeeId).OnDelete(DeleteBehavior.Restrict);

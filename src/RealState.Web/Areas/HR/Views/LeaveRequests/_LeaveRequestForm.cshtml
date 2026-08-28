@@ -1,5 +1,5 @@
-@model VacationFormModel
-<form id="appModalForm" asp-area="Hr" asp-controller="Vacations" asp-action="Form" method="post">
+@model LeaveRequestFormModel
+<form id="appModalForm" asp-area="Hr" asp-controller="LeaveRequests" asp-action="Form" method="post">
     @Html.AntiForgeryToken()
     <div asp-validation-summary="ModelOnly" class="validation-summary-errors"></div>
     @if (Model.Employees.Count == 0)
@@ -14,11 +14,14 @@
         </div>
         <div>
             <label asp-for="Type" class="form-label"></label>
-            <select asp-for="Type" class="form-control" asp-items="RealState.Web.ArabicLabels.VacationTypeOptions(Model.Type)"></select>
+            <select asp-for="Type" class="form-control" asp-items="RealState.Web.ArabicLabels.LeaveRequestTypeOptions(Model.Type)"></select>
         </div>
-        <div><label asp-for="ApplyDate" class="form-label"></label><input asp-for="ApplyDate" class="form-control" type="date" dir="ltr" /></div>
-        <div><label asp-for="FromDate" class="form-label"></label><input asp-for="FromDate" class="form-control" type="date" dir="ltr" /></div>
-        <div><label asp-for="ToDate" class="form-label"></label><input asp-for="ToDate" class="form-control" type="date" dir="ltr" /><span asp-validation-for="ToDate" class="field-validation-error"></span></div>
+        <div><label asp-for="Date" class="form-label"></label><input asp-for="Date" class="form-control" type="date" dir="ltr" /></div>
+        <div>
+            <label asp-for="Hours" class="form-label"></label>
+            <input asp-for="Hours" class="form-control" type="number" step="0.25" min="0" max="24" dir="ltr" />
+            <span asp-validation-for="Hours" class="field-validation-error"></span>
+        </div>
     </div>
     <button type="submit" class="btn-primary" style="margin-top:12px;" disabled="@(Model.Employees.Count == 0)">💾 حفظ</button>
 </form>

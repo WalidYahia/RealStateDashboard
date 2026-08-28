@@ -37,6 +37,7 @@ public interface IApplicationDbContext
     DbSet<LateDeductionRule> LateDeductionRules { get; }
     DbSet<EmployeeAttachment> EmployeeAttachments { get; }
     DbSet<Vacation> Vacations { get; }
+    DbSet<LeaveRequest> LeaveRequests { get; }
     DbSet<Advance> Advances { get; }
     DbSet<AdvanceRepayment> AdvanceRepayments { get; }
     DbSet<Reward> Rewards { get; }

@@ -1,0 +1,36 @@
+@model LeaveRequestRow
+@{
+    Layout = null;
+    string D(DateTime d) => d.ToString("yyyy/MM/dd", System.Globalization.CultureInfo.InvariantCulture);
+    string H(decimal v) => v.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+}
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="utf-8" />
+    <title>إذن — @Model.Employee</title>
+    <style>
+        body { font-family: "Segoe UI", Tahoma, sans-serif; padding: 24px; color: #111; }
+        h1 { font-size: 19px; text-align: center; margin: 4px 0; }
+        .sub { text-align: center; color: #666; font-size: 12px; margin-bottom: 18px; }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        th, td { border: 1px solid #ccc; padding: 8px 10px; text-align: start; unicode-bidi: plaintext; }
+        th { background: #f2f2f2; width: 200px; }
+        .no-print { margin-bottom: 12px; } @@media print { .no-print { display: none; } }
+    </style>
+</head>
+<body>
+    @await Component.InvokeAsync("ReportBackground", new { part = "open" })
+    <div class="no-print"><button onclick="window.print()">🖨 طباعة / حفظ PDF</button></div>
+    <h1>طلب إذن تأخير/انصراف</h1>
+    <div class="sub">@DateTime.Now.ToString("yyyy/MM/dd HH:mm")</div>
+    <table>
+        <tr><th>الموظف</th><td>@Model.Employee</td></tr>
+        <tr><th>نوع الإذن</th><td>@Model.Type.Ar()</td></tr>
+        <tr><th>التاريخ</th><td>@D(Model.Date)</td></tr>
+        <tr><th>عدد الساعات</th><td>@H(Model.Hours)</td></tr>
+    </table>
+    <script>window.addEventListener('load', function () { setTimeout(function () { window.print(); }, 400); });</script>
+    @await Component.InvokeAsync("ReportBackground", new { part = "close" })
+</body>
+</html>

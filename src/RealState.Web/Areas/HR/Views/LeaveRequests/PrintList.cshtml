@@ -1,0 +1,45 @@
+@model LeaveRequestListVm
+@{
+    Layout = null;
+    string D(DateTime d) => d.ToString("yyyy/MM/dd", System.Globalization.CultureInfo.InvariantCulture);
+    string H(decimal v) => v.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+    var i = 1;
+}
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="utf-8" />
+    <title>أذونات التأخير/الانصراف</title>
+    <style>
+        body { font-family: "Segoe UI", Tahoma, sans-serif; padding: 24px; color: #111; }
+        h1 { font-size: 19px; text-align: center; margin: 4px 0; }
+        .sub { text-align: center; color: #666; font-size: 12px; margin-bottom: 16px; }
+        table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+        th, td { border: 1px solid #ccc; padding: 6px 7px; text-align: start; unicode-bidi: plaintext; }
+        th { background: #f2f2f2; }
+        .no-print { margin-bottom: 12px; } @@media print { .no-print { display: none; } }
+    </style>
+</head>
+<body>
+    @await Component.InvokeAsync("ReportBackground", new { part = "open" })
+    <div class="no-print"><button onclick="window.print()">🖨 طباعة / حفظ PDF</button></div>
+    <h1>أذونات التأخير/الانصراف</h1>
+    <div class="sub">
+        @if (Model.From.HasValue || Model.To.HasValue) { <text>الفترة @D(Model.From ?? DateTime.MinValue) — @D(Model.To ?? DateTime.MaxValue) · </text> }
+        العدد: @Model.Rows.Count · @DateTime.Now.ToString("yyyy/MM/dd HH:mm")
+    </div>
+    <table>
+        <thead><tr><th>#</th><th>الموظف</th><th>نوع الإذن</th><th>التاريخ</th><th>عدد الساعات</th></tr></thead>
+        <tbody>
+        @foreach (var r in Model.Rows)
+        {
+            <tr><td>@i</td><td>@r.Employee</td><td>@r.Type.Ar()</td><td>@D(r.Date)</td><td>@H(r.Hours)</td></tr>
+            i++;
+        }
+        @if (Model.Rows.Count == 0) { <tr><td colspan="5">لا توجد طلبات إذن.</td></tr> }
+        </tbody>
+    </table>
+    <script>window.addEventListener('load', function () { setTimeout(function () { window.print(); }, 400); });</script>
+    @await Component.InvokeAsync("ReportBackground", new { part = "close" })
+</body>
+</html>

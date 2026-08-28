@@ -38,6 +38,14 @@ public enum VacationType
     Emergency = 2,   // عارضة/طارئة
 }
 
+/// <summary>Kind of an hourly permission/leave request (تأخير / انصراف مبكر / إذن).</summary>
+public enum LeaveRequestType
+{
+    Late = 0,        // تأخير (وصول متأخر)
+    EarlyLeave = 1,  // انصراف مبكر
+    Personal = 2,    // إذن شخصي
+}
+
 /// <summary>Late-arrival brackets used by the deduction rules.</summary>
 public enum LateBracket
 {
