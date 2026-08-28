@@ -35,8 +35,7 @@
                     <a class="btn-sm" asp-action="Details" asp-route-id="@e.Id">الملف</a>
                     @if (canManage)
                     {
-                        <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("Form", new { id = e.Id })', 'تعديل الموظف')">تعديل</button>
-                        <form asp-action="Delete" asp-route-id="@e.Id" method="post" style="display:inline;" data-confirm="حذف الموظف «@e.Name»؟ سيُحذف حساب الدخول المرتبط به (إن وجد) أيضًا." data-danger>@Html.AntiForgeryToken()<button type="submit" class="btn-sm btn-danger">حذف</button></form>
+                        <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("Form", new { id = e.Id })', 'تعديل الموظف')">✏️ تعديل</button>
                     }
                 </td>
             </tr>

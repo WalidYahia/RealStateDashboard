@@ -97,18 +97,9 @@
                     <td>@N(o.Remaining)</td>
                     <td style="white-space:nowrap;">
                         <a class="btn-sm" asp-action="Details" asp-route-id="@o.Id">التفاصيل</a>
-                        <a class="btn-sm" asp-action="PrintOrder" asp-route-id="@o.Id" target="_blank">🖨</a>
-                        @if (canPay && o.Remaining > 0)
-                        {
-                            <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("Pay", new { id = o.Id })', 'سداد دفعة على أمر الشغل')">💵 سداد</button>
-                        }
                         @if (canEdit)
                         {
-                            <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("Form", new { id = o.Id })', 'تعديل أمر الشغل')">تعديل</button>
-                        }
-                        @if (canDelete)
-                        {
-                            <form asp-action="Delete" asp-route-id="@o.Id" method="post" style="display:inline;" data-confirm="حذف أمر الشغل @WO(o.Number)؟" data-danger>@Html.AntiForgeryToken()<button type="submit" class="btn-sm btn-danger">حذف</button></form>
+                            <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("Form", new { id = o.Id })', 'تعديل أمر الشغل')">✏️ تعديل</button>
                         }
                     </td>
                 </tr>

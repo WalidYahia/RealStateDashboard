@@ -35,14 +35,11 @@
                     <a class="btn-sm" asp-action="Details" asp-route-id="@c.Id">كشف حساب</a>
                     @if (User.Can(PermissionNames.CustomersEdit))
                     {
-                        <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("Form", new { id = c.Id })', 'تعديل العميل')">تعديل</button>
+                        <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("Form", new { id = c.Id })', 'تعديل العميل')">✏️ تعديل</button>
                     }
                     @if (User.Can(PermissionNames.CustomersDelete))
                     {
-                        <form asp-action="Delete" asp-route-id="@c.Id" method="post" style="display:inline;" data-confirm="حذف العميل «@c.FullName»؟" data-danger>
-                            @Html.AntiForgeryToken()
-                            <button type="submit" class="btn-sm btn-danger">حذف</button>
-                        </form>
+                        <form asp-action="Delete" asp-route-id="@c.Id" method="post" style="display:inline;" data-confirm="حذف العميل «@c.FullName»؟" data-danger>@Html.AntiForgeryToken()<button type="submit" class="btn-sm btn-danger">🗑 حذف</button></form>
                     }
                 </td>
             </tr>

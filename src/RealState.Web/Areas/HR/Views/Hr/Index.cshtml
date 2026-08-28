@@ -31,7 +31,7 @@
                         <td style="white-space:nowrap;">
                             @if (canManage)
                             {
-                                <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("DepartmentForm", new { id = d.Id })', 'تعديل القسم')">تعديل</button>
+                                <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("DepartmentForm", new { id = d.Id })', 'تعديل القسم')">✏️ تعديل</button>
                                 <form asp-action="DepartmentDelete" asp-route-id="@d.Id" method="post" style="display:inline;" data-confirm="حذف القسم؟" data-danger>@Html.AntiForgeryToken()<button type="submit" class="btn-sm btn-danger">حذف</button></form>
                             }
                         </td>
@@ -58,7 +58,7 @@
                         <td style="white-space:nowrap;">
                             @if (canManage)
                             {
-                                <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("RoleForm", new { id = r.Id })', 'تعديل الوظيفة')">تعديل</button>
+                                <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("RoleForm", new { id = r.Id })', 'تعديل الوظيفة')">✏️ تعديل</button>
                                 <form asp-action="RoleDelete" asp-route-id="@r.Id" method="post" style="display:inline;" data-confirm="حذف الوظيفة؟" data-danger>@Html.AntiForgeryToken()<button type="submit" class="btn-sm btn-danger">حذف</button></form>
                             }
                         </td>

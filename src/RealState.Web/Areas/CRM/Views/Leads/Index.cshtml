@@ -163,15 +163,7 @@
                     <a class="btn-sm" asp-controller="Customers" asp-action="Details" asp-route-id="@l.Id" asp-route-returnUrl="@returnUrl">الملف</a>
                     @if (canEdit)
                     {
-                        <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("Form", "Customers", new { id = l.Id })', 'تعديل العميل المحتمل')">تعديل</button>
-                    }
-                    @if (canConvert)
-                    {
-                        <form asp-controller="Customers" asp-action="Convert" asp-route-id="@l.Id" method="post" style="display:inline;" data-confirm="تحويل «@l.Name» إلى عميل؟ سيظهر بعدها في صفحة العملاء فقط.">@Html.AntiForgeryToken()<button type="submit" class="btn-sm">↪ تحويل لعميل</button></form>
-                    }
-                    @if (canDelete)
-                    {
-                        <form asp-controller="Customers" asp-action="Delete" asp-route-id="@l.Id" method="post" style="display:inline;" data-confirm="حذف العميل المحتمل «@l.Name»؟" data-danger>@Html.AntiForgeryToken()<input type="hidden" name="returnUrl" value="@returnUrl" /><button type="submit" class="btn-sm btn-danger">حذف</button></form>
+                        <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("Form", "Customers", new { id = l.Id })', 'تعديل العميل المحتمل')">✏️ تعديل</button>
                     }
                 </td>
             </tr>

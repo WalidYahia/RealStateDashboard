@@ -14,6 +14,14 @@
     </div>
     <div style="display:flex;gap:8px;">
         <a class="btn-sm" asp-action="Index">رجوع لقائمة المقاولين</a>
+        @if (User.Can(PermissionNames.ContractingEdit))
+        {
+            <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("Form", new { id = Model.Contractor.Id })', 'تعديل المقاول')">✏️ تعديل</button>
+        }
+        @if (User.Can(PermissionNames.ContractingDelete))
+        {
+            <form asp-action="Delete" asp-route-id="@Model.Contractor.Id" method="post" style="display:inline;" data-confirm="حذف المقاول «@Model.Contractor.Name»؟" data-danger>@Html.AntiForgeryToken()<button type="submit" class="btn-sm btn-danger">🗑 حذف المقاول</button></form>
+        }
     </div>
 </div>
 

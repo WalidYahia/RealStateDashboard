@@ -51,18 +51,9 @@
                 <td>@N(r.Remaining)</td>
                 <td style="white-space:nowrap;">
                     <a class="btn-sm" asp-action="Details" asp-route-id="@r.Id">التفاصيل</a>
-                    <a class="btn-sm" asp-action="Print" asp-route-id="@r.Id" target="_blank">🖨</a>
                     @if (canManage && r.Status == RealState.Application.Enums.DisbursementStatus.NotDisbursed)
                     {
-                        <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("Form", new { id = r.Id })', 'تعديل السلفة @ADV(r.Number)')">تعديل</button>
-                    }
-                    @* A disbursed advance can only be removed from the Expenses page (delete its disbursement expense there first). *@
-                    @if (canManage && r.Status == RealState.Application.Enums.DisbursementStatus.NotDisbursed && r.Repaid == 0)
-                    {
-                        <form asp-action="Delete" asp-route-id="@r.Id" method="post" style="display:inline;"
-                              data-confirm="حذف السلفة @ADV(r.Number)؟" data-danger>
-                            @Html.AntiForgeryToken()<button type="submit" class="btn-sm btn-danger">حذف</button>
-                        </form>
+                        <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("Form", new { id = r.Id })', 'تعديل السلفة @ADV(r.Number)')">✏️ تعديل</button>
                     }
                 </td>
             </tr>

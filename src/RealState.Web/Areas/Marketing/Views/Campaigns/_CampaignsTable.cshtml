@@ -9,7 +9,7 @@
         _ => "badge-role"
     };
 }
-<table class="rs-table">
+<table class="rs-table" data-no-grid>
     <thead>
         <tr><th>اسم الحملة</th><th>المنصة</th><th>الـLeads</th><th>التكلفة (ج.م)</th><th>المبيعات</th><th>الحالة</th><th></th></tr>
     </thead>
@@ -27,7 +27,7 @@
                 @if (User.Can(PermissionNames.CampaignsEdit))
                 {
                     <button type="button" class="btn-sm" onclick="mkOpen('@Url.Action("Update", new { campaignId = c.Id })')">تحديث الأداء</button>
-                    <button type="button" class="btn-sm" onclick="mkOpen('@Url.Action("Form", new { id = c.Id })')">تعديل</button>
+                    <button type="button" class="btn-sm" onclick="mkOpen('@Url.Action("Form", new { id = c.Id })')">✏️ تعديل</button>
                 }
                 @if (User.Can(PermissionNames.CampaignsDelete))
                 {

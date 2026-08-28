@@ -78,14 +78,9 @@
                     <td>@N(s.Remaining)</td>
                     <td style="white-space:nowrap;">
                         <a class="btn-sm" asp-action="Details" asp-route-id="@s.Id" asp-route-from="@F(Model.From)" asp-route-to="@F(Model.To)">التفاصيل</a>
-                        <a class="btn-sm" asp-action="Contract" asp-route-id="@s.Id" target="_blank">🖨 العقد</a>
                         @if (User.Can(PermissionNames.SalesEdit))
                         {
-                            <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("Form", new { id = s.Id })', 'تعديل عقد البيع @s.Code')">تعديل</button>
-                        }
-                        @if (User.Can(PermissionNames.SalesDelete))
-                        {
-                            <form asp-action="Delete" asp-route-id="@s.Id" asp-route-from="@F(Model.From)" asp-route-to="@F(Model.To)" method="post" style="display:inline;">@Html.AntiForgeryToken()<button type="submit" class="btn-sm btn-danger">حذف</button></form>
+                            <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("Form", new { id = s.Id })', 'تعديل عقد البيع @s.Code')">✏️ تعديل</button>
                         }
                     </td>
                 </tr>

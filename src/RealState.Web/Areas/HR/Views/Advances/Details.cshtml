@@ -14,6 +14,11 @@
     <div style="display:flex;gap:8px;">
         <a class="btn-sm" asp-action="Index">رجوع</a>
         <a class="btn-new-tenant" asp-action="Print" asp-route-id="@Model.Id" target="_blank">🖨 طباعة (PDF)</a>
+        @if (canManage && Model.Status == DisbursementStatus.NotDisbursed)
+        {
+            <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("Form", new { id = Model.Id })', 'تعديل السلفة ADV-@Model.Number.ToString("D4")')">✏️ تعديل</button>
+            <form asp-action="Delete" asp-route-id="@Model.Id" method="post" style="display:inline;" data-confirm="حذف السلفة ADV-@Model.Number.ToString("D4")؟" data-danger>@Html.AntiForgeryToken()<button type="submit" class="btn-sm btn-danger">🗑 حذف</button></form>
+        }
     </div>
 </div>
 

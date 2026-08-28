@@ -36,7 +36,7 @@
                     <a class="btn-sm" asp-action="Movements" asp-route-id="@s.Id">📁 الحركات</a>
                     @if (canEdit)
                     {
-                        <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("Form", new { id = s.Id })', 'تعديل الخزنة')">تعديل</button>
+                        <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("Form", new { id = s.Id })', 'تعديل الخزنة')">✏️ تعديل</button>
                     }
                     @if (canDelete)
                     {

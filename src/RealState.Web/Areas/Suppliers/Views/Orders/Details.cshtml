@@ -25,6 +25,14 @@
             <button type="button" class="btn-new-tenant" onclick="appOpenModal('@Url.Action("Pay", new { id = Model.Id })', 'سداد دفعة على الأمر')">💵 سداد دفعة</button>
         }
         <a class="btn-new-tenant" asp-action="PrintOrder" asp-route-id="@Model.Id" target="_blank">🖨 طباعة الأمر (PDF)</a>
+        @if (User.Can(PermissionNames.SuppliersEdit))
+        {
+            <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("Form", new { id = Model.Id })', 'تعديل أمر التوريد')">✏️ تعديل</button>
+        }
+        @if (User.Can(PermissionNames.SuppliersDelete))
+        {
+            <form asp-action="Delete" asp-route-id="@Model.Id" method="post" style="display:inline;" data-confirm="حذف أمر التوريد PO-@Model.Number.ToString("D4")؟" data-danger>@Html.AntiForgeryToken()<button type="submit" class="btn-sm btn-danger">🗑 حذف الأمر</button></form>
+        }
     </div>
 </div>
 

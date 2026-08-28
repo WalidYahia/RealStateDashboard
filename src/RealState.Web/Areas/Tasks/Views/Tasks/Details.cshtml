@@ -23,7 +23,7 @@
         <a class="btn-sm" asp-action="PrintOne" asp-route-id="@Model.Id" target="_blank">🖨 طباعة</a>
         @if (canAct) { <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("StatusForm", new { id = Model.Id })', 'تحديث الحالة')">🔄 تحديث الحالة</button> }
         @if (canAct) { <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("LogForm", new { id = Model.Id })', 'إضافة سجل')">📝 إضافة سجل</button> }
-        @if (canEdit) { <button type="button" class="btn-new-tenant" onclick="appOpenModal('@Url.Action("Form", new { id = Model.Id })', 'تعديل المهمة T-@Model.Number')">تعديل</button> }
+        @if (canEdit) { <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("Form", new { id = Model.Id })', 'تعديل المهمة T-@Model.Number')">✏️ تعديل</button> }
         @if (canDelete)
         {
             <form asp-action="Delete" asp-route-id="@Model.Id" method="post" style="display:inline;" data-confirm="حذف المهمة T-@Model.Number؟" data-danger>@Html.AntiForgeryToken()<button type="submit" class="btn-sm btn-danger">حذف</button></form>

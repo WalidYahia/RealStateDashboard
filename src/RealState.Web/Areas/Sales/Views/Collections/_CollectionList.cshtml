@@ -6,7 +6,7 @@
     var canEdit = User.Can(PermissionNames.CollectionsCollect);
 }
 <div class="card-tile">
-    <table class="rs-table">
+    <table class="rs-table" data-no-grid>
         <thead><tr><th>العميل</th><th>الوحدة</th><th>المشروع</th><th>العقد</th><th>القسط</th><th>الاستحقاق</th><th>القيمة</th><th>الحالة</th><th></th></tr></thead>
         <tbody>
         @foreach (var r in Model)

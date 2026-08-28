@@ -106,11 +106,7 @@
                 <td><span class="badge-role" style="color:@r.Status.Color()">@r.Status.Ar()</span></td>
                 <td style="white-space:nowrap;">
                     <a class="btn-sm" asp-action="Details" asp-route-id="@r.Id">التفاصيل</a>
-                    @if (canEdit) { <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("Form", new { id = r.Id })', 'تعديل المهمة T-@r.Number')">تعديل</button> }
-                    @if (canDelete)
-                    {
-                        <form asp-action="Delete" asp-route-id="@r.Id" method="post" style="display:inline;" data-confirm="حذف المهمة T-@r.Number؟" data-danger>@Html.AntiForgeryToken()<button type="submit" class="btn-sm btn-danger">حذف</button></form>
-                    }
+                    @if (canEdit) { <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("Form", new { id = r.Id })', 'تعديل المهمة T-@r.Number')">✏️ تعديل</button> }
                 </td>
             </tr>
         }

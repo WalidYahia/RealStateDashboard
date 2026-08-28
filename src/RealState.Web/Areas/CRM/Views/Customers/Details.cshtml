@@ -36,6 +36,18 @@
         {
             <a class="btn-new-tenant" asp-action="PrintStatement" asp-route-id="@c.Id" target="_blank">🖨 كشف الحساب (PDF)</a>
         }
+        @{
+            var canEditProfile = c.IsLead ? User.Can(PermissionNames.LeadsUpdate) : User.Can(PermissionNames.CustomersEdit);
+            var canDeleteProfile = c.IsLead ? User.Can(PermissionNames.LeadsDelete) : User.Can(PermissionNames.CustomersDelete);
+        }
+        @if (canEditProfile)
+        {
+            <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("Form", "Customers", new { id = c.Id })', 'تعديل')">✏️ تعديل</button>
+        }
+        @if (canDeleteProfile)
+        {
+            <form asp-action="Delete" asp-route-id="@c.Id" method="post" style="display:inline;" data-confirm="حذف «@c.FullName»؟" data-danger>@Html.AntiForgeryToken()<button type="submit" class="btn-sm btn-danger">🗑 حذف</button></form>
+        }
     </div>
 </div>
 
@@ -182,7 +194,7 @@
                     <td style="white-space:nowrap;">
                         @if (Model.CanLog && log.Kind == CustomerLogKind.Manual)
                         {
-                            <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("LogForm", new { customerId = c.Id, id = log.Id })', 'تعديل السجل')">تعديل</button>
+                            <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("LogForm", new { customerId = c.Id, id = log.Id })', 'تعديل السجل')">✏️ تعديل</button>
                             <form asp-action="DeleteLog" asp-route-id="@log.Id" asp-route-customerId="@c.Id" method="post" style="display:inline;" data-confirm="حذف السجل؟" data-danger>@Html.AntiForgeryToken()<button type="submit" class="btn-sm btn-danger">حذف</button></form>
                         }
                     </td>

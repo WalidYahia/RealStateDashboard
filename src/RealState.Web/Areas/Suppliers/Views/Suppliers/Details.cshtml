@@ -18,6 +18,14 @@
         {
             <button type="button" class="btn-new-tenant" onclick="appOpenModal('@Url.Action("PayForm", new { id = Model.Supplier.Id })', 'سداد دفعة للمورد')">💵 سداد دفعة</button>
         }
+        @if (User.Can(PermissionNames.SuppliersEdit))
+        {
+            <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("Form", new { id = Model.Supplier.Id })', 'تعديل المورد')">✏️ تعديل</button>
+        }
+        @if (User.Can(PermissionNames.SuppliersDelete))
+        {
+            <form asp-action="Delete" asp-route-id="@Model.Supplier.Id" method="post" style="display:inline;" data-confirm="حذف المورد «@Model.Supplier.Name»؟" data-danger>@Html.AntiForgeryToken()<button type="submit" class="btn-sm btn-danger">🗑 حذف المورد</button></form>
+        }
     </div>
 </div>
 

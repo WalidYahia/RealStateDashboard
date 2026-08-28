@@ -14,7 +14,11 @@
     </div>
     <div style="display:flex;gap:8px;">
         <a class="btn-sm" asp-action="Index">رجوع</a>
-        @if (canManage) { <button type="button" class="btn-new-tenant" onclick="appOpenModal('@Url.Action("Form", new { id = Model.Id })', 'تعديل الموظف')">✏️ تعديل</button> }
+        @if (canManage) { <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("Form", new { id = Model.Id })', 'تعديل الموظف')">✏️ تعديل</button> }
+        @if (canManage)
+        {
+            <form asp-action="Delete" asp-route-id="@Model.Id" method="post" style="display:inline;" data-confirm="حذف الموظف «@Model.FullName»؟ سيُحذف حساب الدخول المرتبط به (إن وجد) أيضًا." data-danger>@Html.AntiForgeryToken()<button type="submit" class="btn-sm btn-danger">🗑 حذف الموظف</button></form>
+        }
     </div>
 </div>
 

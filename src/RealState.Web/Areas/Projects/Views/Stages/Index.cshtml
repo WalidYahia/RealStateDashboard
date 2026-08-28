@@ -55,7 +55,7 @@
                     <a class="btn-sm" asp-action="Details" asp-route-id="@s.Id">التفاصيل</a>
                     @if (User.Can(PermissionNames.ProjectsEdit))
                     {
-                        <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("Form", new { projectId = project.Id, id = s.Id })', 'تعديل المرحلة')">تعديل</button>
+                        <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("Form", new { projectId = project.Id, id = s.Id })', 'تعديل المرحلة')">✏️ تعديل</button>
                     }
                     @if (User.Can(PermissionNames.ProjectsDelete))
                     {
