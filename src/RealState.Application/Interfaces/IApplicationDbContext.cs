@@ -26,6 +26,7 @@ public interface IApplicationDbContext
     DbSet<Project> Projects { get; }
     DbSet<Customer> Customers { get; }
     DbSet<CustomerLog> CustomerLogs { get; }
+    DbSet<CampaignLead> CampaignLeads { get; }
     DbSet<Lead> Leads { get; }
     DbSet<Campaign> Campaigns { get; }
     DbSet<CampaignUpdate> CampaignUpdates { get; }
@@ -46,7 +47,12 @@ public interface IApplicationDbContext
     DbSet<Supplier> Suppliers { get; }
     DbSet<SupplierOrder> SupplierOrders { get; }
     DbSet<SupplierOrderItem> SupplierOrderItems { get; }
+    DbSet<SupplierOrderAttachment> SupplierOrderAttachments { get; }
     DbSet<SupplierPayment> SupplierPayments { get; }
+    DbSet<Contractor> Contractors { get; }
+    DbSet<WorkOrder> WorkOrders { get; }
+    DbSet<WorkOrderLog> WorkOrderLogs { get; }
+    DbSet<WorkOrderPayment> WorkOrderPayments { get; }
     DbSet<StageDefinition> StageDefinitions { get; }
     DbSet<ProjectStage> ProjectStages { get; }
     DbSet<StageActivity> StageActivities { get; }

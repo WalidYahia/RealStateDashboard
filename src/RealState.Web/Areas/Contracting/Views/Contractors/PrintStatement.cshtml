@@ -1,0 +1,72 @@
+@model ContractorStatementVm
+@{
+    Layout = null;
+    string N(decimal v) => v.ToString("N2", new System.Globalization.CultureInfo("ar-EG"));
+    string P(decimal v) => v.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture) + "%";
+    string D(DateTime d) => d.ToString("yyyy/MM/dd", System.Globalization.CultureInfo.InvariantCulture);
+    var i = 1;
+}
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="utf-8" />
+    <title>كشف حساب مقاول — @Model.Contractor.Name</title>
+    <style>
+        body { font-family: "Segoe UI", Tahoma, sans-serif; padding: 20px; color: #111; }
+        h1 { font-size: 18px; text-align: center; margin: 4px 0; }
+        .sub { text-align: center; color: #666; font-size: 12px; margin-bottom: 14px; }
+        table { width: 100%; border-collapse: collapse; font-size: 11px; }
+        th, td { border: 1px solid #ccc; padding: 4px 5px; text-align: start; unicode-bidi: plaintext; }
+        th { background: #f2f2f2; }
+        tfoot th { background: #eaeaea; }
+        .no-print { margin-bottom: 12px; } @@media print { .no-print { display: none; } }
+    </style>
+</head>
+<body>
+    @await Component.InvokeAsync("ReportBackground", new { part = "open" })
+    <div class="no-print"><button onclick="window.print()">🖨 طباعة / حفظ PDF</button></div>
+    <h1>كشف حساب مقاول — @Model.Contractor.Name</h1>
+    <div class="sub">
+        @if (Model.From.HasValue || Model.To.HasValue) { <text>الفترة @D(Model.From ?? DateTime.MinValue) — @D(Model.To ?? DateTime.MaxValue) · </text> }
+        الرصيد الختامي: @N(Model.ClosingBalance) ج.م · @DateTime.Now.ToString("yyyy/MM/dd HH:mm")
+    </div>
+    <table>
+        <thead>
+            <tr>
+                <th>م</th><th>المشروع</th><th>التاريخ</th><th>البيان</th><th>الوحدة</th><th>الكمية</th><th>الفئة</th>
+                <th>نسبة التنفيذ</th><th>المستحق</th><th>التعلية</th><th>الخصومات</th><th>المستحق بعد التعلية</th>
+                <th>الدفعة</th><th>الرصيد</th><th>ملاحظات</th>
+            </tr>
+        </thead>
+        <tbody>
+        @foreach (var r in Model.Rows)
+        {
+            var isOrder = r.Kind == ContractorLedgerKind.Order;
+            <tr>
+                <td>@(i++)</td>
+                <td>@(isOrder ? r.Project : "")</td>
+                <td>@D(r.Date)</td>
+                <td>@r.Statement</td>
+                <td>@(isOrder ? r.Unit : "")</td>
+                <td>@(isOrder ? N(r.Quantity) : "")</td>
+                <td>@(isOrder ? N(r.Rate) : "")</td>
+                <td>@(isOrder ? P(r.ExecutionPercent) : "")</td>
+                <td>@(isOrder ? N(r.Due) : "")</td>
+                <td>@(isOrder ? P(r.UpliftPercent) : "")</td>
+                <td>@(isOrder ? N(r.Deductions) : "")</td>
+                <td>@(isOrder ? N(r.ActualTotal) : "")</td>
+                <td>@(isOrder ? "" : N(r.Payment))</td>
+                <td>@N(r.Balance)</td>
+                <td>@r.Notes</td>
+            </tr>
+        }
+        @if (Model.Rows.Count == 0) { <tr><td colspan="15">لا توجد حركات في هذه الفترة.</td></tr> }
+        </tbody>
+        <tfoot>
+            <tr><th colspan="11" style="text-align:start;">الإجمالي</th><th>@N(Model.TotalObligations)</th><th>@N(Model.TotalPaid)</th><th>@N(Model.ClosingBalance)</th><th></th></tr>
+        </tfoot>
+    </table>
+    <script>window.addEventListener('load', function () { setTimeout(function () { window.print(); }, 400); });</script>
+    @await Component.InvokeAsync("ReportBackground", new { part = "close" })
+</body>
+</html>

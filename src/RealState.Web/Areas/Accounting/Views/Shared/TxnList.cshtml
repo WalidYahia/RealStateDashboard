@@ -67,6 +67,7 @@
             </div>
             <div class="filter-actions">
                 <button type="submit" class="btn-primary">بحث</button>
+                <a class="btn-sm" asp-action="PrintList" asp-route-from="@DTLn(Model.From)" asp-route-to="@DTLn(Model.To)" asp-route-source="@Model.Source" asp-route-q="@Model.Q" target="_blank">🖨 طباعة القائمة</a>
             </div>
         </div>
         <div style="color:var(--muted);font-size:13px;">

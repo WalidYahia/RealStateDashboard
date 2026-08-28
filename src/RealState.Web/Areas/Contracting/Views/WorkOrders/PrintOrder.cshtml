@@ -1,0 +1,55 @@
+@model WorkOrderDetailsVm
+@{
+    Layout = null;
+    var o = Model.Order;
+    string N(decimal v) => v.ToString("N2", new System.Globalization.CultureInfo("ar-EG"));
+    string P(decimal v) => v.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture) + "%";
+    string D(DateTime d) => d.ToString("yyyy/MM/dd", System.Globalization.CultureInfo.InvariantCulture);
+    var remaining = o.ActualTotal - Model.Paid;
+}
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="utf-8" />
+    <title>أمر شغل WO-@o.Number</title>
+    <style>
+        body { font-family: "Segoe UI", Tahoma, sans-serif; padding: 24px; color: #111; }
+        h1 { font-size: 19px; text-align: center; margin: 4px 0; }
+        .sub { text-align: center; color: #666; font-size: 12px; margin-bottom: 16px; }
+        table { width: 100%; border-collapse: collapse; font-size: 12.5px; margin-bottom: 16px; }
+        th, td { border: 1px solid #ccc; padding: 6px 8px; text-align: start; unicode-bidi: plaintext; }
+        th { background: #f2f2f2; }
+        h3 { font-size: 14px; margin: 10px 0 6px; }
+        .no-print { margin-bottom: 12px; } @@media print { .no-print { display: none; } }
+    </style>
+</head>
+<body>
+    @await Component.InvokeAsync("ReportBackground", new { part = "open" })
+    <div class="no-print"><button onclick="window.print()">🖨 طباعة / حفظ PDF</button></div>
+    <h1>أمر شغل WO-@o.Number</h1>
+    <div class="sub">@Model.ContractorName · @Model.ProjectName · @D(o.OrderDate)</div>
+
+    <h3>بيانات البند</h3>
+    <table>
+        <tr><th style="width:200px;">البيان</th><td>@o.ItemDescription</td></tr>
+        <tr><th>الوحدة</th><td>@o.Unit</td></tr>
+        <tr><th>الكمية</th><td>@N(o.Quantity)</td></tr>
+        <tr><th>الفئة (سعر الوحدة)</th><td>@N(o.Rate)</td></tr>
+        <tr><th>ملاحظات</th><td>@o.Notes</td></tr>
+    </table>
+
+    <h3>الحسابات</h3>
+    <table>
+        <tr><th style="width:220px;">الإجمالي (الكمية × الفئة)</th><td>@N(o.Total) ج.م</td></tr>
+        <tr><th>نسبة التنفيذ</th><td>@P(o.ExecutionPercent)</td></tr>
+        <tr><th>المستحق</th><td>@N(o.Due) ج.م</td></tr>
+        <tr><th>نسبة التعلية</th><td>@P(o.UpliftPercent)</td></tr>
+        <tr><th>الخصومات</th><td>@N(o.Deductions) ج.م</td></tr>
+        <tr><th>الإجمالي الفعلي (بعد التعلية)</th><td>@N(o.ActualTotal) ج.م</td></tr>
+        <tr><th>المدفوع / المتبقي</th><td>@N(Model.Paid) / @N(remaining) ج.م</td></tr>
+    </table>
+
+    <script>window.addEventListener('load', function () { setTimeout(function () { window.print(); }, 400); });</script>
+    @await Component.InvokeAsync("ReportBackground", new { part = "close" })
+</body>
+</html>

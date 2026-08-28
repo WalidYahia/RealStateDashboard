@@ -28,6 +28,12 @@
 
 <div class="card-tile" style="margin-bottom:12px;">
     <form asp-action="Index" method="get" class="filter-form">
+        @{
+            var supId = (ViewBag.SupplierId as Guid?)?.ToString();
+            var projId = (ViewBag.ProjectId as Guid?)?.ToString();
+            var supList = ViewBag.Suppliers as List<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem> ?? new();
+            var projList = ViewBag.Projects as List<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem> ?? new();
+        }
         <div class="filter-row">
             <div class="fld"><label class="form-label">من (تاريخ الأمر)</label><input type="date" name="from" value="@F((DateTime?)ViewBag.From)" class="form-control" dir="ltr" /></div>
             <div class="fld"><label class="form-label">إلى</label><input type="date" name="to" value="@F((DateTime?)ViewBag.To)" class="form-control" dir="ltr" /></div>
@@ -36,9 +42,23 @@
                 <button type="button" class="btn-sm date-preset" data-from="@F(DateTime.Today.AddDays(-7))" data-to="@F(DateTime.Today)">آخر أسبوع</button>
                 <button type="button" class="btn-sm date-preset" data-from="@F(DateTime.Today.AddMonths(-1))" data-to="@F(DateTime.Today)">آخر شهر</button>
             </div>
+        </div>
+        <div class="filter-row">
+            <div class="fld">
+                <label class="form-label">المورد</label>
+                <select name="supplierId" class="form-control"><option value="">الكل</option>
+                    @foreach (var s in supList) { <option value="@s.Value" selected="@(supId == s.Value)">@s.Text</option> }
+                </select>
+            </div>
+            <div class="fld">
+                <label class="form-label">المشروع</label>
+                <select name="projectId" class="form-control"><option value="">الكل</option>
+                    @foreach (var p in projList) { <option value="@p.Value" selected="@(projId == p.Value)">@p.Text</option> }
+                </select>
+            </div>
             <div class="filter-actions">
                 <button type="submit" class="btn-primary">بحث</button>
-                <a class="btn-sm" asp-action="PrintList" target="_blank">🖨 طباعة (PDF)</a>
+                <a class="btn-sm" asp-action="PrintList" asp-route-from="@F((DateTime?)ViewBag.From)" asp-route-to="@F((DateTime?)ViewBag.To)" asp-route-supplierId="@supId" asp-route-projectId="@projId" target="_blank">🖨 طباعة (PDF)</a>
             </div>
         </div>
     </form>
@@ -58,7 +78,7 @@
         @foreach (var o in Model)
         {
             <tr data-search="@((PO(o.Number) + " " + o.Supplier + " " + o.Project).ToLower())">
-                <td dir="ltr" style="text-align:right;"><a asp-action="Details" asp-route-id="@o.Id" style="color:var(--series-1);text-decoration:none;font-weight:600;">@PO(o.Number)</a></td>
+                <td style="white-space:nowrap;"><span style="display:inline-flex;align-items:center;gap:6px;direction:rtl;"><a asp-action="Details" asp-route-id="@o.Id" style="color:var(--series-1);text-decoration:none;font-weight:600;">@PO(o.Number)</a>@if (o.HasAttachments) {<span title="يوجد مرفقات على هذا الأمر" style="font-size:18px;line-height:1;cursor:default;">📎</span>}</span></td>
                 <td dir="ltr" style="text-align:right;">@D(o.OrderDate)</td>
                 <td>@o.Supplier</td>
                 <td>@o.Project</td>

@@ -26,17 +26,27 @@ public class CustomersController : Controller
 
     private bool Can(string permission) => User.HasClaim("permission", permission);
 
-    // Managing a lead (create/edit/delete) is allowed for Leads.Control as well as the matching Customers.* permission.
+    // Creating a lead is allowed for Leads.Control as well as the matching Customers.* permission.
     private bool CanManage(bool isLead, string customerPermission)
         => Can(customerPermission) || (isLead && Can(PermissionNames.LeadsControl));
 
+    // Editing / deleting use dedicated lead permissions (Leads.Update / Leads.Delete); real customers keep
+    // their own Customers.Edit / Customers.Delete permissions.
+    private bool CanEditEntity(bool isLead) => Can(isLead ? PermissionNames.LeadsUpdate : PermissionNames.CustomersEdit);
+    private bool CanDeleteEntity(bool isLead) => Can(isLead ? PermissionNames.LeadsDelete : PermissionNames.CustomersDelete);
+
     // ---------- Account statement / lead profile ----------
-    public async Task<IActionResult> Details(Guid id, CancellationToken ct)
+    public async Task<IActionResult> Details(Guid id, string? returnUrl, CancellationToken ct)
     {
         var customer = await _db.Customers.FirstOrDefaultAsync(c => c.Id == id, ct);
         if (customer is null) return NotFound();
         // A real customer's profile needs Customers.View; a lead's profile is open to leads-permission holders.
         if (!customer.IsLead && !Can(PermissionNames.CustomersView)) return Forbid();
+        // A salesperson user may only open leads assigned to them (managers with Leads.Control see all).
+        if (customer.IsLead && await IsRestrictedSalespersonAsync(ct) && !await IsRelatedSalespersonAsync(customer, ct))
+            return Forbid();
+        // Where the "back" button returns to — the filtered list we came from, when provided.
+        ViewBag.ReturnUrl = !string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl) ? returnUrl : null;
         ViewBag.SalesName = customer.SalesPersonId is null ? null
             : await _db.Employees.Where(e => e.Id == customer.SalesPersonId).Select(e => e.FullName).FirstOrDefaultAsync(ct);
         var campNames = await _db.Campaigns.ToDictionaryAsync(x => x.Id, x => x.Name, ct);
@@ -47,6 +57,9 @@ public class CustomersController : Controller
         vm.CanLog = await CanLogAsync(customer, ct);
         vm.CanControl = await CanControlAsync(customer, ct);
         vm.CanConvert = await CanConvertAsync(customer, ct);
+        // Campaign-import details attached to this lead/customer (most recent first).
+        ViewBag.CampaignLeads = await _db.CampaignLeads.Where(c => c.CustomerId == id)
+            .OrderByDescending(c => c.CreatedTime).ToListAsync(ct);
         return View(vm);
     }
 
@@ -153,7 +166,7 @@ public class CustomersController : Controller
         }
         var c = await _db.Customers.FirstOrDefaultAsync(x => x.Id == id, ct);
         if (c is null) return NotFound();
-        if (!CanManage(c.IsLead, PermissionNames.CustomersEdit)) return Forbid();
+        if (!CanEditEntity(c.IsLead)) return Forbid();
         return PartialView("_CustomerForm", await FillAsync(new CustomerFormModel
         {
             Id = c.Id,
@@ -182,7 +195,7 @@ public class CustomersController : Controller
         {
             // Use the stored flag (not the posted one) to decide which permission applies.
             var isLead = await _db.Customers.Where(x => x.Id == model.Id).Select(x => (bool?)x.IsLead).FirstOrDefaultAsync(ct) ?? false;
-            if (!CanManage(isLead, PermissionNames.CustomersEdit)) return Forbid();
+            if (!CanEditEntity(isLead)) return Forbid();
         }
         await ValidateSalespersonAsync(model, ct);
         // Salesperson is optional, except a lead sourced from the "مندوب مبيعات" channel must name one.
@@ -242,15 +255,27 @@ public class CustomersController : Controller
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
+    public async Task<IActionResult> Delete(Guid id, string? returnUrl, CancellationToken ct)
     {
         var c = await _db.Customers.FirstOrDefaultAsync(x => x.Id == id, ct);
         if (c is null) return NotFound();
-        if (!CanManage(c.IsLead, PermissionNames.CustomersDelete)) return Forbid();
+        if (!CanDeleteEntity(c.IsLead)) return Forbid();
         var wasLead = c.IsLead;
-        _db.Customers.Remove(c);
-        await _db.SaveChangesAsync(ct);
-        TempData["StatusMessage"] = $"تم حذف {(wasLead ? "العميل المحتمل" : "العميل")} «{c.FullName}».";
+        var name = c.FullName;
+        if (wasLead)
+        {
+            // Leads are hard-deleted (physically removed), not soft-deleted — the row and its campaign-import
+            // rows / logs are gone for good (they cascade in the DB), so the same lead can be re-imported later.
+            await _db.Customers.Where(x => x.Id == id).ExecuteDeleteAsync(ct);
+        }
+        else
+        {
+            _db.Customers.Remove(c);   // real customers keep the soft-delete to preserve their linked history
+            await _db.SaveChangesAsync(ct);
+        }
+        TempData["StatusMessage"] = $"تم حذف {(wasLead ? "العميل المحتمل" : "العميل")} «{name}».";
+        // Return to the exact filtered list the delete was launched from, when provided.
+        if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl)) return LocalRedirect(returnUrl);
         return wasLead ? RedirectToAction("Index", "Leads") : RedirectToAction(nameof(Index));
     }
 
@@ -369,6 +394,17 @@ public class CustomersController : Controller
         var uid = _currentUser.UserId;
         if (uid is null || c.SalesPersonId is null) return false;
         return await _db.Employees.AnyAsync(e => e.Id == c.SalesPersonId && e.UserId == uid, ct);
+    }
+
+    /// <summary>True when the current user is a salesperson (linked to a salesperson employee) — such users
+    /// are limited to their own assigned leads. Non-salesperson staff (managers/admins) are not restricted.</summary>
+    private async Task<bool> IsRestrictedSalespersonAsync(CancellationToken ct)
+    {
+        var uid = _currentUser.UserId;
+        if (uid is null) return false;
+        var salesRoleIds = await _db.JobRoles.Where(r => r.IsSalesperson).Select(r => r.Id).ToListAsync(ct);
+        return await _db.Employees.AnyAsync(
+            e => e.UserId == uid && e.JobRoleId != null && salesRoleIds.Contains(e.JobRoleId.Value), ct);
     }
 
     /// <summary>Who may add/edit/delete the communication log (and send WhatsApp): ONLY the customer's

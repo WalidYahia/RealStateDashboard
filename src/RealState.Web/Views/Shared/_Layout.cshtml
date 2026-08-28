@@ -27,30 +27,46 @@
                 {
                     <a class="nav-link @NavActive("Dashboard")" asp-area="" asp-controller="Dashboard" asp-action="Index"><span>🏠</span> الرئيسية</a>
                 }
-                @if (Can(PermissionNames.CampaignsView))
-                {
-                    <a class="nav-link @NavActive("Campaigns")" asp-area="Marketing" asp-controller="Campaigns" asp-action="Index"><span>📣</span> التسويق</a>
-                }
                 @{
                     var curCtrl = ViewContext.RouteData.Values["controller"]?.ToString();
                     var curAction = ViewContext.RouteData.Values["action"]?.ToString();
                     var curArea = ViewContext.RouteData.Values["area"]?.ToString();
                     var projOpen = curCtrl == "Projects";
                     var setOpen = curCtrl == "Account" || curCtrl == "StageDefinitions" || curCtrl == "Settings" || curCtrl == "TxnCategories" || curCtrl == "ActivityLog";
-                    var salesOpen = curCtrl is "Sales" or "Collections";
                     var canSalespersons = Can(PermissionNames.SalespersonsView);
                     var canCustomers = Can(PermissionNames.CustomersView);
                     var canLeadsAccess = canCustomers || Can(PermissionNames.LeadsControl) || Can(PermissionNames.LeadsConvert);
                     var canSalesContracts = Can(PermissionNames.SalesView);
                     var canCollections = Can(PermissionNames.CollectionsView);
+                    var canCampaigns = Can(PermissionNames.CampaignsView);
+                    // Sales group now also hosts Salespersons (المناديب) and Customers (العملاء) from the CRM area.
+                    var salesOpen = curCtrl is "Sales" or "Collections" or "Salespersons" or "Customers";
                     // Parent "المبيعات" points to the sales summary — highlight it only on the summary itself.
                     var salesSummaryActive = curCtrl == "Sales" && (curAction == "Summary" || curAction == "SummaryPrint");
                     var salesContractsActive = curCtrl == "Sales" && !salesSummaryActive;
-                    // CRM group — Salespersons / Leads / Customers all live in the CRM area.
-                    var crmOpen = curArea == "CRM";
-                    var crmSummaryActive = curCtrl == "Leads" && curAction == "Summary";
+                    // Marketing group hosts Campaigns (الحملات) and "إدارة علاقات العملاء" (the Leads page).
+                    var mktOpen = curArea == "Marketing" || curCtrl == "Leads";
                 }
-                @if (canSalesContracts || canCollections)
+                @if (canCampaigns || canLeadsAccess)
+                {
+                    <div class="nav-group @(mktOpen ? "open" : "")">
+                        <div class="nav-parent">
+                            <a class="nav-link @(mktOpen ? "active" : "")" href="javascript:" onclick="toggleNavGroup(this)"><span>📣</span> التسويق</a>
+                            <button type="button" class="nav-caret" onclick="toggleNavGroup(this)">▾</button>
+                        </div>
+                        <div class="subnav">
+                            @if (canCampaigns)
+                            {
+                                <a class="subnav-link @(curArea == "Marketing" && curCtrl == "Campaigns" ? "active" : "")" asp-area="Marketing" asp-controller="Campaigns" asp-action="Index">الحملات</a>
+                            }
+                            @if (canLeadsAccess)
+                            {
+                                <a class="subnav-link @(curCtrl == "Leads" ? "active" : "")" asp-area="CRM" asp-controller="Leads" asp-action="Index">إدارة علاقات العملاء</a>
+                            }
+                        </div>
+                    </div>
+                }
+                @if (canSalesContracts || canCollections || canSalespersons || canCustomers)
                 {
                     <div class="nav-group @(salesOpen ? "open" : "")">
                         <div class="nav-parent">
@@ -73,31 +89,9 @@
                             {
                                 <a class="subnav-link @NavActive("Collections")" asp-area="Sales" asp-controller="Collections" asp-action="Index">تحصيلات المبيعات</a>
                             }
-                        </div>
-                    </div>
-                }
-                @if (canSalespersons || canLeadsAccess || canCustomers)
-                {
-                    <div class="nav-group @(crmOpen ? "open" : "")">
-                        <div class="nav-parent">
-                            @if (canLeadsAccess)
-                            {
-                                <a class="nav-link @(crmSummaryActive ? "active" : "")" asp-area="CRM" asp-controller="Leads" asp-action="Summary"><span>🤝</span> إدارة علاقات العملاء</a>
-                            }
-                            else
-                            {
-                                <a class="nav-link" href="javascript:" onclick="toggleNavGroup(this)"><span>🤝</span> إدارة علاقات العملاء</a>
-                            }
-                            <button type="button" class="nav-caret" onclick="toggleNavGroup(this)">▾</button>
-                        </div>
-                        <div class="subnav">
                             @if (canSalespersons)
                             {
                                 <a class="subnav-link @NavActive("Salespersons")" asp-area="CRM" asp-controller="Salespersons" asp-action="Index">المناديب</a>
-                            }
-                            @if (canLeadsAccess)
-                            {
-                                <a class="subnav-link @(curCtrl == "Leads" && curAction != "Summary" ? "active" : "")" asp-area="CRM" asp-controller="Leads" asp-action="Index">العملاء المحتملون</a>
                             }
                             @if (canCustomers)
                             {
@@ -127,12 +121,38 @@
                 {
                     <div class="nav-group @(supOpen ? "open" : "")">
                         <div class="nav-parent">
-                            <a class="nav-link @(supOpen ? "active" : "")" href="javascript:" onclick="toggleNavGroup(this)"><span>🚚</span> الموردون والمقاولون</a>
+                            <a class="nav-link @(supOpen ? "active" : "")" href="javascript:" onclick="toggleNavGroup(this)"><span>🚚</span> المشتريات</a>
                             <button type="button" class="nav-caret" onclick="toggleNavGroup(this)">▾</button>
                         </div>
                         <div class="subnav">
                             <a class="subnav-link @(supOpen && supCtrl == "Suppliers" ? "active" : "")" asp-area="Suppliers" asp-controller="Suppliers" asp-action="Index">قائمة الموردين</a>
                             <a class="subnav-link @(supOpen && supCtrl == "Orders" ? "active" : "")" asp-area="Suppliers" asp-controller="Orders" asp-action="Index">أوامر التوريد</a>
+                        </div>
+                    </div>
+                }
+                @{
+                    var conArea = ViewContext.RouteData.Values["area"]?.ToString();
+                    var conCtrl = ViewContext.RouteData.Values["controller"]?.ToString();
+                    var conOpen = conArea == "Contracting";
+                    var canContractors = Can(PermissionNames.ContractingView);
+                    var canWorkOrders = Can(PermissionNames.ContractingView);
+                }
+                @if (canContractors || canWorkOrders)
+                {
+                    <div class="nav-group @(conOpen ? "open" : "")">
+                        <div class="nav-parent">
+                            <a class="nav-link @(conOpen ? "active" : "")" href="javascript:" onclick="toggleNavGroup(this)"><span>👷</span> المقاولات</a>
+                            <button type="button" class="nav-caret" onclick="toggleNavGroup(this)">▾</button>
+                        </div>
+                        <div class="subnav">
+                            @if (canContractors)
+                            {
+                                <a class="subnav-link @(conOpen && conCtrl == "Contractors" ? "active" : "")" asp-area="Contracting" asp-controller="Contractors" asp-action="Index">المقاولون</a>
+                            }
+                            @if (canWorkOrders)
+                            {
+                                <a class="subnav-link @(conOpen && conCtrl == "WorkOrders" ? "active" : "")" asp-area="Contracting" asp-controller="WorkOrders" asp-action="Index">أوامر الشغل</a>
+                            }
                         </div>
                     </div>
                 }

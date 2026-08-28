@@ -1,0 +1,27 @@
+@{
+    Layout = null;
+}
+<form id="appModalForm" asp-controller="Leads" asp-action="Import" method="post"
+      enctype="multipart/form-data" data-preview-url="@Url.Action("Preview")" data-modal-init="leadImportInit">
+    @Html.AntiForgeryToken()
+
+    <div class="form-grid">
+        <div class="full">
+            <label class="form-label">ملف Excel أو CSV</label>
+            <input type="file" name="file" accept=".xlsx,.xls,.csv,.tsv,.txt,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                   class="form-control" onchange="leadImportPreview(this.form)" required />
+            <span style="color:var(--muted);font-size:12px;">
+                يُقبل ملف Excel (<bdi dir="ltr">.xlsx</bdi>) أو CSV. يجب أن يحتوي على العمودين <bdi dir="ltr">id</bdi> و <bdi dir="ltr">phone</bdi>. تُطابَق السجلات بالهاتف ويُضاف العميل المحتمل إن لم يكن موجودًا.
+            </span>
+        </div>
+    </div>
+
+    <div id="importPreview" style="margin-top:14px;">
+        <div style="color:var(--muted);padding:18px;text-align:center;">اختر ملفًا لعرض البيانات قبل الحفظ.</div>
+    </div>
+
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px;">
+        <button type="button" class="btn-sm" data-bs-dismiss="modal">إلغاء</button>
+        <button type="submit" id="importSaveBtn" class="btn-primary" style="width:auto;" disabled>💾 حفظ واستيراد</button>
+    </div>
+</form>

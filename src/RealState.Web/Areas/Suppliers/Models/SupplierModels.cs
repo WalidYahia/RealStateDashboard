@@ -80,6 +80,7 @@ public class OrderListItem
     public decimal Total { get; set; }
     public int ItemCount { get; set; }
     public decimal Paid { get; set; }
+    public bool HasAttachments { get; set; }
     public decimal Remaining => Total - Paid;
 }
 

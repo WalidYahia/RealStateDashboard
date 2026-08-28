@@ -1,0 +1,51 @@
+@model List<Contractor>
+@{
+    ViewData["Title"] = "قائمة المقاولين";
+    var canCreate = User.Can(PermissionNames.ContractingCreate);
+    var canEdit = User.Can(PermissionNames.ContractingEdit);
+    var canDelete = User.Can(PermissionNames.ContractingDelete);
+}
+<div class="page-head">
+    <h1>قائمة المقاولين</h1>
+    <div style="display:flex;gap:8px;">
+        <a class="btn-sm" asp-action="PrintList" target="_blank">🖨 طباعة (PDF)</a>
+        @if (canCreate)
+        {
+            <button type="button" class="btn-new-tenant" onclick="appOpenModal('@Url.Action("Form")', 'مقاول جديد')">➕ مقاول جديد</button>
+        }
+    </div>
+</div>
+
+@if (TempData["StatusMessage"] is string status) { <div class="status-message">@status</div> }
+@if (TempData["ErrorMessage"] is string err) { <div class="status-message" style="background:rgba(208,59,59,.12);border-color:var(--critical);color:var(--critical);">@err</div> }
+
+<div class="card-tile">
+    <div class="list-search-bar"><input class="form-control list-search" data-target="#conTable" placeholder="🔍 بحث في القائمة..." /></div>
+    <table class="rs-table" id="conTable">
+        <thead><tr><th>الاسم</th><th>الهاتف</th><th>البريد الإلكتروني</th><th>ملاحظات</th><th></th></tr></thead>
+        <tbody>
+        @foreach (var c in Model)
+        {
+            <tr>
+                <td><a asp-action="Details" asp-route-id="@c.Id" style="color:var(--series-1);text-decoration:none;font-weight:600;">@c.Name</a></td>
+                <td dir="ltr" style="text-align:right;">@c.Phone</td>
+                <td dir="ltr" style="text-align:right;">@c.Email</td>
+                <td>@(string.IsNullOrEmpty(c.Notes) ? "—" : c.Notes)</td>
+                <td style="white-space:nowrap;">
+                    <a class="btn-sm" asp-action="Details" asp-route-id="@c.Id">كشف حساب</a>
+                    @if (canEdit)
+                    {
+                        <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("Form", new { id = c.Id })', 'تعديل المقاول')">تعديل</button>
+                    }
+                    @if (canDelete)
+                    {
+                        <form asp-action="Delete" asp-route-id="@c.Id" method="post" style="display:inline;" data-confirm="حذف المقاول «@c.Name»؟" data-danger>@Html.AntiForgeryToken()<button type="submit" class="btn-sm btn-danger">حذف</button></form>
+                    }
+                </td>
+            </tr>
+        }
+        @if (Model.Count == 0) { <tr data-skip-search><td colspan="5" style="color:var(--muted)">لا يوجد مقاولون بعد.</td></tr> }
+        <tr data-no-results data-skip-search style="display:none;"><td colspan="5" style="color:var(--muted)">لا توجد نتائج مطابقة.</td></tr>
+        </tbody>
+    </table>
+</div>

@@ -1,0 +1,34 @@
+@model WorkOrderPayFormModel
+@{
+    string N(decimal v) => v.ToString("N0", new System.Globalization.CultureInfo("ar-EG"));
+}
+<form id="appModalForm" asp-area="Contracting" asp-controller="WorkOrders" asp-action="Pay" method="post">
+    @Html.AntiForgeryToken()
+    <div asp-validation-summary="ModelOnly" class="validation-summary-errors"></div>
+    <input type="hidden" asp-for="OrderId" />
+    <p style="color:var(--muted);font-size:13px;">
+        @Model.OrderLabel — الإجمالي @N(Model.Total) · المدفوع @N(Model.Paid) · <strong>المتبقي @N(Model.Remaining) ج.م</strong>
+    </p>
+    <div class="form-grid">
+        <div>
+            <label asp-for="Amount" class="form-label"></label>
+            <input asp-for="Amount" class="form-control" type="number" step="0.01" min="0" dir="ltr" />
+            <span asp-validation-for="Amount" class="field-validation-error"></span>
+        </div>
+        <div>
+            <label asp-for="PaidDate" class="form-label"></label>
+            <input asp-for="PaidDate" class="form-control" type="date" dir="ltr" />
+            <span asp-validation-for="PaidDate" class="field-validation-error"></span>
+        </div>
+        <div>
+            <label asp-for="SafeId" class="form-label"></label>
+            <select asp-for="SafeId" class="form-control" asp-items="Model.Safes"><option value="">— اختر الخزنة —</option></select>
+            <span asp-validation-for="SafeId" class="field-validation-error"></span>
+        </div>
+        <div class="full">
+            <label asp-for="Description" class="form-label"></label>
+            <textarea asp-for="Description" class="form-control" rows="2"></textarea>
+        </div>
+    </div>
+    <button type="submit" class="btn-primary" style="margin-top:8px;">💵 سداد</button>
+</form>

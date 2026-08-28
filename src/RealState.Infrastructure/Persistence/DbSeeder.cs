@@ -76,6 +76,18 @@ public static class DbSeeder
             }
         }
 
+        // Prune permissions that no longer exist in the catalog (e.g. after consolidating a module's
+        // permissions) so the privileges screen doesn't show stale/orphaned entries.
+        var catalogNames = PermissionNames.Catalog.Select(c => c.Name).ToHashSet();
+        var stale = existing.Where(p => !catalogNames.Contains(p.Name)).ToList();
+        if (stale.Count > 0)
+        {
+            var staleIds = stale.Select(p => p.Id).ToList();
+            db.RolePermissions.RemoveRange(await db.RolePermissions.Where(rp => staleIds.Contains(rp.PermissionId)).ToListAsync());
+            db.Permissions.RemoveRange(stale);
+            changed = true;
+        }
+
         if (changed) await db.SaveChangesAsync();
     }
 

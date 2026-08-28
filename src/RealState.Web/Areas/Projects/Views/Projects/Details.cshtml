@@ -11,6 +11,11 @@
         : s.ActualStartDate.HasValue ? ("قيد التنفيذ", "var(--series-1)")
         : ("لم تبدأ", "var(--muted)");
     var canEditProj = User.Can(PermissionNames.ProjectsEdit);
+    // Per-tab view permissions (البيانات الأساسية is always shown to anyone who can open the project).
+    var canStages = User.Can(PermissionNames.ProjectsStages);
+    var canExpenses = User.Can(PermissionNames.ProjectsExpenses);
+    var canFiles = User.Can(PermissionNames.ProjectsAttachments);
+    var canUnits = User.Can(PermissionNames.ProjectsUnits);
 }
 
 <div class="page-head">
@@ -66,10 +71,19 @@
 <!-- tabs -->
 <div class="subtabs" style="margin-top:6px;">
     <a class="subtab active" data-tab="main" href="javascript:" onclick="pShowTab(event,'main')">البيانات الأساسية</a>
-    <a class="subtab" data-tab="stages" href="javascript:" onclick="pShowTab(event,'stages')">المراحل</a>
-    <a class="subtab" data-tab="expenses" href="javascript:" onclick="pShowTab(event,'expenses')">المصاريف</a>
-    <a class="subtab" data-tab="files" href="javascript:" onclick="pShowTab(event,'files')">المرفقات</a>
-    @if (Model.HasUnits)
+    @if (canStages)
+    {
+        <a class="subtab" data-tab="stages" href="javascript:" onclick="pShowTab(event,'stages')">المراحل</a>
+    }
+    @if (canExpenses)
+    {
+        <a class="subtab" data-tab="expenses" href="javascript:" onclick="pShowTab(event,'expenses')">المصاريف</a>
+    }
+    @if (canFiles)
+    {
+        <a class="subtab" data-tab="files" href="javascript:" onclick="pShowTab(event,'files')">المرفقات</a>
+    }
+    @if (Model.HasUnits && canUnits)
     {
         <a class="subtab" data-tab="units" href="javascript:" onclick="pShowTab(event,'units')">الوحدات</a>
     }
@@ -103,7 +117,7 @@
 </div>
 
 <!-- units -->
-@if (Model.HasUnits)
+@if (Model.HasUnits && canUnits)
 {
     <div id="ptab-units" class="ptab" style="display:none;">
         <div class="card-tile">
@@ -156,6 +170,8 @@
 }
 
 <!-- stages -->
+@if (canStages)
+{
 <div id="ptab-stages" class="ptab" style="display:none;">
     <div class="card-tile">
         <div class="card-head">
@@ -210,8 +226,11 @@
         </table>
     </div>
 </div>
+}
 
 <!-- expenses -->
+@if (canExpenses)
+{
 <div id="ptab-expenses" class="ptab" style="display:none;">
     <div class="card-tile">
         <div class="card-head">
@@ -252,8 +271,11 @@
         </table>
     </div>
 </div>
+}
 
 <!-- attachments -->
+@if (canFiles)
+{
 <div id="ptab-files" class="ptab" style="display:none;">
     <div class="card-tile">
         <div class="card-head">
@@ -302,6 +324,7 @@
         </table>
     </div>
 </div>
+}
 
 @section Scripts {
     <script>

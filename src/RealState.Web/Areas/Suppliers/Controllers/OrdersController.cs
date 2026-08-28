@@ -29,7 +29,7 @@ public class OrdersController : Controller
     private bool Can(string permission) => User.HasClaim("permission", permission);
 
     // ---------- Orders list ----------
-    public async Task<IActionResult> Index(DateTime? from, DateTime? to, CancellationToken ct)
+    public async Task<IActionResult> Index(DateTime? from, DateTime? to, Guid? supplierId, Guid? projectId, CancellationToken ct)
     {
         (from, to) = DateFilterDefaults.TodayIfFresh(Request, from, to);
         ViewData["CanCreate"] = Can(PermissionNames.SuppliersCreate);
@@ -38,14 +38,23 @@ public class OrdersController : Controller
         ViewData["CanPay"] = Can(PermissionNames.SuppliersPay);
         ViewBag.From = from;
         ViewBag.To = to;
-        return View(await BuildRowsAsync(ct, from, to));
+        ViewBag.SupplierId = supplierId;
+        ViewBag.ProjectId = projectId;
+        ViewBag.Suppliers = await _db.Suppliers.OrderBy(s => s.Name)
+            .Select(s => new Microsoft.AspNetCore.Mvc.Rendering.SelectListItem { Value = s.Id.ToString(), Text = s.Name }).ToListAsync(ct);
+        ViewBag.Projects = await _db.Projects.OrderBy(p => p.Name)
+            .Select(p => new Microsoft.AspNetCore.Mvc.Rendering.SelectListItem { Value = p.Id.ToString(), Text = p.Name }).ToListAsync(ct);
+        return View(await BuildRowsAsync(ct, from, to, supplierId, projectId));
     }
 
-    private async Task<List<OrderListItem>> BuildRowsAsync(CancellationToken ct, DateTime? from = null, DateTime? to = null)
+    private async Task<List<OrderListItem>> BuildRowsAsync(CancellationToken ct, DateTime? from = null, DateTime? to = null,
+        Guid? supplierId = null, Guid? projectId = null)
     {
         var q = _db.SupplierOrders.AsQueryable();
         if (from.HasValue) q = q.Where(o => o.OrderDate >= from.Value.Date);
         if (to.HasValue) q = q.Where(o => o.OrderDate < to.Value.Date.AddDays(1));
+        if (supplierId.HasValue) q = q.Where(o => o.SupplierId == supplierId.Value);
+        if (projectId.HasValue) q = q.Where(o => o.ProjectId == projectId.Value);
         var orders = await q.OrderByDescending(o => o.Number).ToListAsync(ct);
         var supNames = await _db.Suppliers.ToDictionaryAsync(s => s.Id, s => s.Name, ct);
         var projNames = await _db.Projects.ToDictionaryAsync(p => p.Id, p => p.Name, ct);
@@ -55,6 +64,9 @@ public class OrdersController : Controller
         var paidByOrder = (await _db.SupplierPayments.Where(p => p.SupplierOrderId != null)
             .GroupBy(p => p.SupplierOrderId!.Value).Select(g => new { g.Key, Sum = g.Sum(x => x.Amount) }).ToListAsync(ct))
             .ToDictionary(x => x.Key, x => x.Sum);
+        var orderIds = orders.Select(o => o.Id).ToList();
+        var withAttachments = (await _db.SupplierOrderAttachments
+            .Where(a => orderIds.Contains(a.SupplierOrderId)).Select(a => a.SupplierOrderId).Distinct().ToListAsync(ct)).ToHashSet();
 
         return orders.Select(o =>
         {
@@ -69,6 +81,7 @@ public class OrdersController : Controller
                 Total = agg.Sum,
                 ItemCount = agg.Count,
                 Paid = paidByOrder.GetValueOrDefault(o.Id, 0),
+                HasAttachments = withAttachments.Contains(o.Id),
             };
         }).ToList();
     }
@@ -164,6 +177,7 @@ public class OrdersController : Controller
         }
         var items = await _db.SupplierOrderItems.Where(i => i.SupplierOrderId == id).ToListAsync(ct);
         foreach (var it in items) _db.SupplierOrderItems.Remove(it);
+        foreach (var a in await _db.SupplierOrderAttachments.Where(a => a.SupplierOrderId == id).ToListAsync(ct)) _db.SupplierOrderAttachments.Remove(a);
         _db.SupplierOrders.Remove(order);
         await _db.SaveChangesAsync(ct);
         TempData["StatusMessage"] = $"تم حذف أمر التوريد PO-{order.Number:D4}.";
@@ -176,7 +190,73 @@ public class OrdersController : Controller
         var order = await LoadOrderAsync(id, ct);
         if (order is null) return NotFound();
         ViewData["CanPay"] = Can(PermissionNames.SuppliersPay);
+        ViewBag.Attachments = await _db.SupplierOrderAttachments
+            .Where(a => a.SupplierOrderId == id).OrderBy(a => a.FileName).ToListAsync(ct);
         return View(order);
+    }
+
+    // ---------- Order attachments ----------
+    private static readonly string[] AttachmentTypes =
+    {
+        "image/jpeg", "image/png", "image/gif", "image/webp", "application/pdf", "text/plain",
+        "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    };
+    private const long MaxAttachmentBytes = 15 * 1024 * 1024;   // 15 MB
+
+    [HttpPost]
+    [Authorize(Policy = PermissionNames.SuppliersEdit)]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> AttachmentUpload(Guid orderId, IFormFile? file, CancellationToken ct)
+    {
+        if (!await _db.SupplierOrders.AnyAsync(o => o.Id == orderId, ct)) return NotFound();
+        if (file is { Length: > 0 })
+        {
+            if (file.Length > MaxAttachmentBytes)
+                TempData["StatusMessage"] = "حجم الملف يتجاوز 15 ميجابايت.";
+            else if (!AttachmentTypes.Contains(file.ContentType))
+                TempData["StatusMessage"] = "صيغة الملف غير مدعومة.";
+            else
+            {
+                using var ms = new MemoryStream();
+                await file.CopyToAsync(ms, ct);
+                _db.SupplierOrderAttachments.Add(new SupplierOrderAttachment
+                {
+                    SupplierOrderId = orderId, FileName = file.FileName, ContentType = file.ContentType,
+                    Size = file.Length, Data = ms.ToArray()
+                });
+                await _db.SaveChangesAsync(ct);
+                TempData["StatusMessage"] = "تم رفع المرفق.";
+            }
+        }
+        return RedirectToAction(nameof(Details), new { id = orderId });
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> AttachmentDownload(Guid id, CancellationToken ct)
+    {
+        var a = await _db.SupplierOrderAttachments.FirstOrDefaultAsync(x => x.Id == id, ct);
+        if (a is null) return NotFound();
+        return File(a.Data, a.ContentType ?? "application/octet-stream", a.FileName);
+    }
+
+    // Inline preview (no download filename) — the browser renders images / PDF / text.
+    [HttpGet]
+    public async Task<IActionResult> AttachmentPreview(Guid id, CancellationToken ct)
+    {
+        var a = await _db.SupplierOrderAttachments.FirstOrDefaultAsync(x => x.Id == id, ct);
+        if (a is null) return NotFound();
+        return File(a.Data, a.ContentType ?? "application/octet-stream");
+    }
+
+    [HttpPost]
+    [Authorize(Policy = PermissionNames.SuppliersEdit)]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> AttachmentDelete(Guid id, Guid orderId, CancellationToken ct)
+    {
+        var a = await _db.SupplierOrderAttachments.FirstOrDefaultAsync(x => x.Id == id, ct);
+        if (a is not null) { _db.SupplierOrderAttachments.Remove(a); await _db.SaveChangesAsync(ct); }
+        return RedirectToAction(nameof(Details), new { id = orderId });
     }
 
     [HttpGet]
@@ -189,10 +269,10 @@ public class OrdersController : Controller
     }
 
     [HttpGet]
-    public async Task<IActionResult> PrintList(CancellationToken ct)
+    public async Task<IActionResult> PrintList(DateTime? from, DateTime? to, Guid? supplierId, Guid? projectId, CancellationToken ct)
     {
         ViewBag.TenantId = _currentUser.TenantId;
-        return View("PrintList", await BuildRowsAsync(ct));
+        return View("PrintList", await BuildRowsAsync(ct, from, to, supplierId, projectId));
     }
 
     // ---------- Pay an order (expense on the order's project) ----------

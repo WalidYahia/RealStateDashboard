@@ -36,7 +36,7 @@
     </div>
 
     <table>
-        <thead><tr><th>#</th><th>الاسم</th><th>الهاتف</th><th>تاريخ الإنشاء</th><th>المصدر</th><th>المندوب</th><th>الحالة</th></tr></thead>
+        <thead><tr><th>#</th><th>الاسم</th><th>الهاتف</th><th>تاريخ الإنشاء</th><th>المصدر</th><th>الحملة</th><th>المنصة</th><th>نوع الوحدة</th><th>خطة السداد</th><th>المندوب</th><th>الحالة</th></tr></thead>
         <tbody>
         @{ var i = 1; }
         @foreach (var l in Model)
@@ -47,12 +47,16 @@
                 <td>@l.Phone</td>
                 <td>@D(l.CreatedOn)</td>
                 <td>@l.SourceLabel</td>
+                <td>@(l.CampaignName ?? "—")</td>
+                <td>@(l.Platform ?? "—")</td>
+                <td>@(l.UnitType ?? "—")</td>
+                <td>@(l.PaymentPlan ?? "—")</td>
                 <td>@l.Salesperson</td>
                 <td>@(l.Interest.HasValue ? l.Interest.Value.Ar() : "—")</td>
             </tr>
             i++;
         }
-        @if (Model.Count == 0) { <tr><td colspan="7">لا يوجد عملاء محتملون.</td></tr> }
+        @if (Model.Count == 0) { <tr><td colspan="11">لا يوجد عملاء محتملون.</td></tr> }
         </tbody>
     </table>
 

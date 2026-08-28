@@ -1,0 +1,121 @@
+@model List<WorkOrderListItem>
+@{
+    ViewData["Title"] = "أوامر الشغل";
+    var canCreate = ViewData["CanCreate"] as bool? ?? false;
+    var canEdit = ViewData["CanEdit"] as bool? ?? false;
+    var canDelete = ViewData["CanDelete"] as bool? ?? false;
+    var canProgress = ViewData["CanProgress"] as bool? ?? false;
+    var canPay = ViewData["CanPay"] as bool? ?? false;
+    string WO(int n) => "WO-" + n;
+    string N(decimal v) => v.ToString("N2", new System.Globalization.CultureInfo("ar-EG"));
+    string P(decimal v) => v.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture) + "%";
+    string D(DateTime d) => d.ToString("yyyy/MM/dd", System.Globalization.CultureInfo.InvariantCulture);
+    string? F(DateTime? d) => d?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+    var wfrom = ViewBag.From as DateTime?;
+    var wto = ViewBag.To as DateTime?;
+    var wcon = (ViewBag.ContractorId as Guid?)?.ToString();
+    var wproj = (ViewBag.ProjectId as Guid?)?.ToString();
+    var conList = ViewBag.Contractors as List<SelectListItem> ?? new();
+    var projList = ViewBag.Projects as List<SelectListItem> ?? new();
+
+    string EditBtn(WorkOrderListItem o, WorkOrderField f, string title) =>
+        canProgress
+            ? $"<button type=\"button\" class=\"btn-sm\" title=\"{title}\" onclick=\"appOpenModal('{Url.Action("ProgressForm", new { id = o.Id, field = f })}', '{title}')\">تحديث</button>"
+            : "";
+}
+<div class="page-head">
+    <h1>أوامر الشغل</h1>
+    <div style="display:flex;gap:8px;">
+        @if (canCreate)
+        {
+            <button type="button" class="btn-new-tenant" onclick="appOpenModal('@Url.Action("Form")', 'أمر شغل جديد')">➕ أمر شغل</button>
+        }
+    </div>
+</div>
+
+@if (TempData["StatusMessage"] is string status) { <div class="status-message">@status</div> }
+@if (TempData["ErrorMessage"] is string err) { <div class="status-message" style="background:rgba(208,59,59,.12);border-color:var(--critical);color:var(--critical);">@err</div> }
+
+<div class="card-tile" style="margin-bottom:12px;">
+    <form asp-action="Index" method="get" class="filter-form">
+        <div class="filter-row">
+            <div class="fld"><label class="form-label">من (تاريخ الأمر)</label><input type="date" name="from" value="@F(wfrom)" class="form-control" dir="ltr" /></div>
+            <div class="fld"><label class="form-label">إلى</label><input type="date" name="to" value="@F(wto)" class="form-control" dir="ltr" /></div>
+            <div class="filter-presets">
+                <button type="button" class="btn-sm date-preset" data-from="@F(DateTime.Today)" data-to="@F(DateTime.Today)">اليوم</button>
+                <button type="button" class="btn-sm date-preset" data-from="@F(DateTime.Today.AddDays(-7))" data-to="@F(DateTime.Today)">آخر أسبوع</button>
+                <button type="button" class="btn-sm date-preset" data-from="@F(DateTime.Today.AddMonths(-1))" data-to="@F(DateTime.Today)">آخر شهر</button>
+            </div>
+        </div>
+        <div class="filter-row">
+            <div class="fld">
+                <label class="form-label">المقاول</label>
+                <select name="contractorId" class="form-control"><option value="">الكل</option>
+                    @foreach (var c in conList) { <option value="@c.Value" selected="@(wcon == c.Value)">@c.Text</option> }
+                </select>
+            </div>
+            <div class="fld">
+                <label class="form-label">المشروع</label>
+                <select name="projectId" class="form-control"><option value="">الكل</option>
+                    @foreach (var p in projList) { <option value="@p.Value" selected="@(wproj == p.Value)">@p.Text</option> }
+                </select>
+            </div>
+            <div class="filter-actions">
+                <button type="submit" class="btn-primary">بحث</button>
+                <a class="btn-sm" asp-action="PrintList" asp-route-from="@F(wfrom)" asp-route-to="@F(wto)" asp-route-contractorId="@wcon" asp-route-projectId="@wproj" target="_blank">🖨 طباعة (PDF)</a>
+            </div>
+        </div>
+    </form>
+</div>
+
+<div class="card-tile">
+    <div class="list-search-bar"><input class="form-control list-search" data-target="#woTable" placeholder="🔍 بحث في القائمة..." /></div>
+    <div style="overflow-x:auto;">
+        <table class="rs-table" id="woTable" style="white-space:nowrap;">
+            <thead>
+                <tr>
+                    <th>رقم الأمر</th><th>التاريخ</th><th>المقاول</th><th>المشروع</th><th>البيان</th><th>الإجمالي</th>
+                    <th>نسبة التنفيذ</th><th>نسبة التعلية</th><th>الخصومات</th><th>الإجمالي الفعلي</th>
+                    <th>المدفوع</th><th>المتبقي</th><th></th>
+                </tr>
+            </thead>
+            <tbody>
+            @foreach (var o in Model)
+            {
+                <tr data-search="@((WO(o.Number) + " " + o.Contractor + " " + o.Project + " " + o.ItemDescription).ToLower())">
+                    <td dir="ltr" style="text-align:right;"><a asp-action="Details" asp-route-id="@o.Id" style="color:var(--series-1);text-decoration:none;font-weight:600;">@WO(o.Number)</a></td>
+                    <td dir="ltr" style="text-align:right;">@D(o.OrderDate)</td>
+                    <td>@o.Contractor</td>
+                    <td>@o.Project</td>
+                    <td>@o.ItemDescription</td>
+                    <td>@N(o.Total)</td>
+                    <td style="white-space:nowrap;">@P(o.ExecutionPercent) @Html.Raw(EditBtn(o, WorkOrderField.Execution, "تحديث نسبة التنفيذ"))</td>
+                    <td style="white-space:nowrap;">@P(o.UpliftPercent) @Html.Raw(EditBtn(o, WorkOrderField.Uplift, "تحديث نسبة التعلية"))</td>
+                    <td style="white-space:nowrap;">@N(o.Deductions) @Html.Raw(EditBtn(o, WorkOrderField.Deductions, "تحديث الخصومات"))</td>
+                    <td><strong>@N(o.ActualTotal)</strong></td>
+                    <td class="tag-up">@N(o.Paid)</td>
+                    <td>@N(o.Remaining)</td>
+                    <td style="white-space:nowrap;">
+                        <a class="btn-sm" asp-action="Details" asp-route-id="@o.Id">التفاصيل</a>
+                        <a class="btn-sm" asp-action="PrintOrder" asp-route-id="@o.Id" target="_blank">🖨</a>
+                        @if (canPay && o.Remaining > 0)
+                        {
+                            <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("Pay", new { id = o.Id })', 'سداد دفعة على أمر الشغل')">💵 سداد</button>
+                        }
+                        @if (canEdit)
+                        {
+                            <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("Form", new { id = o.Id })', 'تعديل أمر الشغل')">تعديل</button>
+                        }
+                        @if (canDelete)
+                        {
+                            <form asp-action="Delete" asp-route-id="@o.Id" method="post" style="display:inline;" data-confirm="حذف أمر الشغل @WO(o.Number)؟" data-danger>@Html.AntiForgeryToken()<button type="submit" class="btn-sm btn-danger">حذف</button></form>
+                        }
+                    </td>
+                </tr>
+            }
+            @if (Model.Count == 0) { <tr data-skip-search><td colspan="13" style="color:var(--muted)">لا توجد أوامر شغل بعد.</td></tr> }
+            <tr data-no-results data-skip-search style="display:none;"><td colspan="13" style="color:var(--muted)">لا توجد نتائج مطابقة.</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>

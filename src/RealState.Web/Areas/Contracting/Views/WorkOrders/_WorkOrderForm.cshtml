@@ -1,0 +1,51 @@
+@model WorkOrderFormModel
+<form id="appModalForm" asp-area="Contracting" asp-controller="WorkOrders" asp-action="Form" method="post">
+    @Html.AntiForgeryToken()
+    <div asp-validation-summary="ModelOnly" class="validation-summary-errors"></div>
+    <input type="hidden" asp-for="Id" />
+    <div class="form-grid">
+        <div>
+            <label asp-for="ContractorId" class="form-label"></label>
+            <select asp-for="ContractorId" class="form-control" asp-items="Model.Contractors"><option value="">— اختر المقاول —</option></select>
+            <span asp-validation-for="ContractorId" class="field-validation-error"></span>
+        </div>
+        <div>
+            <label asp-for="ProjectId" class="form-label"></label>
+            <select asp-for="ProjectId" class="form-control" asp-items="Model.Projects"><option value="">— اختر المشروع —</option></select>
+            <span asp-validation-for="ProjectId" class="field-validation-error"></span>
+        </div>
+        <div>
+            <label asp-for="OrderDate" class="form-label"></label>
+            <input asp-for="OrderDate" class="form-control" type="date" dir="ltr" />
+            <span asp-validation-for="OrderDate" class="field-validation-error"></span>
+        </div>
+        <div class="full">
+            <label asp-for="ItemDescription" class="form-label"></label>
+            <input asp-for="ItemDescription" class="form-control" placeholder="مثال: أعمال محارة" />
+            <span asp-validation-for="ItemDescription" class="field-validation-error"></span>
+        </div>
+        <div class="full" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
+            <div>
+                <label asp-for="Unit" class="form-label"></label>
+                <input asp-for="Unit" class="form-control" placeholder="م³ / دفعة" />
+                <span asp-validation-for="Unit" class="field-validation-error"></span>
+            </div>
+            <div>
+                <label asp-for="Quantity" class="form-label"></label>
+                <input asp-for="Quantity" class="form-control" type="number" step="0.01" min="0" dir="ltr" />
+                <span asp-validation-for="Quantity" class="field-validation-error"></span>
+            </div>
+            <div>
+                <label asp-for="Rate" class="form-label"></label>
+                <input asp-for="Rate" class="form-control" type="number" step="0.01" min="0" dir="ltr" />
+                <span asp-validation-for="Rate" class="field-validation-error"></span>
+            </div>
+        </div>
+        <div class="full">
+            <label asp-for="Notes" class="form-label"></label>
+            <textarea asp-for="Notes" class="form-control" rows="2"></textarea>
+        </div>
+    </div>
+    <p style="color:var(--muted);font-size:12px;margin-top:8px;">تُضبط نسبة التنفيذ والتعلية والخصومات لاحقًا من قائمة أوامر الشغل (تبدأ بصفر).</p>
+    <button type="submit" class="btn-primary" style="margin-top:8px;">💾 حفظ</button>
+</form>

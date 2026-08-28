@@ -78,3 +78,16 @@ public class SupplierPayment : AuditableEntity, ITenantEntity
 
     public string? Description { get; set; }
 }
+
+/// <summary>A file attached to a supplier order (contract, quotation, invoice scan, …), stored inline.</summary>
+public class SupplierOrderAttachment : AuditableEntity, ITenantEntity
+{
+    public Guid TenantId { get; set; }
+    public Guid SupplierOrderId { get; set; }
+    public SupplierOrder? Order { get; set; }
+
+    public string FileName { get; set; } = string.Empty;
+    public string? ContentType { get; set; }
+    public long Size { get; set; }
+    public byte[] Data { get; set; } = Array.Empty<byte>();
+}

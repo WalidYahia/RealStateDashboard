@@ -70,6 +70,12 @@ public class LeadRow
     public string Salesperson { get; set; } = "—";
     public LeadInterest? Interest { get; set; }
     public int LogCount { get; set; }
+
+    // From the lead's latest campaign-import row (when it came from an imported campaign).
+    public string? CampaignName { get; set; }
+    public string? Platform { get; set; }
+    public string? UnitType { get; set; }      // "نوع الوحدة المهتم بها" question answer
+    public string? PaymentPlan { get; set; }   // "خطة السداد المهتم بها" question answer
 }
 
 /// <summary>Leads list with its filters and filter option lists.</summary>
@@ -80,8 +86,19 @@ public class LeadListVm
     public string? Source { get; set; }
     public DateTime? From { get; set; }
     public DateTime? To { get; set; }
+
+    // Campaign-import filters.
+    public string? Campaign { get; set; }
+    public string? Platform { get; set; }
+    public string? UnitType { get; set; }
+    public string? PaymentPlan { get; set; }
+
     public List<SelectListItem> Salespersons { get; set; } = new();
     public List<SelectListItem> Sources { get; set; } = new();
+    public List<SelectListItem> Campaigns { get; set; } = new();
+    public List<SelectListItem> Platforms { get; set; } = new();
+    public List<SelectListItem> UnitTypes { get; set; } = new();
+    public List<SelectListItem> PaymentPlans { get; set; } = new();
 }
 
 public record CountRow(string Label, int Count);

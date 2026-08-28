@@ -1,0 +1,85 @@
+@model WorkOrderDetailsVm
+@{
+    var o = Model.Order;
+    ViewData["Title"] = $"أمر شغل WO-{o.Number}";
+    var canProgress = ViewData["CanProgress"] as bool? ?? false;
+    var canPay = ViewData["CanPay"] as bool? ?? false;
+    string N(decimal v) => v.ToString("N2", new System.Globalization.CultureInfo("ar-EG"));
+    string P(decimal v) => v.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture) + "%";
+    string D(DateTime d) => d.ToString("yyyy/MM/dd", System.Globalization.CultureInfo.InvariantCulture);
+    string DT(DateTime d) => d.ToString("yyyy/MM/dd HH:mm", System.Globalization.CultureInfo.InvariantCulture);
+    string LogVal(WorkOrderLog l) => l.Field == WorkOrderField.Deductions ? N(l.Value) + " ج.م" : P(l.Value);
+    var remaining = o.ActualTotal - Model.Paid;
+}
+<div class="page-head">
+    <div>
+        <h1>أمر شغل <span class="proj-code" dir="ltr">WO-@o.Number</span></h1>
+        <p style="color:var(--muted);margin:2px 0 0;">@Model.ContractorName · @Model.ProjectName · @D(o.OrderDate)</p>
+    </div>
+    <div style="display:flex;gap:8px;">
+        <a class="btn-sm" asp-action="Index">رجوع</a>
+        <a class="btn-sm" asp-action="PrintOrder" asp-route-id="@o.Id" target="_blank">🖨 طباعة الأمر (PDF)</a>
+        <a class="btn-sm" asp-controller="Contractors" asp-action="Details" asp-route-id="@o.ContractorId">كشف حساب مقاول</a>
+        @if (canPay && remaining > 0)
+        {
+            <button type="button" class="btn-new-tenant" onclick="appOpenModal('@Url.Action("Pay", new { id = o.Id })', 'سداد دفعة على أمر الشغل')">💵 سداد دفعة</button>
+        }
+    </div>
+</div>
+
+@if (TempData["StatusMessage"] is string status) { <div class="status-message">@status</div> }
+
+<div class="grid-row" style="grid-template-columns: 1fr 1fr;gap:14px;">
+    <div class="card-tile">
+        <div class="card-head"><h3>بيانات البند</h3></div>
+        <table class="rs-table">
+            <tr><th style="width:170px;">البيان</th><td>@o.ItemDescription</td></tr>
+            <tr><th>الوحدة</th><td>@o.Unit</td></tr>
+            <tr><th>الكمية</th><td>@N(o.Quantity)</td></tr>
+            <tr><th>الفئة (سعر الوحدة)</th><td>@N(o.Rate)</td></tr>
+            <tr><th>ملاحظات</th><td>@(string.IsNullOrEmpty(o.Notes) ? "—" : o.Notes)</td></tr>
+        </table>
+    </div>
+    <div class="card-tile">
+        <div class="card-head"><h3>الحسابات</h3></div>
+        <table class="rs-table">
+            <tr><th style="width:200px;">الإجمالي (الكمية × الفئة)</th><td><strong>@N(o.Total)</strong> ج.م</td></tr>
+            <tr><th>نسبة التنفيذ</th><td>@P(o.ExecutionPercent) @if (canProgress) { <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("ProgressForm", new { id = o.Id, field = WorkOrderField.Execution })', 'تحديث نسبة التنفيذ')">تحديث</button> }</td></tr>
+            <tr><th>المستحق (الإجمالي × التنفيذ)</th><td>@N(o.Due)</td></tr>
+            <tr><th>نسبة التعلية</th><td>@P(o.UpliftPercent) @if (canProgress) { <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("ProgressForm", new { id = o.Id, field = WorkOrderField.Uplift })', 'تحديث نسبة التعلية')">تحديث</button> }</td></tr>
+            <tr><th>الخصومات</th><td>@N(o.Deductions) @if (canProgress) { <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("ProgressForm", new { id = o.Id, field = WorkOrderField.Deductions })', 'تحديث الخصومات')">تحديث</button> }</td></tr>
+            <tr><th>الإجمالي الفعلي (بعد التعلية)</th><td><strong>@N(o.ActualTotal)</strong> ج.م</td></tr>
+            <tr><th>المدفوع / المتبقي</th><td>@N(Model.Paid) / @N(remaining) ج.م</td></tr>
+        </table>
+    </div>
+</div>
+
+<div class="card-tile" style="margin-top:14px;">
+    <div class="card-head"><h3>سجل التحديثات</h3></div>
+    <table class="rs-table">
+        <thead><tr><th>التاريخ والوقت</th><th>الحقل</th><th>القيمة</th><th>بواسطة</th><th></th></tr></thead>
+        <tbody>
+        @foreach (var l in Model.Logs)
+        {
+            <tr>
+                <td dir="ltr" style="text-align:right;">@DT(l.At)</td>
+                <td>@l.Field.Ar()</td>
+                <td>@LogVal(l)</td>
+                <td>@(l.ByName ?? "—")</td>
+                <td style="white-space:nowrap;">
+                    @if (canProgress)
+                    {
+                        <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("LogForm", new { id = l.Id })', 'تعديل السجل')">تعديل</button>
+                        <form asp-action="LogDelete" method="post" style="display:inline;" data-confirm="حذف هذا السجل؟" data-danger>
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="id" value="@l.Id" /><input type="hidden" name="workOrderId" value="@o.Id" />
+                            <button type="submit" class="btn-sm btn-danger">حذف</button>
+                        </form>
+                    }
+                </td>
+            </tr>
+        }
+        @if (Model.Logs.Count == 0) { <tr><td colspan="5" style="color:var(--muted)">لا توجد تحديثات بعد.</td></tr> }
+        </tbody>
+    </table>
+</div>

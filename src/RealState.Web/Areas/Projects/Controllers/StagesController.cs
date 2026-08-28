@@ -10,7 +10,7 @@ using RealState.Web.Areas.Projects.Models;
 namespace RealState.Web.Areas.Projects.Controllers;
 
 [Area("Projects")]
-[Authorize(Policy = PermissionNames.ProjectsView)]
+[Authorize(Policy = PermissionNames.ProjectsStages)]
 public class StagesController : Controller
 {
     private readonly IApplicationDbContext _db;

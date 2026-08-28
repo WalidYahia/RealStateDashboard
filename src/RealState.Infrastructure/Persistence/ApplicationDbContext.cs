@@ -46,6 +46,7 @@ public class ApplicationDbContext
     public DbSet<Project> Projects => Set<Project>();
     public DbSet<Customer> Customers => Set<Customer>();
     public DbSet<CustomerLog> CustomerLogs => Set<CustomerLog>();
+    public DbSet<CampaignLead> CampaignLeads => Set<CampaignLead>();
     public DbSet<Lead> Leads => Set<Lead>();
     public DbSet<Campaign> Campaigns => Set<Campaign>();
     public DbSet<CampaignUpdate> CampaignUpdates => Set<CampaignUpdate>();
@@ -66,7 +67,12 @@ public class ApplicationDbContext
     public DbSet<Supplier> Suppliers => Set<Supplier>();
     public DbSet<SupplierOrder> SupplierOrders => Set<SupplierOrder>();
     public DbSet<SupplierOrderItem> SupplierOrderItems => Set<SupplierOrderItem>();
+    public DbSet<SupplierOrderAttachment> SupplierOrderAttachments => Set<SupplierOrderAttachment>();
     public DbSet<SupplierPayment> SupplierPayments => Set<SupplierPayment>();
+    public DbSet<Contractor> Contractors => Set<Contractor>();
+    public DbSet<WorkOrder> WorkOrders => Set<WorkOrder>();
+    public DbSet<WorkOrderLog> WorkOrderLogs => Set<WorkOrderLog>();
+    public DbSet<WorkOrderPayment> WorkOrderPayments => Set<WorkOrderPayment>();
     public DbSet<StageDefinition> StageDefinitions => Set<StageDefinition>();
     public DbSet<ProjectStage> ProjectStages => Set<ProjectStage>();
     public DbSet<StageActivity> StageActivities => Set<StageActivity>();
@@ -138,6 +144,16 @@ public class ApplicationDbContext
         builder.Entity<SupplierOrder>().HasOne(o => o.Supplier).WithMany().HasForeignKey(o => o.SupplierId).OnDelete(DeleteBehavior.Restrict);
         builder.Entity<SupplierOrder>().HasOne(o => o.Project).WithMany().HasForeignKey(o => o.ProjectId).OnDelete(DeleteBehavior.Restrict);
         builder.Entity<SupplierOrderItem>().HasOne(i => i.Order).WithMany(o => o.Items).HasForeignKey(i => i.SupplierOrderId).OnDelete(DeleteBehavior.Cascade);
+        builder.Entity<SupplierOrderAttachment>().HasOne(a => a.Order).WithMany().HasForeignKey(a => a.SupplierOrderId).OnDelete(DeleteBehavior.Cascade);
+
+        // Contracting: work orders reference a contractor + project (restrict); logs cascade with their order;
+        // payments restrict (deletes handled in code).
+        builder.Entity<WorkOrder>().HasOne(o => o.Contractor).WithMany().HasForeignKey(o => o.ContractorId).OnDelete(DeleteBehavior.Restrict);
+        builder.Entity<WorkOrder>().HasOne(o => o.Project).WithMany().HasForeignKey(o => o.ProjectId).OnDelete(DeleteBehavior.Restrict);
+        builder.Entity<WorkOrderLog>().HasOne(l => l.Order).WithMany().HasForeignKey(l => l.WorkOrderId).OnDelete(DeleteBehavior.Cascade);
+        builder.Entity<WorkOrderPayment>().HasOne(p => p.Contractor).WithMany().HasForeignKey(p => p.ContractorId).OnDelete(DeleteBehavior.Restrict);
+        builder.Entity<WorkOrderPayment>().HasOne(p => p.Order).WithMany().HasForeignKey(p => p.WorkOrderId).OnDelete(DeleteBehavior.Restrict);
+        builder.Entity<WorkOrderPayment>().HasOne<Safe>().WithMany().HasForeignKey(p => p.SafeId).OnDelete(DeleteBehavior.Restrict);
         builder.Entity<SupplierPayment>().HasOne(p => p.Supplier).WithMany().HasForeignKey(p => p.SupplierId).OnDelete(DeleteBehavior.Restrict);
         builder.Entity<SupplierPayment>().HasOne(p => p.Order).WithMany(o => o.Payments).HasForeignKey(p => p.SupplierOrderId).OnDelete(DeleteBehavior.Restrict);
         builder.Entity<SupplierPayment>().HasOne<Safe>().WithMany().HasForeignKey(p => p.SafeId).OnDelete(DeleteBehavior.Restrict);
@@ -161,6 +177,10 @@ public class ApplicationDbContext
 
         // Customer communication log cascades with its customer.
         builder.Entity<CustomerLog>().HasOne(l => l.Customer).WithMany().HasForeignKey(l => l.CustomerId).OnDelete(DeleteBehavior.Cascade);
+
+        // Imported campaign leads: one per platform record (unique ExternalId per tenant), cascades with its lead/customer.
+        builder.Entity<CampaignLead>().HasOne(c => c.Customer).WithMany().HasForeignKey(c => c.CustomerId).OnDelete(DeleteBehavior.Cascade);
+        builder.Entity<CampaignLead>().HasIndex(c => new { c.TenantId, c.ExternalId }).IsUnique();
     }
 
     /// <summary>Builds `e =&gt; !e.IsDeleted &amp;&amp; e.TenantId == currentTenant` for a tenant entity type.</summary>

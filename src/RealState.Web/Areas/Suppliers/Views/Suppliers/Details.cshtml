@@ -51,7 +51,8 @@
 </div>
 
 <div class="card-tile">
-    <table class="rs-table">
+    <div class="list-search-bar"><input class="form-control list-search" data-target="#supLedger" placeholder="🔍 بحث في القائمة..." /></div>
+    <table class="rs-table" id="supLedger">
         <thead><tr><th>المصدر</th><th>التاريخ</th><th>البيان</th><th>رصيد قبل</th><th>المبلغ</th><th>الرصيد</th></tr></thead>
         <tbody>
         @foreach (var r in Model.Rows)
@@ -74,8 +75,9 @@
         }
         @if (!Model.HasEntries)
         {
-            <tr><td colspan="6" style="color:var(--muted)">لا توجد حركات في هذه الفترة.</td></tr>
+            <tr data-skip-search><td colspan="6" style="color:var(--muted)">لا توجد حركات في هذه الفترة.</td></tr>
         }
+        <tr data-no-results data-skip-search style="display:none;"><td colspan="6" style="color:var(--muted)">لا توجد نتائج مطابقة.</td></tr>
         </tbody>
         <tfoot>
             <tr>

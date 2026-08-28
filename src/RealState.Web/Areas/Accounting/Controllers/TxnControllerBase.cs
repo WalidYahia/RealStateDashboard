@@ -284,7 +284,7 @@ public abstract class TxnControllerBase : Controller
     // System (non-manual) sources per direction — shown in «المصدر» alongside the predefined categories.
     // Manual entries are represented by their category (بند) instead, so Manual is intentionally omitted.
     private static readonly TxnSource[] IncomeSources = { TxnSource.Collection, TxnSource.AdvanceRepayment };
-    private static readonly TxnSource[] ExpenseSources = { TxnSource.ProjectExpense, TxnSource.SupplierPayment, TxnSource.AdvanceDisbursement, TxnSource.RewardPayment };
+    private static readonly TxnSource[] ExpenseSources = { TxnSource.ProjectExpense, TxnSource.SupplierPayment, TxnSource.ContractorPayment, TxnSource.AdvanceDisbursement, TxnSource.RewardPayment };
 
     private async Task<TxnListVm> BuildListAsync(DateTime? from, DateTime? to, string? q, string? source, CancellationToken ct)
     {

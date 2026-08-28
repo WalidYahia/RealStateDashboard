@@ -1,0 +1,97 @@
+@model ContractorStatementVm
+@{
+    ViewData["Title"] = $"كشف حساب {Model.Contractor.Name}";
+    string N(decimal v) => v.ToString("N2", new System.Globalization.CultureInfo("ar-EG"));
+    string P(decimal v) => v.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture) + "%";
+    string D(DateTime d) => d.ToString("yyyy/MM/dd", System.Globalization.CultureInfo.InvariantCulture);
+    string? F(DateTime? d) => d?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+    var i = 1;
+}
+<div class="page-head">
+    <div>
+        <h1>كشف حساب مقاول — @Model.Contractor.Name</h1>
+        <p style="color:var(--muted);margin:2px 0 0;">@Model.OrdersCount أمر شغل · @Model.PaymentsCount دفعة</p>
+    </div>
+    <div style="display:flex;gap:8px;">
+        <a class="btn-sm" asp-action="Index">رجوع لقائمة المقاولين</a>
+    </div>
+</div>
+
+@if (TempData["StatusMessage"] is string status) { <div class="status-message">@status</div> }
+
+<div class="kpi-grid" style="grid-template-columns: repeat(3, 1fr);">
+    <div class="kpi k-reserve"><div class="kpi-label">إجمالي المستحقات</div><div class="kpi-value">@N(Model.TotalObligations) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">المستحق بعد التعلية</div></div>
+    <div class="kpi k-collect"><div class="kpi-label">إجمالي المدفوع</div><div class="kpi-value">@N(Model.TotalPaid) <span class="kpi-unit">ج.م</span></div></div>
+    <div class="kpi k-alerts"><div class="kpi-label">الرصيد (المستحق للمقاول)</div><div class="kpi-value">@N(Model.ClosingBalance) <span class="kpi-unit">ج.م</span></div></div>
+</div>
+
+<div class="card-tile" style="margin-bottom:12px;">
+    <form asp-action="Details" method="get" class="filter-form">
+        <input type="hidden" name="id" value="@Model.Contractor.Id" />
+        <div class="filter-row">
+            <div class="fld"><label class="form-label">من</label><input type="date" name="from" value="@F(Model.From)" class="form-control" dir="ltr" /></div>
+            <div class="fld"><label class="form-label">إلى</label><input type="date" name="to" value="@F(Model.To)" class="form-control" dir="ltr" /></div>
+            <div class="filter-presets">
+                <button type="button" class="btn-sm date-preset" data-from="@F(DateTime.Today)" data-to="@F(DateTime.Today)">اليوم</button>
+                <button type="button" class="btn-sm date-preset" data-from="@F(DateTime.Today.AddDays(-7))" data-to="@F(DateTime.Today)">آخر أسبوع</button>
+                <button type="button" class="btn-sm date-preset" data-from="@F(DateTime.Today.AddMonths(-1))" data-to="@F(DateTime.Today)">آخر شهر</button>
+            </div>
+            <div class="filter-actions">
+                <button type="submit" class="btn-primary">بحث</button>
+                <a class="btn-sm" asp-action="PrintStatement" asp-route-id="@Model.Contractor.Id" asp-route-from="@F(Model.From)" asp-route-to="@F(Model.To)" target="_blank">🖨 طباعة كشف الحساب</a>
+            </div>
+        </div>
+    </form>
+</div>
+
+<div class="card-tile">
+    <div class="list-search-bar"><input class="form-control list-search" data-target="#conLedger" placeholder="🔍 بحث في القائمة..." /></div>
+    <div style="overflow-x:auto;">
+        <table class="rs-table" id="conLedger" style="white-space:nowrap;">
+            <thead>
+                <tr>
+                    <th>م</th><th>المشروع</th><th>التاريخ</th><th>البيان</th><th>الوحدة</th><th>الكمية</th><th>الفئة</th>
+                    <th>نسبة التنفيذ</th><th>المستحق</th><th>التعلية</th><th>الخصومات</th><th>المستحق بعد التعلية</th>
+                    <th>الدفعة</th><th>الرصيد</th><th>ملاحظات</th>
+                </tr>
+            </thead>
+            <tbody>
+            @foreach (var r in Model.Rows)
+            {
+                var isOrder = r.Kind == ContractorLedgerKind.Order;
+                <tr>
+                    <td>@(i++)</td>
+                    <td>@(isOrder ? r.Project : "—")</td>
+                    <td dir="ltr" style="text-align:right;">@D(r.Date)</td>
+                    <td>@r.Statement</td>
+                    <td>@(isOrder ? r.Unit : "—")</td>
+                    <td>@(isOrder ? N(r.Quantity) : "—")</td>
+                    <td>@(isOrder ? N(r.Rate) : "—")</td>
+                    <td>@(isOrder ? P(r.ExecutionPercent) : "—")</td>
+                    <td>@(isOrder ? N(r.Due) : "—")</td>
+                    <td>@(isOrder ? P(r.UpliftPercent) : "—")</td>
+                    <td>@(isOrder ? N(r.Deductions) : "—")</td>
+                    <td>@(isOrder ? N(r.ActualTotal) : "—")</td>
+                    <td class="tag-up">@(isOrder ? "" : N(r.Payment))</td>
+                    <td><strong>@N(r.Balance)</strong></td>
+                    <td>@(string.IsNullOrEmpty(r.Notes) ? "" : r.Notes)</td>
+                </tr>
+            }
+            @if (Model.Rows.Count == 0)
+            {
+                <tr data-skip-search><td colspan="15" style="color:var(--muted)">لا توجد حركات في هذه الفترة.</td></tr>
+            }
+            <tr data-no-results data-skip-search style="display:none;"><td colspan="15" style="color:var(--muted)">لا توجد نتائج مطابقة.</td></tr>
+            </tbody>
+            <tfoot>
+                <tr>
+                    <th colspan="11" style="text-align:start;">الإجمالي</th>
+                    <th>@N(Model.TotalObligations)</th>
+                    <th>@N(Model.TotalPaid)</th>
+                    <th>@N(Model.ClosingBalance)</th>
+                    <th></th>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+</div>

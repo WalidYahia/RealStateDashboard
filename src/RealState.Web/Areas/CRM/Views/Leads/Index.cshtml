@@ -3,12 +3,32 @@
     ViewData["Title"] = "العملاء المحتملون";
     var canControl = User.Can(PermissionNames.LeadsControl);
     var canCreate = User.Can(PermissionNames.CustomersCreate) || canControl;
-    var canEdit = User.Can(PermissionNames.CustomersEdit) || canControl;
-    var canDelete = User.Can(PermissionNames.CustomersDelete) || canControl;
+    var canEdit = User.Can(PermissionNames.LeadsUpdate);
+    var canDelete = User.Can(PermissionNames.LeadsDelete);
     var canConvert = User.Can(PermissionNames.LeadsConvert);
+    var canImport = User.Can(PermissionNames.LeadsImport);
+    var canAssign = User.Can(PermissionNames.LeadsAssign);
     string D(DateTime d) => d.ToString("yyyy/MM/dd", System.Globalization.CultureInfo.InvariantCulture);
     string? F(DateTime? d) => d?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+    // Current filtered URL — threaded through row actions so returning here (after view/delete) keeps the filter.
+    var returnUrl = Url.Action("Index", "Leads", new { salespersonId = Model.SalespersonId, source = Model.Source, from = F(Model.From), to = F(Model.To), campaign = Model.Campaign, platform = Model.Platform, unitType = Model.UnitType, paymentPlan = Model.PaymentPlan });
 }
+<style>
+    .lead-import-spinner {
+        width: 46px; height: 46px; border-radius: 50%;
+        border: 4px solid rgba(255,255,255,.25); border-top-color: #fff;
+        animation: leadImportSpin .8s linear infinite;
+    }
+    @@keyframes leadImportSpin { to { transform: rotate(360deg); } }
+    /* Bulk-assign mode: checkbox column + toolbar appear only when the bulk tab is active. */
+    .leads-card:not(.bulk-mode) .bulk-col { display: none; }
+    .bulk-bar { display: none; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 12px;
+        background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; padding: 10px; }
+    .leads-card.bulk-mode .bulk-bar { display: flex; }
+    /* The add/import buttons belong to the list tab only — hidden in the bulk-assign tab. */
+    .lead-list-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .leads-card.bulk-mode .lead-list-actions { display: none; }
+</style>
 <div class="page-head"><h1>العملاء المحتملون</h1></div>
 
 @if (TempData["StatusMessage"] is string status) { <div class="status-message">@status</div> }
@@ -41,33 +61,98 @@
                     { <option value="@s.Value" selected="@(Model.Source == s.Value)">@s.Text</option> }
                 </select>
             </div>
+            <div class="fld">
+                <label class="form-label">الحملة</label>
+                <select name="campaign" class="form-control">
+                    <option value="">الكل</option>
+                    @foreach (var s in Model.Campaigns)
+                    { <option value="@s.Value" selected="@(Model.Campaign == s.Value)">@s.Text</option> }
+                </select>
+            </div>
+            <div class="fld">
+                <label class="form-label">المنصة</label>
+                <select name="platform" class="form-control">
+                    <option value="">الكل</option>
+                    @foreach (var s in Model.Platforms)
+                    { <option value="@s.Value" selected="@(Model.Platform == s.Value)">@s.Text</option> }
+                </select>
+            </div>
+            <div class="fld">
+                <label class="form-label">نوع الوحدة</label>
+                <select name="unitType" class="form-control">
+                    <option value="">الكل</option>
+                    @foreach (var s in Model.UnitTypes)
+                    { <option value="@s.Value" selected="@(Model.UnitType == s.Value)">@s.Text</option> }
+                </select>
+            </div>
+            <div class="fld">
+                <label class="form-label">خطة السداد</label>
+                <select name="paymentPlan" class="form-control">
+                    <option value="">الكل</option>
+                    @foreach (var s in Model.PaymentPlans)
+                    { <option value="@s.Value" selected="@(Model.PaymentPlan == s.Value)">@s.Text</option> }
+                </select>
+            </div>
             <div class="filter-actions">
                 <button type="submit" class="btn-primary">بحث</button>
-                <a class="btn-sm" asp-action="Print" asp-route-from="@F(Model.From)" asp-route-to="@F(Model.To)" asp-route-salespersonId="@Model.SalespersonId" asp-route-source="@Model.Source" target="_blank">🖨 طباعة</a>
+                <a class="btn-sm" asp-action="Print" asp-route-from="@F(Model.From)" asp-route-to="@F(Model.To)" asp-route-salespersonId="@Model.SalespersonId" asp-route-source="@Model.Source" asp-route-campaign="@Model.Campaign" asp-route-platform="@Model.Platform" asp-route-unitType="@Model.UnitType" asp-route-paymentPlan="@Model.PaymentPlan" target="_blank">🖨 طباعة</a>
             </div>
         </div>
     </form>
 </div>
 
-<div class="card-tile">
+@if (canAssign)
+{
+    <div class="subtabs" style="margin-bottom:10px;">
+        <a class="subtab leads-subtab active" data-mode="list" href="javascript:" onclick="leadsMode('list')">القائمة</a>
+        <a class="subtab leads-subtab" data-mode="bulk" href="javascript:" onclick="leadsMode('bulk')">ربط مجموعة عملاء بمندوب</a>
+    </div>
+}
+
+<div class="card-tile leads-card" id="leadsCard">
+    @if (canAssign)
+    {
+        <div class="bulk-bar">
+            @Html.AntiForgeryToken()
+            <span style="color:var(--muted);font-size:13px;">إسناد العملاء المحددين إلى:</span>
+            <select id="bulkSalesperson" class="form-control" style="max-width:260px;margin:0;">
+                <option value="">— اختر المندوب —</option>
+                @foreach (var s in Model.Salespersons)
+                { <option value="@s.Value">@s.Text</option> }
+            </select>
+            <button type="button" class="btn-primary" style="width:auto;" onclick="bulkAssignLeads()">↪ إسناد</button>
+            <span id="bulkCount" style="color:var(--muted);font-size:12px;"></span>
+        </div>
+    }
     <div class="card-head">
         <h3>قائمة العملاء المحتملين</h3>
-        @if (canCreate)
-        {
-            <button type="button" class="btn-new-tenant" onclick="appOpenModal('@Url.Action("Form", "Customers", new { asLead = true })', 'عميل محتمل جديد')">➕ عميل محتمل</button>
-        }
+        <div class="lead-list-actions">
+            @if (canImport)
+            {
+                <button type="button" class="btn-new-tenant" onclick="openLeadImport()">⬆ رفع من Excel</button>
+            }
+            @if (canCreate)
+            {
+                <button type="button" class="btn-new-tenant" onclick="appOpenModal('@Url.Action("Form", "Customers", new { asLead = true })', 'عميل محتمل جديد')">➕ عميل محتمل</button>
+            }
+        </div>
     </div>
     <div class="list-search-bar"><input class="form-control list-search" data-target="#leadTable" placeholder="🔍 بحث في القائمة..." /></div>
     <table class="rs-table" id="leadTable">
-        <thead><tr><th>الاسم</th><th>الهاتف</th><th>تاريخ الإنشاء</th><th>المصدر</th><th>المندوب</th><th>الحالة</th><th>سجلات</th><th></th></tr></thead>
+        <thead><tr>@if (canAssign) { <th class="bulk-col" style="width:34px;"><input type="checkbox" id="leadSelectAll" onclick="leadToggleAll(this)" /></th> }<th>الاسم</th><th>الهاتف</th><th>تاريخ الإنشاء</th><th>المصدر</th><th>الحملة</th><th>المنصة</th><th>نوع الوحدة</th><th>خطة السداد</th><th>المندوب</th><th>الحالة</th><th>سجلات</th><th></th></tr></thead>
         <tbody>
         @foreach (var l in Model.Rows)
         {
             <tr data-search="@(((l.Name ?? "") + " " + (l.Phone ?? "")).ToLower())">
-                <td><a asp-controller="Customers" asp-action="Details" asp-route-id="@l.Id" style="color:var(--series-1);text-decoration:none;font-weight:600;">@l.Name</a></td>
+                @if (canAssign) { <td class="bulk-col"><input type="checkbox" class="lead-select" value="@l.Id" /></td> }
+                <td><a asp-controller="Customers" asp-action="Details" asp-route-id="@l.Id" asp-route-returnUrl="@returnUrl" style="color:var(--series-1);text-decoration:none;font-weight:600;">@l.Name</a></td>
                 <td dir="ltr" style="text-align:right;">@l.Phone</td>
                 <td dir="ltr" style="text-align:right;">@D(l.CreatedOn)</td>
                 <td>@l.SourceLabel</td>
+                <td>@(l.CampaignName ?? "—")</td>
+                <td dir="ltr" style="text-align:right;">@(l.Platform ?? "—")</td>
+                <td>@(l.UnitType ?? "—")</td>
+                <td>@(l.PaymentPlan ?? "—")</td>
                 <td>@l.Salesperson</td>
                 <td>
                     @if (l.Interest.HasValue) { <span class="badge-role" style="color:@l.Interest.Value.Color()">@l.Interest.Value.Ar()</span> }
@@ -75,7 +160,7 @@
                 </td>
                 <td>@l.LogCount</td>
                 <td style="white-space:nowrap;">
-                    <a class="btn-sm" asp-controller="Customers" asp-action="Details" asp-route-id="@l.Id">الملف</a>
+                    <a class="btn-sm" asp-controller="Customers" asp-action="Details" asp-route-id="@l.Id" asp-route-returnUrl="@returnUrl">الملف</a>
                     @if (canEdit)
                     {
                         <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("Form", "Customers", new { id = l.Id })', 'تعديل العميل المحتمل')">تعديل</button>
@@ -86,19 +171,161 @@
                     }
                     @if (canDelete)
                     {
-                        <form asp-controller="Customers" asp-action="Delete" asp-route-id="@l.Id" method="post" style="display:inline;" data-confirm="حذف العميل المحتمل «@l.Name»؟" data-danger>@Html.AntiForgeryToken()<button type="submit" class="btn-sm btn-danger">حذف</button></form>
+                        <form asp-controller="Customers" asp-action="Delete" asp-route-id="@l.Id" method="post" style="display:inline;" data-confirm="حذف العميل المحتمل «@l.Name»؟" data-danger>@Html.AntiForgeryToken()<input type="hidden" name="returnUrl" value="@returnUrl" /><button type="submit" class="btn-sm btn-danger">حذف</button></form>
                     }
                 </td>
             </tr>
         }
-        @if (Model.Rows.Count == 0) { <tr data-skip-search><td colspan="8" style="color:var(--muted)">لا يوجد عملاء محتملون مطابقون.</td></tr> }
-        <tr data-no-results data-skip-search style="display:none;"><td colspan="8" style="color:var(--muted)">لا توجد نتائج مطابقة.</td></tr>
+        @if (Model.Rows.Count == 0) { <tr data-skip-search><td colspan="@(canAssign ? 13 : 12)" style="color:var(--muted)">لا يوجد عملاء محتملون مطابقون.</td></tr> }
+        <tr data-no-results data-skip-search style="display:none;"><td colspan="@(canAssign ? 13 : 12)" style="color:var(--muted)">لا توجد نتائج مطابقة.</td></tr>
         </tbody>
     </table>
 </div>
 
 @section Scripts {
     <script>
+        // ----- Bulk-assign a salesperson to selected leads -----
+        window.leadsMode = function (mode) {
+            var card = document.getElementById('leadsCard');
+            if (card) card.classList.toggle('bulk-mode', mode === 'bulk');
+            document.querySelectorAll('.leads-subtab').forEach(function (t) {
+                t.classList.toggle('active', t.getAttribute('data-mode') === mode);
+            });
+        };
+        window.leadToggleAll = function (cb) {
+            document.querySelectorAll('#leadTable tbody tr').forEach(function (tr) {
+                if (tr.style.display === 'none' || tr.hasAttribute('data-skip-search')) return;
+                var c = tr.querySelector('.lead-select'); if (c) c.checked = cb.checked;
+            });
+            updateBulkCount();
+        };
+        function updateBulkCount() {
+            var n = document.querySelectorAll('.lead-select:checked').length;
+            var el = document.getElementById('bulkCount');
+            if (el) el.textContent = n ? ('عدد المحدد: ' + n) : '';
+        }
+        document.addEventListener('change', function (e) {
+            if (e.target && e.target.classList && e.target.classList.contains('lead-select')) updateBulkCount();
+        });
+        window.bulkAssignLeads = function () {
+            var sel = document.getElementById('bulkSalesperson');
+            var spId = sel ? sel.value : '';
+            if (!spId) { window.appAlertError('اختر المندوب أولاً.'); return; }
+            var ids = Array.prototype.slice.call(document.querySelectorAll('.lead-select:checked')).map(function (c) { return c.value; });
+            if (!ids.length) { window.appAlertError('اختر عميلاً محتملاً واحداً على الأقل.'); return; }
+            var tok = document.querySelector('.bulk-bar input[name="__RequestVerificationToken"]');
+            var fd = new FormData();
+            fd.append('salespersonId', spId);
+            ids.forEach(function (id) { fd.append('leadIds', id); });
+            if (tok) fd.append('__RequestVerificationToken', tok.value);
+            fetch('@Url.Action("BulkAssign")', { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                .then(function (r) { return r.json(); })
+                .then(function (j) { if (j && j.ok) { window.location.reload(); } else { window.appAlertError((j && j.error) || 'تعذّر الإسناد.'); } })
+                .catch(function () { window.appAlertError('تعذّر الاتصال بالخادم. حاول مرة أخرى.'); });
+        };
+
+        // ----- "رفع من Excel" import modal (opens larger, previews the file, then saves) -----
+        window.openLeadImport = function () {
+            var dlg = document.querySelector('#appModal .modal-dialog');
+            if (dlg) { dlg.classList.remove('modal-lg'); dlg.classList.add('modal-xl'); }
+            appOpenModal('@Url.Action("ImportForm")', 'رفع العملاء من Excel');
+        };
+        // Restore the default modal size when this modal closes (other modals stay modal-lg).
+        document.addEventListener('DOMContentLoaded', function () {
+            var m = document.getElementById('appModal');
+            if (m) m.addEventListener('hidden.bs.modal', function () {
+                var dlg = m.querySelector('.modal-dialog');
+                if (dlg) { dlg.classList.remove('modal-xl'); dlg.classList.add('modal-lg'); }
+            });
+        });
+
+        // Take over the import form's submit so we can show a preloader while the file is being imported.
+        // (Runs before the generic modal submit handler is bound, and stops it, keeping full control.)
+        window.leadImportInit = function () {
+            var form = document.getElementById('appModalForm');
+            if (!form || form.__leadImportBound) return;
+            form.__leadImportBound = true;
+            form.addEventListener('submit', function (e) {
+                e.preventDefault();
+                e.stopImmediatePropagation();
+                var saveBtn = document.getElementById('importSaveBtn');
+                if (saveBtn) saveBtn.disabled = true;
+                showImportLoader();
+                fetch(form.action, { method: 'POST', body: new FormData(form), headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                    .then(function (r) { return r.json(); })
+                    .then(function (j) {
+                        if (j && j.ok) { window.location.reload(); return; }   // loader stays until the page reloads
+                        hideImportLoader();
+                        if (saveBtn) saveBtn.disabled = false;
+                        window.appAlertError((j && j.error) || 'تعذّر استيراد الملف.');
+                    })
+                    .catch(function () {
+                        hideImportLoader();
+                        if (saveBtn) saveBtn.disabled = false;
+                        window.appAlertError('تعذّر الاتصال بالخادم. حاول مرة أخرى.');
+                    });
+            });
+        };
+
+        function showImportLoader() {
+            var body = document.getElementById('appModalBody');
+            if (!body || document.getElementById('importLoader')) return;
+            body.style.position = 'relative';
+            var ov = document.createElement('div');
+            ov.id = 'importLoader';
+            ov.style.cssText = 'position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;background:rgba(10,10,10,.6);z-index:20;';
+            ov.innerHTML = '<div class="lead-import-spinner"></div><div style="color:#fff;font-weight:700;font-size:15px;">جارٍ تحميل العملاء من الملف…</div>';
+            body.appendChild(ov);
+        }
+        function hideImportLoader() {
+            var ov = document.getElementById('importLoader');
+            if (ov) ov.remove();
+        }
+
+        // On file choose: upload to the Preview action and render the parsed rows into the table.
+        window.leadImportPreview = function (form) {
+            var fileInput = form.querySelector('input[type=file]');
+            var box = document.getElementById('importPreview');
+            var saveBtn = document.getElementById('importSaveBtn');
+            if (!fileInput || !fileInput.files || !fileInput.files.length) { if (saveBtn) saveBtn.disabled = true; return; }
+            if (saveBtn) saveBtn.disabled = true;
+            box.innerHTML = '<div style="padding:18px;text-align:center;color:var(--muted)">جارٍ قراءة الملف…</div>';
+            fetch(form.getAttribute('data-preview-url'), {
+                method: 'POST', body: new FormData(form), headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            })
+                .then(function (r) { return r.json(); })
+                .then(function (j) {
+                    if (!j.ok) { box.innerHTML = '<div style="padding:16px;color:var(--critical)">' + (j.error || 'تعذّر قراءة الملف.') + '</div>'; return; }
+                    box.innerHTML = renderLeadPreview(j.headers, j.rows, j.count);
+                    if (saveBtn) saveBtn.disabled = (j.count === 0);
+                })
+                .catch(function () { box.innerHTML = '<div style="padding:16px;color:var(--critical)">تعذّر قراءة الملف.</div>'; });
+        };
+
+        function renderLeadPreview(headers, rows, count) {
+            var esc = function (s) {
+                return (s == null ? '' : String(s)).replace(/[&<>"]/g, function (c) {
+                    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+                });
+            };
+            var html = '<div style="color:var(--muted);font-size:13px;margin-bottom:8px;">عدد السجلات في الملف: <strong>' + count + '</strong></div>';
+            html += '<div style="max-height:52vh;overflow:auto;border:1px solid var(--border);border-radius:10px;">';
+            html += '<table class="rs-table" style="margin:0;white-space:nowrap;"><thead><tr>';
+            headers.forEach(function (h) { html += '<th style="position:sticky;top:0;background:var(--surface-1);">' + esc(h) + '</th>'; });
+            html += '</tr></thead><tbody>';
+            if (!rows.length) {
+                html += '<tr><td colspan="' + headers.length + '" style="color:var(--muted)">لا توجد صفوف بيانات.</td></tr>';
+            } else {
+                rows.forEach(function (r) {
+                    html += '<tr>';
+                    r.forEach(function (v) { html += '<td dir="auto">' + esc(v) + '</td>'; });
+                    html += '</tr>';
+                });
+            }
+            html += '</tbody></table></div>';
+            return html;
+        }
+
         // Cascade the lead source from the selected channel (defined on the parent page because modal
         // inline scripts don't run). social/other options are embedded on #leadSource as data attributes.
         window.leadChannelChange = function () {

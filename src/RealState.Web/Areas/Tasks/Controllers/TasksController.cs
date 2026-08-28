@@ -52,7 +52,7 @@ public class TasksController : Controller
 
         var vm = new TaskListVm
         {
-            Rows = tasks.Select(t => Row(t, empNames, depNames)).ToList(),
+            Rows = await BuildRowsAsync(tasks, empNames, depNames, ct),
             From = from, To = to, AssigneeId = assigneeId, AssignedBy = assignedBy, DepartmentId = departmentId,
             Status = status, Severity = severity,
             Employees = await EmployeeOptionsAsync(ct),
@@ -179,9 +179,9 @@ public class TasksController : Controller
 
         var vm = new MyTasksVm
         {
-            Assigned = assigned.Select(t => Row(t, empNames, depNames)).ToList(),
-            Delegated = delegated.Select(t => Row(t, empNames, depNames)).ToList(),
-            SelfAssigned = self.Select(t => Row(t, empNames, depNames)).ToList(),
+            Assigned = await BuildRowsAsync(assigned, empNames, depNames, ct),
+            Delegated = await BuildRowsAsync(delegated, empNames, depNames, ct),
+            SelfAssigned = await BuildRowsAsync(self, empNames, depNames, ct),
             From = from, To = to, AssignedBy = assignedBy, AssignedToId = assignedToId, Status = status, Severity = severity,
             Assigners = await AssignerOptionsAsync(ct),
             Assignees = await EmployeeOptionsAsync(ct),
@@ -371,6 +371,21 @@ public class TasksController : Controller
         Department = t.DepartmentId.HasValue ? depNames.GetValueOrDefault(t.DepartmentId.Value, "—") : "—",
         DueAt = t.DueAt, Description = t.Description, Severity = t.Severity, Status = t.Status
     };
+
+    // Builds the list rows and flags which tasks carry attachments (one query for the whole page).
+    private async Task<List<TaskRow>> BuildRowsAsync(List<WorkTask> tasks,
+        IReadOnlyDictionary<Guid, string> empNames, IReadOnlyDictionary<Guid, string> depNames, CancellationToken ct)
+    {
+        var ids = tasks.Select(t => t.Id).ToList();
+        var withAttachments = (await _db.WorkTaskAttachments
+            .Where(a => ids.Contains(a.WorkTaskId)).Select(a => a.WorkTaskId).Distinct().ToListAsync(ct)).ToHashSet();
+        return tasks.Select(t =>
+        {
+            var r = Row(t, empNames, depNames);
+            r.HasAttachments = withAttachments.Contains(t.Id);
+            return r;
+        }).ToList();
+    }
 
     /// <summary>Can the current user see this task (has all-tasks view, or is its assignee/assigner)?</summary>
     private async Task<bool> CanSeeAsync(WorkTask t, CancellationToken ct)

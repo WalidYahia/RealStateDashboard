@@ -241,6 +241,7 @@ public class ProjectsController : Controller
     }
 
     [HttpGet]
+    [Authorize(Policy = PermissionNames.ProjectsUnits)]
     public async Task<IActionResult> PrintUnits(Guid id, CancellationToken ct)
     {
         var project = await _db.Projects.FirstOrDefaultAsync(p => p.Id == id, ct);
@@ -251,6 +252,7 @@ public class ProjectsController : Controller
     }
 
     [HttpGet]
+    [Authorize(Policy = PermissionNames.ProjectsAttachments)]
     public async Task<IActionResult> PrintAttachments(Guid id, CancellationToken ct)
     {
         var project = await _db.Projects.FirstOrDefaultAsync(p => p.Id == id, ct);
@@ -402,6 +404,7 @@ public class ProjectsController : Controller
     }
 
     [HttpGet]
+    [Authorize(Policy = PermissionNames.ProjectsUnits)]
     public async Task<IActionResult> UnitPreview(Guid id, CancellationToken ct)
     {
         var u = await _db.ProjectUnits.FirstOrDefaultAsync(x => x.Id == id, ct);
@@ -462,6 +465,7 @@ public class ProjectsController : Controller
     }
 
     [HttpGet]
+    [Authorize(Policy = PermissionNames.ProjectsAttachments)]
     public async Task<IActionResult> AttachmentDownload(Guid id, CancellationToken ct)
     {
         var a = await _db.ProjectAttachments.FirstOrDefaultAsync(x => x.Id == id, ct);
@@ -471,6 +475,7 @@ public class ProjectsController : Controller
 
     // Inline preview (no download filename) — browser renders images / PDF / text.
     [HttpGet]
+    [Authorize(Policy = PermissionNames.ProjectsAttachments)]
     public async Task<IActionResult> AttachmentPreview(Guid id, CancellationToken ct)
     {
         var a = await _db.ProjectAttachments.FirstOrDefaultAsync(x => x.Id == id, ct);

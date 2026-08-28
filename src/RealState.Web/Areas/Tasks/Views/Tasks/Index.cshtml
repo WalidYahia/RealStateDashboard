@@ -83,7 +83,8 @@
 </div>
 
 <div class="card-tile">
-    <table class="rs-table">
+    <div class="list-search-bar"><input class="form-control list-search" id="taskSearch" data-target="#tasksTable" placeholder="🔍 بحث في القائمة..." /></div>
+    <table class="rs-table" id="tasksTable" data-paginate="15" data-search-input="#taskSearch">
         <thead>
             <tr>
                 <th>رقم المهمة</th><th>تاريخ الإسناد</th><th>أسندها</th><th>المُكلَّف</th><th>القسم</th>
@@ -94,7 +95,7 @@
         @foreach (var r in Model.Rows)
         {
             <tr>
-                <td dir="ltr" style="text-align:right;"><a asp-action="Details" asp-route-id="@r.Id" style="color:var(--series-1);text-decoration:none;font-weight:700;">T-@r.Number</a></td>
+                <td style="white-space:nowrap;"><span style="display:inline-flex;align-items:center;gap:6px;direction:rtl;"><a asp-action="Details" asp-route-id="@r.Id" style="color:var(--series-1);text-decoration:none;font-weight:700;">T-@r.Number</a>@if (r.HasAttachments) {<span title="يوجد مرفقات على هذه المهمة" style="font-size:18px;line-height:1;cursor:default;">📎</span>}</span></td>
                 <td dir="ltr" style="text-align:right;">@D(r.AssignedOn)</td>
                 <td>@r.AssignedBy</td>
                 <td>@r.Assignee</td>
@@ -113,7 +114,8 @@
                 </td>
             </tr>
         }
-        @if (Model.Rows.Count == 0) { <tr><td colspan="10" style="color:var(--muted)">لا توجد مهام مطابقة.</td></tr> }
+        @if (Model.Rows.Count == 0) { <tr data-skip-page><td colspan="10" style="color:var(--muted)">لا توجد مهام مطابقة.</td></tr> }
+        <tr data-no-results data-skip-search data-skip-page style="display:none;"><td colspan="10" style="color:var(--muted)">لا توجد نتائج مطابقة.</td></tr>
         </tbody>
     </table>
 </div>

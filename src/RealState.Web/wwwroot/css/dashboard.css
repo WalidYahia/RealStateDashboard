@@ -232,6 +232,12 @@ select.form-control { appearance: auto; }
 .rs-table th, .rs-table td { padding: 10px 8px; text-align: start; border-bottom: 1px solid var(--border); }
 .rs-table th { color: var(--muted); font-weight: 600; }
 .rs-table td { font-variant-numeric: tabular-nums; }
+
+/* Client-side table pager */
+.pg-hidden { display: none !important; }   /* rows paged off the current page */
+.rs-pager .rs-page { min-width: 34px; text-align: center; }
+.rs-pager .rs-page.active { background: var(--series-1); color: #fff; border-color: transparent; font-weight: 700; }
+.rs-pager .rs-page[disabled] { opacity: .45; cursor: default; }
 .tag-up { color: var(--good); font-weight: 700; }
 
 /* Progress bars */

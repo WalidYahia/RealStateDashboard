@@ -232,6 +232,12 @@ select.form-control { appearance: auto; }
 .rs-table th, .rs-table td { padding: 10px 8px; text-align: start; border-bottom: 1px solid var(--border); }
 .rs-table th { color: var(--muted); font-weight: 600; }
 .rs-table td { font-variant-numeric: tabular-nums; }
+
+/* Client-side table pager */
+.pg-hidden { display: none !important; }   /* rows paged off the current page */
+.rs-pager .rs-page { min-width: 34px; text-align: center; }
+.rs-pager .rs-page.active { background: var(--series-1); color: #fff; border-color: transparent; font-weight: 700; }
+.rs-pager .rs-page[disabled] { opacity: .45; cursor: default; }
 .tag-up { color: var(--good); font-weight: 700; }
 
 /* Progress bars */
@@ -302,6 +308,17 @@ select.form-control { appearance: auto; }
 .ss-opt { padding: 9px 12px; cursor: pointer; color: var(--text-primary); font-size: 14px; }
 .ss-opt:hover, .ss-opt.ss-active { background: rgba(255,255,255,.08); }
 .ss-empty { padding: 9px 12px; color: var(--muted); font-size: 13px; }
+
+/* Two-row filter form: row 1 = time range (+ presets), row 2 = other filters (+ actions). */
+.filter-form { display: flex; flex-direction: column; gap: 12px; }
+.filter-row { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
+.filter-row .fld { display: flex; flex-direction: column; }
+.filter-row .form-control { margin: 0; }
+.filter-presets { display: flex; gap: 8px; align-items: flex-end; }
+.filter-actions { display: flex; gap: 8px; align-items: flex-end; margin-inline-start: auto; }
+.filter-actions .btn-primary { width: auto; padding: 10px 34px; }
+/* Preset buttons only set the range (no submit); the chosen one is highlighted. */
+.date-preset.active { background: var(--series-1); border-color: var(--series-1); color: #fff; }
 .btn-primary {
     width: 100%; background: var(--series-1); border: none; color: #fff; font-weight: 700;
     padding: 12px; border-radius: 10px; cursor: pointer; font-size: 15px;

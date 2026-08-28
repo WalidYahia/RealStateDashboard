@@ -29,6 +29,11 @@ public static class PermissionNames
     public const string ProjectsCreate = "Projects.Create";
     public const string ProjectsEdit = "Projects.Edit";
     public const string ProjectsDelete = "Projects.Delete";
+    // Per-tab view permissions on the project details page.
+    public const string ProjectsStages = "Projects.Stages";
+    public const string ProjectsExpenses = "Projects.Expenses";
+    public const string ProjectsAttachments = "Projects.Attachments";
+    public const string ProjectsUnits = "Projects.Units";
 
     // ----- Sales contracts -----
     public const string SalesView = "Sales.View";
@@ -74,6 +79,10 @@ public static class PermissionNames
     // ----- CRM: leads (potential customers) ----- (in addition to a lead's own assigned salesperson)
     public const string LeadsControl = "Leads.Control";  // manage leads + status
     public const string LeadsConvert = "Leads.Convert";  // convert a lead into a customer
+    public const string LeadsImport = "Leads.Import";    // import campaign leads from an Excel export
+    public const string LeadsUpdate = "Leads.Update";    // edit a lead's data
+    public const string LeadsDelete = "Leads.Delete";    // delete a lead
+    public const string LeadsAssign = "Leads.Assign";    // bulk-assign a salesperson to selected leads
 
     /// <summary>Composite authorization policy for reaching the Leads section:
     /// satisfied by Customers.View, Leads.Control, or Leads.Convert. Not a grantable permission.</summary>
@@ -85,6 +94,13 @@ public static class PermissionNames
     public const string SuppliersEdit = "Suppliers.Edit";
     public const string SuppliersDelete = "Suppliers.Delete";
     public const string SuppliersPay = "Suppliers.Pay";
+
+    // ----- Contracting: contractors + work orders (المقاولات) -----
+    public const string ContractingView = "Contracting.View";
+    public const string ContractingCreate = "Contracting.Create";
+    public const string ContractingEdit = "Contracting.Edit";   // edit contractors/orders + update execution/uplift/deductions + logs
+    public const string ContractingDelete = "Contracting.Delete";
+    public const string ContractingPay = "Contracting.Pay";
 
     // ----- Human Resources ----- (HR.View already exists in some DBs; keep that exact name to avoid
     // a case-insensitive unique-index collision on the Permissions table)
@@ -122,7 +138,8 @@ public static class PermissionNames
     private const string GCustomers = "العملاء";
     private const string GLeads = "العملاء المحتملون";
     private const string GSalespersons = "مندوبو المبيعات";
-    private const string GSuppliers = "الموردون والمقاولون";
+    private const string GSuppliers = "المشتريات";
+    private const string GContracting = "المقاولات";
     private const string GReports = "التقارير";
     private const string GTasks = "إدارة المهام";
     private const string GHr = "الموارد البشرية";
@@ -139,6 +156,10 @@ public static class PermissionNames
         new PermissionInfo(ProjectsCreate, "إضافة مشروع / وحدة / مرحلة",       GProjects),
         new PermissionInfo(ProjectsEdit,   "تعديل المشاريع والوحدات والمراحل", GProjects),
         new PermissionInfo(ProjectsDelete, "حذف المشاريع والوحدات والمراحل",   GProjects),
+        new PermissionInfo(ProjectsStages,      "عرض تبويب مراحل المشروع",  GProjects),
+        new PermissionInfo(ProjectsExpenses,    "عرض تبويب مصاريف المشروع", GProjects),
+        new PermissionInfo(ProjectsAttachments, "عرض تبويب مرفقات المشروع", GProjects),
+        new PermissionInfo(ProjectsUnits,       "عرض تبويب وحدات المشروع",  GProjects),
 
         new PermissionInfo(SalesView,   "عرض عقود البيع", GSales),
         new PermissionInfo(SalesCreate, "إنشاء عقد بيع",  GSales),
@@ -176,12 +197,22 @@ public static class PermissionNames
 
         new PermissionInfo(LeadsControl, "التحكم في العملاء المحتملين (سجل التواصل والحالة)", GLeads),
         new PermissionInfo(LeadsConvert, "تحويل العميل المحتمل إلى عميل",                     GLeads),
+        new PermissionInfo(LeadsImport,  "استيراد عملاء الحملات من ملف Excel",                GLeads),
+        new PermissionInfo(LeadsUpdate,  "تعديل العميل المحتمل",                              GLeads),
+        new PermissionInfo(LeadsDelete,  "حذف العميل المحتمل",                                GLeads),
+        new PermissionInfo(LeadsAssign,  "إسناد جماعي للعملاء المحتملين لمندوب",              GLeads),
 
         new PermissionInfo(SuppliersView,   "عرض الموردين وأوامر التوريد وكشوف الحساب", GSuppliers),
         new PermissionInfo(SuppliersCreate, "إضافة مورد / أمر توريد",                  GSuppliers),
         new PermissionInfo(SuppliersEdit,   "تعديل الموردين وأوامر التوريد",           GSuppliers),
         new PermissionInfo(SuppliersDelete, "حذف الموردين وأوامر التوريد",             GSuppliers),
         new PermissionInfo(SuppliersPay,    "سداد دفعات للموردين",                     GSuppliers),
+
+        new PermissionInfo(ContractingView,   "عرض المقاولين وأوامر الشغل وكشوف الحساب", GContracting),
+        new PermissionInfo(ContractingCreate, "إضافة مقاول / أمر شغل",                  GContracting),
+        new PermissionInfo(ContractingEdit,   "تعديل المقاولين وأوامر الشغل",           GContracting),
+        new PermissionInfo(ContractingDelete, "حذف المقاولين وأوامر الشغل",             GContracting),
+        new PermissionInfo(ContractingPay,    "سداد دفعات للمقاولين",                   GContracting),
 
         new PermissionInfo(ReportsView,     "عرض التقارير (اليومي، العملاء، الموردين)", GReports),
 

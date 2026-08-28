@@ -239,7 +239,16 @@ public static class ArabicLabels
         TxnSource.AdvanceDisbursement => "صرف سلفة",
         TxnSource.RewardPayment => "صرف مكافأة",
         TxnSource.AdvanceRepayment => "سداد سلفة",
+        TxnSource.ContractorPayment => "سداد مقاول",
         _ => s.ToString()
+    };
+
+    public static string Ar(this WorkOrderField f) => f switch
+    {
+        WorkOrderField.Execution => "نسبة التنفيذ",
+        WorkOrderField.Uplift => "نسبة التعلية",
+        WorkOrderField.Deductions => "الخصومات",
+        _ => f.ToString()
     };
 
     // ---------- HR ----------

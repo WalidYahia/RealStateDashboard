@@ -41,6 +41,7 @@ public class TaskRow
     public string Description { get; set; } = string.Empty;
     public TaskSeverity Severity { get; set; }
     public WorkTaskStatus Status { get; set; }
+    public bool HasAttachments { get; set; }
 }
 
 public class TaskListVm

@@ -17,9 +17,12 @@
         </p>
     </div>
     <div style="display:flex;gap:8px;">
+        @{
+            var backUrl = ViewBag.ReturnUrl as string;
+        }
         @if (c.IsLead)
         {
-            <a class="btn-sm" asp-controller="Leads" asp-action="Index">رجوع للعملاء المحتملين</a>
+            <a class="btn-sm" href="@(backUrl ?? Url.Action("Index", "Leads"))">رجوع للعملاء المحتملين</a>
             @if (canConvert)
             {
                 <form asp-action="Convert" asp-route-id="@c.Id" method="post" style="display:inline;" data-confirm="تحويل «@c.FullName» إلى عميل؟ سيظهر بعدها في صفحة العملاء فقط.">@Html.AntiForgeryToken()<button type="submit" class="btn-new-tenant">↪ تحويل إلى عميل</button></form>
@@ -27,7 +30,7 @@
         }
         else
         {
-            <a class="btn-sm" asp-action="Index">رجوع للعملاء</a>
+            <a class="btn-sm" href="@(backUrl ?? Url.Action("Index"))">رجوع للعملاء</a>
         }
         @if (!c.IsLead)
         {
@@ -47,7 +50,8 @@
 
 <!-- info -->
 <div id="cs-info" class="cstab">
-    <div class="card-tile" style="max-width:620px;">
+  <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start;">
+    <div class="card-tile" style="flex:1 1 420px;max-width:620px;margin:0;">
         <table class="rs-table">
             <tr><th style="width:160px;">الاسم</th><td>@c.FullName</td></tr>
             <tr><th>الهاتف</th><td dir="ltr" style="text-align:right;">@c.Phone</td></tr>
@@ -57,6 +61,38 @@
             <tr><th>ملاحظات</th><td>@(string.IsNullOrEmpty(c.Notes) ? "—" : c.Notes)</td></tr>
         </table>
     </div>
+
+    @{
+        var campaignLeads = ViewBag.CampaignLeads as List<RealState.Application.Entities.CampaignLead> ?? new();
+        string DTT(DateTime d) => d.ToString("yyyy/MM/dd HH:mm", System.Globalization.CultureInfo.InvariantCulture);
+        Dictionary<string, string> Extras(string? json)
+        {
+            if (string.IsNullOrEmpty(json)) return new();
+            try { return System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(json) ?? new(); }
+            catch { return new(); }
+        }
+    }
+    @foreach (var cl in campaignLeads)
+    {
+        <div class="card-tile" style="flex:1 1 420px;max-width:620px;margin:0;">
+            <div class="card-head"><h3>بيانات الحملة</h3><span style="color:var(--muted);font-size:13px;">@DTT(cl.CreatedTime)</span></div>
+            <table class="rs-table">
+                @if (!string.IsNullOrEmpty(cl.CampaignName)) { <tr><th style="width:200px;">الحملة</th><td>@cl.CampaignName</td></tr> }
+                @if (!string.IsNullOrEmpty(cl.AdName)) { <tr><th>الإعلان</th><td>@cl.AdName</td></tr> }
+                @if (!string.IsNullOrEmpty(cl.AdsetName)) { <tr><th>المجموعة الإعلانية</th><td>@cl.AdsetName</td></tr> }
+                @if (!string.IsNullOrEmpty(cl.FormName)) { <tr><th>النموذج</th><td>@cl.FormName</td></tr> }
+                @if (!string.IsNullOrEmpty(cl.Platform)) { <tr><th>المنصة</th><td dir="ltr" style="text-align:right;">@cl.Platform</td></tr> }
+                @if (!string.IsNullOrEmpty(cl.JobTitle)) { <tr><th>الوظيفة</th><td>@cl.JobTitle</td></tr> }
+                @if (!string.IsNullOrEmpty(cl.LeadStatus)) { <tr><th>حالة السجل</th><td>@cl.LeadStatus</td></tr> }
+                @foreach (var kv in Extras(cl.ExtraFieldsJson))
+                {
+                    <tr><th>@kv.Key</th><td>@kv.Value</td></tr>
+                }
+                <tr><th>معرّف السجل</th><td dir="ltr" style="text-align:right;color:var(--muted);">@cl.ExternalId</td></tr>
+            </table>
+        </div>
+    }
+  </div>
 </div>
 
 <!-- statement -->
@@ -163,9 +199,9 @@
 
 @section Scripts {
     <script>
-        // Lead profiles open on the communication tab; the active tab is kept in the URL hash so a
-        // reload after adding a log / updating status stays on the same tab.
-        var CS_DEFAULT = '@(c.IsLead ? "comm" : "info")';
+        // Profiles open on the data (info) tab; the active tab is kept in the URL hash so a reload
+        // after adding a log / updating status stays on the same tab.
+        var CS_DEFAULT = 'info';
         function csTab(e, name) {
             if (e) e.preventDefault();
             var el = document.getElementById('cs-' + name);
