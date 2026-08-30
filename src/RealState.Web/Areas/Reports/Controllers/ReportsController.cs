@@ -90,6 +90,20 @@ public class ReportsController : Controller
         return View("CustomersPrint", await BuildCustomersAsync(from, to, ct));
     }
 
+    [HttpGet]
+    public async Task<IActionResult> CustomersCsv(DateTime? from, DateTime? to, CancellationToken ct)
+    {
+        var vm = await BuildCustomersAsync(from, to, ct);
+        var inv = System.Globalization.CultureInfo.InvariantCulture;
+        var headers = new[] { "العميل", "الهاتف", "عدد العقود", "قيمة العقود", "أقساط متبقية", "المحصّل", "المتبقي" };
+        var rows = vm.Rows.Select(r => (IReadOnlyList<string?>)new[]
+        {
+            r.Name, r.Phone, r.Contracts.ToString(), r.ContractsValue.ToString("0.##", inv),
+            r.RemainingInstallments.ToString(), r.Collected.ToString("0.##", inv), r.Residual.ToString("0.##", inv)
+        });
+        return RealState.Web.Common.Csv.File($"customers-report-{DateTime.Now:yyyyMMdd-HHmm}.csv", headers, rows);
+    }
+
     private async Task<CustomerReportVm> BuildCustomersAsync(DateTime? from, DateTime? to, CancellationToken ct)
     {
         var vm = new CustomerReportVm { From = from, To = to };
@@ -135,6 +149,20 @@ public class ReportsController : Controller
     {
         ViewBag.TenantId = _currentUser.TenantId;
         return View("SuppliersPrint", await BuildSuppliersAsync(from, to, ct));
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> SuppliersCsv(DateTime? from, DateTime? to, CancellationToken ct)
+    {
+        var vm = await BuildSuppliersAsync(from, to, ct);
+        var inv = System.Globalization.CultureInfo.InvariantCulture;
+        var headers = new[] { "المورد", "الهاتف", "عدد الأوامر", "قيمة الأوامر", "المسدَّد", "المتبقي" };
+        var rows = vm.Rows.Select(r => (IReadOnlyList<string?>)new[]
+        {
+            r.Name, r.Phone, r.Orders.ToString(), r.OrdersValue.ToString("0.##", inv),
+            r.Paid.ToString("0.##", inv), r.Residual.ToString("0.##", inv)
+        });
+        return RealState.Web.Common.Csv.File($"suppliers-report-{DateTime.Now:yyyyMMdd-HHmm}.csv", headers, rows);
     }
 
     private async Task<SupplierReportVm> BuildSuppliersAsync(DateTime? from, DateTime? to, CancellationToken ct)

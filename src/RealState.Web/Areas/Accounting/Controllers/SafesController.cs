@@ -106,6 +106,28 @@ public class SafesController : Controller
         return View("PrintMovements", await BuildMovementsAsync(s, from, to, q, ct));
     }
 
+    // Export the safe's (filtered) movements to CSV.
+    [HttpGet]
+    public async Task<IActionResult> CsvMovements(Guid id, DateTime? from, DateTime? to, string? q, CancellationToken ct)
+    {
+        var s = await _db.Safes.FirstOrDefaultAsync(x => x.Id == id, ct);
+        if (s is null) return NotFound();
+        var vm = await BuildMovementsAsync(s, from, to, q, ct);
+        var inv = System.Globalization.CultureInfo.InvariantCulture;
+        var headers = new[] { "#", "التاريخ/الوقت", "النوع", "المصدر", "البيان", "المبلغ", "الرصيد بعد" };
+        var rows = vm.Transactions.Select(t => (IReadOnlyList<string?>)new[]
+        {
+            t.Serial.ToString(),
+            t.OccurredAt.ToString("yyyy-MM-dd HH:mm", inv),
+            t.Type == TxnType.Income ? "وارد" : "منصرف",
+            t.Source.Ar(),
+            t.Description,
+            t.Amount.ToString("0.##", inv),
+            t.RunningBalance.ToString("0.##", inv)
+        });
+        return RealState.Web.Common.Csv.File($"safe-movements-{DateTime.Now:yyyyMMdd-HHmm}.csv", headers, rows);
+    }
+
     private async Task<SafeMovementsVm> BuildMovementsAsync(Safe s, DateTime? from, DateTime? to, string? q, CancellationToken ct)
     {
         var all = await _db.SafeTransactions.Where(t => t.SafeId == s.Id).ToListAsync(ct);

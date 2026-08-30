@@ -209,6 +209,17 @@ public abstract class TxnControllerBase : Controller
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
     {
         if (!Can(DeletePerm)) return Forbid();
+
+        // // AJAX delete (from the list) removes just the row without reloading; a plain POST redirects.
+        // var ajax = string.Equals(Request.Headers["X-Requested-With"], "XMLHttpRequest", StringComparison.OrdinalIgnoreCase);
+        // IActionResult Done() => ajax ? Json(new { ok = true }) : RedirectToAction(nameof(Index));
+        // IActionResult Fail(string msg)
+        // {
+        //     if (ajax) return Json(new { ok = false, error = msg });
+        //     TempData["ErrorMessage"] = msg;
+        //     return RedirectToAction(nameof(Index));
+        // }
+
         var t = await _db.SafeTransactions.FirstOrDefaultAsync(x => x.Id == id && x.Type == TxnType, ct);
         if (t is null) return RedirectToAction(nameof(Index));
 
@@ -243,7 +254,22 @@ public abstract class TxnControllerBase : Controller
                 ? $"تم حذف مصروف صرف السلفة ADV-{adv.Number:D4} وإعادتها إلى «لم يُصرف»."
                 : "تم حذف المصروف.";
         }
-        return RedirectToAction(nameof(Index));
+
+        // An advance-repayment income (سداد سلفة) can be deleted to reverse that repayment: remove the
+        // repayment record (its amount goes back onto the advance's remaining) and the income movement.
+        if (t.Source == TxnSource.AdvanceRepayment)
+        {
+            var repayment = await _db.AdvanceRepayments.FirstOrDefaultAsync(r => r.IncomeTxnId == t.Id, ct);
+            var advNo = repayment is null ? null
+                : await _db.Advances.Where(a => a.Id == repayment.AdvanceId).Select(a => (int?)a.Number).FirstOrDefaultAsync(ct);
+            if (repayment is not null) _db.AdvanceRepayments.Remove(repayment);
+            _db.SafeTransactions.Remove(t);
+            await _db.SaveChangesAsync(ct);
+            TempData["StatusMessage"] = advNo is int n
+                ? $"تم حذف سداد السلفة ADV-{n:D4} وعكس المبلغ."
+                : "تم حذف سداد السلفة.";
+        }
+         return RedirectToAction(nameof(Index));
     }
 
     [HttpGet]
@@ -252,6 +278,27 @@ public abstract class TxnControllerBase : Controller
         if (!Can(ViewPerm)) return Forbid();
         ViewBag.TenantId = _currentUser.TenantId;
         return View("PrintList", await BuildListAsync(from, to, q, source, ct));
+    }
+
+    // Export the current (filtered) list to CSV.
+    [HttpGet]
+    public async Task<IActionResult> Csv(DateTime? from, DateTime? to, string? q, string? source, CancellationToken ct)
+    {
+        if (!Can(ViewPerm)) return Forbid();
+        var vm = await BuildListAsync(from, to, q, source, ct);
+        var inv = System.Globalization.CultureInfo.InvariantCulture;
+        var headers = new[] { "#", "التاريخ/الوقت", "الخزنة", "المصدر", "البيان", "المبلغ" };
+        var rows = vm.Rows.Select(r => (IReadOnlyList<string?>)new[]
+        {
+            r.Serial.ToString(),
+            r.OccurredAt.ToString("yyyy-MM-dd HH:mm", inv),
+            r.SafeName,
+            r.CategoryName ?? r.Source.Ar(),
+            r.Description,
+            r.Amount.ToString("0.##", inv)
+        });
+        var label = TxnType == TxnType.Expense ? "expenses" : "incomes";
+        return RealState.Web.Common.Csv.File($"{label}-{DateTime.Now:yyyyMMdd-HHmm}.csv", headers, rows);
     }
 
     // Printable voucher for a single income/expense transaction (opens in a new tab).

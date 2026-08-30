@@ -31,6 +31,20 @@ public class ProjectsReportController : Controller
         return View("Print", await BuildAsync(ct));
     }
 
+    [HttpGet]
+    public async Task<IActionResult> Csv(CancellationToken ct)
+    {
+        var vm = await BuildAsync(ct);
+        var inv = System.Globalization.CultureInfo.InvariantCulture;
+        var headers = new[] { "الكود", "المشروع", "النوع", "إجمالي الوحدات", "وحدات مباعة", "وحدات غير مباعة", "المصروفات", "الإيرادات", "قيمة المخزون" };
+        var rows = vm.Rows.Select(r => (IReadOnlyList<string?>)new[]
+        {
+            r.Code, r.Name, r.TypeName, r.UnitsTotal.ToString(), r.UnitsSold.ToString(), r.UnitsUnsold.ToString(),
+            r.Expenses.ToString("0.##", inv), r.Incomes.ToString("0.##", inv), r.InventoryValue.ToString("0.##", inv)
+        });
+        return RealState.Web.Common.Csv.File($"projects-report-{DateTime.Now:yyyyMMdd-HHmm}.csv", headers, rows);
+    }
+
     private async Task<ProjectReportVm> BuildAsync(CancellationToken ct)
     {
         var projects = await _db.Projects.OrderBy(p => p.Code).ToListAsync(ct);

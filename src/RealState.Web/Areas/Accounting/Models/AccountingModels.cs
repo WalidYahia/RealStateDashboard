@@ -114,6 +114,8 @@ public class TxnRow
     public bool IsManual => Source == TxnSource.Manual;
     /// <summary>An advance disbursement expense — deletable here to "un-disburse" the advance.</summary>
     public bool IsAdvanceDisbursement => Source == TxnSource.AdvanceDisbursement;
+    /// <summary>An advance repayment income (سداد سلفة) — deletable here to reverse that repayment.</summary>
+    public bool IsAdvanceRepayment => Source == TxnSource.AdvanceRepayment;
 
     /// <summary>Safe balance immediately after this transaction (populated on the movements screen).</summary>
     public decimal RunningBalance { get; set; }

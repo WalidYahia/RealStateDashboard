@@ -5,7 +5,10 @@
 }
 <div class="page-head">
     <h1>تقرير المشاريع</h1>
-    <a class="btn-sm" asp-action="Print" target="_blank">🖨 طباعة (PDF)</a>
+    <span style="display:flex;gap:8px;">
+        <a class="btn-sm" asp-action="Print" target="_blank">🖨 طباعة (PDF)</a>
+        <a class="btn-sm" asp-action="Csv">⬇ CSV</a>
+    </span>
 </div>
 
 <div class="card-tile">
