@@ -1,0 +1,85 @@
+@model UnitDetailsVm
+@{
+    var u = Model.Unit;
+    ViewData["Title"] = u.Name;
+    string N(decimal v) => v.ToString("N0", new System.Globalization.CultureInfo("ar-EG"));
+    string StatusClass(UnitStatus s) => s switch { UnitStatus.Sold => "state-off", UnitStatus.Available => "state-on", _ => "badge-role" };
+    var canEdit = User.Can(PermissionNames.ProjectsEdit);
+}
+
+<div class="page-head">
+    <div>
+        <h1>@u.Name @(string.IsNullOrEmpty(u.Number) ? "" : $"({u.Number})")</h1>
+        <p style="color:var(--muted);margin:2px 0 0;">وحدة في مشروع <span class="proj-code">#@Model.ProjectCode</span> @Model.ProjectName</p>
+    </div>
+    <div style="display:flex;gap:8px;">
+        <a class="btn-sm" asp-action="Details" asp-route-id="@u.ProjectId">رجوع للمشروع</a>
+        @if (canEdit)
+        {
+            <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("UnitForm", new { projectId = u.ProjectId, id = u.Id })', 'تعديل الوحدة')">✏️ تعديل</button>
+        }
+    </div>
+</div>
+
+@if (TempData["StatusMessage"] is string status)
+{
+    <div class="status-message">@status</div>
+}
+
+<div class="card-tile" style="margin-bottom:14px;">
+    <table class="rs-table">
+        <tr><th style="width:200px;">اسم الوحدة</th><td>@u.Name</td></tr>
+        <tr><th>رقم الوحدة</th><td dir="ltr" style="text-align:right;">@(string.IsNullOrEmpty(u.Number) ? "—" : u.Number)</td></tr>
+        <tr><th>الحالة</th><td><span class="badge-state @StatusClass(u.Status)">@u.Status.Ar()</span></td></tr>
+        <tr><th>المساحة</th><td>@N(u.AreaSqm) م²</td></tr>
+        <tr><th>السعر</th><td>@N(u.Price) ج.م</td></tr>
+        <tr><th>الوصف</th><td>@(string.IsNullOrEmpty(u.Description) ? "—" : u.Description)</td></tr>
+        <tr><th>ملاحظات</th><td>@(string.IsNullOrEmpty(u.Notes) ? "—" : u.Notes)</td></tr>
+    </table>
+</div>
+
+<div class="card-tile">
+    <div class="card-head">
+        <h3>مرفقات الوحدة</h3>
+    </div>
+    @if (canEdit)
+    {
+        <form asp-action="UnitAttachmentUpload" method="post" enctype="multipart/form-data" style="display:flex;gap:8px;align-items:center;margin-bottom:14px;flex-wrap:wrap;">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="unitId" value="@u.Id" />
+            <input type="file" name="file" class="form-control" style="margin:0;max-width:360px;" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt" />
+            <button type="submit" class="btn-primary" style="width:auto;">⬆ رفع مرفق</button>
+            <span style="color:var(--muted);font-size:12px;">صور، PDF، Word، Excel، نصوص — حتى 15 ميجابايت</span>
+        </form>
+    }
+    <table class="rs-table">
+        <thead><tr><th>الملف</th><th>النوع</th><th>الحجم</th><th>التاريخ</th><th></th></tr></thead>
+        <tbody>
+        @foreach (var a in Model.Attachments)
+        {
+            <tr>
+                <td>@a.FileName</td>
+                <td dir="ltr" style="text-align:right;">@a.ContentType</td>
+                <td>@((a.Size / 1024.0).ToString("N0")) KB</td>
+                <td>@a.CreatedAt.ToString("yyyy/MM/dd")</td>
+                <td style="white-space:nowrap;">
+                    <a class="btn-sm" asp-action="UnitAttachmentPreview" asp-route-id="@a.Id" target="_blank">👁 معاينة</a>
+                    <a class="btn-sm" asp-action="UnitAttachmentDownload" asp-route-id="@a.Id" target="_blank">تنزيل</a>
+                    @if (canEdit)
+                    {
+                        <form asp-action="UnitAttachmentDelete" method="post" style="display:inline;" data-confirm="حذف المرفق؟" data-danger>
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="id" value="@a.Id" /><input type="hidden" name="unitId" value="@u.Id" />
+                            <button type="submit" class="btn-sm btn-danger">حذف</button>
+                        </form>
+                    }
+                </td>
+            </tr>
+        }
+        @if (Model.Attachments.Count == 0)
+        {
+            <tr><td colspan="5" style="color:var(--muted)">لا توجد مرفقات لهذه الوحدة بعد.</td></tr>
+        }
+        </tbody>
+    </table>
+</div>

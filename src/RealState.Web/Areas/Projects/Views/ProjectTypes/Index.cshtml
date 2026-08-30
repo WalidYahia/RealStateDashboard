@@ -1,0 +1,41 @@
+@model List<ProjectTypeDefinition>
+@{
+    ViewData["Title"] = "أنواع المشاريع";
+}
+<div class="page-head">
+    <h1>تعريف أنواع المشاريع</h1>
+    <button type="button" class="btn-new-tenant" onclick="appOpenModal('@Url.Action("Form")', 'نوع مشروع جديد')">➕ نوع جديد</button>
+</div>
+
+<p style="color:var(--muted);font-size:13px;margin-top:-6px;">قائمة موحّدة بأنواع المشاريع تظهر عند إنشاء المشروع. «السلوك» يحدد ما إذا كان النوع يتضمّن وحدات قابلة للبيع (عمارة/مول) أم لا (أرض).</p>
+
+@if (TempData["StatusMessage"] is string status) { <div class="status-message">@status</div> }
+@if (TempData["ErrorMessage"] is string err) { <div class="status-message" style="background:#fde8e8;color:#a11;">@err</div> }
+
+<div class="card-tile">
+    <table class="rs-table">
+        <thead><tr><th>الترتيب</th><th>اسم النوع</th><th>السلوك</th><th>الحالة</th><th></th></tr></thead>
+        <tbody>
+        @foreach (var t in Model)
+        {
+            <tr>
+                <td dir="ltr" style="text-align:right;">@t.SortOrder</td>
+                <td>@t.Name</td>
+                <td>@t.BaseType.Ar() @(t.BaseType == RealState.Application.Enums.ProjectType.Land ? "(بدون وحدات)" : "(بوحدات)")</td>
+                <td><span class="badge-state @(t.IsActive ? "state-on" : "state-off")">@(t.IsActive ? "مفعّل" : "متوقف")</span></td>
+                <td style="white-space:nowrap;">
+                    <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("Form", new { id = t.Id })', 'تعديل النوع')">✏️ تعديل</button>
+                    <form asp-action="Delete" asp-route-id="@t.Id" method="post" style="display:inline;" data-confirm="حذف النوع «@t.Name»؟" data-danger>
+                        @Html.AntiForgeryToken()
+                        <button type="submit" class="btn-sm btn-danger">حذف</button>
+                    </form>
+                </td>
+            </tr>
+        }
+        @if (Model.Count == 0)
+        {
+            <tr><td colspan="5" style="color:var(--muted)">لا توجد أنواع معرّفة بعد.</td></tr>
+        }
+        </tbody>
+    </table>
+</div>

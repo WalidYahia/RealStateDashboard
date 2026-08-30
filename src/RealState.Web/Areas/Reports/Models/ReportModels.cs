@@ -48,6 +48,35 @@ public class CustomerReportVm
     public decimal TotResidual => Rows.Sum(r => r.Residual);
 }
 
+// ---------- Projects report ----------
+public class ProjectReportRow
+{
+    public Guid Id { get; set; }
+    public string Code { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string TypeName { get; set; } = string.Empty;
+    public int UnitsTotal { get; set; }
+    public int UnitsSold { get; set; }
+    public int UnitsUnsold { get; set; }
+    public decimal InventoryValue { get; set; }
+    public decimal Expenses { get; set; }
+    public decimal Incomes { get; set; }
+    public decimal Net => Incomes - Expenses;
+}
+
+public class ProjectReportVm
+{
+    public List<ProjectReportRow> Rows { get; set; } = new();
+
+    public int TotUnits => Rows.Sum(r => r.UnitsTotal);
+    public int TotSold => Rows.Sum(r => r.UnitsSold);
+    public int TotUnsold => Rows.Sum(r => r.UnitsUnsold);
+    public decimal TotInventory => Rows.Sum(r => r.InventoryValue);
+    public decimal TotExpenses => Rows.Sum(r => r.Expenses);
+    public decimal TotIncomes => Rows.Sum(r => r.Incomes);
+    public decimal TotNet => Rows.Sum(r => r.Net);
+}
+
 // ---------- Supplier report ----------
 public class SupplierReportRow
 {

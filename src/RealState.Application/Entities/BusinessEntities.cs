@@ -13,7 +13,14 @@ public class Project : AuditableEntity, ITenantEntity
     public string Code { get; set; } = string.Empty;
 
     public string? Location { get; set; }         // free text, not a map
+
+    /// <summary>Behavioural bucket (عمارة/مول/أرض) — drives units + dashboard. Kept in sync with the
+    /// chosen <see cref="ProjectTypeId"/> definition's BaseType.</summary>
     public ProjectType Type { get; set; }
+    /// <summary>The settings-defined project type chosen on the form (source of the display name).</summary>
+    public Guid? ProjectTypeId { get; set; }
+    public ProjectTypeDefinition? ProjectTypeRef { get; set; }
+
     public string? Notes { get; set; }
 
     public DateTime? PlannedStartDate { get; set; }

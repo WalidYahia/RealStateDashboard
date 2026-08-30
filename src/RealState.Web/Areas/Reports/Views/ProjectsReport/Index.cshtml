@@ -1,0 +1,63 @@
+@model ProjectReportVm
+@{
+    ViewData["Title"] = "تقرير المشاريع";
+    string N(decimal v) => v.ToString("N0", new System.Globalization.CultureInfo("ar-EG"));
+}
+<div class="page-head">
+    <h1>تقرير المشاريع</h1>
+    <a class="btn-sm" asp-action="Print" target="_blank">🖨 طباعة (PDF)</a>
+</div>
+
+<div class="card-tile">
+    <div class="list-search-bar"><input class="form-control list-search" data-target="#projRepTable" placeholder="🔍 بحث في القائمة..." /></div>
+    <table class="rs-table" id="projRepTable" data-live-totals>
+        <thead>
+            <tr>
+                <th>المشروع</th>
+                <th>النوع</th>
+                <th>إجمالي الوحدات</th>
+                <th>وحدات مباعة</th>
+                <th>وحدات غير مباعة</th>
+                <th>المصروفات</th>
+                <th>الإيرادات</th>
+                <th>قيمة المخزون</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+        @foreach (var r in Model.Rows)
+        {
+            <tr>
+                <td><span class="proj-code">#@r.Code</span> @r.Name</td>
+                <td>@r.TypeName</td>
+                <td>@r.UnitsTotal</td>
+                <td class="tag-up">@r.UnitsSold</td>
+                <td>@r.UnitsUnsold</td>
+                <td>@N(r.Expenses)</td>
+                <td>@N(r.Incomes)</td>
+                <td>@N(r.InventoryValue)</td>
+                <td style="white-space:nowrap;">
+                    <a class="btn-sm" asp-area="Projects" asp-controller="Projects" asp-action="Details" asp-route-id="@r.Id">التفاصيل</a>
+                </td>
+            </tr>
+        }
+        @if (Model.Rows.Count == 0)
+        {
+            <tr data-skip-search><td colspan="9" style="color:var(--muted)">لا توجد مشاريع.</td></tr>
+        }
+        <tr data-no-results data-skip-search style="display:none;"><td colspan="9" style="color:var(--muted)">لا توجد نتائج مطابقة للبحث.</td></tr>
+        </tbody>
+        <tfoot>
+            <tr>
+                <th colspan="2">الإجمالي</th>
+                <th>@Model.TotUnits</th>
+                <th>@Model.TotSold</th>
+                <th>@Model.TotUnsold</th>
+                <th>@N(Model.TotExpenses)</th>
+                <th>@N(Model.TotIncomes)</th>
+                <th>@N(Model.TotInventory)</th>
+                <th></th>
+            </tr>
+        </tfoot>
+    </table>
+</div>

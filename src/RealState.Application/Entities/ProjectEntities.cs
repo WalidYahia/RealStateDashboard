@@ -12,6 +12,18 @@ public class StageDefinition : AuditableEntity, ITenantEntity
     public bool IsActive { get; set; } = true;
 }
 
+/// <summary>A reusable project type (master list, defined under Settings) shown in the project creation form.
+/// <see cref="BaseType"/> ties each definition to one of the built-in behavioural buckets (drives whether
+/// projects of this type carry sellable units and the projects-dashboard breakdown).</summary>
+public class ProjectTypeDefinition : AuditableEntity, ITenantEntity
+{
+    public Guid TenantId { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public ProjectType BaseType { get; set; } = ProjectType.Building;
+    public int SortOrder { get; set; }
+    public bool IsActive { get; set; } = true;
+}
+
 /// <summary>A stage/phase of a project with planned vs actual dates and its own logs.</summary>
 public class ProjectStage : AuditableEntity, ITenantEntity
 {
@@ -81,6 +93,19 @@ public class ProjectAttachment : AuditableEntity, ITenantEntity
     public Guid TenantId { get; set; }
     public Guid ProjectId { get; set; }
     public Project? Project { get; set; }
+
+    public string FileName { get; set; } = string.Empty;
+    public string? ContentType { get; set; }
+    public long Size { get; set; }
+    public byte[] Data { get; set; } = Array.Empty<byte>();
+}
+
+/// <summary>A file attached to a single project unit (image / doc / pdf / excel / text). Stored in the database.</summary>
+public class ProjectUnitAttachment : AuditableEntity, ITenantEntity
+{
+    public Guid TenantId { get; set; }
+    public Guid UnitId { get; set; }
+    public ProjectUnit? Unit { get; set; }
 
     public string FileName { get; set; } = string.Empty;
     public string? ContentType { get; set; }

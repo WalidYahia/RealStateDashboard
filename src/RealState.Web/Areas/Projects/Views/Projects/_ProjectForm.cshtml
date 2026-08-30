@@ -17,8 +17,11 @@
             <span asp-validation-for="Code" class="field-validation-error"></span>
         </div>
         <div>
-            <label asp-for="Type" class="form-label"></label>
-            <select asp-for="Type" class="form-control" asp-items="RealState.Web.ArabicLabels.ProjectTypeOptions(Model.Type)"></select>
+            <label asp-for="ProjectTypeId" class="form-label"></label>
+            <select asp-for="ProjectTypeId" class="form-control" data-searchable asp-items="Model.Types">
+                <option value="">— اختر النوع —</option>
+            </select>
+            <span asp-validation-for="ProjectTypeId" class="field-validation-error"></span>
         </div>
         <div>
             <label asp-for="Location" class="form-label"></label>

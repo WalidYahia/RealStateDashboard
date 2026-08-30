@@ -58,9 +58,10 @@ public class ProjectsController : Controller
             .GroupBy(t => t.ProjectId!.Value).Select(g => new { g.Key, Total = g.Sum(x => x.Amount) }).ToListAsync(ct))
             .ToDictionary(x => x.Key, x => x.Total);
 
+        var typeNames = await _db.ProjectTypes.ToDictionaryAsync(t => t.Id, t => t.Name, ct);
         var rows = projects.Select(p => new ProjectSummaryRow
         {
-            Code = p.Code, Name = p.Name, Type = p.Type, Location = p.Location,
+            Code = p.Code, Name = p.Name, Type = p.Type, TypeName = TypeName(p, typeNames), Location = p.Location,
             UnitsTotal = unitStats.TryGetValue(p.Id, out var u) ? u.Total : 0,
             UnitsSold = unitStats.TryGetValue(p.Id, out var u2) ? u2.Sold : 0,
             StagesCount = stageCounts.TryGetValue(p.Id, out var sc) ? sc : 0,
@@ -96,13 +97,14 @@ public class ProjectsController : Controller
             .GroupBy(s => s.ProjectId).Select(g => new { g.Key, Count = g.Count() })
             .ToListAsync(ct);
         var sc = stageCounts.ToDictionary(x => x.Key, x => x.Count);
+        var typeNames = await _db.ProjectTypes.ToDictionaryAsync(t => t.Id, t => t.Name, ct);
 
         var items = projects.Select(p =>
         {
             us.TryGetValue(p.Id, out var u);
             return new ProjectListItem
             {
-                Id = p.Id, Code = p.Code, Name = p.Name, Type = p.Type, Location = p.Location,
+                Id = p.Id, Code = p.Code, Name = p.Name, Type = p.Type, TypeName = TypeName(p, typeNames), Location = p.Location,
                 HasHero = p.HeroImageData != null, PlannedEndDate = p.PlannedEndDate, ActualEndDate = p.ActualEndDate,
                 UnitsTotal = u?.Total ?? 0, UnitsSold = u?.Sold ?? 0, UnitsAvailable = u?.Available ?? 0,
                 StagesCount = sc.TryGetValue(p.Id, out var n) ? n : 0
@@ -136,9 +138,14 @@ public class ProjectsController : Controller
         var project = await _db.Projects.FirstOrDefaultAsync(p => p.Id == id, ct);
         if (project is null) return null;
 
+        var typeName = project.ProjectTypeId is Guid tid
+            ? (await _db.ProjectTypes.Where(t => t.Id == tid).Select(t => t.Name).FirstOrDefaultAsync(ct) ?? project.Type.Ar())
+            : project.Type.Ar();
+
         var vm = new ProjectDetailsVm
         {
             Project = project,
+            TypeName = typeName,
             Units = await _db.ProjectUnits.Where(u => u.ProjectId == id).OrderBy(u => u.Number).ToListAsync(ct),
             Attachments = await _db.ProjectAttachments.Where(a => a.ProjectId == id).OrderByDescending(a => a.CreatedAt).ToListAsync(ct),
             Stages = await _db.ProjectStages.Where(s => s.ProjectId == id).OrderBy(s => s.PlannedStartDate).ThenBy(s => s.CreatedAt).ToListAsync(ct),
@@ -267,17 +274,30 @@ public class ProjectsController : Controller
     public async Task<IActionResult> Form(Guid? id, CancellationToken ct)
     {
         if (!Can(id is null ? PermissionNames.ProjectsCreate : PermissionNames.ProjectsEdit)) return Forbid();
-        if (id is null) return PartialView("_ProjectForm", new ProjectFormModel());
+        if (id is null) return PartialView("_ProjectForm", new ProjectFormModel { Types = await ProjectTypesAsync(ct) });
         var p = await _db.Projects.FirstOrDefaultAsync(x => x.Id == id, ct);
         if (p is null) return NotFound();
         return PartialView("_ProjectForm", new ProjectFormModel
         {
-            Id = p.Id, Code = p.Code, Name = p.Name, Type = p.Type, Location = p.Location,
+            Id = p.Id, Code = p.Code, Name = p.Name, ProjectTypeId = p.ProjectTypeId, Location = p.Location,
             PlannedStartDate = p.PlannedStartDate, ActualStartDate = p.ActualStartDate,
             PlannedEndDate = p.PlannedEndDate, ActualEndDate = p.ActualEndDate,
-            Notes = p.Notes, HasHeroImage = p.HeroImageData != null
+            Notes = p.Notes, HasHeroImage = p.HeroImageData != null,
+            Types = await ProjectTypesAsync(ct)
         });
     }
+
+    /// <summary>Active project-type definitions (from Settings) for the النوع dropdown.</summary>
+    private async Task<List<SelectListItem>> ProjectTypesAsync(CancellationToken ct)
+    {
+        await ProjectTypeDefaults.EnsureAsync(_db, ct);   // covers tenants created after the seed migration
+        return await _db.ProjectTypes.Where(t => t.IsActive).OrderBy(t => t.SortOrder).ThenBy(t => t.Name)
+            .Select(t => new SelectListItem { Value = t.Id.ToString(), Text = t.Name }).ToListAsync(ct);
+    }
+
+    /// <summary>Display name of a project's type — the chosen definition's name, falling back to the built-in label.</summary>
+    private static string TypeName(Project p, IReadOnlyDictionary<Guid, string> names) =>
+        p.ProjectTypeId is Guid id && names.TryGetValue(id, out var n) ? n : p.Type.Ar();
 
     [HttpPost]
     [ValidateAntiForgeryToken]
@@ -292,14 +312,19 @@ public class ProjectsController : Controller
             && await _db.Projects.AnyAsync(p => p.Id != model.Id && p.Code == model.Code, ct))
             ModelState.AddModelError(nameof(model.Code), "كود المشروع مستخدم بالفعل.");
 
-        if (!ModelState.IsValid) { model.HasHeroImage = model.HasHeroImage || imgData != null; return PartialView("_ProjectForm", model); }
+        // Resolve the chosen settings-defined type; its BaseType keeps Project.Type (units/dashboard) in sync.
+        var def = model.ProjectTypeId is null ? null
+            : await _db.ProjectTypes.FirstOrDefaultAsync(t => t.Id == model.ProjectTypeId, ct);
+        if (def is null) ModelState.AddModelError(nameof(model.ProjectTypeId), "اختر نوع مشروع صالحًا.");
+
+        if (!ModelState.IsValid) { model.HasHeroImage = model.HasHeroImage || imgData != null; model.Types = await ProjectTypesAsync(ct); return PartialView("_ProjectForm", model); }
 
         if (model.Id == Guid.Empty)
         {
             // Actual start/end are computed from the stages (first started / last ended), never from this form.
             var project = new Project
             {
-                Name = model.Name, Code = model.Code, Type = model.Type, Location = model.Location,
+                Name = model.Name, Code = model.Code, ProjectTypeId = def!.Id, Type = def.BaseType, Location = model.Location,
                 PlannedStartDate = model.PlannedStartDate, PlannedEndDate = model.PlannedEndDate,
                 Notes = model.Notes, HeroImageData = imgData, HeroImageContentType = imgType
             };
@@ -309,7 +334,7 @@ public class ProjectsController : Controller
         {
             var p = await _db.Projects.FirstOrDefaultAsync(x => x.Id == model.Id, ct);
             if (p is null) return NotFound();
-            p.Name = model.Name; p.Code = model.Code; p.Type = model.Type; p.Location = model.Location;
+            p.Name = model.Name; p.Code = model.Code; p.ProjectTypeId = def!.Id; p.Type = def.BaseType; p.Location = model.Location;
             p.PlannedStartDate = model.PlannedStartDate;
             p.PlannedEndDate = model.PlannedEndDate;
             p.Notes = model.Notes;
@@ -362,6 +387,8 @@ public class ProjectsController : Controller
         _db.StageActivities.RemoveRange(await _db.StageActivities.Where(a => stageIds.Contains(a.StageId)).ToListAsync(ct));
         _db.StageExpenses.RemoveRange(await _db.StageExpenses.Where(e => stageIds.Contains(e.StageId)).ToListAsync(ct));
         _db.ProjectStages.RemoveRange(await _db.ProjectStages.Where(s => s.ProjectId == id).ToListAsync(ct));
+        var delUnitIds = await _db.ProjectUnits.Where(u => u.ProjectId == id).Select(u => u.Id).ToListAsync(ct);
+        _db.ProjectUnitAttachments.RemoveRange(await _db.ProjectUnitAttachments.Where(a => delUnitIds.Contains(a.UnitId)).ToListAsync(ct));
         _db.ProjectUnits.RemoveRange(await _db.ProjectUnits.Where(u => u.ProjectId == id).ToListAsync(ct));
         _db.ProjectAttachments.RemoveRange(await _db.ProjectAttachments.Where(a => a.ProjectId == id).ToListAsync(ct));
 
@@ -403,13 +430,77 @@ public class ProjectsController : Controller
         return Json(new { ok = true });
     }
 
+    // Full-page unit view (المعاينة) — includes the unit's attachments.
     [HttpGet]
     [Authorize(Policy = PermissionNames.ProjectsUnits)]
-    public async Task<IActionResult> UnitPreview(Guid id, CancellationToken ct)
+    public async Task<IActionResult> UnitDetails(Guid id, CancellationToken ct)
     {
         var u = await _db.ProjectUnits.FirstOrDefaultAsync(x => x.Id == id, ct);
         if (u is null) return NotFound();
-        return PartialView("_UnitPreview", u);
+        var proj = await _db.Projects.Where(p => p.Id == u.ProjectId).Select(p => new { p.Name, p.Code }).FirstOrDefaultAsync(ct);
+        return View("UnitDetails", new UnitDetailsVm
+        {
+            Unit = u,
+            ProjectName = proj?.Name ?? "—",
+            ProjectCode = proj?.Code ?? string.Empty,
+            Attachments = await _db.ProjectUnitAttachments.Where(a => a.UnitId == id).OrderByDescending(a => a.CreatedAt).ToListAsync(ct)
+        });
+    }
+
+    // ---------- Unit attachments ----------
+    [HttpPost]
+    [Authorize(Policy = PermissionNames.ProjectsEdit)]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> UnitAttachmentUpload(Guid unitId, IFormFile? file, CancellationToken ct)
+    {
+        if (file is { Length: > 0 })
+        {
+            if (file.Length > MaxFileBytes)
+                TempData["StatusMessage"] = "حجم الملف يتجاوز 15 ميجابايت.";
+            else if (!AttachmentTypes.Contains(file.ContentType))
+                TempData["StatusMessage"] = "صيغة الملف غير مدعومة.";
+            else
+            {
+                using var ms = new MemoryStream();
+                await file.CopyToAsync(ms, ct);
+                _db.ProjectUnitAttachments.Add(new ProjectUnitAttachment
+                {
+                    UnitId = unitId, FileName = file.FileName, ContentType = file.ContentType,
+                    Size = file.Length, Data = ms.ToArray()
+                });
+                await _db.SaveChangesAsync(ct);
+                TempData["StatusMessage"] = "تم رفع مرفق الوحدة.";
+            }
+        }
+        return RedirectToAction(nameof(UnitDetails), new { id = unitId });
+    }
+
+    [HttpGet]
+    [Authorize(Policy = PermissionNames.ProjectsUnits)]
+    public async Task<IActionResult> UnitAttachmentDownload(Guid id, CancellationToken ct)
+    {
+        var a = await _db.ProjectUnitAttachments.FirstOrDefaultAsync(x => x.Id == id, ct);
+        if (a is null) return NotFound();
+        return File(a.Data, a.ContentType ?? "application/octet-stream", a.FileName);
+    }
+
+    [HttpGet]
+    [Authorize(Policy = PermissionNames.ProjectsUnits)]
+    public async Task<IActionResult> UnitAttachmentPreview(Guid id, CancellationToken ct)
+    {
+        var a = await _db.ProjectUnitAttachments.FirstOrDefaultAsync(x => x.Id == id, ct);
+        if (a is null) return NotFound();
+        return File(a.Data, a.ContentType ?? "application/octet-stream");
+    }
+
+    [HttpPost]
+    [Authorize(Policy = PermissionNames.ProjectsEdit)]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> UnitAttachmentDelete(Guid id, Guid unitId, CancellationToken ct)
+    {
+        var a = await _db.ProjectUnitAttachments.FirstOrDefaultAsync(x => x.Id == id, ct);
+        if (a is not null) { _db.ProjectUnitAttachments.Remove(a); await _db.SaveChangesAsync(ct); TempData["StatusMessage"] = "تم حذف مرفق الوحدة."; }
+        return RedirectToAction(nameof(UnitDetails), new { id = unitId });
     }
 
     [HttpPost]
@@ -429,6 +520,7 @@ public class ProjectsController : Controller
             return DetailsTab(projectId, "units");
         }
 
+        _db.ProjectUnitAttachments.RemoveRange(await _db.ProjectUnitAttachments.Where(a => a.UnitId == id).ToListAsync(ct));
         _db.ProjectUnits.Remove(u);
         await _db.SaveChangesAsync(ct);
         // Descriptive status → the activity-log filter records it as the delete action's description.

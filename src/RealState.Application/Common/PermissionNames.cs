@@ -109,6 +109,7 @@ public static class PermissionNames
 
     // ----- Reports -----
     public const string ReportsView = "Reports.View";
+    public const string ReportsProjects = "Reports.Projects";   // projects report (units / inventory / expenses / incomes)
 
     // ----- Accounting: expense/income categories (بنود) -----
     public const string TxnCategoriesManage = "TxnCategories.Manage";
@@ -215,6 +216,7 @@ public static class PermissionNames
         new PermissionInfo(ContractingPay,    "سداد دفعات للمقاولين",                   GContracting),
 
         new PermissionInfo(ReportsView,     "عرض التقارير (اليومي، العملاء، الموردين)", GReports),
+        new PermissionInfo(ReportsProjects, "عرض تقرير المشاريع",                       GReports),
 
         new PermissionInfo(TxnCategoriesManage, "إدارة بنود المصروفات والإيرادات", GExpenses),
 

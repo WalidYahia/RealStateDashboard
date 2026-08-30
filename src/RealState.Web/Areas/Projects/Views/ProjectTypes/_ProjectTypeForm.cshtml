@@ -1,0 +1,26 @@
+@model ProjectTypeFormModel
+<form id="appModalForm" asp-area="Projects" asp-controller="ProjectTypes" asp-action="Form" method="post">
+    @Html.AntiForgeryToken()
+    <div asp-validation-summary="ModelOnly" class="validation-summary-errors"></div>
+    <input type="hidden" asp-for="Id" />
+    <div class="form-grid">
+        <div class="full">
+            <label asp-for="Name" class="form-label"></label>
+            <input asp-for="Name" class="form-control" />
+            <span asp-validation-for="Name" class="field-validation-error"></span>
+        </div>
+        <div>
+            <label asp-for="BaseType" class="form-label"></label>
+            <select asp-for="BaseType" class="form-control" asp-items="RealState.Web.ArabicLabels.ProjectTypeOptions(Model.BaseType)"></select>
+            <span style="color:var(--muted);font-size:12px;">عمارة/مول = يتضمّن وحدات · أرض = بدون وحدات</span>
+        </div>
+        <div>
+            <label asp-for="SortOrder" class="form-label"></label>
+            <input asp-for="SortOrder" class="form-control" type="number" dir="ltr" />
+        </div>
+        <div>
+            <label class="form-check"><input asp-for="IsActive" type="checkbox" /> مفعّل</label>
+        </div>
+    </div>
+    <button type="submit" class="btn-primary" style="margin-top:12px;">💾 حفظ</button>
+</form>

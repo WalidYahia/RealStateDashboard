@@ -75,11 +75,13 @@ public class ApplicationDbContext
     public DbSet<WorkOrderLog> WorkOrderLogs => Set<WorkOrderLog>();
     public DbSet<WorkOrderPayment> WorkOrderPayments => Set<WorkOrderPayment>();
     public DbSet<StageDefinition> StageDefinitions => Set<StageDefinition>();
+    public DbSet<ProjectTypeDefinition> ProjectTypes => Set<ProjectTypeDefinition>();
     public DbSet<ProjectStage> ProjectStages => Set<ProjectStage>();
     public DbSet<StageActivity> StageActivities => Set<StageActivity>();
     public DbSet<StageExpense> StageExpenses => Set<StageExpense>();
     public DbSet<ProjectUnit> ProjectUnits => Set<ProjectUnit>();
     public DbSet<ProjectAttachment> ProjectAttachments => Set<ProjectAttachment>();
+    public DbSet<ProjectUnitAttachment> ProjectUnitAttachments => Set<ProjectUnitAttachment>();
     public DbSet<SalesInvoice> SalesInvoices => Set<SalesInvoice>();
     public DbSet<PurchaseInvoice> PurchaseInvoices => Set<PurchaseInvoice>();
     public DbSet<Income> Incomes => Set<Income>();
@@ -176,6 +178,11 @@ public class ApplicationDbContext
         builder.Entity<WorkTask>().HasOne(t => t.Assignee).WithMany().HasForeignKey(t => t.AssigneeEmployeeId).OnDelete(DeleteBehavior.Restrict);
         builder.Entity<WorkTaskLog>().HasOne(l => l.Task).WithMany(t => t.Logs).HasForeignKey(l => l.WorkTaskId).OnDelete(DeleteBehavior.Cascade);
         builder.Entity<WorkTaskAttachment>().HasOne(a => a.Task).WithMany(t => t.Attachments).HasForeignKey(a => a.WorkTaskId).OnDelete(DeleteBehavior.Cascade);
+
+        // Project references its settings-defined type (restrict — a type in use can't be deleted);
+        // unit attachments cascade with their unit.
+        builder.Entity<Project>().HasOne(p => p.ProjectTypeRef).WithMany().HasForeignKey(p => p.ProjectTypeId).OnDelete(DeleteBehavior.Restrict);
+        builder.Entity<ProjectUnitAttachment>().HasOne(a => a.Unit).WithMany().HasForeignKey(a => a.UnitId).OnDelete(DeleteBehavior.Cascade);
 
         // Customer communication log cascades with its customer.
         builder.Entity<CustomerLog>().HasOne(l => l.Customer).WithMany().HasForeignKey(l => l.CustomerId).OnDelete(DeleteBehavior.Cascade);

@@ -55,11 +55,13 @@ public interface IApplicationDbContext
     DbSet<WorkOrderLog> WorkOrderLogs { get; }
     DbSet<WorkOrderPayment> WorkOrderPayments { get; }
     DbSet<StageDefinition> StageDefinitions { get; }
+    DbSet<ProjectTypeDefinition> ProjectTypes { get; }
     DbSet<ProjectStage> ProjectStages { get; }
     DbSet<StageActivity> StageActivities { get; }
     DbSet<StageExpense> StageExpenses { get; }
     DbSet<ProjectUnit> ProjectUnits { get; }
     DbSet<ProjectAttachment> ProjectAttachments { get; }
+    DbSet<ProjectUnitAttachment> ProjectUnitAttachments { get; }
     DbSet<SalesInvoice> SalesInvoices { get; }
     DbSet<PurchaseInvoice> PurchaseInvoices { get; }
     DbSet<Income> Incomes { get; }

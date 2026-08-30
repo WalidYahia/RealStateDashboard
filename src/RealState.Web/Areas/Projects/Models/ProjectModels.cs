@@ -18,8 +18,12 @@ public class ProjectFormModel
     [Display(Name = "اسم المشروع")]
     public string Name { get; set; } = string.Empty;
 
+    [Required(ErrorMessage = "نوع المشروع مطلوب")]
     [Display(Name = "النوع")]
-    public ProjectType Type { get; set; }
+    public Guid? ProjectTypeId { get; set; }
+
+    /// <summary>Active project-type definitions (from Settings) shown in the النوع dropdown.</summary>
+    public List<SelectListItem> Types { get; set; } = new();
 
     [Display(Name = "الموقع")]
     public string? Location { get; set; }
@@ -35,6 +39,24 @@ public class ProjectFormModel
     public bool HasHeroImage { get; set; }
     [Display(Name = "حذف صورة الغلاف الحالية")]
     public bool RemoveHeroImage { get; set; }
+}
+
+public class ProjectTypeFormModel
+{
+    public Guid Id { get; set; }
+
+    [Required(ErrorMessage = "اسم النوع مطلوب")]
+    [Display(Name = "اسم النوع")]
+    public string Name { get; set; } = string.Empty;
+
+    [Display(Name = "السلوك")]
+    public ProjectType BaseType { get; set; } = ProjectType.Building;
+
+    [Display(Name = "الترتيب")]
+    public int SortOrder { get; set; }
+
+    [Display(Name = "مفعّل")]
+    public bool IsActive { get; set; } = true;
 }
 
 public class StageDefinitionFormModel
@@ -189,6 +211,8 @@ public class ProjectListItem
     public string Code { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public ProjectType Type { get; set; }
+    /// <summary>Display name of the chosen project-type definition (falls back to the built-in label).</summary>
+    public string TypeName { get; set; } = string.Empty;
     public string? Location { get; set; }
     public bool HasHero { get; set; }
     public DateTime? PlannedEndDate { get; set; }
@@ -204,6 +228,7 @@ public class ProjectSummaryRow
     public string Code { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public ProjectType Type { get; set; }
+    public string TypeName { get; set; } = string.Empty;
     public string? Location { get; set; }
     public int UnitsTotal { get; set; }
     public int UnitsSold { get; set; }
@@ -225,9 +250,19 @@ public class ProjectsIndexVm
     public List<ProjectListItem> Projects { get; set; } = new();
 }
 
+public class UnitDetailsVm
+{
+    public ProjectUnit Unit { get; set; } = default!;
+    public string ProjectName { get; set; } = string.Empty;
+    public string ProjectCode { get; set; } = string.Empty;
+    public List<ProjectUnitAttachment> Attachments { get; set; } = new();
+}
+
 public class ProjectDetailsVm
 {
     public Project Project { get; set; } = default!;
+    /// <summary>Display name of the chosen project-type definition (falls back to the built-in label).</summary>
+    public string TypeName { get; set; } = string.Empty;
     public List<ProjectUnit> Units { get; set; } = new();
     public List<ProjectAttachment> Attachments { get; set; } = new();
     public List<ProjectStage> Stages { get; set; } = new();

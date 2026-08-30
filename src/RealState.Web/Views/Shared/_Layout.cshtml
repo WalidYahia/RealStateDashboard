@@ -32,7 +32,7 @@
                     var curAction = ViewContext.RouteData.Values["action"]?.ToString();
                     var curArea = ViewContext.RouteData.Values["area"]?.ToString();
                     var projOpen = curCtrl == "Projects";
-                    var setOpen = curCtrl == "Account" || curCtrl == "StageDefinitions" || curCtrl == "Settings" || curCtrl == "TxnCategories" || curCtrl == "ActivityLog";
+                    var setOpen = curCtrl == "Account" || curCtrl == "StageDefinitions" || curCtrl == "ProjectTypes" || curCtrl == "Settings" || curCtrl == "TxnCategories" || curCtrl == "ActivityLog";
                     var canSalespersons = Can(PermissionNames.SalespersonsView);
                     var canCustomers = Can(PermissionNames.CustomersView);
                     var canLeadsAccess = canCustomers || Can(PermissionNames.LeadsControl) || Can(PermissionNames.LeadsConvert);
@@ -206,9 +206,8 @@
                         </div>
                     </div>
                 }
-                @if (Can(PermissionNames.ReportsView))
+                @if (Can(PermissionNames.ReportsView) || Can(PermissionNames.ReportsProjects))
                 {
-                    var repCtrl = ViewContext.RouteData.Values["controller"]?.ToString();
                     var repArea = ViewContext.RouteData.Values["area"]?.ToString();
                     var repAction = ViewContext.RouteData.Values["action"]?.ToString();
                     var repOpen = repArea == "Reports";
@@ -218,9 +217,17 @@
                             <button type="button" class="nav-caret" onclick="toggleNavGroup(this)">▾</button>
                         </div>
                         <div class="subnav">
-                            <a class="subnav-link @(repOpen && repAction == "Daily" ? "active" : "")" asp-area="Reports" asp-controller="Reports" asp-action="Daily">التقرير اليومي</a>
-                            <a class="subnav-link @(repOpen && repAction == "Customers" ? "active" : "")" asp-area="Reports" asp-controller="Reports" asp-action="Customers">تقرير العملاء</a>
-                            <a class="subnav-link @(repOpen && repAction == "Suppliers" ? "active" : "")" asp-area="Reports" asp-controller="Reports" asp-action="Suppliers">تقرير الموردين</a>
+                            @if (Can(PermissionNames.ReportsView))
+                            {
+                                <a class="subnav-link @(repOpen && repAction == "Daily" ? "active" : "")" asp-area="Reports" asp-controller="Reports" asp-action="Daily">التقرير اليومي</a>
+                                <a class="subnav-link @(repOpen && repAction == "Customers" ? "active" : "")" asp-area="Reports" asp-controller="Reports" asp-action="Customers">تقرير العملاء</a>
+                                <a class="subnav-link @(repOpen && repAction == "Suppliers" ? "active" : "")" asp-area="Reports" asp-controller="Reports" asp-action="Suppliers">تقرير الموردين</a>
+                            }
+                            @if (Can(PermissionNames.ReportsProjects))
+                            {
+                                var repCtrl = ViewContext.RouteData.Values["controller"]?.ToString();
+                                <a class="subnav-link @(repOpen && repCtrl == "ProjectsReport" ? "active" : "")" asp-area="Reports" asp-controller="ProjectsReport" asp-action="Index">تقرير المشاريع</a>
+                            }
                         </div>
                     </div>
                 }
@@ -261,6 +268,7 @@
                         @if (Can(PermissionNames.SettingsManage))
                         {
                             <a class="subnav-link @NavActive("Settings")" asp-area="" asp-controller="Settings" asp-action="Branding">بيانات المؤسسة</a>
+                            <a class="subnav-link @NavActive("ProjectTypes")" asp-area="Projects" asp-controller="ProjectTypes" asp-action="Index">أنواع المشاريع</a>
                             <a class="subnav-link @NavActive("StageDefinitions")" asp-area="Projects" asp-controller="StageDefinitions" asp-action="Index">مراحل المشاريع</a>
                         }
                         @if (Can(PermissionNames.TxnCategoriesManage))
