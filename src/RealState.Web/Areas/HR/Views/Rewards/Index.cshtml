@@ -49,6 +49,10 @@
                 <td><span class="badge-role" style="color:@(r.Status == PayStatus.Paid ? "var(--good)" : "var(--muted)")">@r.Status.Ar()</span></td>
                 <td style="white-space:nowrap;">
                     <a class="btn-sm" asp-action="Print" asp-route-id="@r.Id" target="_blank">🖨</a>
+                    @if (canManage && r.Status == PayStatus.NotPaid)
+                    {
+                        <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("Form", new { id = r.Id })', 'تعديل المكافأة @RWD(r.Number)')">✏️ تعديل</button>
+                    }
                     @if (canManage && r.PayVia == RewardPayVia.Salary && r.Status == PayStatus.NotPaid)
                     {
                         <form asp-action="TogglePaid" asp-route-id="@r.Id" method="post" style="display:inline;">@Html.AntiForgeryToken()<button type="submit" class="btn-sm">تعليم كمصروف</button></form>

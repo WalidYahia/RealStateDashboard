@@ -1,6 +1,11 @@
 @model ProjectsIndexVm
 @{
     ViewData["Title"] = "المشاريع";
+    string N(int v) => v.ToString("N0", new System.Globalization.CultureInfo("ar-EG"));
+    string? F(DateTime? d) => d?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+    string D(DateTime? d) => d?.ToString("yyyy/MM/dd") ?? "—";
+    // Lowercased text every card/row is matched against by the inline search.
+    string S(ProjectListItem p) => (p.Code + " " + p.Name + " " + p.TypeName + " " + (p.Location ?? "")).ToLower();
 }
 <div class="page-head">
     <h1>لوحة المشاريع</h1>
@@ -26,40 +31,148 @@
     <div class="kpi k-leads"><div class="kpi-label">وحدات متاحة</div><div class="kpi-value">@Model.AvailableUnits</div><div class="kpi-foot">جاهزة للبيع</div></div>
 </div>
 
-<!-- projects grid -->
-<div class="proj-grid">
-    @foreach (var p in Model.Projects)
-    {
-        <a class="proj-card" asp-action="Details" asp-route-id="@p.Id">
-            <div class="proj-hero">
-                @if (p.HasHero)
-                {
-                    <img src="@Url.Action("HeroImage", new { id = p.Id })" alt="@p.Name" />
-                }
-                else
-                {
-                    <div class="proj-hero-ph">🏗️</div>
-                }
-                <span class="proj-type">@p.TypeName</span>
+<!-- time filter -->
+<div class="card-tile" style="margin-bottom:12px;">
+    <form asp-action="Index" method="get" class="filter-form">
+        <div class="filter-row">
+            <div class="fld"><label class="form-label">من (تاريخ الإضافة)</label><input type="date" name="from" value="@F(Model.From)" class="form-control" dir="ltr" /></div>
+            <div class="fld"><label class="form-label">إلى</label><input type="date" name="to" value="@F(Model.To)" class="form-control" dir="ltr" /></div>
+            <div class="filter-presets">
+                <button type="button" class="btn-sm date-preset" data-from="@F(DateTime.Today)" data-to="@F(DateTime.Today)">اليوم</button>
+                <button type="button" class="btn-sm date-preset" data-from="@F(DateTime.Today.AddDays(-7))" data-to="@F(DateTime.Today)">آخر أسبوع</button>
+                <button type="button" class="btn-sm date-preset" data-from="@F(DateTime.Today.AddMonths(-1))" data-to="@F(DateTime.Today)">آخر شهر</button>
+                <button type="button" class="btn-sm date-preset" data-from="@F(DateTime.Today.AddYears(-1))" data-to="@F(DateTime.Today)">آخر سنة</button>
             </div>
-            <div class="proj-body">
-                <div class="proj-title"><span class="proj-code">#@p.Code</span> @p.Name</div>
-                <div class="proj-loc">📍 @(string.IsNullOrEmpty(p.Location) ? "—" : p.Location)</div>
-                @if (p.Type != ProjectType.Land)
-                {
-                    <div class="proj-stats">
-                        <span>الوحدات: <b>@p.UnitsTotal</b></span>
-                        <span class="tag-up">مباع: @p.UnitsSold</span>
-                        <span>متاح: @p.UnitsAvailable</span>
-                    </div>
-                }
-                <div class="proj-stats"><span>المراحل: <b>@p.StagesCount</b></span><span>نهاية مخططة: @(p.PlannedEndDate?.ToString("yyyy/MM/dd") ?? "—")</span></div>
+            <div class="filter-actions">
+                <button type="submit" class="btn-primary">بحث</button>
             </div>
-        </a>
-    }
-    @if (Model.Projects.Count == 0)
-    {
-        <div class="card-tile" style="color:var(--muted)">لا توجد مشاريع بعد. ابدأ بإضافة مشروع جديد.</div>
-    }
+        </div>
+    </form>
 </div>
 
+<!-- content: view toggle + inline search + (cards | list) -->
+<div class="card-tile">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+        <div style="display:flex;gap:6px;">
+            <button type="button" class="btn-sm" id="projViewCards" onclick="projSetView('cards')">▦ بطاقات</button>
+            <button type="button" class="btn-sm" id="projViewList" onclick="projSetView('list')">☰ قائمة</button>
+        </div>
+        <input type="text" id="projSearch" class="form-control" style="max-width:340px;margin:0;" placeholder="🔍 بحث في المشاريع..." oninput="projApplySearch()" />
+    </div>
+
+    <!-- cards view -->
+    <div id="projCards" class="proj-grid">
+        @foreach (var p in Model.Projects)
+        {
+            <a class="proj-card proj-item" data-search="@S(p)" asp-action="Details" asp-route-id="@p.Id">
+                <div class="proj-hero">
+                    @if (p.HasHero)
+                    {
+                        <img src="@Url.Action("HeroImage", new { id = p.Id })" alt="@p.Name" />
+                    }
+                    else
+                    {
+                        <div class="proj-hero-ph">🏗️</div>
+                    }
+                    <span class="proj-type">@p.TypeName</span>
+                </div>
+                <div class="proj-body">
+                    <div class="proj-title"><span class="proj-code">#@p.Code</span> @p.Name</div>
+                    <div class="proj-loc">📍 @(string.IsNullOrEmpty(p.Location) ? "—" : p.Location)</div>
+                    @if (p.Type != ProjectType.Land)
+                    {
+                        <div class="proj-stats">
+                            <span>الوحدات: <b>@p.UnitsTotal</b></span>
+                            <span class="tag-up">مباع: @p.UnitsSold</span>
+                            <span>متاح: @p.UnitsAvailable</span>
+                        </div>
+                    }
+                    <div class="proj-stats"><span>المراحل: <b>@p.StagesCount</b></span><span>نهاية مخططة: @D(p.PlannedEndDate)</span></div>
+                </div>
+            </a>
+        }
+        <div class="card-tile proj-empty" style="color:var(--muted);display:@(Model.Projects.Count == 0 ? "block" : "none");">لا توجد مشاريع مطابقة.</div>
+    </div>
+
+    <!-- list view -->
+    <div id="projList" style="display:none;overflow-x:auto;">
+        <table class="rs-table" data-no-grid style="white-space:nowrap;">
+            <thead>
+                <tr>
+                    <th>الكود</th><th>الاسم</th><th>النوع</th><th>الموقع</th>
+                    <th>الوحدات</th><th>مباع</th><th>متاح</th><th>المراحل</th><th>نهاية مخططة</th><th></th>
+                </tr>
+            </thead>
+            <tbody>
+            @foreach (var p in Model.Projects)
+            {
+                <tr class="proj-item" data-search="@S(p)">
+                    <td dir="ltr" style="text-align:right;">@p.Code</td>
+                    <td>@p.Name</td>
+                    <td>@p.TypeName</td>
+                    <td>@(string.IsNullOrEmpty(p.Location) ? "—" : p.Location)</td>
+                    <td>@(p.Type == ProjectType.Land ? "—" : N(p.UnitsTotal))</td>
+                    <td class="tag-up">@(p.Type == ProjectType.Land ? "—" : N(p.UnitsSold))</td>
+                    <td>@(p.Type == ProjectType.Land ? "—" : N(p.UnitsAvailable))</td>
+                    <td>@p.StagesCount</td>
+                    <td dir="ltr" style="text-align:right;">@D(p.PlannedEndDate)</td>
+                    <td><a class="btn-sm" asp-action="Details" asp-route-id="@p.Id">التفاصيل</a></td>
+                </tr>
+            }
+            @if (Model.Projects.Count == 0)
+            {
+                <tr class="proj-empty-row"><td colspan="10" style="color:var(--muted)">لا توجد مشاريع.</td></tr>
+            }
+            <tr class="proj-noresults" style="display:none;"><td colspan="10" style="color:var(--muted)">لا توجد مشاريع مطابقة.</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        (function () {
+            var KEY = 'projView';
+            window.projSetView = function (v) {
+                try { localStorage.setItem(KEY, v); } catch (e) { }
+                var cards = document.getElementById('projCards'), list = document.getElementById('projList');
+                var bc = document.getElementById('projViewCards'), bl = document.getElementById('projViewList');
+                var isList = v === 'list';
+                if (cards) cards.style.display = isList ? 'none' : '';
+                if (list) list.style.display = isList ? '' : 'none';
+                function paint(btn, on) {
+                    if (!btn) return;
+                    btn.style.background = on ? 'var(--series-1, #3987e5)' : '';
+                    btn.style.color = on ? '#fff' : '';
+                    btn.style.borderColor = on ? 'var(--series-1, #3987e5)' : '';
+                    btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+                }
+                paint(bc, !isList);
+                paint(bl, isList);
+                projApplySearch();
+            };
+            window.projApplySearch = function () {
+                var box = document.getElementById('projSearch');
+                var q = window.appSearchNormalize ? window.appSearchNormalize((box && box.value) || '') : ((box && box.value) || '').toLowerCase();
+                var shownCards = 0, shownRows = 0;
+                document.querySelectorAll('#projCards .proj-item').forEach(function (el) {
+                    var m = (el.getAttribute('data-search') || '').indexOf(q) >= 0;
+                    el.style.display = m ? '' : 'none'; if (m) shownCards++;
+                });
+                document.querySelectorAll('#projList .proj-item').forEach(function (el) {
+                    var m = (el.getAttribute('data-search') || '').indexOf(q) >= 0;
+                    el.style.display = m ? '' : 'none'; if (m) shownRows++;
+                });
+                var ce = document.querySelector('#projCards .proj-empty');
+                if (ce) ce.style.display = shownCards === 0 ? 'block' : 'none';
+                var nr = document.querySelector('#projList .proj-noresults');
+                if (nr) nr.style.display = shownRows === 0 ? '' : 'none';
+                var er = document.querySelector('#projList .proj-empty-row');
+                if (er && q) er.style.display = 'none';
+            };
+            var saved = 'cards';
+            try { saved = localStorage.getItem(KEY) || 'cards'; } catch (e) { }
+            projSetView(saved);
+        })();
+    </script>
+}

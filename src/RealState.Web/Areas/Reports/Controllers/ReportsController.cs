@@ -94,14 +94,13 @@ public class ReportsController : Controller
     public async Task<IActionResult> CustomersCsv(DateTime? from, DateTime? to, CancellationToken ct)
     {
         var vm = await BuildCustomersAsync(from, to, ct);
-        var inv = System.Globalization.CultureInfo.InvariantCulture;
         var headers = new[] { "العميل", "الهاتف", "عدد العقود", "قيمة العقود", "أقساط متبقية", "المحصّل", "المتبقي" };
-        var rows = vm.Rows.Select(r => (IReadOnlyList<string?>)new[]
+        var rows = vm.Rows.Select(r => (IReadOnlyList<object?>)new object?[]
         {
-            r.Name, r.Phone, r.Contracts.ToString(), r.ContractsValue.ToString("0.##", inv),
-            r.RemainingInstallments.ToString(), r.Collected.ToString("0.##", inv), r.Residual.ToString("0.##", inv)
+            r.Name, r.Phone, r.Contracts, r.ContractsValue, r.RemainingInstallments, r.Collected, r.Residual
         });
-        return RealState.Web.Common.Csv.File($"customers-report-{DateTime.Now:yyyyMMdd-HHmm}.csv", headers, rows);
+        var totals = new object?[] { "الإجمالي", null, vm.TotContracts, vm.TotValue, vm.TotRemInst, vm.TotCollected, vm.TotResidual };
+        return RealState.Web.Common.Xlsx.File($"تقرير العملاء {DateTime.Now:yyyy-MM-dd}.xlsx", "تقرير العملاء", headers, rows, totals);
     }
 
     private async Task<CustomerReportVm> BuildCustomersAsync(DateTime? from, DateTime? to, CancellationToken ct)
@@ -155,14 +154,13 @@ public class ReportsController : Controller
     public async Task<IActionResult> SuppliersCsv(DateTime? from, DateTime? to, CancellationToken ct)
     {
         var vm = await BuildSuppliersAsync(from, to, ct);
-        var inv = System.Globalization.CultureInfo.InvariantCulture;
         var headers = new[] { "المورد", "الهاتف", "عدد الأوامر", "قيمة الأوامر", "المسدَّد", "المتبقي" };
-        var rows = vm.Rows.Select(r => (IReadOnlyList<string?>)new[]
+        var rows = vm.Rows.Select(r => (IReadOnlyList<object?>)new object?[]
         {
-            r.Name, r.Phone, r.Orders.ToString(), r.OrdersValue.ToString("0.##", inv),
-            r.Paid.ToString("0.##", inv), r.Residual.ToString("0.##", inv)
+            r.Name, r.Phone, r.Orders, r.OrdersValue, r.Paid, r.Residual
         });
-        return RealState.Web.Common.Csv.File($"suppliers-report-{DateTime.Now:yyyyMMdd-HHmm}.csv", headers, rows);
+        var totals = new object?[] { "الإجمالي", null, vm.TotOrders, vm.TotValue, vm.TotPaid, vm.TotResidual };
+        return RealState.Web.Common.Xlsx.File($"تقرير الموردين {DateTime.Now:yyyy-MM-dd}.xlsx", "تقرير الموردين", headers, rows, totals);
     }
 
     private async Task<SupplierReportVm> BuildSuppliersAsync(DateTime? from, DateTime? to, CancellationToken ct)

@@ -12,7 +12,7 @@
         <p style="color:var(--muted);margin:2px 0 0;">@Model.Supplier.Phone @(string.IsNullOrEmpty(Model.Supplier.Email) ? "" : "· " + Model.Supplier.Email)</p>
     </div>
     <div style="display:flex;gap:8px;">
-        <a class="btn-sm" asp-controller="Suppliers" asp-action="Index">رجوع</a>
+        <a class="btn-sm" asp-controller="Suppliers" asp-action="Index" onclick="if (history.length > 1) { history.back(); return false; }">رجوع</a>
         <a class="btn-sm" asp-controller="Orders" asp-action="Index">أوامر التوريد</a>
         @if (canPay && Model.HasPayableOrders)
         {

@@ -22,7 +22,7 @@
         }
         @if (c.IsLead)
         {
-            <a class="btn-sm" href="@(backUrl ?? Url.Action("Index", "Leads"))">رجوع للعملاء المحتملين</a>
+            <a class="btn-sm" href="@(backUrl ?? Url.Action("Index", "Leads"))" onclick="if (history.length > 1) { history.back(); return false; }">رجوع للعملاء المحتملين</a>
             @if (canConvert)
             {
                 <form asp-action="Convert" asp-route-id="@c.Id" method="post" style="display:inline;" data-confirm="تحويل «@c.FullName» إلى عميل؟ سيظهر بعدها في صفحة العملاء فقط.">@Html.AntiForgeryToken()<button type="submit" class="btn-new-tenant">↪ تحويل إلى عميل</button></form>
@@ -30,7 +30,7 @@
         }
         else
         {
-            <a class="btn-sm" href="@(backUrl ?? Url.Action("Index"))">رجوع للعملاء</a>
+            <a class="btn-sm" href="@(backUrl ?? Url.Action("Index"))" onclick="if (history.length > 1) { history.back(); return false; }">رجوع للعملاء</a>
         }
         @if (!c.IsLead)
         {

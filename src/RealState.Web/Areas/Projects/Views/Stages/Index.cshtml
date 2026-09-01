@@ -17,7 +17,7 @@
         <p style="color:var(--muted);margin:2px 0 0;"><span class="proj-code">#@project.Code</span> @project.Name</p>
     </div>
     <div style="display:flex;gap:8px;">
-        <a class="btn-sm" asp-controller="Projects" asp-action="Details" asp-route-id="@project.Id">رجوع للمشروع</a>
+        <a class="btn-sm" asp-controller="Projects" asp-action="Details" asp-route-id="@project.Id" onclick="if (history.length > 1) { history.back(); return false; }">رجوع للمشروع</a>
         @if (User.Can(PermissionNames.ProjectsCreate))
         {
             <button type="button" class="btn-new-tenant" onclick="appOpenModal('@Url.Action("Form", new { projectId = project.Id })', 'مرحلة جديدة')">➕ مرحلة جديدة</button>

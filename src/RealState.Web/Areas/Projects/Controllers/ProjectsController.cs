@@ -74,9 +74,14 @@ public class ProjectsController : Controller
     }
 
     // ---------- Dashboard + list ----------
-    public async Task<IActionResult> Index(CancellationToken ct)
+    public async Task<IActionResult> Index(DateTime? from, DateTime? to, CancellationToken ct)
     {
-        var projects = await _db.Projects.OrderBy(p => p.Code).ToListAsync(ct);
+        // Projects are long-lived — on a fresh open default to the last year; explicit filters are respected.
+        if (Request.Query.Count == 0) { from = DateTime.Today.AddYears(-1); to = DateTime.Today.AddDays(1).AddMinutes(-1); }
+        var pq = _db.Projects.AsQueryable();
+        if (from.HasValue) pq = pq.Where(p => p.CreatedAt >= from.Value.Date);
+        if (to.HasValue) pq = pq.Where(p => p.CreatedAt < to.Value.Date.AddDays(1));
+        var projects = await pq.OrderBy(p => p.Code).ToListAsync(ct);
         var ids = projects.Select(p => p.Id).ToList();
 
         var unitStats = await _db.ProjectUnits
@@ -121,6 +126,8 @@ public class ProjectsController : Controller
             TotalUnits = items.Sum(i => i.UnitsTotal),
             SoldUnits = items.Sum(i => i.UnitsSold),
             AvailableUnits = items.Sum(i => i.UnitsAvailable),
+            From = from,
+            To = to,
         };
         return View(vm);
     }

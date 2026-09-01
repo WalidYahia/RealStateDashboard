@@ -206,28 +206,21 @@ public abstract class TxnControllerBase : Controller
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
+    public async Task<IActionResult> Delete(Guid id, DateTime? from, DateTime? to, string? source, string? q, CancellationToken ct)
     {
         if (!Can(DeletePerm)) return Forbid();
 
-        // // AJAX delete (from the list) removes just the row without reloading; a plain POST redirects.
-        // var ajax = string.Equals(Request.Headers["X-Requested-With"], "XMLHttpRequest", StringComparison.OrdinalIgnoreCase);
-        // IActionResult Done() => ajax ? Json(new { ok = true }) : RedirectToAction(nameof(Index));
-        // IActionResult Fail(string msg)
-        // {
-        //     if (ajax) return Json(new { ok = false, error = msg });
-        //     TempData["ErrorMessage"] = msg;
-        //     return RedirectToAction(nameof(Index));
-        // }
+        // Reload the list preserving the page's current filter (date range / المصدر / search).
+        IActionResult Back() => RedirectToAction(nameof(Index), new { from, to, source, q });
 
         var t = await _db.SafeTransactions.FirstOrDefaultAsync(x => x.Id == id && x.Type == TxnType, ct);
-        if (t is null) return RedirectToAction(nameof(Index));
+        if (t is null) return Back();
 
         if (t.Source == TxnSource.Manual)
         {
             _db.SafeTransactions.Remove(t);
             await _db.SaveChangesAsync(ct);
-            return RedirectToAction(nameof(Index));
+            return Back();
         }
 
         // The advance-disbursement expense may be deleted here to "un-disburse" its advance — under the
@@ -243,7 +236,7 @@ public abstract class TxnControllerBase : Controller
                 if (repaid > 0)
                 {
                     TempData["ErrorMessage"] = $"لا يمكن حذف مصروف صرف السلفة ADV-{adv.Number:D4} لوجود مبالغ مسدَّدة عليها.";
-                    return RedirectToAction(nameof(Index));
+                    return Back();
                 }
                 adv.Status = DisbursementStatus.NotDisbursed;
                 adv.ExpenseTxnId = null;
@@ -269,7 +262,7 @@ public abstract class TxnControllerBase : Controller
                 ? $"تم حذف سداد السلفة ADV-{n:D4} وعكس المبلغ."
                 : "تم حذف سداد السلفة.";
         }
-         return RedirectToAction(nameof(Index));
+        return Back();
     }
 
     [HttpGet]
@@ -280,7 +273,7 @@ public abstract class TxnControllerBase : Controller
         return View("PrintList", await BuildListAsync(from, to, q, source, ct));
     }
 
-    // Export the current (filtered) list to CSV.
+    // Export the current (filtered) list to a styled Excel file (with a totals row).
     [HttpGet]
     public async Task<IActionResult> Csv(DateTime? from, DateTime? to, string? q, string? source, CancellationToken ct)
     {
@@ -288,17 +281,18 @@ public abstract class TxnControllerBase : Controller
         var vm = await BuildListAsync(from, to, q, source, ct);
         var inv = System.Globalization.CultureInfo.InvariantCulture;
         var headers = new[] { "#", "التاريخ/الوقت", "الخزنة", "المصدر", "البيان", "المبلغ" };
-        var rows = vm.Rows.Select(r => (IReadOnlyList<string?>)new[]
+        var rows = vm.Rows.Select(r => (IReadOnlyList<object?>)new object?[]
         {
-            r.Serial.ToString(),
+            r.Serial,
             r.OccurredAt.ToString("yyyy-MM-dd HH:mm", inv),
             r.SafeName,
             r.CategoryName ?? r.Source.Ar(),
             r.Description,
-            r.Amount.ToString("0.##", inv)
+            r.Amount
         });
-        var label = TxnType == TxnType.Expense ? "expenses" : "incomes";
-        return RealState.Web.Common.Csv.File($"{label}-{DateTime.Now:yyyyMMdd-HHmm}.csv", headers, rows);
+        var totals = new object?[] { null, null, null, null, "الإجمالي", vm.Total };
+        var sheet = TxnType == TxnType.Expense ? "المصروفات" : "الإيرادات";
+        return RealState.Web.Common.Xlsx.File($"{sheet} {DateTime.Now:yyyy-MM-dd}.xlsx", sheet, headers, rows, totals);
     }
 
     // Printable voucher for a single income/expense transaction (opens in a new tab).

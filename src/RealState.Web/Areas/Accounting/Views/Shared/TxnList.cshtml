@@ -21,6 +21,11 @@
     var canDelete = (bool?)ViewData["CanDelete"] ?? false;
 }
 
+@* Carries the page's current filter through a POST so the action redirects back to the same filtered view. *@
+@{
+    Func<object?, object> filterFields = @<text><input type="hidden" name="from" value="@DTLn(Model.From)" /><input type="hidden" name="to" value="@DTLn(Model.To)" /><input type="hidden" name="source" value="@Model.Source" /><input type="hidden" name="q" value="@Model.Q" /></text>;
+}
+
 <div class="page-head">
     <h1>@(isIncome ? "الإيرادات" : "المصروفات")</h1>
 
@@ -68,7 +73,7 @@
             <div class="filter-actions">
                 <button type="submit" class="btn-primary">بحث</button>
                 <a class="btn-sm" asp-action="PrintList" asp-route-from="@DTLn(Model.From)" asp-route-to="@DTLn(Model.To)" asp-route-source="@Model.Source" asp-route-q="@Model.Q" target="_blank">🖨 طباعة القائمة</a>
-                <a class="btn-sm" asp-action="Csv" asp-route-from="@DTLn(Model.From)" asp-route-to="@DTLn(Model.To)" asp-route-source="@Model.Source" asp-route-q="@Model.Q">⬇ CSV</a>
+                <a class="btn-sm" asp-action="Csv" asp-route-from="@DTLn(Model.From)" asp-route-to="@DTLn(Model.To)" asp-route-source="@Model.Source" asp-route-q="@Model.Q">⬇ Excel</a>
             </div>
         </div>
         <div style="color:var(--muted);font-size:13px;">
@@ -133,10 +138,10 @@
                                 <form asp-action="Delete"
                                       asp-route-id="@t.Id"
                                       method="post"
-                                      //data-ajax
                                       style="display:inline;"
                                       data-confirm="حذف الحركة؟" data-danger>
                                     @Html.AntiForgeryToken()
+                                    @filterFields(null)
                                     <button type="submit" class="btn-sm btn-danger">
                                         حذف
                                     </button>
@@ -148,10 +153,10 @@
                             <form asp-action="Delete"
                                   asp-route-id="@t.Id"
                                   method="post"
-                                  //data-ajax
                                   style="display:inline;"
                                   data-confirm="حذف مصروف صرف السلفة سيعيدها إلى حالة «لم يُصرف» ويعكس المبلغ من الخزنة. هل تريد المتابعة؟" data-danger>
                                 @Html.AntiForgeryToken()
+                                @filterFields(null)
                                 <button type="submit" class="btn-sm btn-danger">
                                     حذف
                                 </button>
@@ -165,6 +170,7 @@
                                   style="display:inline;"
                                   data-confirm="حذف سداد السلفة سيعكس المبلغ من الخزنة ويعيد المتبقي على السلفة. هل تريد المتابعة؟" data-danger>
                                 @Html.AntiForgeryToken()
+                                @filterFields(null)
                                 <button type="submit" class="btn-sm btn-danger">
                                     حذف
                                 </button>

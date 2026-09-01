@@ -63,6 +63,7 @@
             <div class="filter-actions">
                 <button type="submit" class="btn-primary">بحث</button>
                 <a class="btn-sm" asp-action="PrintList" asp-route-from="@F(wfrom)" asp-route-to="@F(wto)" asp-route-contractorId="@wcon" asp-route-projectId="@wproj" target="_blank">🖨 طباعة (PDF)</a>
+                <a class="btn-sm" asp-action="Csv" asp-route-from="@F(wfrom)" asp-route-to="@F(wto)" asp-route-contractorId="@wcon" asp-route-projectId="@wproj">⬇ Excel</a>
             </div>
         </div>
     </form>

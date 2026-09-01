@@ -247,6 +247,8 @@ public class ProjectsIndexVm
     public int TotalUnits { get; set; }
     public int SoldUnits { get; set; }
     public int AvailableUnits { get; set; }
+    public DateTime? From { get; set; }
+    public DateTime? To { get; set; }
     public List<ProjectListItem> Projects { get; set; } = new();
 }
 

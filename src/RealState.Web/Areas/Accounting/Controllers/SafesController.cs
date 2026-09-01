@@ -115,17 +115,18 @@ public class SafesController : Controller
         var vm = await BuildMovementsAsync(s, from, to, q, ct);
         var inv = System.Globalization.CultureInfo.InvariantCulture;
         var headers = new[] { "#", "التاريخ/الوقت", "النوع", "المصدر", "البيان", "المبلغ", "الرصيد بعد" };
-        var rows = vm.Transactions.Select(t => (IReadOnlyList<string?>)new[]
+        var rows = vm.Transactions.Select(t => (IReadOnlyList<object?>)new object?[]
         {
-            t.Serial.ToString(),
+            t.Serial,
             t.OccurredAt.ToString("yyyy-MM-dd HH:mm", inv),
             t.Type == TxnType.Income ? "وارد" : "منصرف",
             t.Source.Ar(),
             t.Description,
-            t.Amount.ToString("0.##", inv),
-            t.RunningBalance.ToString("0.##", inv)
+            t.Amount,
+            t.RunningBalance
         });
-        return RealState.Web.Common.Csv.File($"safe-movements-{DateTime.Now:yyyyMMdd-HHmm}.csv", headers, rows);
+        var totals = new object?[] { null, null, null, null, "الرصيد الحالي", null, vm.Balance };
+        return RealState.Web.Common.Xlsx.File($"حركات {vm.SafeName} {DateTime.Now:yyyy-MM-dd}.xlsx", "حركات الخزنة", headers, rows, totals);
     }
 
     private async Task<SafeMovementsVm> BuildMovementsAsync(Safe s, DateTime? from, DateTime? to, string? q, CancellationToken ct)

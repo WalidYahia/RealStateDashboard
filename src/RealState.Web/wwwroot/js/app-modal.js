@@ -216,13 +216,6 @@ window.appToast = function (msg, icon) {
         e.preventDefault();
         var danger = form.hasAttribute('data-danger');
         function go() { form.removeAttribute('data-confirm'); form.submit(); }
-        // function go() {
-        //     form.removeAttribute('data-confirm');
-        //     // Opt-in AJAX delete: submit in the background and drop the row without reloading the page,
-        //     // so the current page filters stay intact.
-        //     if (form.hasAttribute('data-ajax')) { ajaxRowDelete(form); return; }
-        //     form.submit();
-        // }
         if (!window.Swal) { if (window.confirm(msg)) go(); return; }
         Swal.fire({
             icon: danger ? 'warning' : 'question',
@@ -236,23 +229,6 @@ window.appToast = function (msg, icon) {
             cancelButtonColor: '#6b7280'
         }).then(function (r) { if (r.isConfirmed) go(); });
     }, true);
-
-    // // Background delete for a <form data-ajax ...>: posts the form, then removes its table row (and
-    // // refreshes any live totals) without navigating — keeping the page's current filters.
-    // function ajaxRowDelete(form) {
-    //     var fd = new FormData(form);
-    //     fetch(form.action, { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest' } })
-    //         .then(function (r) { return r.json().catch(function () { return { ok: r.ok }; }); })
-    //         .then(function (res) {
-    //             if (res && res.ok === false) { window.appAlertError(res.error || 'تعذّر الحذف.'); return; }
-    //             var row = form.closest('tr');
-    //             var table = row ? row.closest('table') : null;
-    //             if (row && row.parentNode) row.parentNode.removeChild(row);
-    //             if (table && typeof table.__gridRender === 'function') table.__gridRender();  // grid count + paging
-    //             if (typeof window.appRefreshListTotals === 'function') window.appRefreshListTotals();  // money totals
-    //         })
-    //         .catch(function () { window.appAlertError('تعذّر تنفيذ العملية.'); });
-    // }
 
     // Server-pushed error (TempData) shown once on load.
     document.addEventListener('DOMContentLoaded', function () {

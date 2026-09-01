@@ -41,7 +41,7 @@
         @foreach (var r in Model.Rows)
         {
             <tr>
-                <td dir="ltr" style="text-align:right;"><a asp-action="Details" asp-route-id="@r.Id" style="color:var(--series-1);text-decoration:none;font-weight:600;">@ADV(r.Number)</a></td>
+                <td dir="ltr" style="text-align:right;"><a href="javascript:" onclick="appOpenModal('@Url.Action("Details", new { id = r.Id })', 'سلفة @ADV(r.Number)')" style="color:var(--series-1);text-decoration:none;font-weight:600;">@ADV(r.Number)</a></td>
                 <td>@r.Employee</td>
                 <td dir="ltr" style="text-align:right;">@D(r.Date)</td>
                 <td>@N(r.Amount)</td>
@@ -50,7 +50,7 @@
                 <td class="tag-up">@N(r.Repaid)</td>
                 <td>@N(r.Remaining)</td>
                 <td style="white-space:nowrap;">
-                    <a class="btn-sm" asp-action="Details" asp-route-id="@r.Id">التفاصيل</a>
+                    <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("Details", new { id = r.Id })', 'سلفة @ADV(r.Number)')">التفاصيل</button>
                     @if (canManage && r.Status == RealState.Application.Enums.DisbursementStatus.NotDisbursed)
                     {
                         <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("Form", new { id = r.Id })', 'تعديل السلفة @ADV(r.Number)')">✏️ تعديل</button>

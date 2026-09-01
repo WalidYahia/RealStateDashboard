@@ -15,7 +15,7 @@
         <p style="color:var(--muted);margin:2px 0 0;">@Model.Supplier?.Name · @(Model.Project?.Name ?? "بدون مشروع") · @D(Model.OrderDate)</p>
     </div>
     <div style="display:flex;gap:8px;">
-        <a class="btn-sm" asp-action="Index">رجوع</a>
+        <a class="btn-sm" asp-action="Index" onclick="if (history.length > 1) { history.back(); return false; }">رجوع</a>
         @if (Model.Supplier is not null)
         {
             <a class="btn-sm" asp-controller="Suppliers" asp-action="Details" asp-route-id="@Model.SupplierId">كشف حساب المورد</a>

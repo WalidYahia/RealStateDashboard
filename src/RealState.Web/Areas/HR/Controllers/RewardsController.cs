@@ -39,10 +39,19 @@ public class RewardsController : Controller
     }
 
     [HttpGet]
-    public async Task<IActionResult> Form(CancellationToken ct)
+    public async Task<IActionResult> Form(Guid? id, CancellationToken ct)
     {
         if (!CanManage()) return Forbid();
-        return PartialView("_RewardForm", await FillAsync(new RewardFormModel(), ct));
+        if (id is null) return PartialView("_RewardForm", await FillAsync(new RewardFormModel(), ct));
+
+        var r = await _db.Rewards.FirstOrDefaultAsync(x => x.Id == id, ct);
+        if (r is null) return NotFound();
+        if (r.Status == PayStatus.Paid)
+            return Content("<div style=\"padding:18px;color:var(--warning);text-align:center;\">لا يمكن تعديل مكافأة تم صرفها.</div>", "text/html");
+        return PartialView("_RewardForm", await FillAsync(new RewardFormModel
+        {
+            Id = r.Id, Date = r.Date, EmployeeId = r.EmployeeId, Amount = r.Amount, PayVia = r.PayVia, Notes = r.Notes
+        }, ct));
     }
 
     [HttpPost]
@@ -51,6 +60,18 @@ public class RewardsController : Controller
     {
         if (!CanManage()) return Forbid();
         if (!ModelState.IsValid) return PartialView("_RewardForm", await FillAsync(model, ct));
+
+        if (model.Id != Guid.Empty)
+        {
+            var r = await _db.Rewards.FirstOrDefaultAsync(x => x.Id == model.Id, ct);
+            if (r is null) return NotFound();
+            if (r.Status == PayStatus.Paid) return Json(new { ok = false, error = "لا يمكن تعديل مكافأة تم صرفها." });
+            r.Date = model.Date; r.EmployeeId = model.EmployeeId!.Value; r.Amount = model.Amount; r.PayVia = model.PayVia; r.Notes = model.Notes;
+            await _db.SaveChangesAsync(ct);
+            TempData["StatusMessage"] = $"تم تحديث المكافأة RWD-{r.Number:D4}.";
+            return Json(new { ok = true });
+        }
+
         var number = (await _db.Rewards.MaxAsync(r => (int?)r.Number, ct) ?? 0) + 1;
         _db.Rewards.Add(new Reward
         {

@@ -13,7 +13,7 @@
         <p style="color:var(--muted);margin:2px 0 0;">وحدة في مشروع <span class="proj-code">#@Model.ProjectCode</span> @Model.ProjectName</p>
     </div>
     <div style="display:flex;gap:8px;">
-        <a class="btn-sm" asp-action="Details" asp-route-id="@u.ProjectId">رجوع للمشروع</a>
+        <a class="btn-sm" asp-action="Details" asp-route-id="@u.ProjectId" onclick="if (history.length > 1) { history.back(); return false; }">رجوع للمشروع</a>
         @if (canEdit)
         {
             <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("UnitForm", new { projectId = u.ProjectId, id = u.Id })', 'تعديل الوحدة')">✏️ تعديل</button>

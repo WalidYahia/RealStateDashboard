@@ -28,7 +28,7 @@
             <button type="button" class="btn-new-tenant" onclick="appOpenModal('@Url.Action("StateForm", new { stageId = Model.Id, end = true })', 'إنهاء المرحلة')">⏹ إنهاء المرحلة</button>
         }
         <a class="btn-sm" asp-action="PrintStage" asp-route-id="@Model.Id" target="_blank">🖨 طباعة المرحلة (PDF)</a>
-        <a class="btn-sm" href="@(Url.Action("Details", "Projects", new { area = "Projects", id = project.Id }))#stages">رجوع للمشروع</a>
+        <a class="btn-sm" href="@(Url.Action("Details", "Projects", new { area = "Projects", id = project.Id }))#stages" onclick="if (history.length > 1) { history.back(); return false; }">رجوع للمشروع</a>
     </div>
 </div>
 

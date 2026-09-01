@@ -107,6 +107,43 @@ public class ContractorsController : Controller
         return View("PrintStatement", await BuildStatementAsync(contractor, from, to, ct));
     }
 
+    [HttpGet]
+    public async Task<IActionResult> StatementCsv(Guid id, DateTime? from, DateTime? to, CancellationToken ct)
+    {
+        var contractor = await _db.Contractors.FirstOrDefaultAsync(c => c.Id == id, ct);
+        if (contractor is null) return NotFound();
+        var vm = await BuildStatementAsync(contractor, from, to, ct);
+        var inv = System.Globalization.CultureInfo.InvariantCulture;
+        string P(decimal v) => v.ToString("0.##", inv) + "%";
+        var headers = new[] { "م", "المشروع", "التاريخ", "البيان", "الوحدة", "الكمية", "الفئة", "نسبة التنفيذ", "المستحق", "التعلية", "الخصومات", "المستحق بعد التعلية", "الدفعة", "الرصيد", "ملاحظات" };
+        var i = 0;
+        var data = vm.Rows.Select(r =>
+        {
+            var isOrder = r.Kind == ContractorLedgerKind.Order;
+            i++;
+            return (IReadOnlyList<object?>)new object?[]
+            {
+                i,
+                isOrder ? r.Project : "",
+                r.Date.ToString("yyyy-MM-dd", inv),
+                r.Statement,
+                isOrder ? r.Unit : "",
+                isOrder ? (object?)r.Quantity : "",
+                isOrder ? (object?)r.Rate : "",
+                isOrder ? P(r.ExecutionPercent) : "",
+                isOrder ? (object?)r.Due : "",
+                isOrder ? P(r.UpliftPercent) : "",
+                isOrder ? (object?)r.Deductions : "",
+                isOrder ? (object?)r.ActualTotal : "",
+                isOrder ? "" : (object?)r.Payment,
+                r.Balance,
+                r.Notes ?? ""
+            };
+        });
+        var totals = new object?[] { "الإجمالي", null, null, null, null, null, null, null, null, null, null, vm.TotalObligations, vm.TotalPaid, vm.ClosingBalance, null };
+        return RealState.Web.Common.Xlsx.File($"كشف حساب {contractor.Name} {DateTime.Now:yyyy-MM-dd}.xlsx", "كشف حساب مقاول", headers, data, totals);
+    }
+
     private async Task<ContractorStatementVm> BuildStatementAsync(Contractor contractor, DateTime? from, DateTime? to, CancellationToken ct)
     {
         var orders = await _db.WorkOrders.Where(o => o.ContractorId == contractor.Id).ToListAsync(ct);

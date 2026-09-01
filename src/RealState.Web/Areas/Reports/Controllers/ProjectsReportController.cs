@@ -35,14 +35,13 @@ public class ProjectsReportController : Controller
     public async Task<IActionResult> Csv(CancellationToken ct)
     {
         var vm = await BuildAsync(ct);
-        var inv = System.Globalization.CultureInfo.InvariantCulture;
         var headers = new[] { "الكود", "المشروع", "النوع", "إجمالي الوحدات", "وحدات مباعة", "وحدات غير مباعة", "المصروفات", "الإيرادات", "قيمة المخزون" };
-        var rows = vm.Rows.Select(r => (IReadOnlyList<string?>)new[]
+        var rows = vm.Rows.Select(r => (IReadOnlyList<object?>)new object?[]
         {
-            r.Code, r.Name, r.TypeName, r.UnitsTotal.ToString(), r.UnitsSold.ToString(), r.UnitsUnsold.ToString(),
-            r.Expenses.ToString("0.##", inv), r.Incomes.ToString("0.##", inv), r.InventoryValue.ToString("0.##", inv)
+            r.Code, r.Name, r.TypeName, r.UnitsTotal, r.UnitsSold, r.UnitsUnsold, r.Expenses, r.Incomes, r.InventoryValue
         });
-        return RealState.Web.Common.Csv.File($"projects-report-{DateTime.Now:yyyyMMdd-HHmm}.csv", headers, rows);
+        var totals = new object?[] { "الإجمالي", null, null, vm.TotUnits, vm.TotSold, vm.TotUnsold, vm.TotExpenses, vm.TotIncomes, vm.TotInventory };
+        return RealState.Web.Common.Xlsx.File($"تقرير المشاريع {DateTime.Now:yyyy-MM-dd}.xlsx", "تقرير المشاريع", headers, rows, totals);
     }
 
     private async Task<ProjectReportVm> BuildAsync(CancellationToken ct)

@@ -24,7 +24,7 @@
         <p style="color:var(--muted);margin:2px 0 0;">@Model.TypeName · 📍 @(string.IsNullOrEmpty(p.Location) ? "—" : p.Location)</p>
     </div>
     <div style="display:flex;gap:8px;">
-        <a class="btn-sm" asp-action="Index">رجوع للقائمة</a>
+        <a class="btn-sm" asp-action="Index" onclick="if (history.length > 1) { history.back(); return false; }">رجوع للقائمة</a>
         <a class="btn-sm" asp-action="PrintSummary" asp-route-id="@p.Id" target="_blank">🖨 ملخص المشروع (PDF)</a>
         @if (User.Can(PermissionNames.ProjectsEdit))
         {

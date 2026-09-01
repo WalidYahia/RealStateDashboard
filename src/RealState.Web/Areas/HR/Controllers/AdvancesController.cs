@@ -163,6 +163,9 @@ public class AdvancesController : Controller
         a.Employee = await _db.Employees.FirstOrDefaultAsync(e => e.Id == a.EmployeeId, ct);
         a.Repayments = await _db.AdvanceRepayments.Where(r => r.AdvanceId == id).OrderBy(r => r.SeqNo).ToListAsync(ct);
         ViewData["CanManage"] = CanManage();
+        // Opened from the list as a popup (AJAX) → return just the body partial; a direct visit → full page.
+        if (string.Equals(Request.Headers["X-Requested-With"], "XMLHttpRequest", StringComparison.OrdinalIgnoreCase))
+            return PartialView("_AdvanceDetails", a);
         return View(a);
     }
 

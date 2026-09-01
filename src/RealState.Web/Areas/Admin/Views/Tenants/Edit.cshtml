@@ -5,7 +5,7 @@
 
 <div class="page-head">
     <h1>تعديل المؤسسة</h1>
-    <a class="btn-sm" asp-area="Admin" asp-controller="Tenants" asp-action="Index">رجوع</a>
+    <a class="btn-sm" asp-area="Admin" asp-controller="Tenants" asp-action="Index" onclick="if (history.length > 1) { history.back(); return false; }">رجوع</a>
 </div>
 
 <div class="card-tile" style="max-width:640px;">

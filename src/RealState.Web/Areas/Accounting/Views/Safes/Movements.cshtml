@@ -11,7 +11,7 @@
         <p style="color:var(--muted);margin:2px 0 0;">الرصيد الحالي: <strong>@N(Model.Balance)</strong> ج.م</p>
     </div>
     <div style="display:flex;gap:8px;">
-        <a class="btn-sm" asp-action="Index">رجوع للخزائن</a>
+        <a class="btn-sm" asp-action="Index" onclick="if (history.length > 1) { history.back(); return false; }">رجوع للخزائن</a>
     </div>
 </div>
 
@@ -29,7 +29,7 @@
             <div class="filter-actions">
                 <button type="submit" class="btn-primary">بحث</button>
                 <a class="btn-sm" asp-action="PrintMovements" asp-route-id="@Model.SafeId" asp-route-from="@F(Model.From)" asp-route-to="@F(Model.To)" target="_blank">🖨 طباعة</a>
-                <a class="btn-sm" asp-action="CsvMovements" asp-route-id="@Model.SafeId" asp-route-from="@F(Model.From)" asp-route-to="@F(Model.To)" asp-route-q="@Model.Q">⬇ CSV</a>
+                <a class="btn-sm" asp-action="CsvMovements" asp-route-id="@Model.SafeId" asp-route-from="@F(Model.From)" asp-route-to="@F(Model.To)" asp-route-q="@Model.Q">⬇ Excel</a>
             </div>
         </div>
     </form>

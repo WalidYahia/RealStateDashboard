@@ -13,7 +13,7 @@
         <p style="color:var(--muted);margin:2px 0 0;">@Model.OrdersCount أمر شغل · @Model.PaymentsCount دفعة</p>
     </div>
     <div style="display:flex;gap:8px;">
-        <a class="btn-sm" asp-action="Index">رجوع لقائمة المقاولين</a>
+        <a class="btn-sm" asp-action="Index" onclick="if (history.length > 1) { history.back(); return false; }">رجوع لقائمة المقاولين</a>
         @if (User.Can(PermissionNames.ContractingEdit))
         {
             <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("Form", new { id = Model.Contractor.Id })', 'تعديل المقاول')">✏️ تعديل</button>
@@ -47,6 +47,7 @@
             <div class="filter-actions">
                 <button type="submit" class="btn-primary">بحث</button>
                 <a class="btn-sm" asp-action="PrintStatement" asp-route-id="@Model.Contractor.Id" asp-route-from="@F(Model.From)" asp-route-to="@F(Model.To)" target="_blank">🖨 طباعة كشف الحساب</a>
+                <a class="btn-sm" asp-action="StatementCsv" asp-route-id="@Model.Contractor.Id" asp-route-from="@F(Model.From)" asp-route-to="@F(Model.To)">⬇ Excel</a>
             </div>
         </div>
     </form>

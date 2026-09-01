@@ -18,7 +18,7 @@
         <p style="color:var(--muted);margin:2px 0 0;">@Model.ContractorName · @Model.ProjectName · @D(o.OrderDate)</p>
     </div>
     <div style="display:flex;gap:8px;">
-        <a class="btn-sm" asp-action="Index">رجوع</a>
+        <a class="btn-sm" asp-action="Index" onclick="if (history.length > 1) { history.back(); return false; }">رجوع</a>
         <a class="btn-sm" asp-action="PrintOrder" asp-route-id="@o.Id" target="_blank">🖨 طباعة الأمر (PDF)</a>
         <a class="btn-sm" asp-controller="Contractors" asp-action="Details" asp-route-id="@o.ContractorId">كشف حساب مقاول</a>
         @if (canPay && remaining > 0)

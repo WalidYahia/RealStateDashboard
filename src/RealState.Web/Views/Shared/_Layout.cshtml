@@ -102,15 +102,7 @@
                 }
                 @if (Can(PermissionNames.ProjectsView))
                 {
-                    <div class="nav-group @(projOpen ? "open" : "")">
-                        <div class="nav-parent">
-                            <a class="nav-link @NavActive("Projects")" asp-area="Projects" asp-controller="Projects" asp-action="Index"><span>🏗️</span> المشاريع</a>
-                            <button type="button" class="nav-caret" onclick="toggleNavGroup(this)">▾</button>
-                        </div>
-                        <div class="subnav">
-                            @await Component.InvokeAsync("ProjectsMenu")
-                        </div>
-                    </div>
+                    <a class="nav-link @NavActive("Projects")" asp-area="Projects" asp-controller="Projects" asp-action="Index"><span>🏗️</span> المشاريع</a>
                 }
                 @{
                     var supArea = ViewContext.RouteData.Values["area"]?.ToString();

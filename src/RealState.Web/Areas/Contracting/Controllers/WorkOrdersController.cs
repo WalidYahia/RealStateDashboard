@@ -82,6 +82,23 @@ public class WorkOrdersController : Controller
     }
 
     [HttpGet]
+    public async Task<IActionResult> Csv(DateTime? from, DateTime? to, Guid? contractorId, Guid? projectId, CancellationToken ct)
+    {
+        var rows = await BuildRowsAsync(from, to, contractorId, projectId, ct);
+        var inv = System.Globalization.CultureInfo.InvariantCulture;
+        string P(decimal v) => v.ToString("0.##", inv) + "%";
+        var headers = new[] { "رقم الأمر", "التاريخ", "المقاول", "المشروع", "البيان", "الإجمالي", "نسبة التنفيذ", "نسبة التعلية", "الخصومات", "الإجمالي الفعلي", "المدفوع", "المتبقي" };
+        var data = rows.Select(o => (IReadOnlyList<object?>)new object?[]
+        {
+            "WO-" + o.Number, o.OrderDate.ToString("yyyy-MM-dd", inv), o.Contractor, o.Project, o.ItemDescription,
+            o.Total, P(o.ExecutionPercent), P(o.UpliftPercent), o.Deductions, o.ActualTotal, o.Paid, o.Remaining
+        });
+        var totals = new object?[] { "الإجمالي", null, null, null, null, rows.Sum(o => o.Total), null, null,
+            rows.Sum(o => o.Deductions), rows.Sum(o => o.ActualTotal), rows.Sum(o => o.Paid), rows.Sum(o => o.Remaining) };
+        return RealState.Web.Common.Xlsx.File($"أوامر الشغل {DateTime.Now:yyyy-MM-dd}.xlsx", "أوامر الشغل", headers, data, totals);
+    }
+
+    [HttpGet]
     public async Task<IActionResult> PrintOrder(Guid id, CancellationToken ct)
     {
         var o = await _db.WorkOrders.FirstOrDefaultAsync(x => x.Id == id, ct);

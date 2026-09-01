@@ -1,6 +1,7 @@
 @model RewardFormModel
 <form id="appModalForm" asp-area="Hr" asp-controller="Rewards" asp-action="Form" method="post">
     @Html.AntiForgeryToken()
+    <input type="hidden" asp-for="Id" />
     <div asp-validation-summary="ModelOnly" class="validation-summary-errors"></div>
     @if (Model.Employees.Count == 0)
     {
