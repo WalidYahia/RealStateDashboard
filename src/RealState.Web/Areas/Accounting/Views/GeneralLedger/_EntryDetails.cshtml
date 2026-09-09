@@ -1,0 +1,27 @@
+@model EntryVm
+@{
+    string N(decimal v) => v.ToString("N2", new System.Globalization.CultureInfo("ar-EG"));
+    string D(DateTime d) => d.ToString("yyyy/MM/dd", System.Globalization.CultureInfo.InvariantCulture);
+}
+<div style="margin-bottom:10px;color:var(--muted);">
+    قيد رقم <span dir="ltr">@Model.Number</span> · @D(Model.Date)
+    @if (Model.IsManual) { <span class="badge-role">يدوي</span> } else { <span class="badge-role">آلي</span> }
+</div>
+<p style="font-weight:600;margin:0 0 10px;">@Model.Description</p>
+<table class="rs-table">
+    <thead><tr><th>الحساب</th><th>مدين</th><th>دائن</th><th>البيان</th></tr></thead>
+    <tbody>
+    @foreach (var l in Model.Lines)
+    {
+        <tr>
+            <td><span dir="ltr">@l.AccountCode</span> — @l.AccountName</td>
+            <td>@(l.Debit == 0 ? "" : N(l.Debit))</td>
+            <td>@(l.Credit == 0 ? "" : N(l.Credit))</td>
+            <td>@l.Memo</td>
+        </tr>
+    }
+    </tbody>
+    <tfoot>
+        <tr><th>الإجمالي</th><th>@N(Model.TotalDebit)</th><th>@N(Model.TotalCredit)</th><th></th></tr>
+    </tfoot>
+</table>

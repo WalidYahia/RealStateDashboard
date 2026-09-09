@@ -18,6 +18,11 @@ public interface IApplicationDbContext
     DbSet<AuditLog> AuditLogs { get; }
     DbSet<ActivityLog> ActivityLogs { get; }
 
+    // Double-entry general ledger
+    DbSet<Account> Accounts { get; }
+    DbSet<JournalEntry> JournalEntries { get; }
+    DbSet<JournalLine> JournalLines { get; }
+
     DbSet<Country> Countries { get; }
     DbSet<City> Cities { get; }
     DbSet<Currency> Currencies { get; }

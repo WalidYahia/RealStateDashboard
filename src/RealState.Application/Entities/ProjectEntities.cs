@@ -83,6 +83,8 @@ public class ProjectUnit : AuditableEntity, ITenantEntity
     public decimal AreaSqm { get; set; }
     /// <summary>Unit price — pre-fills the sale total when this unit is selected.</summary>
     public decimal Price { get; set; }
+    /// <summary>Capitalized cost of the unit (real-estate inventory value) — relieved to COGS when sold.</summary>
+    public decimal Cost { get; set; }
     public string? Description { get; set; }
     public string? Notes { get; set; }
 }

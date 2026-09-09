@@ -75,4 +75,16 @@
     </form>
 </div>
 
+<div class="card-tile" style="margin-top:18px;">
+    <div class="card-head"><h3>المحاسبة — إعادة بناء القيود</h3></div>
+    <p style="color:var(--muted);font-size:13px;">
+        يُنشئ قيود اليومية (المدين/الدائن) للبيانات الحالية لهذه المؤسسة (الأرصدة الافتتاحية، عقود البيع، أوامر التوريد،
+        أوامر الشغل، السلف والمكافآت، والحركات النقدية). العملية آمنة للتكرار — تتخطّى ما له قيود بالفعل. يُفضَّل أخذ نسخة احتياطية أولًا.
+    </p>
+    <form asp-controller="Settings" asp-action="RebuildLedger" method="post" data-confirm="سيتم إنشاء القيود المحاسبية للبيانات الحالية. هل تريد المتابعة؟">
+        @Html.AntiForgeryToken()
+        <button type="submit" class="btn-primary" style="width:auto;">🔁 إعادة بناء القيود المحاسبية</button>
+    </form>
+</div>
+
 @section Scripts { <partial name="_ValidationScriptsPartial" /> }

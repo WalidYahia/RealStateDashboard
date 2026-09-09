@@ -238,7 +238,7 @@ public class ProjectsController : Controller
         // Only manual project expenses (no stage/installment link) may be deleted here.
         var t = await _db.SafeTransactions.FirstOrDefaultAsync(
             x => x.Id == id && x.Type == TxnType.Expense && x.Source == TxnSource.ProjectExpense && x.StageExpenseId == null, ct);
-        if (t is not null) { _db.SafeTransactions.Remove(t); await _db.SaveChangesAsync(ct); TempData["StatusMessage"] = "تم حذف المصروف."; }
+        if (t is not null) { await _accounting.RemoveTransactionAsync(t, ct); await _db.SaveChangesAsync(ct); TempData["StatusMessage"] = "تم حذف المصروف."; }
         return RedirectToAction(nameof(Details), new { id = projectId });
     }
 
@@ -382,8 +382,9 @@ public class ProjectsController : Controller
         var orderIds = await _db.SupplierOrders.Where(o => o.ProjectId == id).Select(o => o.Id).ToListAsync(ct);
 
         // Reverse the project-charged money (stage expenses + supplier-order payments) — safe balances
-        // recompute since they're derived from these transactions.
-        _db.SafeTransactions.RemoveRange(await _db.SafeTransactions.Where(t => t.ProjectId == id).ToListAsync(ct));
+        // recompute since they're derived from these transactions. Each also removes its journal entry.
+        foreach (var t in await _db.SafeTransactions.Where(t => t.ProjectId == id).ToListAsync(ct))
+            await _accounting.RemoveTransactionAsync(t, ct);
 
         // Supplier orders tied to this project (+ their items and payments).
         _db.SupplierPayments.RemoveRange(await _db.SupplierPayments.Where(x => x.SupplierOrderId != null && orderIds.Contains(x.SupplierOrderId.Value)).ToListAsync(ct));
@@ -396,6 +397,7 @@ public class ProjectsController : Controller
         _db.ProjectStages.RemoveRange(await _db.ProjectStages.Where(s => s.ProjectId == id).ToListAsync(ct));
         var delUnitIds = await _db.ProjectUnits.Where(u => u.ProjectId == id).Select(u => u.Id).ToListAsync(ct);
         _db.ProjectUnitAttachments.RemoveRange(await _db.ProjectUnitAttachments.Where(a => delUnitIds.Contains(a.UnitId)).ToListAsync(ct));
+        foreach (var uid in delUnitIds) await _accounting.RemoveObligationAsync("UnitInventory", uid, ct);
         _db.ProjectUnits.RemoveRange(await _db.ProjectUnits.Where(u => u.ProjectId == id).ToListAsync(ct));
         _db.ProjectAttachments.RemoveRange(await _db.ProjectAttachments.Where(a => a.ProjectId == id).ToListAsync(ct));
 
@@ -414,7 +416,7 @@ public class ProjectsController : Controller
         if (id is null) return PartialView("_UnitForm", new UnitFormModel { ProjectId = projectId });
         var u = await _db.ProjectUnits.FirstOrDefaultAsync(x => x.Id == id, ct);
         if (u is null) return NotFound();
-        return PartialView("_UnitForm", new UnitFormModel { Id = u.Id, ProjectId = u.ProjectId, Name = u.Name, Number = u.Number, Status = u.Status, AreaSqm = u.AreaSqm, Price = u.Price, Description = u.Description, Notes = u.Notes });
+        return PartialView("_UnitForm", new UnitFormModel { Id = u.Id, ProjectId = u.ProjectId, Name = u.Name, Number = u.Number, Status = u.Status, AreaSqm = u.AreaSqm, Price = u.Price, Cost = u.Cost, Description = u.Description, Notes = u.Notes });
     }
 
     [HttpPost]
@@ -424,15 +426,20 @@ public class ProjectsController : Controller
         if (!Can(model.Id == Guid.Empty ? PermissionNames.ProjectsCreate : PermissionNames.ProjectsEdit)) return Forbid();
         if (!ModelState.IsValid) return PartialView("_UnitForm", model);
 
+        ProjectUnit unit;
         if (model.Id == Guid.Empty)
-            _db.ProjectUnits.Add(new ProjectUnit { ProjectId = model.ProjectId, Name = model.Name, Number = model.Number, Status = model.Status, AreaSqm = model.AreaSqm, Price = model.Price, Description = model.Description, Notes = model.Notes });
+        {
+            unit = new ProjectUnit { ProjectId = model.ProjectId, Name = model.Name, Number = model.Number, Status = model.Status, AreaSqm = model.AreaSqm, Price = model.Price, Cost = model.Cost, Description = model.Description, Notes = model.Notes };
+            _db.ProjectUnits.Add(unit);
+        }
         else
         {
-            var u = await _db.ProjectUnits.FirstOrDefaultAsync(x => x.Id == model.Id, ct);
-            if (u is null) return NotFound();
-            u.Name = model.Name; u.Number = model.Number; u.Status = model.Status;
-            u.AreaSqm = model.AreaSqm; u.Price = model.Price; u.Description = model.Description; u.Notes = model.Notes;
+            unit = await _db.ProjectUnits.FirstOrDefaultAsync(x => x.Id == model.Id, ct);
+            if (unit is null) return NotFound();
+            unit.Name = model.Name; unit.Number = model.Number; unit.Status = model.Status;
+            unit.AreaSqm = model.AreaSqm; unit.Price = model.Price; unit.Cost = model.Cost; unit.Description = model.Description; unit.Notes = model.Notes;
         }
+        await _accounting.SyncUnitInventoryAsync(unit, ct);   // Dr مخزون العقارات  Cr رصيد افتتاحي
         await _db.SaveChangesAsync(ct);
         return Json(new { ok = true });
     }
@@ -528,6 +535,7 @@ public class ProjectsController : Controller
         }
 
         _db.ProjectUnitAttachments.RemoveRange(await _db.ProjectUnitAttachments.Where(a => a.UnitId == id).ToListAsync(ct));
+        await _accounting.RemoveObligationAsync("UnitInventory", u.Id, ct);   // reverse the unit's inventory entry
         _db.ProjectUnits.Remove(u);
         await _db.SaveChangesAsync(ct);
         // Descriptive status → the activity-log filter records it as the delete action's description.

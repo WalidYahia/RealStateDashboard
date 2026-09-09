@@ -1,0 +1,90 @@
+@model IncomeStatementVm
+@{
+    ViewData["Title"] = "قائمة الدخل";
+    string N(decimal v) => v.ToString("N2", new System.Globalization.CultureInfo("ar-EG"));
+    string D(DateTime? d) => (d ?? DateTime.Today).ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+    var from = D(Model.From); var to = D(Model.To);
+    var today = DateTime.Today;
+}
+<div class="page-head">
+    <h1>قائمة الدخل</h1>
+    <span style="display:flex;gap:8px;">
+        <a class="btn-sm" asp-action="IncomeStatementPrint" asp-route-from="@from" asp-route-to="@to" target="_blank">🖨 طباعة (PDF)</a>
+        <a class="btn-sm" asp-action="IncomeStatementExcel" asp-route-from="@from" asp-route-to="@to">⬇ Excel</a>
+    </span>
+</div>
+
+<div class="card-tile" style="margin-bottom:12px;">
+    <form asp-action="IncomeStatement" method="get" class="filter-form" id="isForm">
+        <div class="filter-row">
+            <div class="fld"><label class="form-label">من</label><input type="date" name="from" value="@from" class="form-control" dir="ltr" /></div>
+            <div class="fld"><label class="form-label">إلى</label><input type="date" name="to" value="@to" class="form-control" dir="ltr" /></div>
+            <div class="filter-presets">
+                <button type="button" class="btn-sm" onclick="isPreset('@(today.Year)-01-01','@D(today)')">هذا العام</button>
+                <button type="button" class="btn-sm" onclick="isPreset('@(today.Year-1)-01-01','@(today.Year-1)-12-31')">العام السابق</button>
+                <button type="button" class="btn-sm" onclick="isPreset('@(new DateTime(today.Year, today.Month, 1).ToString("yyyy-MM-dd"))','@D(today)')">هذا الشهر</button>
+            </div>
+            <div class="filter-actions"><button type="submit" class="btn-primary">عرض</button></div>
+        </div>
+    </form>
+</div>
+
+<div class="card-tile">
+    <div class="card-head">
+        <h3>عن الفترة من @Model.From?.ToString("yyyy/MM/dd") إلى @Model.To?.ToString("yyyy/MM/dd")</h3>
+    </div>
+    <div style="overflow-x:auto;">
+        <table class="rs-table is-report" data-no-grid>
+            <thead>
+                <tr><th class="is-code">الكود</th><th class="is-name">الحساب</th><th class="is-amt">المبلغ</th></tr>
+            </thead>
+            <tbody>
+                <tr class="is-sec is-sec-rev"><th colspan="3">الإيرادات</th></tr>
+                @foreach (var r in Model.Revenues)
+                {
+                    <tr><td dir="ltr" class="is-code">@r.Code</td><td class="is-name">@r.Name</td><td class="is-amt">@N(r.Amount)</td></tr>
+                }
+                @if (Model.Revenues.Count == 0) { <tr><td colspan="3" style="color:var(--muted)">لا توجد إيرادات في هذه الفترة.</td></tr> }
+                <tr class="is-subtot"><td colspan="2">إجمالي الإيرادات</td><td class="is-amt">@N(Model.TotalRevenue)</td></tr>
+
+                <tr class="is-sec is-sec-exp"><th colspan="3">المصروفات</th></tr>
+                @foreach (var e in Model.Expenses)
+                {
+                    <tr><td dir="ltr" class="is-code">@e.Code</td><td class="is-name">@e.Name</td><td class="is-amt">@N(e.Amount)</td></tr>
+                }
+                @if (Model.Expenses.Count == 0) { <tr><td colspan="3" style="color:var(--muted)">لا توجد مصروفات في هذه الفترة.</td></tr> }
+                <tr class="is-subtot"><td colspan="2">إجمالي المصروفات</td><td class="is-amt">@N(Model.TotalExpense)</td></tr>
+            </tbody>
+            <tfoot>
+                <tr class="is-net">
+                    <th colspan="2" style="text-align:start;">@(Model.NetProfit >= 0 ? "صافي الربح" : "صافي الخسارة")</th>
+                    <th class="is-amt" style="color:@(Model.NetProfit >= 0 ? "var(--good,#199e70)" : "var(--critical,#d03b3b)");">@N(Model.NetProfit)</th>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+</div>
+
+<style>
+    .is-report { border-collapse: collapse; width: 100%; font-size: 13px; }
+    .is-report th, .is-report td { border: 1px solid var(--border, rgba(127,127,127,.28)); padding: 6px 10px; white-space: nowrap; }
+    .is-report thead th { background: rgba(57,135,229,.12); font-weight: 700; text-align: center; }
+    .is-report .is-code { width: 110px; text-align: center; color: var(--muted); font-size: 12px; }
+    .is-report .is-name { text-align: start; }
+    .is-report .is-amt { width: 200px; text-align: end; font-variant-numeric: tabular-nums; }
+    .is-report tbody tr:hover { background: rgba(127,127,127,.05); }
+    .is-report tr.is-sec th { text-align: start; font-weight: 800; }
+    .is-report tr.is-sec-rev th { background: rgba(57,135,229,.16); }
+    .is-report tr.is-sec-exp th { background: rgba(208,59,59,.12); }
+    .is-report tr.is-subtot td { font-weight: 700; background: rgba(127,127,127,.06); }
+    .is-report tfoot tr.is-net th { background: rgba(57,135,229,.10); font-weight: 800; font-size: 14px; }
+</style>
+
+<script>
+    function isPreset(f, t) {
+        var form = document.getElementById('isForm');
+        form.querySelector('[name=from]').value = f;
+        form.querySelector('[name=to]').value = t;
+        form.submit();
+    }
+</script>

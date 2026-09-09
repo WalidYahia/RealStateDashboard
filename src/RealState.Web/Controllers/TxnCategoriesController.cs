@@ -20,11 +20,14 @@ public class TxnCategoriesController : Controller
 {
     private readonly IApplicationDbContext _db;
     private readonly ITxnCategoryService _svc;
+    private readonly RealState.Application.Accounting.IAccountingService _accounting;
 
-    public TxnCategoriesController(IApplicationDbContext db, ITxnCategoryService svc)
+    public TxnCategoriesController(IApplicationDbContext db, ITxnCategoryService svc,
+        RealState.Application.Accounting.IAccountingService accounting)
     {
         _db = db;
         _svc = svc;
+        _accounting = accounting;
     }
 
     [HttpGet]
@@ -47,10 +50,12 @@ public class TxnCategoriesController : Controller
         if (await _db.TxnCategories.AnyAsync(c => c.Type == type && c.Name == name, ct))
         { TempData["ErrorMessage"] = "يوجد بند بنفس الاسم في هذا النوع."; return RedirectToAction(nameof(Index)); }
 
-        _db.TxnCategories.Add(new TxnCategory
+        var cat = new TxnCategory
         {
             Type = type, Name = name, IsBuiltIn = false, BuiltInKind = AccountingEntryKind.General, SortOrder = 100, IsActive = true
-        });
+        };
+        _db.TxnCategories.Add(cat);
+        await _accounting.EnsureCategoryAccountAsync(cat, ct);   // add it to دليل الحسابات
         await _db.SaveChangesAsync(ct);
         TempData["StatusMessage"] = "تمت إضافة البند.";
         return RedirectToAction(nameof(Index));
@@ -68,6 +73,7 @@ public class TxnCategoriesController : Controller
         if (await _db.TxnCategories.AnyAsync(x => x.Type == c.Type && x.Name == name && x.Id != c.Id, ct))
         { TempData["ErrorMessage"] = "يوجد بند بنفس الاسم في هذا النوع."; return RedirectToAction(nameof(Index)); }
         c.Name = name;
+        await _accounting.EnsureCategoryAccountAsync(c, ct);   // sync the account name
         await _db.SaveChangesAsync(ct);
         TempData["StatusMessage"] = "تم تحديث البند.";
         return RedirectToAction(nameof(Index));
@@ -82,6 +88,9 @@ public class TxnCategoriesController : Controller
         if (c.IsBuiltIn) { TempData["ErrorMessage"] = "لا يمكن حذف بند مدمج."; return RedirectToAction(nameof(Index)); }
         // Keep any transactions that used it; just unlink the category.
         foreach (var t in await _db.SafeTransactions.Where(t => t.CategoryId == id).ToListAsync(ct)) t.CategoryId = null;
+        // Deactivate (not delete) its ledger account — it may carry posted journal lines.
+        var acc = await _db.Accounts.FirstOrDefaultAsync(a => a.SubKind == "TxnCategory" && a.SubRefId == id, ct);
+        if (acc is not null) acc.IsActive = false;
         _db.TxnCategories.Remove(c);
         await _db.SaveChangesAsync(ct);
         TempData["StatusMessage"] = "تم حذف البند.";

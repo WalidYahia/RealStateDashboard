@@ -1,0 +1,64 @@
+@model AccountNode
+@{
+    var canManage = ViewData["CanManage"] as bool? ?? false;
+    string N(decimal v) => v.ToString("N0", new System.Globalization.CultureInfo("ar-EG"));
+    string TypeAr(RealState.Application.Enums.AccountType t) => t switch
+    {
+        RealState.Application.Enums.AccountType.Asset => "أصول",
+        RealState.Application.Enums.AccountType.Liability => "خصوم",
+        RealState.Application.Enums.AccountType.Equity => "حقوق ملكية",
+        RealState.Application.Enums.AccountType.Revenue => "إيرادات",
+        RealState.Application.Enums.AccountType.Expense => "مصروفات",
+        _ => t.ToString()
+    };
+    var hasChildren = Model.Children.Count > 0;
+    var icon = hasChildren ? "📂" : (Model.IsPostable ? "📄" : "📁");
+}
+<li class="coa-li" draggable="@(canManage ? "true" : "false")" data-id="@Model.Id" data-system="@(Model.IsSystem ? "1" : "0")"
+    data-search="@((Model.Code + " " + Model.Name).ToLower())">
+    <div class="coa-row @(hasChildren ? "coa-group" : "") @(Model.Depth == 0 ? "coa-main" : "")">
+        <span class="coa-indent" style="width:@(Model.Depth * 20)px"></span>
+        <span class="coa-toggle" onclick="coaToggle(event, this)">@(hasChildren ? "▾" : "")</span>
+        <span class="coa-ico">@icon</span>
+        <span class="coa-acct">
+            <span class="coa-nm">@Model.Name @if (!Model.IsActive) { <span class="badge-state state-off">متوقف</span> }</span>
+            <span class="coa-code" dir="ltr">@Model.Code</span>
+        </span>
+        <span class="badge-role coa-type">@TypeAr(Model.Type)</span>
+        <span class="coa-bal">@N(Model.Balance)</span>
+        @if (canManage)
+        {
+            <span class="coa-actions">
+                @if (Model.IsControlManaged)
+                {
+                    <span class="coa-info" title="تُضاف الحسابات الفرعية من صفحاتها المخصّصة: العملاء / الموردون / المقاولون / الخزائن / الموظفون — ولا تُضاف يدويًا من هنا.">ℹ️</span>
+                }
+                else if (!Model.IsPostable)
+                {
+                    <button type="button" class="btn-sm coa-add" title="إضافة حساب فرعي" onclick="appOpenModal('@Url.Action("Form", new { parentId = Model.Id })', 'حساب جديد')">➕</button>
+                }
+                @if (!Model.IsSystem)
+                {
+                    <button type="button" class="btn-sm" title="تعديل" onclick="appOpenModal('@Url.Action("Form", new { id = Model.Id })', 'تعديل الحساب')">✏️</button>
+                    <form asp-action="Delete" asp-route-id="@Model.Id" method="post" style="display:inline;" data-confirm="حذف الحساب @Model.Code؟" data-danger>
+                        @Html.AntiForgeryToken()
+                        <button type="submit" class="btn-sm btn-danger">🗑</button>
+                    </form>
+                }
+            </span>
+        }
+    </div>
+    @if (hasChildren)
+    {
+        <ul class="coa-children">
+            @foreach (var child in Model.Children)
+            {
+                @await Html.PartialAsync("_AccountNode", child)
+            }
+        </ul>
+    }
+    else
+    {
+        <ul class="coa-children" style="display:none;"></ul>
+    }
+</li>

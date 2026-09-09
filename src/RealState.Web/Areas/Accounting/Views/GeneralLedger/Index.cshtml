@@ -1,0 +1,268 @@
+@model LedgerVm
+@{
+    ViewData["Title"] = "دفتر الأستاذ";
+    string N(decimal v) => v.ToString("N2", new System.Globalization.CultureInfo("ar-EG"));
+    string D(DateTime d) => d.ToString("yyyy/MM/dd", System.Globalization.CultureInfo.InvariantCulture);
+    string? F(DateTime? d) => d?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+    var side = Model.IsDebitNormal ? "مدين" : "دائن";
+    var acctCol = Model.IsGroup ? 1 : 0;
+    var showBal = !Model.IsAll;             // running balance is meaningless across all accounts
+    var preBalance = 5 + acctCol;           // date, number, [account], statement, debit, credit
+    var total = 6 + acctCol + (showBal ? 1 : 0);   // + [balance] + actions
+    Guid? lastEntry = null;
+}
+<div class="page-head">
+    <h1>دفتر الأستاذ</h1>
+    @if (Model.CanManage)
+    {
+        <button type="button" class="btn-new-tenant" onclick="appOpenModal('@Url.Action("EntryForm")', 'قيد يدوي جديد')">➕ قيد يدوي</button>
+    }
+</div>
+
+@if (TempData["StatusMessage"] is string status) { <div class="status-message">@status</div> }
+@if (TempData["ErrorMessage"] is string err) { <div class="status-message" style="background:rgba(208,59,59,.12);border-color:var(--critical);color:var(--critical);">@err</div> }
+
+<div class="card-tile" style="margin-bottom:12px;">
+    <form asp-action="Index" method="get" class="filter-form">
+        <div class="filter-row">
+            <div class="fld"><label class="form-label">من</label><input type="date" name="from" value="@F(Model.From)" class="form-control" dir="ltr" /></div>
+            <div class="fld"><label class="form-label">إلى</label><input type="date" name="to" value="@F(Model.To)" class="form-control" dir="ltr" /></div>
+            <div class="filter-presets">
+                <button type="button" class="btn-sm date-preset" data-from="@F(DateTime.Today)" data-to="@F(DateTime.Today)">اليوم</button>
+                <button type="button" class="btn-sm date-preset" data-from="@F(DateTime.Today.AddDays(-7))" data-to="@F(DateTime.Today)">آخر أسبوع</button>
+                <button type="button" class="btn-sm date-preset" data-from="@F(DateTime.Today.AddMonths(-1))" data-to="@F(DateTime.Today)">آخر شهر</button>
+            </div>
+        </div>
+        <div class="filter-row">
+            <div class="fld" style="min-width:280px;">
+                <label class="form-label">الحساب</label>
+                <select name="accountId" class="form-control" data-searchable asp-items="Model.Accounts">
+                    <option value="">الكل</option>
+                </select>
+            </div>
+            <div class="filter-actions">
+                <button type="submit" class="btn-primary">بحث</button>
+            </div>
+        </div>
+    </form>
+</div>
+
+<div class="card-tile">
+    <div class="card-head">
+        @if (Model.IsAll)
+        {
+            <h3>كل الحسابات — دفتر اليومية</h3>
+        }
+        else
+        {
+            <h3><span class="proj-code" dir="ltr">@Model.AccountCode</span> @Model.AccountName @if (Model.IsGroup) { <span class="badge-role">شامل الفروع</span> }</h3>
+            <span style="color:var(--muted);font-size:13px;">الطبيعة: @side</span>
+        }
+    </div>
+    <div class="list-search-bar"><input class="form-control list-search" data-target="#glTable" placeholder="🔍 بحث في القائمة..." /></div>
+    <div style="overflow-x:auto;">
+    @if (Model.IsAll)
+    {
+        <table class="rs-table gl-journal" id="glTable" style="white-space:nowrap;">
+            <thead>
+                <tr><th class="gl-c-date">التاريخ</th><th class="gl-c-num">القيد</th><th>البيان</th><th class="gl-c-val">القيمة</th><th class="gl-c-act"></th></tr>
+            </thead>
+            <tbody>
+                @foreach (var r in Model.Rows)
+                {
+                    <tr>
+                        <td dir="ltr" style="text-align:right;white-space:nowrap;">@D(r.Date)</td>
+                        <td dir="ltr" style="text-align:right;">@r.Number</td>
+                        <td>@r.Description</td>
+                        <td style="white-space:nowrap;font-weight:600;">@N(r.Value)</td>
+                        <td style="white-space:nowrap;">
+                            <button type="button" class="btn-sm" title="تفاصيل القيد" onclick="appOpenModal('@Url.Action("Entry", new { id = r.EntryId })', 'تفاصيل القيد')">📄</button>
+                            @if (r.IsManual && Model.CanManage)
+                            {
+                                <button type="button" class="btn-sm" title="تعديل القيد" onclick="appOpenModal('@Url.Action("EntryForm", new { id = r.EntryId })', 'تعديل القيد اليدوي')">✏️</button>
+                                <form asp-action="EntryDelete" method="post" style="display:inline;" data-confirm="حذف القيد اليدوي؟" data-danger>
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="id" value="@r.EntryId" />
+                                    <input type="hidden" name="from" value="@F(Model.From)" /><input type="hidden" name="to" value="@F(Model.To)" />
+                                    <button type="submit" class="btn-sm btn-danger">🗑</button>
+                                </form>
+                            }
+                        </td>
+                    </tr>
+                }
+                @if (Model.Rows.Count == 0)
+                {
+                    <tr data-skip-search><td colspan="5" style="color:var(--muted)">لا توجد قيود في هذه الفترة.</td></tr>
+                }
+                <tr data-no-results data-skip-search style="display:none;"><td colspan="5" style="color:var(--muted)">لا توجد نتائج مطابقة.</td></tr>
+            </tbody>
+            <tfoot>
+                <tr>
+                    <th colspan="3" style="text-align:start;">الإجمالي</th>
+                    <th style="white-space:nowrap;">@N(Model.TotalValue)</th>
+                    <th></th>
+                </tr>
+            </tfoot>
+        </table>
+    }
+    else
+    {
+        <table class="rs-table" id="glTable" style="white-space:nowrap;">
+            <thead>
+                <tr>
+                    <th>التاريخ</th><th>القيد</th>@if (Model.IsGroup) { <th>الحساب</th> }<th>البيان</th><th>مدين</th><th>دائن</th>@if (showBal) { <th>الرصيد (@side)</th> }<th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (showBal)
+                {
+                    <tr data-skip-search data-skip-page style="background:rgba(127,127,127,.06);">
+                        <td colspan="@preBalance" style="font-weight:600;">رصيد افتتاحي</td>
+                        <td style="font-weight:700;white-space:nowrap;">@N(Model.Opening)</td>
+                        <td></td>
+                    </tr>
+                }
+                @foreach (var r in Model.Rows)
+                {
+                    var firstOfEntry = r.EntryId != lastEntry; lastEntry = r.EntryId;
+                    <tr>
+                        <td dir="ltr" style="text-align:right;white-space:nowrap;">@D(r.Date)</td>
+                        <td dir="ltr" style="text-align:right;">@r.Number</td>
+                        @if (Model.IsGroup) { <td>@r.AccountName</td> }
+                        <td>@r.Description @(string.IsNullOrEmpty(r.Memo) || r.Memo == r.Description ? "" : $"— {r.Memo}")</td>
+                        <td>@(r.Debit == 0 ? "" : N(r.Debit))</td>
+                        <td>@(r.Credit == 0 ? "" : N(r.Credit))</td>
+                        @if (showBal) { <td style="white-space:nowrap;font-weight:600;">@N(r.Balance)</td> }
+                        <td style="white-space:nowrap;">
+                            <button type="button" class="btn-sm" title="تفاصيل القيد" onclick="appOpenModal('@Url.Action("Entry", new { id = r.EntryId })', 'تفاصيل القيد')">📄</button>
+                            @if (r.IsManual && Model.CanManage && firstOfEntry)
+                            {
+                                <button type="button" class="btn-sm" title="تعديل القيد" onclick="appOpenModal('@Url.Action("EntryForm", new { id = r.EntryId })', 'تعديل القيد اليدوي')">✏️</button>
+                                <form asp-action="EntryDelete" method="post" style="display:inline;" data-confirm="حذف القيد اليدوي؟" data-danger>
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="id" value="@r.EntryId" />
+                                    <input type="hidden" name="accountId" value="@Model.AccountId" />
+                                    <input type="hidden" name="from" value="@F(Model.From)" /><input type="hidden" name="to" value="@F(Model.To)" />
+                                    <button type="submit" class="btn-sm btn-danger">🗑</button>
+                                </form>
+                            }
+                        </td>
+                    </tr>
+                }
+                @if (Model.Rows.Count == 0)
+                {
+                    <tr data-skip-search><td colspan="@total" style="color:var(--muted)">لا توجد حركات في هذه الفترة.</td></tr>
+                }
+                <tr data-no-results data-skip-search style="display:none;"><td colspan="@total" style="color:var(--muted)">لا توجد نتائج مطابقة.</td></tr>
+            </tbody>
+            <tfoot>
+                <tr>
+                    <th colspan="@(preBalance - 2)" style="text-align:start;">الإجمالي</th>
+                    <th>@N(Model.TotalDebit)</th>
+                    <th>@N(Model.TotalCredit)</th>
+                    @if (showBal) { <th style="white-space:nowrap;">@N(Model.Closing)</th> }
+                    <th></th>
+                </tr>
+            </tfoot>
+        </table>
+    }
+    </div>
+</div>
+
+<style>
+    /* Fixed layout so column widths stay identical across pages regardless of row content. */
+    .gl-journal { table-layout: fixed; width: 100%; }
+    .gl-journal .grid-idx { width: 52px; }
+    .gl-journal .gl-c-date { width: 130px; }
+    .gl-journal .gl-c-num { width: 130px; }
+    .gl-journal .gl-c-val { width: 170px; }
+    .gl-journal .gl-c-act { width: 150px; }
+    /* البيان (no width) absorbs the remainder */
+    .gl-journal td, .gl-journal th { overflow: hidden; text-overflow: ellipsis; }
+</style>
+
+@if (Model.CanManage)
+{
+    <script>
+        (function () {
+            function tbody() { var t = document.getElementById('manualLines'); return t ? t.querySelector('tbody') : null; }
+            function reindex() {
+                var b = tbody(); if (!b) return;
+                Array.prototype.forEach.call(b.rows, function (row, i) {
+                    var s = row.querySelector('select'); if (s) s.name = 'Lines[' + i + '].AccountId';
+                    var dr = row.querySelector('.ml-dr'); if (dr) dr.name = 'Lines[' + i + '].Debit';
+                    var cr = row.querySelector('.ml-cr'); if (cr) cr.name = 'Lines[' + i + '].Credit';
+                    var mm = row.querySelector('.ml-memo'); if (mm) mm.name = 'Lines[' + i + '].Memo';
+                });
+            }
+            window.manualRecalc = function () {
+                var b = tbody(); if (!b) return;
+                var dr = 0, cr = 0;
+                Array.prototype.forEach.call(b.querySelectorAll('.ml-dr'), function (i) { dr += parseFloat(i.value) || 0; });
+                Array.prototype.forEach.call(b.querySelectorAll('.ml-cr'), function (i) { cr += parseFloat(i.value) || 0; });
+                var f = function (n) { return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); };
+                var td = document.getElementById('mlTotDr'), tc = document.getElementById('mlTotCr'), bal = document.getElementById('mlBal');
+                if (td) td.textContent = f(dr); if (tc) tc.textContent = f(cr);
+                if (bal) {
+                    var diff = Math.round((dr - cr) * 100) / 100;
+                    bal.textContent = diff === 0 ? '✔ متوازن' : ('غير متوازن: الفرق ' + f(Math.abs(diff)));
+                    bal.style.color = diff === 0 ? 'var(--good, #199e70)' : 'var(--critical, #d03b3b)';
+                }
+                mlBuildPayload();   // keep the hidden payload in sync so a normal submit carries the lines
+            };
+            function mlBuildPayload() {
+                var b = tbody(); var out = [];
+                if (b) Array.prototype.forEach.call(b.rows, function (row) {
+                    var acc = row.querySelector('.ml-acc'), dr = row.querySelector('.ml-dr'), cr = row.querySelector('.ml-cr'), mm = row.querySelector('.ml-memo');
+                    out.push({
+                        accountId: (acc && acc.value) ? acc.value : null,
+                        debit: dr ? (parseFloat(dr.value) || 0) : 0,
+                        credit: cr ? (parseFloat(cr.value) || 0) : 0,
+                        memo: mm ? mm.value : null
+                    });
+                });
+                var p = document.getElementById('mlPayload'); if (p) p.value = JSON.stringify(out);
+            }
+            window.manualAddLine = function () {
+                var b = tbody(); if (!b || !b.rows.length) return;
+                var row = b.rows[0].cloneNode(true);
+                Array.prototype.forEach.call(row.querySelectorAll('input'), function (i) { i.value = ''; });
+                var s = row.querySelector('select'); if (s) s.selectedIndex = 0;
+                b.appendChild(row); reindex(); window.manualRecalc();
+            };
+            window.manualRemoveLine = function (btn) {
+                var b = tbody(); if (!b) return;
+                if (b.rows.length <= 2) { window.appAlertError && window.appAlertError('القيد يحتاج سطرين على الأقل.'); return; }
+                var row = btn.closest('tr'); if (row) row.remove();
+                reindex(); window.manualRecalc();
+            };
+            window.manualInit = function () { reindex(); window.manualRecalc(); };
+
+            // Save via an explicit fetch (bypasses form-submit handling entirely) so a request is always sent.
+            window.manualSave = function (btn) {
+                mlBuildPayload();
+                var form = document.getElementById('appModalForm');
+                if (!form) return;
+                if (btn) btn.disabled = true;
+                fetch(form.action, { method: 'POST', body: new FormData(form), headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                    .then(function (r) {
+                        var ct = r.headers.get('content-type') || '';
+                        return ct.indexOf('application/json') >= 0
+                            ? r.json().then(function (j) { return { json: j }; })
+                            : r.text().then(function (t) { return { html: t }; });
+                    })
+                    .then(function (res) {
+                        if (res.json) {
+                            if (res.json.ok) { window.location.reload(); return; }
+                            if (btn) btn.disabled = false;
+                            if (window.appAlertError) window.appAlertError(res.json.error || 'تعذّر الحفظ.');
+                            return;
+                        }
+                        var body = document.getElementById('appModalBody');
+                        if (body) { body.innerHTML = res.html; window.manualInit(); }   // validation re-render
+                    })
+                    .catch(function () { if (btn) btn.disabled = false; if (window.appAlertError) window.appAlertError('تعذّر الاتصال بالخادم.'); });
+            };
+        })();
+    </script>
+}

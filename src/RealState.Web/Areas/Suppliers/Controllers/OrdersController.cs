@@ -135,6 +135,7 @@ public class OrdersController : Controller
             _db.SupplierOrders.Add(order);
             foreach (var it in items)
                 _db.SupplierOrderItems.Add(new SupplierOrderItem { SupplierOrderId = order.Id, Name = it.Name, Cost = it.Cost, Quantity = it.Quantity });
+            await _accounting.SyncSupplierOrderAsync(order, items.Sum(i => i.LineTotal), ct);   // Dr المشتريات  Cr الموردون
             await _db.SaveChangesAsync(ct);
             TempData["StatusMessage"] = $"تم إنشاء أمر التوريد PO-{order.Number:D4}.";
         }
@@ -157,6 +158,7 @@ public class OrdersController : Controller
             foreach (var o in old) _db.SupplierOrderItems.Remove(o);
             foreach (var it in items)
                 _db.SupplierOrderItems.Add(new SupplierOrderItem { SupplierOrderId = order.Id, Name = it.Name, Cost = it.Cost, Quantity = it.Quantity });
+            await _accounting.SyncSupplierOrderAsync(order, items.Sum(i => i.LineTotal), ct);   // re-sync Dr المشتريات  Cr الموردون
             await _db.SaveChangesAsync(ct);
             TempData["StatusMessage"] = $"تم تعديل أمر التوريد PO-{order.Number:D4}.";
         }
@@ -178,6 +180,7 @@ public class OrdersController : Controller
         var items = await _db.SupplierOrderItems.Where(i => i.SupplierOrderId == id).ToListAsync(ct);
         foreach (var it in items) _db.SupplierOrderItems.Remove(it);
         foreach (var a in await _db.SupplierOrderAttachments.Where(a => a.SupplierOrderId == id).ToListAsync(ct)) _db.SupplierOrderAttachments.Remove(a);
+        await _accounting.RemoveObligationAsync("SupplierOrder", id, ct);   // reverse the purchase journal entry
         _db.SupplierOrders.Remove(order);
         await _db.SaveChangesAsync(ct);
         TempData["StatusMessage"] = $"تم حذف أمر التوريد PO-{order.Number:D4}.";
@@ -332,7 +335,7 @@ public class OrdersController : Controller
         }
         var desc = $"دفعة للمورد «{supplierName}» على أمر التوريد PO-{order.Number:D4}{projPart}";
         var txn = await _accounting.AddTransactionAsync(model.SafeId!.Value, TxnType.Expense, TxnSource.SupplierPayment,
-            model.Amount, model.PaidDate, desc, projectId: order.ProjectId, ct: ct);
+            model.Amount, model.PaidDate, desc, projectId: order.ProjectId, supplierId: order.SupplierId, ct: ct);
 
         var payment = new SupplierPayment
         {

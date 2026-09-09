@@ -16,11 +16,13 @@ public class SalesController : Controller
 {
     private readonly IApplicationDbContext _db;
     private readonly ICurrentUserService _currentUser;
+    private readonly RealState.Application.Accounting.IAccountingService _accounting;
 
-    public SalesController(IApplicationDbContext db, ICurrentUserService currentUser)
+    public SalesController(IApplicationDbContext db, ICurrentUserService currentUser, RealState.Application.Accounting.IAccountingService accounting)
     {
         _db = db;
         _currentUser = currentUser;
+        _accounting = accounting;
     }
 
     private bool Can(string permission) => User.HasClaim("permission", permission);
@@ -203,6 +205,7 @@ public class SalesController : Controller
         GenerateInstallments(contract, model);
 
         unit!.Status = UnitStatus.Sold; // reserve the unit
+        await _accounting.PostSaleContractAsync(contract, ct);   // Dr A/R  Cr Sales Revenue
         await _db.SaveChangesAsync(ct);
 
         TempData["StatusMessage"] = $"تم إنشاء عقد البيع «{contract.Code}».";
@@ -238,6 +241,9 @@ public class SalesController : Controller
             GenerateInstallments(c, model);
         }
 
+        // Keep the sale journal entry in sync with the (possibly changed) contract value.
+        await _accounting.RemoveObligationAsync("SaleContract", c.Id, ct);
+        await _accounting.PostSaleContractAsync(c, ct);
         await _db.SaveChangesAsync(ct);
         TempData["StatusMessage"] = $"تم تحديث عقد البيع «{c.Code}».";
         return Json(new { ok = true, redirect = Url.Action("Details", new { id = c.Id }) });
@@ -314,6 +320,7 @@ public class SalesController : Controller
         var unit = await _db.ProjectUnits.FirstOrDefaultAsync(u => u.Id == c.UnitId, ct);
         if (unit is not null) unit.Status = UnitStatus.Available; // release the unit
         _db.Installments.RemoveRange(insts);
+        await _accounting.RemoveObligationAsync("SaleContract", c.Id, ct);   // reverse the sale journal entry
         _db.SaleContracts.Remove(c);
         await _db.SaveChangesAsync(ct);
 

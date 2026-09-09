@@ -206,21 +206,18 @@ public abstract class TxnControllerBase : Controller
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Delete(Guid id, DateTime? from, DateTime? to, string? source, string? q, CancellationToken ct)
+    public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
     {
         if (!Can(DeletePerm)) return Forbid();
 
-        // Reload the list preserving the page's current filter (date range / المصدر / search).
-        IActionResult Back() => RedirectToAction(nameof(Index), new { from, to, source, q });
-
         var t = await _db.SafeTransactions.FirstOrDefaultAsync(x => x.Id == id && x.Type == TxnType, ct);
-        if (t is null) return Back();
+        if (t is null) return RedirectToAction(nameof(Index));
 
         if (t.Source == TxnSource.Manual)
         {
-            _db.SafeTransactions.Remove(t);
+            await _accounting.RemoveTransactionAsync(t, ct);   // also reverses its journal entry
             await _db.SaveChangesAsync(ct);
-            return Back();
+            return RedirectToAction(nameof(Index));
         }
 
         // The advance-disbursement expense may be deleted here to "un-disburse" its advance — under the
@@ -236,12 +233,12 @@ public abstract class TxnControllerBase : Controller
                 if (repaid > 0)
                 {
                     TempData["ErrorMessage"] = $"لا يمكن حذف مصروف صرف السلفة ADV-{adv.Number:D4} لوجود مبالغ مسدَّدة عليها.";
-                    return Back();
+                    return RedirectToAction(nameof(Index));
                 }
                 adv.Status = DisbursementStatus.NotDisbursed;
                 adv.ExpenseTxnId = null;
             }
-            _db.SafeTransactions.Remove(t);
+            await _accounting.RemoveTransactionAsync(t, ct);
             await _db.SaveChangesAsync(ct);
             TempData["StatusMessage"] = adv is not null
                 ? $"تم حذف مصروف صرف السلفة ADV-{adv.Number:D4} وإعادتها إلى «لم يُصرف»."
@@ -256,13 +253,13 @@ public abstract class TxnControllerBase : Controller
             var advNo = repayment is null ? null
                 : await _db.Advances.Where(a => a.Id == repayment.AdvanceId).Select(a => (int?)a.Number).FirstOrDefaultAsync(ct);
             if (repayment is not null) _db.AdvanceRepayments.Remove(repayment);
-            _db.SafeTransactions.Remove(t);
+            await _accounting.RemoveTransactionAsync(t, ct);
             await _db.SaveChangesAsync(ct);
             TempData["StatusMessage"] = advNo is int n
                 ? $"تم حذف سداد السلفة ADV-{n:D4} وعكس المبلغ."
                 : "تم حذف سداد السلفة.";
         }
-        return Back();
+        return RedirectToAction(nameof(Index));
     }
 
     [HttpGet]

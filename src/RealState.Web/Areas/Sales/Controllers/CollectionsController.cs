@@ -131,7 +131,7 @@ public class CollectionsController : Controller
         var partial = inst.Number <= 0 && pay < inst.Amount ? " (دفعة جزئية)" : "";
         await _accounting.AddTransactionAsync(safeId, TxnType.Income, TxnSource.Collection, pay,
             DateTime.Now, $"تحصيل {label}{partial} — {custName}",
-            installmentId: inst.Id, ct: ct);
+            installmentId: inst.Id, projectId: contract?.ProjectId, customerId: contract?.CustomerId, unitId: contract?.UnitId, ct: ct);
 
         await _db.SaveChangesAsync(ct);
         return RedirectToAction(nameof(Receipt), new { id });

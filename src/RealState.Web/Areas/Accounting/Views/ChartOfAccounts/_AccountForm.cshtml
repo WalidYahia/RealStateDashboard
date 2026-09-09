@@ -1,0 +1,45 @@
+@model AccountFormModel
+@{
+    var types = new (int V, string T)[] { (0, "أصول"), (1, "خصوم"), (2, "حقوق ملكية"), (3, "إيرادات"), (4, "مصروفات") };
+}
+<form id="appModalForm" asp-area="Accounting" asp-controller="ChartOfAccounts" asp-action="Form" method="post">
+    @Html.AntiForgeryToken()
+    <div asp-validation-summary="ModelOnly" class="validation-summary-errors"></div>
+    <input type="hidden" asp-for="Id" />
+    <input type="hidden" asp-for="Code" id="acctCodeInput" />
+    <div class="form-grid">
+        <div>
+            <label asp-for="ParentId" class="form-label">الحساب الأب</label>
+            <select asp-for="ParentId" class="form-control" onchange="coaParentChanged(this)">
+                <option value="">— بدون (حساب رئيسي) —</option>
+                @foreach (var p in Model.ParentAccounts)
+                {
+                    <option value="@p.Id" data-type="@p.Type" selected="@(Model.ParentId == p.Id)">@p.Code — @p.Name</option>
+                }
+            </select>
+        </div>
+        <div>
+            <label asp-for="Type" class="form-label"></label>
+            <select asp-for="Type" id="acctTypeSelect" class="form-control">
+                @foreach (var t in types) { <option value="@t.V" selected="@((int)Model.Type == t.V)">@t.T</option> }
+            </select>
+        </div>
+        <div>
+            <label asp-for="Name" class="form-label"></label>
+            <input asp-for="Name" class="form-control" />
+            <span asp-validation-for="Name" class="field-validation-error"></span>
+        </div>
+        <div>
+            <label class="form-label">الكود <span style="color:var(--muted);font-weight:400;font-size:11px;">(تلقائي)</span></label>
+            <div id="acctCodeLabel" class="form-control" dir="ltr"
+                 style="background:rgba(127,127,127,.12);color:var(--muted);min-height:38px;display:flex;align-items:center;">@Model.Code</div>
+        </div>
+        <div>
+            <label class="form-check"><input asp-for="IsPostable" type="checkbox" /> حساب ترحيلي (يقبل القيود)</label>
+        </div>
+        <div>
+            <label class="form-check"><input asp-for="IsActive" type="checkbox" /> مفعّل</label>
+        </div>
+    </div>
+    <button type="submit" class="btn-primary" style="margin-top:12px;">💾 حفظ</button>
+</form>

@@ -1,0 +1,122 @@
+@model TrialBalanceVm
+@{
+    ViewData["Title"] = "ميزان المراجعة";
+    string M(decimal v) => v == 0 ? "" : v.ToString("N2", new System.Globalization.CultureInfo("ar-EG"));
+    string N(decimal v) => v.ToString("N2", new System.Globalization.CultureInfo("ar-EG"));
+    string D(DateTime? d) => (d ?? DateTime.Today).ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+    var from = Model.From.HasValue ? D(Model.From) : "";
+    var to = D(Model.To);
+    var today = DateTime.Today;
+}
+<div class="page-head">
+    <h1>ميزان المراجعة</h1>
+    <span style="display:flex;gap:8px;">
+        <a class="btn-sm" asp-action="TrialBalancePrint" asp-route-from="@from" asp-route-to="@to" target="_blank">🖨 طباعة (PDF)</a>
+        <a class="btn-sm" asp-action="TrialBalanceExcel" asp-route-from="@from" asp-route-to="@to">⬇ Excel</a>
+    </span>
+</div>
+
+<div class="card-tile" style="margin-bottom:12px;">
+    <form asp-action="TrialBalance" method="get" class="filter-form" id="tbForm">
+        <div class="filter-row">
+            <div class="fld"><label class="form-label">من تاريخ</label><input type="date" name="from" value="@from" class="form-control" dir="ltr" /></div>
+            <div class="fld"><label class="form-label">إلى تاريخ</label><input type="date" name="to" value="@to" class="form-control" dir="ltr" /></div>
+            <div class="filter-presets">
+                <button type="button" class="btn-sm" onclick="tbPreset('','@D(today)')">الكل</button>
+                <button type="button" class="btn-sm" onclick="tbPreset('@(today.Year)-01-01','@D(today)')">هذا العام</button>
+                <button type="button" class="btn-sm" onclick="tbPreset('@(today.Year-1)-01-01','@(today.Year-1)-12-31')">العام السابق</button>
+            </div>
+            <div class="filter-actions"><button type="submit" class="btn-primary">عرض</button></div>
+        </div>
+    </form>
+</div>
+
+<div class="card-tile">
+    <div class="card-head">
+        <h3>
+            @if (Model.From.HasValue) { <text>من @Model.From?.ToString("yyyy/MM/dd") </text> }
+            حتى @Model.To?.ToString("yyyy/MM/dd")
+        </h3>
+        @if (Model.IsBalanced)
+        {
+            <span class="badge-role" style="background:rgba(25,158,112,.15);color:var(--good,#199e70);">✔ متوازن</span>
+        }
+        else
+        {
+            <span class="badge-role" style="background:rgba(208,59,59,.12);color:var(--critical,#d03b3b);">غير متوازن</span>
+        }
+    </div>
+    <div style="overflow-x:auto;">
+        <table class="rs-table tb-report" id="tbTable" data-no-grid>
+            <thead>
+                <tr class="tb-grp">
+                    <th rowspan="2" class="tb-code">رقم</th>
+                    <th rowspan="2" class="tb-name">اسم الحساب</th>
+                    <th colspan="2">رصيد بداية</th>
+                    <th colspan="2">حركة الفترة</th>
+                    <th colspan="2">رصيد نهاية</th>
+                </tr>
+                <tr>
+                    <th>مدين</th><th>دائن</th>
+                    <th>مدين</th><th>دائن</th>
+                    <th>مدين</th><th>دائن</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var r in Model.Rows)
+                {
+                    <tr class="@(r.IsGroup ? "tb-group" : "")">
+                        <td dir="ltr" class="tb-code">@r.Code</td>
+                        <td class="tb-name" style="padding-inline-start:@(8 + r.Depth * 16)px">@r.Name</td>
+                        <td>@M(r.OpeningDebit)</td><td>@M(r.OpeningCredit)</td>
+                        <td>@M(r.PeriodDebit)</td><td>@M(r.PeriodCredit)</td>
+                        <td>@M(r.ClosingDebit)</td><td>@M(r.ClosingCredit)</td>
+                    </tr>
+                }
+                @if (Model.Rows.Count == 0)
+                {
+                    <tr data-skip-search><td colspan="8" style="color:var(--muted)">لا توجد أرصدة في هذه الفترة.</td></tr>
+                }
+                <tr data-no-results data-skip-search style="display:none;"><td colspan="8" style="color:var(--muted)">لا توجد نتائج مطابقة.</td></tr>
+            </tbody>
+            <tfoot>
+                <tr class="tb-tot">
+                    <th colspan="2" style="text-align:start;">الإجمالي</th>
+                    <th>@N(Model.TotOpeningDebit)</th><th>@N(Model.TotOpeningCredit)</th>
+                    <th>@N(Model.TotPeriodDebit)</th><th>@N(Model.TotPeriodCredit)</th>
+                    <th>@N(Model.TotClosingDebit)</th><th>@N(Model.TotClosingCredit)</th>
+                </tr>
+                <tr class="tb-net">
+                    <th colspan="2" style="text-align:start;">الصافي</th>
+                    <th colspan="2">@N(Model.TotOpeningDebit - Model.TotOpeningCredit)</th>
+                    <th colspan="2">@N(Model.TotPeriodDebit - Model.TotPeriodCredit)</th>
+                    <th colspan="2">@N(Model.TotClosingDebit - Model.TotClosingCredit)</th>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+</div>
+
+<style>
+    .tb-report { border-collapse: collapse; width: 100%; font-size: 13px; }
+    .tb-report th, .tb-report td { border: 1px solid var(--border, rgba(127,127,127,.28)); padding: 6px 8px; text-align: center; white-space: nowrap; }
+    .tb-report thead th { background: rgba(57,135,229,.12); font-weight: 700; }
+    .tb-report thead .tb-grp th { background: rgba(57,135,229,.18); }
+    .tb-report .tb-code { text-align: center; color: var(--muted); font-size: 12px; }
+    .tb-report .tb-name { text-align: start; }
+    .tb-report tbody td:nth-child(n+3) { font-variant-numeric: tabular-nums; }
+    .tb-report tbody tr:hover { background: rgba(127,127,127,.06); }
+    .tb-report tr.tb-group { background: rgba(127,127,127,.05); }
+    .tb-report tr.tb-group .tb-name { font-weight: 800; }
+    .tb-report tfoot th { background: rgba(57,135,229,.10); font-weight: 800; }
+    .tb-report tfoot .tb-net th { background: rgba(127,127,127,.06); }
+</style>
+
+<script>
+    function tbPreset(f, t) {
+        var form = document.getElementById('tbForm');
+        form.querySelector('[name=from]').value = f;
+        form.querySelector('[name=to]').value = t;
+        form.submit();
+    }
+</script>

@@ -38,6 +38,10 @@ public class ApplicationDbContext
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<ActivityLog> ActivityLogs => Set<ActivityLog>();
 
+    public DbSet<Account> Accounts => Set<Account>();
+    public DbSet<JournalEntry> JournalEntries => Set<JournalEntry>();
+    public DbSet<JournalLine> JournalLines => Set<JournalLine>();
+
     public DbSet<Country> Countries => Set<Country>();
     public DbSet<City> Cities => Set<City>();
     public DbSet<Currency> Currencies => Set<Currency>();
@@ -132,6 +136,15 @@ public class ApplicationDbContext
 
         builder.Entity<Permission>().HasIndex(p => p.Name).IsUnique();
         builder.Entity<RolePermission>().HasIndex(rp => new { rp.RoleId, rp.PermissionId }).IsUnique();
+
+        // Double-entry ledger: unique code/number per tenant, subsidiary + source lookups, cascade lines.
+        builder.Entity<Account>().HasIndex(a => new { a.TenantId, a.Code }).IsUnique().HasFilter("[IsDeleted] = 0");
+        builder.Entity<Account>().HasIndex(a => new { a.TenantId, a.SubKind, a.SubRefId });
+        builder.Entity<Account>().HasOne(a => a.Parent).WithMany().HasForeignKey(a => a.ParentId).OnDelete(DeleteBehavior.Restrict);
+        builder.Entity<JournalEntry>().HasIndex(e => new { e.TenantId, e.Number }).IsUnique().HasFilter("[IsDeleted] = 0");
+        builder.Entity<JournalEntry>().HasIndex(e => new { e.SourceType, e.SourceId });
+        builder.Entity<JournalLine>().HasOne(l => l.Entry).WithMany(e => e.Lines).HasForeignKey(l => l.JournalEntryId).OnDelete(DeleteBehavior.Cascade);
+        builder.Entity<JournalLine>().HasOne(l => l.Account).WithMany().HasForeignKey(l => l.AccountId).OnDelete(DeleteBehavior.Restrict);
 
         // Sale contract references three parents — avoid multiple SQL Server cascade paths; deletes are handled in code.
         builder.Entity<SaleContract>().HasOne(s => s.Customer).WithMany().HasForeignKey(s => s.CustomerId).OnDelete(DeleteBehavior.Restrict);

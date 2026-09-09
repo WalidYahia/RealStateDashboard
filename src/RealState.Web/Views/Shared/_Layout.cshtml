@@ -154,6 +154,7 @@
                     var canSafes = Can(PermissionNames.SafesView);
                     var canExpenses = Can(PermissionNames.ExpensesView);
                     var canIncomes = Can(PermissionNames.IncomesView);
+                    var canAccounts = Can(PermissionNames.AccountsView);
                 }
                 @if (canSafes || canExpenses || canIncomes)
                 {
@@ -175,6 +176,25 @@
                             {
                                 <a class="subnav-link @NavActive("Incomes")" asp-area="Accounting" asp-controller="Incomes" asp-action="Index">الإيرادات</a>
                             }
+                        </div>
+                    </div>
+                }
+                @if (canAccounts)
+                {
+                    var glOpen = accCtrl is "ChartOfAccounts" or "GeneralLedger" or "AccountingReports";
+                    var accAct = ViewContext.RouteData.Values["action"]?.ToString();
+                    string ReportActive(string action) =>
+                        accCtrl == "AccountingReports" && (accAct ?? "").StartsWith(action, StringComparison.OrdinalIgnoreCase) ? "active" : "";
+                    <div class="nav-group @(glOpen ? "open" : "")">
+                        <div class="nav-parent">
+                            <a class="nav-link @(glOpen ? "active" : "")" href="javascript:" onclick="toggleNavGroup(this)"><span>📚</span> الحسابات العامة</a>
+                            <button type="button" class="nav-caret" onclick="toggleNavGroup(this)">▾</button>
+                        </div>
+                        <div class="subnav">
+                            <a class="subnav-link @NavActive("ChartOfAccounts")" asp-area="Accounting" asp-controller="ChartOfAccounts" asp-action="Index">دليل الحسابات</a>
+                            <a class="subnav-link @NavActive("GeneralLedger")" asp-area="Accounting" asp-controller="GeneralLedger" asp-action="Index">دفتر الأستاذ</a>
+                            <a class="subnav-link @ReportActive("IncomeStatement")" asp-area="Accounting" asp-controller="AccountingReports" asp-action="IncomeStatement">قائمة الدخل</a>
+                            <a class="subnav-link @ReportActive("TrialBalance")" asp-area="Accounting" asp-controller="AccountingReports" asp-action="TrialBalance">ميزان المراجعة</a>
                         </div>
                     </div>
                 }

@@ -1,0 +1,202 @@
+@model ChartVm
+@{
+    ViewData["Title"] = "دليل الحسابات";
+    ViewData["CanManage"] = Model.CanManage;
+}
+<div class="page-head">
+    <h1>دليل الحسابات</h1>
+    <div style="display:flex;gap:8px;">
+        @if (Model.CanManage)
+        {
+            <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("Form")', 'حساب جديد')">➕ حساب جديد</button>
+            <button type="button" class="btn-new-tenant" id="coaSaveBtn" onclick="coaSaveOrder()">💾 حفظ الترتيب</button>
+        }
+    </div>
+</div>
+
+@if (TempData["StatusMessage"] is string status) { <div class="status-message">@status</div> }
+@if (TempData["ErrorMessage"] is string err) { <div class="status-message" style="background:rgba(208,59,59,.12);border-color:var(--critical);color:var(--critical);">@err</div> }
+
+@Html.AntiForgeryToken()
+<div class="card-tile">
+    <div class="coa-toolbar">
+        <input type="text" class="form-control coa-search" placeholder="🔍 بحث عن حساب (كود أو اسم)..." oninput="coaSearch(this.value)" />
+        <div class="coa-toolbar-btns">
+            <button type="button" class="btn-sm" onclick="coaAll(false)" title="عرض الكل">عرض الكل</button>
+            <button type="button" class="btn-sm" onclick="coaAll(true)" title="غلق الكل">غلق الكل</button>
+        </div>
+    </div>
+
+    <div class="coa-head">
+        <span class="coa-head-lead"></span>
+        <span class="coa-acct">الحساب</span><span class="coa-type">النوع</span><span class="coa-bal">الرصيد</span>
+        @if (Model.CanManage) { <span class="coa-actions"></span> }
+    </div>
+    <ul id="coaTree" class="coa-tree">
+        @foreach (var root in Model.Roots)
+        {
+            @await Html.PartialAsync("_AccountNode", root)
+        }
+    </ul>
+    @if (Model.Roots.Count == 0) { <p style="color:var(--muted)">لا توجد حسابات.</p> }
+
+    @if (Model.CanManage)
+    {
+        <p style="color:var(--muted);font-size:12px;margin-top:12px;">💡 اسحب الحسابات لإعادة ترتيبها أو تغيير الحساب الأب ثم اضغط «حفظ الترتيب». الحسابات الفرعية المُدارة من النظام لا تُحذف.</p>
+    }
+</div>
+
+<style>
+    .coa-toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
+    .coa-search { max-width: 360px; margin: 0; }
+    .coa-toolbar-btns { display: flex; gap: 6px; }
+
+    .coa-tree, .coa-children { list-style: none; margin: 0; padding: 0; }
+    .coa-li.collapsed > .coa-children { display: none; }
+
+    .coa-head { display: flex; align-items: center; gap: 8px; padding: 6px 8px; color: var(--muted); font-size: 12px; border-bottom: 1px solid var(--border, rgba(127,127,127,.2)); margin-bottom: 4px; }
+    .coa-head-lead { width: 46px; flex: none; }
+
+    .coa-row { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 8px; border: 1px solid transparent; }
+    .coa-row:hover { background: rgba(127,127,127,.09); }
+    .coa-indent { flex: none; }
+    .coa-toggle { width: 16px; flex: none; text-align: center; cursor: pointer; color: var(--muted); user-select: none; transition: transform .15s ease; }
+    .coa-li.collapsed > .coa-row > .coa-toggle { transform: rotate(-90deg); }
+    .coa-ico { width: 18px; flex: none; text-align: center; margin-inline-end: 2px; }
+    .coa-acct { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 8px; }
+    .coa-nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .coa-code { flex: none; color: var(--muted); font-size: 12px; }
+    .coa-type { width: 96px; flex: none; text-align: center; }
+    .coa-bal { width: 120px; flex: none; text-align: left; white-space: nowrap; font-weight: 600; }
+    .coa-actions { width: 92px; flex: none; display: inline-flex; gap: 4px; visibility: hidden; align-items: center; }
+    .coa-row:hover .coa-actions { visibility: visible; }
+    .coa-info { visibility: visible; cursor: help; font-size: 14px; }
+    .coa-add { visibility: visible; }   /* the "add sub-account" ➕ is always shown on group accounts */
+
+    /* parent accounts bold; only the five root accounts get the dark-blue colour */
+    .coa-group .coa-nm { font-weight: 700; }
+    .coa-main .coa-nm, .coa-main .coa-code { color: #1d3faf; font-weight: 800; }
+
+    :root:not([data-theme="light"]) .coa-main .coa-nm, :root:not([data-theme="light"]) .coa-main .coa-code {
+        color: #7184b0;
+    }
+
+    .coa-hide { display: none !important; }
+    .coa-hit > .coa-row { background: rgba(57,135,229,.16); }
+    .coa-li.dragging > .coa-row { opacity: .45; }
+    .coa-row.drop-before { border-top-color: var(--series-1, #3987e5); }
+    .coa-row.drop-after { border-bottom-color: var(--series-1, #3987e5); }
+    .coa-row.drop-inside { border-color: var(--series-1, #3987e5); background: rgba(57,135,229,.12); }
+</style>
+
+<script>
+    (function () {
+        var tree = document.getElementById('coaTree');
+        if (!tree) return;
+
+        window.coaToggle = function (e, el) {
+            e.stopPropagation();
+            var li = el.closest('.coa-li'); if (li) li.classList.toggle('collapsed');
+        };
+        window.coaAll = function (collapse) {
+            tree.querySelectorAll('.coa-li').forEach(function (li) {
+                if (li.querySelector(':scope > .coa-children > .coa-li')) li.classList.toggle('collapsed', collapse);
+            });
+        };
+        window.coaSearch = function (q) {
+            q = window.appSearchNormalize ? window.appSearchNormalize(q) : (q || '').toLowerCase();
+            var all = tree.querySelectorAll('.coa-li');
+            all.forEach(function (li) { li.classList.remove('coa-hit', 'coa-ancestor', 'coa-hide'); });
+            if (!q) return;
+            all.forEach(function (li) {
+                if ((li.getAttribute('data-search') || '').indexOf(q) >= 0) {
+                    li.classList.add('coa-hit');
+                    li.classList.remove('collapsed');
+                    var p = li.parentElement.closest('.coa-li');
+                    while (p) { p.classList.add('coa-ancestor'); p.classList.remove('collapsed'); p = p.parentElement.closest('.coa-li'); }
+                }
+            });
+            all.forEach(function (li) {
+                if (!li.classList.contains('coa-hit') && !li.classList.contains('coa-ancestor')) li.classList.add('coa-hide');
+            });
+        };
+
+        @if (Model.CanManage)
+        {
+            <text>
+            // On the account form: pick a parent → auto-fill the (read-only) code + inherit the parent's type.
+            window.coaParentChanged = function (select) {
+                var opt = select.options[select.selectedIndex];
+                var t = opt ? opt.getAttribute('data-type') : null;
+                if (t !== null && t !== '') { var ts = document.getElementById('acctTypeSelect'); if (ts) ts.value = t; }
+                var lbl = document.getElementById('acctCodeLabel'), inp = document.getElementById('acctCodeInput');
+                fetch('@Url.Action("NextCode")?parentId=' + encodeURIComponent(select.value || ''), { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                    .then(function (r) { return r.json(); })
+                    .then(function (res) { var c = res.code || ''; if (lbl) lbl.textContent = c; if (inp) inp.value = c; })
+                    .catch(function () { });
+            };
+
+            // ---- drag & drop reorder / re-parent ----
+            var dragged = null;
+            function clearMarks() { tree.querySelectorAll('.drop-before,.drop-after,.drop-inside').forEach(function (el) { el.classList.remove('drop-before', 'drop-after', 'drop-inside'); }); }
+            function isDescendant(anc, node) { return anc !== node && anc.contains(node); }
+
+            tree.addEventListener('dragstart', function (e) {
+                var li = e.target.closest('.coa-li'); if (!li) return;
+                dragged = li; li.classList.add('dragging');
+                e.dataTransfer.effectAllowed = 'move';
+                try { e.dataTransfer.setData('text/plain', li.getAttribute('data-id')); } catch (x) { }
+            });
+            tree.addEventListener('dragend', function () { if (dragged) dragged.classList.remove('dragging'); dragged = null; clearMarks(); });
+            tree.addEventListener('dragover', function (e) {
+                if (!dragged) return;
+                var row = e.target.closest('.coa-row'); if (!row) return;
+                var li = row.closest('.coa-li');
+                if (li === dragged || isDescendant(dragged, li)) return;
+                e.preventDefault(); clearMarks();
+                var r = row.getBoundingClientRect(); var y = e.clientY - r.top;
+                if (y < r.height * 0.30) row.classList.add('drop-before');
+                else if (y > r.height * 0.70) row.classList.add('drop-after');
+                else row.classList.add('drop-inside');
+            });
+            tree.addEventListener('drop', function (e) {
+                if (!dragged) return;
+                var row = e.target.closest('.coa-row'); if (!row) { clearMarks(); return; }
+                var li = row.closest('.coa-li');
+                if (li === dragged || isDescendant(dragged, li)) { clearMarks(); return; }
+                e.preventDefault();
+                if (row.classList.contains('drop-inside')) {
+                    var ul = li.querySelector(':scope > .coa-children'); li.classList.remove('collapsed'); ul.appendChild(dragged);
+                } else if (row.classList.contains('drop-before')) { li.parentElement.insertBefore(dragged, li); }
+                else { li.parentElement.insertBefore(dragged, li.nextSibling); }
+                clearMarks();
+            });
+
+            window.coaSaveOrder = function () {
+                var moves = [];
+                tree.querySelectorAll('.coa-li').forEach(function (li) {
+                    var parentLi = li.parentElement.closest('.coa-li');
+                    moves.push({
+                        id: li.getAttribute('data-id'),
+                        parentId: parentLi ? parentLi.getAttribute('data-id') : null,
+                        sortOrder: Array.prototype.indexOf.call(li.parentElement.children, li)
+                    });
+                });
+                var fd = new FormData();
+                fd.append('payload', JSON.stringify(moves));
+                var tok = document.querySelector('input[name="__RequestVerificationToken"]');
+                if (tok) fd.append('__RequestVerificationToken', tok.value);
+                var btn = document.getElementById('coaSaveBtn'); if (btn) btn.disabled = true;
+                fetch('@Url.Action("Save")', { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                    .then(function (r) { return r.json().catch(function () { return { ok: r.ok }; }); })
+                    .then(function (res) {
+                        if (res && res.ok === false) { window.appAlertError(res.error || 'تعذّر الحفظ.'); if (btn) btn.disabled = false; return; }
+                        if (window.appToast) window.appToast('تم حفظ الترتيب');
+                        setTimeout(function () { window.location.reload(); }, 500);
+                    })
+                    .catch(function () { window.appAlertError('تعذّر الاتصال بالخادم.'); if (btn) btn.disabled = false; });
+            };
+            </text>
+        }
+    })();
+</script>

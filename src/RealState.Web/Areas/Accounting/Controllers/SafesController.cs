@@ -15,11 +15,13 @@ public class SafesController : Controller
 {
     private readonly IApplicationDbContext _db;
     private readonly ICurrentUserService _currentUser;
+    private readonly RealState.Application.Accounting.IAccountingService _accounting;
 
-    public SafesController(IApplicationDbContext db, ICurrentUserService currentUser)
+    public SafesController(IApplicationDbContext db, ICurrentUserService currentUser, RealState.Application.Accounting.IAccountingService accounting)
     {
         _db = db;
         _currentUser = currentUser;
+        _accounting = accounting;
     }
 
     private bool Can(string permission) => User.HasClaim("permission", permission);
@@ -58,14 +60,19 @@ public class SafesController : Controller
     {
         if (!Can(model.Id == Guid.Empty ? PermissionNames.SafesCreate : PermissionNames.SafesEdit)) return Forbid();
         if (!ModelState.IsValid) return PartialView("_SafeForm", model);
+        Safe safe;
         if (model.Id == Guid.Empty)
-            _db.Safes.Add(new Safe { Name = model.Name, InitialAmount = model.InitialAmount, IsActive = model.IsActive });
+        {
+            safe = new Safe { Name = model.Name, InitialAmount = model.InitialAmount, IsActive = model.IsActive };
+            _db.Safes.Add(safe);
+        }
         else
         {
-            var s = await _db.Safes.FirstOrDefaultAsync(x => x.Id == model.Id, ct);
-            if (s is null) return NotFound();
-            s.Name = model.Name; s.InitialAmount = model.InitialAmount; s.IsActive = model.IsActive;
+            safe = await _db.Safes.FirstOrDefaultAsync(x => x.Id == model.Id, ct);
+            if (safe is null) return NotFound();
+            safe.Name = model.Name; safe.InitialAmount = model.InitialAmount; safe.IsActive = model.IsActive;
         }
+        await _accounting.PostSafeOpeningBalanceAsync(safe, ct);   // Dr النقدية / Cr رصيد افتتاحي
         await _db.SaveChangesAsync(ct);
         return Json(new { ok = true });
     }

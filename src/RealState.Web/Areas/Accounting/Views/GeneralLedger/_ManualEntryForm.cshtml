@@ -1,0 +1,58 @@
+@model ManualEntryModel
+@{
+    string? F(DateTime d) => d.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+}
+<form id="appModalForm" asp-area="Accounting" asp-controller="GeneralLedger" asp-action="EntryForm" method="post" data-modal-init="manualInit" novalidate>
+    @Html.AntiForgeryToken()
+    <div asp-validation-summary="ModelOnly" class="validation-summary-errors"></div>
+    <input type="hidden" asp-for="Id" />
+    <input type="hidden" name="payload" id="mlPayload" />
+    <div class="form-grid">
+        <div>
+            <label asp-for="Date" class="form-label"></label>
+            <input asp-for="Date" type="date" value="@F(Model.Date)" class="form-control" dir="ltr" />
+        </div>
+        <div class="full">
+            <label asp-for="Description" class="form-label"></label>
+            <input asp-for="Description" class="form-control" />
+            <span asp-validation-for="Description" class="field-validation-error"></span>
+        </div>
+    </div>
+
+    <div style="overflow-x:auto;margin-top:10px;">
+        <table class="rs-table" id="manualLines" style="white-space:nowrap;">
+            <thead><tr><th style="min-width:220px;">الحساب</th><th>مدين</th><th>دائن</th><th>البيان</th><th></th></tr></thead>
+            <tbody>
+            @for (var i = 0; i < Model.Lines.Count; i++)
+            {
+                var l = Model.Lines[i];
+                <tr class="ml-row">
+                    <td>
+                        <select name="Lines[@i].AccountId" class="form-control ml-acc" onchange="manualRecalc()">
+                            <option value="">— اختر —</option>
+                            @foreach (var a in Model.Accounts) { <option value="@a.Value" selected="@(l.AccountId?.ToString() == a.Value)">@a.Text</option> }
+                        </select>
+                    </td>
+                    <td><input name="Lines[@i].Debit" value="@(l.Debit == 0 ? "" : l.Debit.ToString(System.Globalization.CultureInfo.InvariantCulture))" type="number" step="0.01" min="0" class="form-control ml-dr" dir="ltr" style="width:120px;" oninput="manualRecalc()" /></td>
+                    <td><input name="Lines[@i].Credit" value="@(l.Credit == 0 ? "" : l.Credit.ToString(System.Globalization.CultureInfo.InvariantCulture))" type="number" step="0.01" min="0" class="form-control ml-cr" dir="ltr" style="width:120px;" oninput="manualRecalc()" /></td>
+                    <td><input name="Lines[@i].Memo" value="@l.Memo" class="form-control ml-memo" style="min-width:140px;" /></td>
+                    <td><button type="button" class="btn-sm btn-danger" title="حذف السطر" onclick="manualRemoveLine(this)">🗑</button></td>
+                </tr>
+            }
+            </tbody>
+            <tfoot>
+                <tr>
+                    <th style="text-align:start;">الإجمالي</th>
+                    <th id="mlTotDr">0</th>
+                    <th id="mlTotCr">0</th>
+                    <th colspan="2" id="mlBal"></th>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;gap:8px;flex-wrap:wrap;">
+        <button type="button" class="btn-sm" onclick="manualAddLine()">➕ إضافة سطر</button>
+        <button type="button" class="btn-primary" style="width:auto;" onclick="manualSave(this)">💾 حفظ القيد</button>
+    </div>
+</form>

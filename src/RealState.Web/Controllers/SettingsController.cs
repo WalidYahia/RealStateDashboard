@@ -17,13 +17,28 @@ public class SettingsController : Controller
     private readonly ApplicationDbContext _db;
     private readonly ICurrentUserService _currentUser;
     private readonly RealState.Web.Services.Reports.IReportTemplateService _reportTemplate;
+    private readonly RealState.Application.Accounting.ILedgerBackfillService _ledgerBackfill;
 
     public SettingsController(ApplicationDbContext db, ICurrentUserService currentUser,
-        RealState.Web.Services.Reports.IReportTemplateService reportTemplate)
+        RealState.Web.Services.Reports.IReportTemplateService reportTemplate,
+        RealState.Application.Accounting.ILedgerBackfillService ledgerBackfill)
     {
         _db = db;
         _currentUser = currentUser;
         _reportTemplate = reportTemplate;
+        _ledgerBackfill = ledgerBackfill;
+    }
+
+    // One-time gated command: reconstruct double-entry journal entries for this tenant's existing data.
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> RebuildLedger(CancellationToken ct)
+    {
+        var r = await _ledgerBackfill.RunAsync(ct);
+        TempData["StatusMessage"] =
+            $"تمت إعادة بناء القيود المحاسبية: أرصدة افتتاحية {r.Safes} · مخزون {r.Units} · عقود بيع {r.Sales} · " +
+            $"أوامر توريد {r.SupplierOrders} · أوامر شغل {r.WorkOrders} · حركات نقدية {r.Movements}.";
+        return RedirectToAction(nameof(Branding));
     }
 
     [HttpGet]

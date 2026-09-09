@@ -147,28 +147,32 @@ public class WorkOrdersController : Controller
 
         if (!ModelState.IsValid) { await FillListsAsync(model, ct); return PartialView("_WorkOrderForm", model); }
 
+        WorkOrder order;
         if (model.Id == Guid.Empty)
         {
             var yearBase = model.OrderDate.Year * 100000;
             var last = await _db.WorkOrders.Where(o => o.Number >= yearBase && o.Number < yearBase + 100000)
                 .MaxAsync(o => (int?)o.Number, ct);
-            _db.WorkOrders.Add(new WorkOrder
+            order = new WorkOrder
             {
                 Number = (last ?? yearBase) + 1,
                 ContractorId = model.ContractorId!.Value, ProjectId = model.ProjectId!.Value, OrderDate = model.OrderDate,
                 ItemDescription = model.ItemDescription, Unit = model.Unit, Quantity = model.Quantity, Rate = model.Rate,
                 Notes = model.Notes
                 // ExecutionPercent / UpliftPercent / Deductions default to 0 — set later from the list.
-            });
+            };
+            _db.WorkOrders.Add(order);
         }
         else
         {
-            var o = await _db.WorkOrders.FirstOrDefaultAsync(x => x.Id == model.Id, ct);
-            if (o is null) return NotFound();
-            o.ContractorId = model.ContractorId!.Value; o.ProjectId = model.ProjectId!.Value; o.OrderDate = model.OrderDate;
-            o.ItemDescription = model.ItemDescription; o.Unit = model.Unit; o.Quantity = model.Quantity; o.Rate = model.Rate;
-            o.Notes = model.Notes;
+            order = await _db.WorkOrders.FirstOrDefaultAsync(x => x.Id == model.Id, ct);
+            if (order is null) return NotFound();
+            order.ContractorId = model.ContractorId!.Value; order.ProjectId = model.ProjectId!.Value; order.OrderDate = model.OrderDate;
+            order.ItemDescription = model.ItemDescription; order.Unit = model.Unit; order.Quantity = model.Quantity; order.Rate = model.Rate;
+            order.Notes = model.Notes;
         }
+        // Keep the contractor-cost / payable entry in sync with the order's current الإجمالي الفعلي.
+        await _accounting.SyncWorkOrderAsync(order, ct);
         await _db.SaveChangesAsync(ct);
         TempData["StatusMessage"] = "تم حفظ أمر الشغل.";
         return Json(new { ok = true });
@@ -187,6 +191,7 @@ public class WorkOrdersController : Controller
             return RedirectToAction(nameof(Index));
         }
         foreach (var l in await _db.WorkOrderLogs.Where(l => l.WorkOrderId == id).ToListAsync(ct)) _db.WorkOrderLogs.Remove(l);
+        await _accounting.RemoveObligationAsync("WorkOrder", id, ct);   // reverse the contractor-cost entry
         _db.WorkOrders.Remove(o);
         await _db.SaveChangesAsync(ct);
         TempData["StatusMessage"] = $"تم حذف أمر الشغل WO-{o.Number}.";
@@ -250,6 +255,8 @@ public class WorkOrdersController : Controller
         {
             WorkOrderId = o.Id, Field = model.Field, Value = model.Value, At = DateTime.Now, ByName = CurrentName()
         });
+        // Progress changed الإجمالي الفعلي → re-sync the contractor-cost / payable entry.
+        await _accounting.SyncWorkOrderAsync(o, ct);
         await _db.SaveChangesAsync(ct);
         TempData["StatusMessage"] = $"تم تحديث {model.Field.Ar()}.";
         return Json(new { ok = true });
@@ -338,7 +345,7 @@ public class WorkOrdersController : Controller
         var projName = await _db.Projects.Where(p => p.Id == o.ProjectId).Select(p => p.Name).FirstOrDefaultAsync(ct);
         var desc = $"دفعة للمقاول «{conName}» على أمر الشغل WO-{o.Number}" + (projName != null ? $" — مشروع {projName}" : "");
         var txn = await _accounting.AddTransactionAsync(model.SafeId!.Value, TxnType.Expense, TxnSource.ContractorPayment,
-            model.Amount, model.PaidDate, desc, projectId: o.ProjectId, ct: ct);
+            model.Amount, model.PaidDate, desc, projectId: o.ProjectId, contractorId: o.ContractorId, ct: ct);
 
         _db.WorkOrderPayments.Add(new WorkOrderPayment
         {

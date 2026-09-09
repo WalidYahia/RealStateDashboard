@@ -1,0 +1,63 @@
+@model IncomeStatementVm
+@{
+    Layout = null;
+    string N(decimal v) => v.ToString("N2", new System.Globalization.CultureInfo("ar-EG"));
+}
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="utf-8" />
+    <title>قائمة الدخل</title>
+    <style>
+        body { font-family: "Segoe UI", Tahoma, sans-serif; padding: 24px; color: #111; }
+        h1 { font-size: 19px; text-align: center; margin: 4px 0; }
+        .sub { text-align: center; color: #666; font-size: 12px; margin-bottom: 14px; }
+        table { width: 100%; border-collapse: collapse; font-size: 12px; }
+        th, td { border: 1px solid #bbb; padding: 5px 8px; text-align: start; unicode-bidi: plaintext; }
+        thead th { background: #dce9f8; font-weight: 700; text-align: center; }
+        .code { width: 100px; text-align: center; color: #555; }
+        td.num, th.num { width: 200px; text-align: end; white-space: nowrap; }
+        .sec th { font-weight: 800; }
+        .sec-rev th { background: #dce9f8; }
+        .sec-exp th { background: #fbeeee; }
+        .sub-tot td { font-weight: 700; background: #f6f8fb; }
+        tfoot td, tfoot th { font-weight: 800; background: #eef4fb; font-size: 13px; }
+        .no-print { margin-bottom: 12px; } @@media print { .no-print { display: none; } body { padding: 0; } }
+    </style>
+</head>
+<body>
+    @await Component.InvokeAsync("ReportBackground", new { part = "open" })
+    <div class="no-print"><button onclick="window.print()">🖨 طباعة / حفظ PDF</button></div>
+    <h1>قائمة الدخل</h1>
+    <div class="sub">عن الفترة من @Model.From?.ToString("yyyy/MM/dd") إلى @Model.To?.ToString("yyyy/MM/dd") · طُبع @DateTime.Now.ToString("yyyy/MM/dd HH:mm")</div>
+
+    <table>
+        <thead>
+            <tr><th class="code">الكود</th><th>الحساب</th><th class="num">المبلغ</th></tr>
+        </thead>
+        <tbody>
+            <tr class="sec sec-rev"><th colspan="2">الإيرادات</th><th class="num"></th></tr>
+            @foreach (var r in Model.Revenues)
+            {
+                <tr><td class="code">@r.Code</td><td>@r.Name</td><td class="num">@N(r.Amount)</td></tr>
+            }
+            @if (Model.Revenues.Count == 0) { <tr><td colspan="3">لا توجد إيرادات.</td></tr> }
+            <tr class="sub-tot"><td colspan="2">إجمالي الإيرادات</td><td class="num">@N(Model.TotalRevenue)</td></tr>
+
+            <tr class="sec sec-exp"><th colspan="2">المصروفات</th><th class="num"></th></tr>
+            @foreach (var e in Model.Expenses)
+            {
+                <tr><td class="code">@e.Code</td><td>@e.Name</td><td class="num">@N(e.Amount)</td></tr>
+            }
+            @if (Model.Expenses.Count == 0) { <tr><td colspan="3">لا توجد مصروفات.</td></tr> }
+            <tr class="sub-tot"><td colspan="2">إجمالي المصروفات</td><td class="num">@N(Model.TotalExpense)</td></tr>
+        </tbody>
+        <tfoot>
+            <tr><th colspan="2">@(Model.NetProfit >= 0 ? "صافي الربح" : "صافي الخسارة")</th><th class="num">@N(Model.NetProfit)</th></tr>
+        </tfoot>
+    </table>
+
+    <script>window.addEventListener('load', function () { setTimeout(function () { window.print(); }, 400); });</script>
+    @await Component.InvokeAsync("ReportBackground", new { part = "close" })
+</body>
+</html>

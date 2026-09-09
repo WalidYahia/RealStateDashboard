@@ -97,6 +97,10 @@ public class UnitFormModel
     [Display(Name = "سعر الوحدة (ج.م)")]
     public decimal Price { get; set; }
 
+    [Range(0, 999999999999, ErrorMessage = "قيمة غير صالحة")]
+    [Display(Name = "تكلفة الوحدة (ج.م)")]
+    public decimal Cost { get; set; }
+
     [Display(Name = "وصف الوحدة")]
     public string? Description { get; set; }
 

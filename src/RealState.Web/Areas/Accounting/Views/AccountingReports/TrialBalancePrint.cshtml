@@ -1,0 +1,84 @@
+@model TrialBalanceVm
+@{
+    Layout = null;
+    string M(decimal v) => v == 0 ? "" : v.ToString("N2", new System.Globalization.CultureInfo("ar-EG"));
+    string N(decimal v) => v.ToString("N2", new System.Globalization.CultureInfo("ar-EG"));
+}
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="utf-8" />
+    <title>ميزان المراجعة</title>
+    <style>
+        body { font-family: "Segoe UI", Tahoma, sans-serif; padding: 20px; color: #111; }
+        h1 { font-size: 18px; text-align: center; margin: 4px 0; }
+        .sub { text-align: center; color: #555; font-size: 12px; margin-bottom: 12px; }
+        table { width: 100%; border-collapse: collapse; font-size: 11px; }
+        th, td { border: 1px solid #bbb; padding: 4px 6px; text-align: center; unicode-bidi: plaintext; white-space: nowrap; }
+        thead th { background: #eef4fb; font-weight: 700; }
+        thead tr:first-child th { background: #dce9f8; }
+        td.name { text-align: start; }
+        tr.grp td.name { font-weight: 700; }
+        tr.grp { background: #f6f8fb; }
+        tfoot th { background: #eef4fb; font-weight: 800; }
+        tfoot tr.net th { background: #f4f4f4; }
+        .no-print { margin-bottom: 12px; } @@media print { .no-print { display: none; } body { padding: 0; } }
+    </style>
+</head>
+<body>
+    @await Component.InvokeAsync("ReportBackground", new { part = "open" })
+    <div class="no-print"><button onclick="window.print()">🖨 طباعة / حفظ PDF</button></div>
+    <h1>ميزان المراجعة</h1>
+    <div class="sub">
+        @if (Model.From.HasValue) { <text>من @Model.From?.ToString("yyyy/MM/dd") </text> }
+        حتى @Model.To?.ToString("yyyy/MM/dd") · طُبع @DateTime.Now.ToString("yyyy/MM/dd HH:mm") · @(Model.IsBalanced ? "متوازن" : "غير متوازن")
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th rowspan="2">رقم</th>
+                <th rowspan="2">اسم الحساب</th>
+                <th colspan="2">رصيد بداية</th>
+                <th colspan="2">حركة الفترة</th>
+                <th colspan="2">رصيد نهاية</th>
+            </tr>
+            <tr>
+                <th>مدين</th><th>دائن</th>
+                <th>مدين</th><th>دائن</th>
+                <th>مدين</th><th>دائن</th>
+            </tr>
+        </thead>
+        <tbody>
+        @foreach (var r in Model.Rows)
+        {
+            <tr class="@(r.IsGroup ? "grp" : "")">
+                <td>@r.Code</td>
+                <td class="name" style="padding-inline-start:@(6 + r.Depth * 14)px">@r.Name</td>
+                <td>@M(r.OpeningDebit)</td><td>@M(r.OpeningCredit)</td>
+                <td>@M(r.PeriodDebit)</td><td>@M(r.PeriodCredit)</td>
+                <td>@M(r.ClosingDebit)</td><td>@M(r.ClosingCredit)</td>
+            </tr>
+        }
+        @if (Model.Rows.Count == 0) { <tr><td colspan="8">لا توجد أرصدة.</td></tr> }
+        </tbody>
+        <tfoot>
+            <tr>
+                <th colspan="2">الإجمالي</th>
+                <th>@N(Model.TotOpeningDebit)</th><th>@N(Model.TotOpeningCredit)</th>
+                <th>@N(Model.TotPeriodDebit)</th><th>@N(Model.TotPeriodCredit)</th>
+                <th>@N(Model.TotClosingDebit)</th><th>@N(Model.TotClosingCredit)</th>
+            </tr>
+            <tr class="net">
+                <th colspan="2">الصافي</th>
+                <th colspan="2">@N(Model.TotOpeningDebit - Model.TotOpeningCredit)</th>
+                <th colspan="2">@N(Model.TotPeriodDebit - Model.TotPeriodCredit)</th>
+                <th colspan="2">@N(Model.TotClosingDebit - Model.TotClosingCredit)</th>
+            </tr>
+        </tfoot>
+    </table>
+
+    <script>window.addEventListener('load', function () { setTimeout(function () { window.print(); }, 400); });</script>
+    @await Component.InvokeAsync("ReportBackground", new { part = "close" })
+</body>
+</html>
