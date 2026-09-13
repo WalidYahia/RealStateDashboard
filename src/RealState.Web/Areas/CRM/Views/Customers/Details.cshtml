@@ -4,7 +4,7 @@
     ViewData["Title"] = c.FullName;
     var salesName = ViewBag.SalesName as string;
     var sourceLabel = ViewBag.SourceLabel as string ?? c.Source.Ar();
-    string N(decimal v) => v.ToString("N0", new System.Globalization.CultureInfo("ar-EG"));
+    string N(decimal v) => v.ToString("N0", RealState.Web.AppCulture.Ar);
     string D(DateTime? d) => d?.ToString("yyyy/MM/dd") ?? "—";
     var canConvert = Model.CanConvert;
 }

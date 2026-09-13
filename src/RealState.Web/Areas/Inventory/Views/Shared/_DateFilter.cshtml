@@ -1,0 +1,20 @@
+@model DocListVm
+@{
+    string? F(DateTime? d) => d?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+    var today = DateTime.Today;
+}
+<div class="card-tile" style="margin-bottom:12px;">
+    <form method="get" class="filter-form">
+        <div class="filter-row">
+            <div class="fld"><label class="form-label">من</label><input type="date" name="from" value="@F(Model.From)" class="form-control" dir="ltr" /></div>
+            <div class="fld"><label class="form-label">إلى</label><input type="date" name="to" value="@F(Model.To)" class="form-control" dir="ltr" /></div>
+            <div class="filter-presets">
+                <button type="button" class="btn-sm date-preset" data-from="@F(today)" data-to="@F(today)">اليوم</button>
+                <button type="button" class="btn-sm date-preset" data-from="@F(today.AddDays(-7))" data-to="@F(today)">آخر أسبوع</button>
+                <button type="button" class="btn-sm date-preset" data-from="@F(today.AddMonths(-1))" data-to="@F(today)">آخر شهر</button>
+                <button type="button" class="btn-sm date-preset" data-from="" data-to="">الكل</button>
+            </div>
+            <div class="filter-actions"><button type="submit" class="btn-primary">بحث</button></div>
+        </div>
+    </form>
+</div>

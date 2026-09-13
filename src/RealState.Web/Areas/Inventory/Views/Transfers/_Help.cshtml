@@ -1,0 +1,36 @@
+@{
+    // Static help content shown in the app modal.
+}
+<div class="help-body" style="line-height:1.9;font-size:14px;">
+    <p><strong>التحويل المخزني</strong> ينقل بضاعة من مخزن إلى آخر داخل نفس المنشأة. تُدخل <em>الصنف</em> و<em>الكمية</em> فقط — وتُنقل التكلفة معها <strong>بالمتوسط المرجّح</strong> للمخزن المصدر.</p>
+
+    <h4 style="margin:14px 0 6px;">دورة الحياة</h4>
+    <p style="margin:0;"><span class="badge-role">مسودة</span> → <span class="badge-role">مُرحَّل</span> → <span class="badge-role">معكوس</span> — المسودة لا تؤثّر على المخزون ولا على الأستاذ.</p>
+
+    <h4 style="margin:14px 0 6px;">عند الترحيل</h4>
+    <ul style="margin:0;padding-inline-start:20px;">
+        <li>تُسجَّل حركتان لكل سطر: <strong>صادر</strong> من المخزن المصدر و<strong>وارد</strong> إلى مخزن الوجهة، بنفس التكلفة.</li>
+        <li>إجمالي الكمية وإجمالي القيمة على مستوى المنشأة <strong>لا يتغيّران</strong> — يتغيّر توزيعهما بين المخزنين فقط.</li>
+    </ul>
+
+    <h4 style="margin:14px 0 6px;">الأثر المحاسبي</h4>
+    <table class="rs-table" data-no-grid>
+        <thead><tr><th>مدين</th><th>دائن</th></tr></thead>
+        <tbody><tr><td>مخزون (مخزن الوجهة)</td><td>مخزون (المخزن المصدر)</td></tr></tbody>
+    </table>
+    <p style="margin:8px 0 0;color:var(--muted);font-size:13px;">
+        بما أن لكل مخزن <strong>حسابًا خاصًا به</strong> تحت حساب «المخزون»، فالتحويل يُعيد تصنيف القيمة بين الحسابين.
+        وهو <strong>حركة ميزانية فقط — بلا أي أثر على الأرباح والخسائر</strong>، وصافي حساب المخزون الإجمالي لا يتغيّر.
+    </p>
+
+    <h4 style="margin:14px 0 6px;">العكس</h4>
+    <p style="margin:0;">يضيف حركات عكسية وقيدًا عكسيًا بتاريخ اليوم مع الإبقاء على الأصل، فتعود البضاعة إلى مخزنها الأصلي. ويُرفض إذا كانت قد صُرفت من مخزن الوجهة بالفعل.</p>
+
+    <h4 style="margin:14px 0 6px;">ضوابط الترحيل</h4>
+    <ul style="margin:0;padding-inline-start:20px;">
+        <li>لا يمكن التحويل إلى نفس المخزن.</li>
+        <li><strong>لا يُسمح بتحويل أكثر من المتاح</strong> في المخزن المصدر.</li>
+        <li>الكمية أكبر من صفر، ولا يتكرر الصنف في أكثر من سطر.</li>
+        <li>لا ترحيل بتاريخ مستقبلي، ولا بتاريخ سابق لآخر حركة على نفس الأصناف/المخازن.</li>
+    </ul>
+</div>

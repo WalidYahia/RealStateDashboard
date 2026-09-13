@@ -1,0 +1,30 @@
+@model DocDetailsVm
+@{
+    string N(decimal v) => v.ToString("N2", RealState.Web.AppCulture.Ar);
+}
+<div class="card-head" style="margin-bottom:8px;">
+    <h3>@Model.Title @Model.Number</h3>
+    <span class="badge-role">@Model.Status</span>
+</div>
+<div style="color:var(--muted);font-size:13px;margin-bottom:10px;">
+    التاريخ: @Model.Date.ToString("yyyy/MM/dd") · المخزن: @Model.Warehouse
+    @if (!string.IsNullOrWhiteSpace(Model.Notes)) { <text> · @Model.Notes</text> }
+</div>
+<table class="rs-table" data-no-grid>
+    <thead><tr><th>الصنف</th><th>الكمية</th><th>تكلفة الوحدة</th><th>الإجمالي</th></tr></thead>
+    <tbody>
+    @foreach (var l in Model.Lines)
+    {
+        <tr>
+            <td>@l.Product</td>
+            <td>@N(l.Quantity)</td>
+            <td>@(l.UnitCost == 0 ? "" : N(l.UnitCost))</td>
+            <td>@(l.TotalCost == 0 ? "" : N(l.TotalCost))</td>
+        </tr>
+    }
+    @if (Model.Lines.Count == 0) { <tr><td colspan="4" style="color:var(--muted)">لا توجد أسطر.</td></tr> }
+    </tbody>
+    <tfoot>
+        <tr><th colspan="3" style="text-align:start;">الإجمالي</th><th>@N(Model.Lines.Sum(l => l.TotalCost))</th></tr>
+    </tfoot>
+</table>

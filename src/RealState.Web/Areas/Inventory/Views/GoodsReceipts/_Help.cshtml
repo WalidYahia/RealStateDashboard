@@ -1,0 +1,35 @@
+@{
+    // Static help content shown in the app modal.
+}
+<div class="help-body" style="line-height:1.9;font-size:14px;">
+    <p><strong>إذن الاستلام (IN)</strong> يُدخل بضاعة إلى مخزن ويزيد الكمية <em>والقيمة</em>. كل سطر: <em>الصنف</em>، <em>الكمية</em>، و<em>تكلفة الوحدة</em>.</p>
+
+    <h4 style="margin:14px 0 6px;">دورة الحياة</h4>
+    <p style="margin:0;"><span class="badge-role">مسودة</span> → <span class="badge-role">مُرحَّل</span> → <span class="badge-role">معكوس</span> — المسودة لا تؤثّر على المخزون ولا على الأستاذ.</p>
+
+    <h4 style="margin:14px 0 6px;">عند الترحيل</h4>
+    <ul style="margin:0;padding-inline-start:20px;">
+        <li>تُسجَّل حركة «استلام» لكل سطر بقيمة = الكمية × تكلفة الوحدة.</li>
+        <li>تدخل هذه التكلفة في حساب <strong>المتوسط المرجّح</strong> للصنف في هذا المخزن، وعليها تُقيَّم عمليات الصرف والتحويل لاحقًا.</li>
+    </ul>
+
+    <h4 style="margin:14px 0 6px;">الأثر المحاسبي</h4>
+    <table class="rs-table" data-no-grid>
+        <thead><tr><th>مدين</th><th>دائن</th></tr></thead>
+        <tbody><tr><td>مخزون (المخزن)</td><td>بضاعة واردة لم تُفوتر</td></tr></tbody>
+    </table>
+    <p style="margin:8px 0 0;color:var(--muted);font-size:13px;">
+        «بضاعة واردة لم تُفوتر» حساب <strong>التزام</strong> يمثّل قيمة بضاعة استُلمت ولم تصل فاتورة موردها بعد. عند ربط المشتريات لاحقًا تُقفل هذه المديونية بفاتورة المورد.
+        الاستلام لا يمسّ قائمة الدخل — هو تبادل بين أصل والتزام.
+    </p>
+
+    <h4 style="margin:14px 0 6px;">العكس</h4>
+    <p style="margin:0;">يضيف حركة عكسية وقيدًا عكسيًا بتاريخ اليوم مع الإبقاء على الأصل. ويُرفض إذا كانت البضاعة قد صُرفت أو حُوّلت بالفعل ولا يمكن سحبها.</p>
+
+    <h4 style="margin:14px 0 6px;">ضوابط الترحيل</h4>
+    <ul style="margin:0;padding-inline-start:20px;">
+        <li><strong>تكلفة الوحدة مطلوبة وأكبر من صفر</strong> — بدونها تدخل كمية بلا قيمة ولا يُنشأ قيد.</li>
+        <li>الكمية أكبر من صفر، ولا يتكرر الصنف في أكثر من سطر.</li>
+        <li>لا ترحيل بتاريخ مستقبلي، ولا بتاريخ سابق لآخر حركة على نفس الأصناف/المخزن.</li>
+    </ul>
+</div>

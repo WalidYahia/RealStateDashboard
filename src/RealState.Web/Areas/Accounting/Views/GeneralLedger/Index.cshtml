@@ -1,7 +1,7 @@
 @model LedgerVm
 @{
     ViewData["Title"] = "دفتر الأستاذ";
-    string N(decimal v) => v.ToString("N2", new System.Globalization.CultureInfo("ar-EG"));
+    string N(decimal v) => v.ToString("N2", RealState.Web.AppCulture.Ar);
     string D(DateTime d) => d.ToString("yyyy/MM/dd", System.Globalization.CultureInfo.InvariantCulture);
     string? F(DateTime? d) => d?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
     var side = Model.IsDebitNormal ? "مدين" : "دائن";

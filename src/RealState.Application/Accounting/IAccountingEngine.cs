@@ -39,9 +39,10 @@ public interface IAccountingEngine
     /// <summary>Validates + builds a balanced posted entry and adds it to the context (no SaveChanges).</summary>
     Task<JournalEntry> PostAsync(DateTime date, string description, string? sourceType, Guid? sourceId, IReadOnlyList<LedgerLine> lines, CancellationToken ct = default);
 
-    /// <summary>Validates + builds a balanced entry from explicit account ids (used by the manual-entry editor).</summary>
+    /// <summary>Validates + builds a balanced entry from explicit account ids (manual entries, reversing entries).</summary>
     Task<JournalEntry> PostByIdsAsync(DateTime date, string description, string? sourceType,
-        IReadOnlyList<(Guid AccountId, decimal Debit, decimal Credit, string? Memo)> lines, CancellationToken ct = default);
+        IReadOnlyList<(Guid AccountId, decimal Debit, decimal Credit, string? Memo)> lines, CancellationToken ct = default,
+        Guid? sourceId = null);
 
     /// <summary>Removes the journal entries produced by a given business record (used when that record is deleted).</summary>
     Task RemoveBySourceAsync(string sourceType, Guid sourceId, CancellationToken ct = default);

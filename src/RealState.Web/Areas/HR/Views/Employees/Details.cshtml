@@ -3,7 +3,7 @@
     ViewData["Title"] = Model.FullName;
     var canManage = ViewData["CanManage"] as bool? ?? false;
     var attachments = ViewBag.Attachments as List<EmployeeAttachment> ?? new();
-    string N(decimal v) => v.ToString("N0", new System.Globalization.CultureInfo("ar-EG"));
+    string N(decimal v) => v.ToString("N0", RealState.Web.AppCulture.Ar);
     string D(DateTime? d) => d?.ToString("yyyy/MM/dd") ?? "—";
     string YN(bool b) => b ? "نعم" : "لا";
 }

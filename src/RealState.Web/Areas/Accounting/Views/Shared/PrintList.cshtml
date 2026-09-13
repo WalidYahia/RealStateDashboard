@@ -7,7 +7,7 @@
     var isIncome = Model.Type == TxnType.Income;
     var tenantId = (Guid)ViewBag.TenantId;
 
-    string N(decimal v) => v.ToString("N0", new CultureInfo("ar-EG"));
+    string N(decimal v) => v.ToString("N0", RealState.Web.AppCulture.Ar);
     string DT(DateTime d) => d.ToString("yyyy/MM/dd HH:mm", CultureInfo.InvariantCulture);
 }
 

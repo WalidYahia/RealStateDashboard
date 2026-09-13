@@ -4,7 +4,7 @@
     var isIncome = Model.Type == TxnType.Income;
     var safeName = ViewBag.SafeName as string;
     var tenantId = (Guid)ViewBag.TenantId;
-    string N(decimal v) => v.ToString("N0", new System.Globalization.CultureInfo("ar-EG"));
+    string N(decimal v) => v.ToString("N0", RealState.Web.AppCulture.Ar);
     var title = isIncome ? "إيصال استلام نقدية" : "إيصال صرف نقدية";
     var accent = isIncome ? "#199e70" : "#b3540f";
     // Optional context supplied by the calling flow (collection / supplier payment / …).

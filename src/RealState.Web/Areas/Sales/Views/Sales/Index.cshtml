@@ -4,7 +4,7 @@
 
 @{
     ViewData["Title"] = "المبيعات (عقود البيع)";
-    string N(decimal v) => v.ToString("N0", new CultureInfo("ar-EG"));
+    string N(decimal v) => v.ToString("N0", RealState.Web.AppCulture.Ar);
     string D(DateTime d) => d.ToString("yyyy/MM/dd", CultureInfo.InvariantCulture);
     string? F(DateTime? d) => d?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
     var unitPrices = ViewBag.UnitPrices as Dictionary<string, decimal> ?? new();

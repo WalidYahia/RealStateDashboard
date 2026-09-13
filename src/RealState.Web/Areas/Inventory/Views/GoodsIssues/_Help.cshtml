@@ -1,0 +1,41 @@
+@{
+    // Static help content shown in the app modal.
+}
+<div class="help-body" style="line-height:1.9;font-size:14px;">
+    <p><strong>إذن الصرف (OUT)</strong> يُخرج بضاعة من مخزن. تُدخل <em>الصنف</em> و<em>الكمية</em> فقط — أمّا <strong>التكلفة فتُحتسب تلقائيًا بالمتوسط المرجّح</strong> عند الترحيل.</p>
+
+    <h4 style="margin:14px 0 6px;">سبب الصرف يحدّد الحساب المقابل</h4>
+    <table class="rs-table" data-no-grid>
+        <thead><tr><th>السبب</th><th>مدين (الحساب المقابل)</th><th>دائن</th></tr></thead>
+        <tbody>
+            <tr><td>بيع</td><td>تكلفة المبيعات</td><td>مخزون (المخزن)</td></tr>
+            <tr><td>استهلاك داخلي</td><td>مصروف الاستهلاك</td><td>مخزون (المخزن)</td></tr>
+            <tr><td>تلف</td><td>خسائر التسويات</td><td>مخزون (المخزن)</td></tr>
+            <tr><td>أخرى</td><td>مصروف الاستهلاك</td><td>مخزون (المخزن)</td></tr>
+        </tbody>
+    </table>
+    <p style="margin:8px 0 0;color:var(--muted);font-size:13px;">الحسابات كلها قابلة للتغيير من «إعدادات المخزون».</p>
+
+    <h4 style="margin:14px 0 6px;">دورة الحياة</h4>
+    <p style="margin:0;"><span class="badge-role">مسودة</span> → <span class="badge-role">مُرحَّل</span> → <span class="badge-role">معكوس</span> — المسودة لا تؤثّر على المخزون ولا على الأستاذ.</p>
+
+    <h4 style="margin:14px 0 6px;">الأثر على القوائم</h4>
+    <ul style="margin:0;padding-inline-start:20px;">
+        <li><strong>الميزانية:</strong> قيمة المخزون تنخفض بتكلفة المصروف.</li>
+        <li><strong>قائمة الدخل:</strong> تظهر التكلفة كمصروف (تكلفة مبيعات / استهلاك / خسائر) فيقلّ الربح.</li>
+        <li>إذا استُهلكت الكمية بالكامل تُستهلك قيمتها المتبقية كاملة، فلا تبقى قيمة بلا كمية.</li>
+    </ul>
+    <p style="margin:8px 0 0;color:var(--warning,#d08b3b);font-size:13px;">
+        ⚠️ صرف «بيع» يسجّل <strong>التكلفة فقط</strong> ولا يسجّل إيرادًا — تسجيل الإيراد والعميل يأتي مع ربط المبيعات بالمخزون في مرحلة لاحقة.
+    </p>
+
+    <h4 style="margin:14px 0 6px;">العكس</h4>
+    <p style="margin:0;">يضيف حركة عكسية وقيدًا عكسيًا بتاريخ اليوم مع الإبقاء على الأصل، فتعود الكمية والقيمة إلى المخزن.</p>
+
+    <h4 style="margin:14px 0 6px;">ضوابط الترحيل</h4>
+    <ul style="margin:0;padding-inline-start:20px;">
+        <li><strong>لا يُسمح بصرف أكثر من المتاح</strong> (لا أرصدة سالبة).</li>
+        <li>الكمية أكبر من صفر، ولا يتكرر الصنف في أكثر من سطر.</li>
+        <li>لا ترحيل بتاريخ مستقبلي، ولا بتاريخ سابق لآخر حركة على نفس الأصناف/المخزن.</li>
+    </ul>
+</div>

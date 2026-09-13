@@ -1,0 +1,11 @@
+@{
+    var act = ViewContext.RouteData.Values["action"]?.ToString();
+    string A(string action) => string.Equals(act, action, StringComparison.OrdinalIgnoreCase) ? "btn-primary" : "btn-sm";
+}
+<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;">
+    <a class="@A("StockBalance")" asp-action="StockBalance">أرصدة المخزون</a>
+    <a class="@A("Valuation")" asp-action="Valuation">التقييم</a>
+    <a class="@A("Movements")" asp-action="Movements">حركة المخزون</a>
+    <a class="@A("StockCard")" asp-action="StockCard">بطاقة الصنف</a>
+    <a class="@A("Reconciliation")" asp-action="Reconciliation">مطابقة الأستاذ</a>
+</div>

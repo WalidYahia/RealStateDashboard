@@ -7,7 +7,7 @@
 
     var inv = CultureInfo.InvariantCulture;
 
-    string N(decimal v) => v.ToString("N0", new CultureInfo("ar-EG"));
+    string N(decimal v) => v.ToString("N0", RealState.Web.AppCulture.Ar);
 
     // Display format
     string DT(DateTime d) => d.ToString("yyyy/MM/dd HH:mm", inv);

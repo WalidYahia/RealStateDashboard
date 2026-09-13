@@ -1,0 +1,10 @@
+@model RealState.Application.Enums.InventoryDocStatus
+@{
+    var (text, style) = Model switch
+    {
+        RealState.Application.Enums.InventoryDocStatus.Posted => ("مُرحَّل", "background:rgba(25,158,112,.15);color:var(--good,#199e70);"),
+        RealState.Application.Enums.InventoryDocStatus.Reversed => ("معكوس", "background:rgba(208,59,59,.12);color:var(--critical,#d03b3b);"),
+        _ => ("مسودة", "background:rgba(127,127,127,.15);color:var(--muted);")
+    };
+}
+<span class="badge-role" style="@style">@text</span>

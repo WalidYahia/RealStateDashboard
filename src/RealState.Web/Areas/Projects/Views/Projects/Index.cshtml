@@ -1,7 +1,7 @@
 @model ProjectsIndexVm
 @{
     ViewData["Title"] = "المشاريع";
-    string N(int v) => v.ToString("N0", new System.Globalization.CultureInfo("ar-EG"));
+    string N(int v) => v.ToString("N0", RealState.Web.AppCulture.Ar);
     string? F(DateTime? d) => d?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
     string D(DateTime? d) => d?.ToString("yyyy/MM/dd") ?? "—";
     // Lowercased text every card/row is matched against by the inline search.

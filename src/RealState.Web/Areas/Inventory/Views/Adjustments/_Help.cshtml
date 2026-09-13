@@ -1,0 +1,43 @@
+@{
+    // Static help content shown in the app modal.
+}
+<div class="help-body" style="line-height:1.9;font-size:14px;">
+    <p><strong>تسوية المخزون</strong> مستند لتصحيح كمية صنف في مخزن — زيادة أو نقص — عن رصيده الدفتري.
+        كل سطر: <em>الصنف</em>، <em>الكمية (+/−)</em> (موجبة = زيادة، سالبة = نقص)، و<em>تكلفة الوحدة</em> (تُستخدم للزيادات فقط؛ النقص يُقيَّم بالمتوسط المرجّح الحالي).</p>
+
+    <h4 style="margin:14px 0 6px;">السبب</h4>
+    <ul style="margin:0;padding-inline-start:20px;">
+        <li><strong>تصحيح</strong> — أرباح/خسائر تسويات.</li>
+        <li><strong>رصيد افتتاحي</strong> — الطرف المقابل للزيادة هو حساب «رصيد افتتاحي».</li>
+        <li><strong>فرق جرد</strong> — يُعالَج كتصحيح.</li>
+    </ul>
+
+    <h4 style="margin:14px 0 6px;">دورة الحياة</h4>
+    <p style="margin:0;">
+        <span class="badge-role">مسودة</span> → <span class="badge-role">مُرحَّل</span> → <span class="badge-role">معكوس</span>
+    </p>
+    <ul style="margin:6px 0 0;padding-inline-start:20px;">
+        <li><strong>مسودة</strong>: قابلة للتعديل والحذف، ولا تؤثّر على المخزون أو الأستاذ.</li>
+        <li><strong>مُرحَّل</strong>: أثّرت في المخزون وسجّلت قيدًا — لا تُعدَّل ولا تُحذَف، فقط تُعكَس.</li>
+        <li><strong>معكوس</strong>: أُلغي أثرها وتبقى في السجل للمراجعة.</li>
+    </ul>
+
+    <h4 style="margin:14px 0 6px;">الترحيل (ترحيل)</h4>
+    <p style="margin:0 0 6px;">يتم كل ما يلي في عملية واحدة ذرّية (تنجح كاملة أو لا شيء):</p>
+    <ul style="margin:0;padding-inline-start:20px;">
+        <li><strong>زيادة (+)</strong>: حركة «تسوية زيادة» = الكمية × تكلفة الوحدة المُدخلة. <em>يجب إدخال تكلفة الوحدة وإلا لا يُنشأ قيد.</em></li>
+        <li><strong>نقص (−)</strong>: يتحقّق أن المتاح كافٍ، ثم حركة «تسوية نقص» = الكمية × المتوسط المرجّح الحالي.</li>
+    </ul>
+    <table class="rs-table" data-no-grid style="margin-top:8px;">
+        <thead><tr><th>الحالة</th><th>مدين</th><th>دائن</th></tr></thead>
+        <tbody>
+            <tr><td>زيادة</td><td>مخزون (المخزن)</td><td>أرباح التسويات (أو «رصيد افتتاحي»)</td></tr>
+            <tr><td>نقص</td><td>خسائر التسويات</td><td>مخزون (المخزن)</td></tr>
+        </tbody>
+    </table>
+    <p style="margin:8px 0 0;">بعد الترحيل تتحدّث «أرصدة المخزون / بطاقة الصنف»، ويتوازن دفتر الأستاذ، ويبقى تقرير «مطابقة المخزون مع الأستاذ = 0».</p>
+
+    <h4 style="margin:14px 0 6px;">العكس (عكس)</h4>
+    <p style="margin:0;">يظهر فقط على مستند <strong>مُرحَّل</strong>. عند تنفيذه تُضاف <strong>حركة مخزون عكسية</strong> و<strong>قيد عكسي</strong> بتاريخ اليوم، وتتحوّل الحالة إلى <strong>معكوس</strong>. فيعود صافي المخزون والأستاذ إلى ما قبل الترحيل، مع بقاء الحركات والقيد الأصلي كما هما.</p>
+    <p style="margin:6px 0 0;color:var(--muted);font-size:13px;">لا تُحذف القيود المُرحَّلة أبدًا — تُلغى بقيد عكسي حفاظًا على سلامة السجل المحاسبي. وإذا كانت الكمية قد صُرفت أو حُوّلت بالفعل فلن يُسمح بالعكس.</p>
+</div>

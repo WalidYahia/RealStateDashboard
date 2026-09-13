@@ -19,12 +19,16 @@ public static class LedgerAccounts
     public const string AccountsPayable = "2100";       // suppliers (SubKind=Supplier)
     public const string ContractorsPayable = "2200";    // contractors (SubKind=Contractor)
 
+    /// <summary>Goods Received Not Invoiced — the liability credited when stock is received before the supplier invoice.</summary>
+    public const string GoodsReceivedNotInvoiced = "2300";
+
     // --- group parents that user-defined categories (بنود) hang under ---
     public const string RevenueGroup = "4000";
     public const string ExpensesGroup = "5000";
 
     // --- postable leaf accounts ---
     public const string RealEstateInventory = "1400";
+    public const string GoodsInventory = "1410";        // control account; per-warehouse subsidiaries hang under it
     public const string OwnerCapital = "3100";
     public const string OpeningBalanceEquity = "3200";
     public const string SalesRevenue = "4100";
@@ -39,7 +43,7 @@ public static class LedgerAccounts
     /// <summary>Control accounts whose children are per-entity subsidiaries — added only from their own
     /// pages (customers / suppliers / contractors / safes / employees), never hand-added in the chart.</summary>
     public static readonly IReadOnlyList<string> SubsidiaryControls =
-        new[] { CashAndBanks, AccountsReceivable, EmployeeAdvances, AccountsPayable, ContractorsPayable };
+        new[] { CashAndBanks, AccountsReceivable, EmployeeAdvances, AccountsPayable, ContractorsPayable, GoodsInventory };
 
     public static readonly IReadOnlyList<AccountDef> Defaults = new List<AccountDef>
     {
@@ -49,11 +53,13 @@ public static class LedgerAccounts
         new(AccountsReceivable, "العملاء (ذمم مدينة)", AccountType.Asset, "1000", false),
         new(EmployeeAdvances, "سلف الموظفين", AccountType.Asset, "1000", false),
         new(RealEstateInventory, "مخزون العقارات", AccountType.Asset, "1000", true),
+        new(GoodsInventory, "المخزون", AccountType.Asset, "1000", false),   // control; per-warehouse subsidiaries
 
         // Liabilities
         new("2000", "الخصوم", AccountType.Liability, null, false),
         new(AccountsPayable, "الموردون (ذمم دائنة)", AccountType.Liability, "2000", false),
         new(ContractorsPayable, "المقاولون (ذمم دائنة)", AccountType.Liability, "2000", false),
+        new(GoodsReceivedNotInvoiced, "بضاعة واردة لم تُفوتر", AccountType.Liability, "2000", true),
 
         // Equity
         new("3000", "حقوق الملكية", AccountType.Equity, null, false),

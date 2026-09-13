@@ -17,7 +17,7 @@ public class AccountingReportsController : Controller
     private readonly IAccountingEngine _engine;
     public AccountingReportsController(IApplicationDbContext db, IAccountingEngine engine) { _db = db; _engine = engine; }
 
-    private static string N(decimal v) => v.ToString("N2", new System.Globalization.CultureInfo("ar-EG"));
+    private static string N(decimal v) => v.ToString("N2", RealState.Web.AppCulture.Ar);
 
     // ======================= ميزان المراجعة (Trial Balance) =======================
     public async Task<IActionResult> TrialBalance(DateTime? from, DateTime? to, CancellationToken ct)

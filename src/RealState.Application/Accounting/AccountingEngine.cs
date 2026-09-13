@@ -113,7 +113,8 @@ public class AccountingEngine : IAccountingEngine
     }
 
     public async Task<JournalEntry> PostByIdsAsync(DateTime date, string description, string? sourceType,
-        IReadOnlyList<(Guid AccountId, decimal Debit, decimal Credit, string? Memo)> lines, CancellationToken ct = default)
+        IReadOnlyList<(Guid AccountId, decimal Debit, decimal Credit, string? Memo)> lines, CancellationToken ct = default,
+        Guid? sourceId = null)
     {
         if (lines.Count < 2) throw new InvalidOperationException("القيد يجب أن يحتوي على سطرين على الأقل.");
         decimal dr = 0, cr = 0;
@@ -130,7 +131,8 @@ public class AccountingEngine : IAccountingEngine
         var entry = new JournalEntry
         {
             Number = await NextNumberAsync(date.Year, ct),
-            Date = date, Description = description, Status = JournalEntryStatus.Posted, SourceType = sourceType
+            Date = date, Description = description, Status = JournalEntryStatus.Posted,
+            SourceType = sourceType, SourceId = sourceId
         };
         foreach (var l in lines)
             entry.Lines.Add(new JournalLine { AccountId = l.AccountId, Debit = l.Debit, Credit = l.Credit, Memo = l.Memo });

@@ -112,6 +112,12 @@ public static class PermissionNames
     public const string AccountsManage = "Accounts.Manage"; // add/edit/delete/reorder chart of accounts
     public const string AccountsPostJournal = "Accounts.PostJournal"; // add/edit/delete manual journal entries (قيد يدوي)
 
+    // ----- Inventory (المخزون) -----
+    public const string InventoryView = "Inventory.View";           // view inventory pages
+    public const string InventoryManage = "Inventory.Manage";       // manage masters (products/categories/UOM/warehouses) + posting profile
+    public const string InventoryDocuments = "Inventory.Documents"; // create/post/reverse inventory documents (IN/OUT/transfer/adjust/count)
+    public const string InventoryReports = "Inventory.Reports";     // inventory reports
+
     // ----- Reports -----
     public const string ReportsView = "Reports.View";
     public const string ReportsProjects = "Reports.Projects";   // projects report (units / inventory / expenses / incomes)
@@ -147,6 +153,7 @@ public static class PermissionNames
     private const string GSuppliers = "المشتريات";
     private const string GContracting = "المقاولات";
     private const string GAccounting = "المحاسبة";
+    private const string GInventory = "المخزون";
     private const string GReports = "التقارير";
     private const string GTasks = "إدارة المهام";
     private const string GHr = "الموارد البشرية";
@@ -224,6 +231,11 @@ public static class PermissionNames
         new PermissionInfo(AccountsView,   "عرض دليل الحسابات ودفتر الأستاذ", GAccounting),
         new PermissionInfo(AccountsManage, "إدارة دليل الحسابات (إضافة/تعديل/ترتيب)", GAccounting),
         new PermissionInfo(AccountsPostJournal, "تسجيل القيود اليدوية (إضافة/تعديل/حذف)", GAccounting),
+
+        new PermissionInfo(InventoryView,      "عرض المخزون", GInventory),
+        new PermissionInfo(InventoryManage,    "إدارة الأصناف والتصنيفات ووحدات القياس والمخازن والإعدادات", GInventory),
+        new PermissionInfo(InventoryDocuments, "إنشاء وترحيل مستندات المخزون (استلام/صرف/تحويل/تسوية/جرد)", GInventory),
+        new PermissionInfo(InventoryReports,   "عرض تقارير المخزون", GInventory),
 
         new PermissionInfo(ReportsView,     "عرض التقارير (اليومي، العملاء، الموردين)", GReports),
         new PermissionInfo(ReportsProjects, "عرض تقرير المشاريع",                       GReports),

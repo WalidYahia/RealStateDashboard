@@ -1,7 +1,7 @@
 @model DashboardVm
 @{
     ViewData["Title"] = "لوحة القيادة التنفيذية";
-    string N(decimal v) => v.ToString("N0", new System.Globalization.CultureInfo("ar-EG"));
+    string N(decimal v) => v.ToString("N0", RealState.Web.AppCulture.Ar);
     string C(decimal v) => v >= 1_000_000 ? (v / 1_000_000m).ToString("0.#") + "M"
         : v >= 1000 ? (v / 1000m).ToString("0.#") + "K" : v.ToString("N0");
 }

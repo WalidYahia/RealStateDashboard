@@ -1,7 +1,7 @@
 @model SafeMovementsVm
 @{
     ViewData["Title"] = $"حركات: {Model.SafeName}";
-    string N(decimal v) => v.ToString("N0", new System.Globalization.CultureInfo("ar-EG"));
+    string N(decimal v) => v.ToString("N0", RealState.Web.AppCulture.Ar);
     string DT(DateTime d) => d.ToString("yyyy/MM/dd HH:mm");
     string? F(DateTime? d) => d?.ToString("yyyy-MM-dd");
 }

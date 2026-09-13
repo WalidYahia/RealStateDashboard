@@ -1,0 +1,49 @@
+@model ProductFormModel
+<form id="appModalForm" asp-area="Inventory" asp-controller="Products" asp-action="Form" method="post">
+    @Html.AntiForgeryToken()
+    <div asp-validation-summary="ModelOnly" class="validation-summary-errors"></div>
+    <input type="hidden" asp-for="Id" />
+    <div class="form-grid">
+        <div>
+            <label asp-for="Sku" class="form-label"></label>
+            <input asp-for="Sku" class="form-control" dir="ltr" />
+            <span asp-validation-for="Sku" class="field-validation-error"></span>
+        </div>
+        <div>
+            <label asp-for="Name" class="form-label"></label>
+            <input asp-for="Name" class="form-control" />
+            <span asp-validation-for="Name" class="field-validation-error"></span>
+        </div>
+        <div>
+            <label asp-for="CategoryId" class="form-label"></label>
+            <select asp-for="CategoryId" class="form-control" data-searchable asp-items="Model.Categories">
+                <option value="">— بدون —</option>
+            </select>
+        </div>
+        <div>
+            <label asp-for="UnitOfMeasureId" class="form-label"></label>
+            <select asp-for="UnitOfMeasureId" class="form-control" data-searchable asp-items="Model.Units">
+                <option value="">— بدون —</option>
+            </select>
+        </div>
+        <div>
+            <label asp-for="ReorderLevel" class="form-label"></label>
+            <input asp-for="ReorderLevel" class="form-control" type="number" step="0.01" min="0" dir="ltr" />
+            <span style="color:var(--muted);font-size:12px;">تنبيه «مخزون منخفض» عند النزول إلى هذا الحد. صفر = بدون تنبيه.</span>
+        </div>
+        <div class="full">
+            <label asp-for="Notes" class="form-label"></label>
+            <input asp-for="Notes" class="form-control" />
+        </div>
+        <div>
+            <label class="form-check"><input asp-for="TrackInventory" type="checkbox" /> تتبّع المخزون</label>
+        </div>
+        <div>
+            <label class="form-check"><input asp-for="TrackCost" type="checkbox" /> تتبّع التكلفة</label>
+        </div>
+        <div class="full">
+            <label class="form-check"><input asp-for="IsActive" type="checkbox" /> مفعّل</label>
+        </div>
+    </div>
+    <button type="submit" class="btn-primary" style="margin-top:12px;">💾 حفظ</button>
+</form>

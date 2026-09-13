@@ -1,6 +1,6 @@
 @model List<CampaignRow>
 @{
-    string N(decimal v) => v.ToString("N0", new System.Globalization.CultureInfo("ar-EG"));
+    string N(decimal v) => v.ToString("N0", RealState.Web.AppCulture.Ar);
     string StatusClass(CampaignStatus s) => s switch
     {
         CampaignStatus.Active => "state-on",

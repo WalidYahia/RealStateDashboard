@@ -1,7 +1,7 @@
 @model List<SafeRow>
 @{
     ViewData["Title"] = "الخزائن";
-    string N(decimal v) => v.ToString("N0", new System.Globalization.CultureInfo("ar-EG"));
+    string N(decimal v) => v.ToString("N0", RealState.Web.AppCulture.Ar);
     var canCreate = User.Can(PermissionNames.SafesCreate);
     var canEdit = User.Can(PermissionNames.SafesEdit);
     var canDelete = User.Can(PermissionNames.SafesDelete);

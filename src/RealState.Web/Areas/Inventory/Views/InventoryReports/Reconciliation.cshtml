@@ -1,0 +1,34 @@
+@model ReconciliationVm
+@{
+    ViewData["Title"] = "مطابقة المخزون مع الأستاذ";
+    string N(decimal v) => v.ToString("N2", RealState.Web.AppCulture.Ar);
+}
+<div class="page-head">
+    <h1>مطابقة المخزون مع الأستاذ</h1>
+</div>
+
+<partial name="_ReportTabs" />
+
+<div class="card-tile">
+    <p style="color:var(--muted);font-size:13px;margin:0 0 12px;">يجب أن تساوي قيمة دفتر المخزون رصيد حساب المخزون في الأستاذ العام. أي فرق يجب بحثه لا تصحيحه تلقائيًا.</p>
+    <table class="rs-table" data-no-grid style="max-width:620px;">
+        <tbody>
+            <tr><th style="text-align:start;">قيمة دفتر المخزون (الحركات)</th><td style="font-weight:700;">@N(Model.SubledgerValue)</td></tr>
+            <tr><th style="text-align:start;">رصيد حساب المخزون في الأستاذ <span class="proj-code" dir="ltr">@Model.InventoryAccountCode</span> @Model.InventoryAccountName</th><td style="font-weight:700;">@N(Model.GlValue)</td></tr>
+            <tr>
+                <th style="text-align:start;">الفرق</th>
+                <td style="font-weight:800;color:@(Model.IsReconciled ? "var(--good,#199e70)" : "var(--critical,#d03b3b)");">@N(Model.Difference)</td>
+            </tr>
+        </tbody>
+    </table>
+    <div style="margin-top:12px;">
+        @if (Model.IsReconciled)
+        {
+            <span class="badge-role" style="background:rgba(25,158,112,.15);color:var(--good,#199e70);">✔ مطابق</span>
+        }
+        else
+        {
+            <span class="badge-role" style="background:rgba(208,59,59,.12);color:var(--critical,#d03b3b);">غير مطابق — يلزم المراجعة</span>
+        }
+    </div>
+</div>

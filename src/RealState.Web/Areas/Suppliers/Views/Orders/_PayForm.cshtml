@@ -1,6 +1,6 @@
 @model SupplierPayFormModel
 @{
-    string N(decimal v) => v.ToString("N0", new System.Globalization.CultureInfo("ar-EG"));
+    string N(decimal v) => v.ToString("N0", RealState.Web.AppCulture.Ar);
 }
 <form id="appModalForm" asp-area="Suppliers" asp-controller="Orders" asp-action="Pay" method="post" data-open-tab>
     @Html.AntiForgeryToken()

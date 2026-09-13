@@ -1,6 +1,6 @@
 @model CampaignUpdateFormModel
 @{
-    string N(decimal v) => v.ToString("N0", new System.Globalization.CultureInfo("ar-EG"));
+    string N(decimal v) => v.ToString("N0", RealState.Web.AppCulture.Ar);
 }
 <form id="modalForm" asp-area="Marketing" asp-controller="Campaigns" asp-action="Update" method="post"
       data-latest-date="@(Model.LatestDate?.ToString("yyyy-MM-dd"))">

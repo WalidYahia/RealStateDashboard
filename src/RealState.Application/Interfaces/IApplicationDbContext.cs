@@ -23,6 +23,24 @@ public interface IApplicationDbContext
     DbSet<JournalEntry> JournalEntries { get; }
     DbSet<JournalLine> JournalLines { get; }
 
+    // Inventory module
+    DbSet<ProductCategory> ProductCategories { get; }
+    DbSet<UnitOfMeasure> UnitsOfMeasure { get; }
+    DbSet<Warehouse> Warehouses { get; }
+    DbSet<Product> Products { get; }
+    DbSet<InventoryMovement> InventoryMovements { get; }
+    DbSet<GoodsReceipt> GoodsReceipts { get; }
+    DbSet<GoodsReceiptLine> GoodsReceiptLines { get; }
+    DbSet<GoodsIssue> GoodsIssues { get; }
+    DbSet<GoodsIssueLine> GoodsIssueLines { get; }
+    DbSet<StockTransfer> StockTransfers { get; }
+    DbSet<StockTransferLine> StockTransferLines { get; }
+    DbSet<InventoryAdjustment> InventoryAdjustments { get; }
+    DbSet<InventoryAdjustmentLine> InventoryAdjustmentLines { get; }
+    DbSet<StockCount> StockCounts { get; }
+    DbSet<StockCountLine> StockCountLines { get; }
+    DbSet<InventoryPostingProfile> InventoryPostingProfiles { get; }
+
     DbSet<Country> Countries { get; }
     DbSet<City> Cities { get; }
     DbSet<Currency> Currencies { get; }

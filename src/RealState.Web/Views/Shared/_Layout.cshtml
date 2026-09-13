@@ -4,8 +4,11 @@
     var fullName = User?.FindFirst("full_name")?.Value ?? User?.Identity?.Name;
     var isAuth = User?.Identity?.IsAuthenticated ?? false;
     bool Can(string permission) => User?.HasClaim("permission", permission) ?? false;
-    string NavActive(string controller) =>
+    // Pass `area` when a controller name exists in more than one area (e.g. Settings lives both at the
+    // root and inside Inventory) — otherwise both links would highlight at once.
+    string NavActive(string controller, string? area = null) =>
         string.Equals(ViewContext.RouteData.Values["controller"]?.ToString(), controller, StringComparison.OrdinalIgnoreCase)
+        && (area is null || string.Equals(ViewContext.RouteData.Values["area"]?.ToString() ?? "", area, StringComparison.OrdinalIgnoreCase))
             ? "active" : "";
 }
 <!DOCTYPE html>
@@ -32,7 +35,11 @@
                     var curAction = ViewContext.RouteData.Values["action"]?.ToString();
                     var curArea = ViewContext.RouteData.Values["area"]?.ToString();
                     var projOpen = curCtrl == "Projects";
-                    var setOpen = curCtrl == "Account" || curCtrl == "StageDefinitions" || curCtrl == "ProjectTypes" || curCtrl == "Settings" || curCtrl == "TxnCategories" || curCtrl == "ActivityLog";
+                    // "Settings" must be the ROOT one — the Inventory area has its own Settings controller
+                    // and would otherwise open/highlight this group too.
+                    var setOpen = curCtrl == "Account" || curCtrl == "StageDefinitions" || curCtrl == "ProjectTypes"
+                        || (curCtrl == "Settings" && string.IsNullOrEmpty(curArea))
+                        || curCtrl == "TxnCategories" || curCtrl == "ActivityLog";
                     var canSalespersons = Can(PermissionNames.SalespersonsView);
                     var canCustomers = Can(PermissionNames.CustomersView);
                     var canLeadsAccess = canCustomers || Can(PermissionNames.LeadsControl) || Can(PermissionNames.LeadsConvert);
@@ -198,6 +205,35 @@
                         </div>
                     </div>
                 }
+                @if (Can(PermissionNames.InventoryView))
+                {
+                    var invOpen = ViewContext.RouteData.Values["area"]?.ToString() == "Inventory";
+                    var canInvManage = Can(PermissionNames.InventoryManage);
+                    <div class="nav-group @(invOpen ? "open" : "")">
+                        <div class="nav-parent">
+                            <a class="nav-link @(invOpen ? "active" : "")" href="javascript:" onclick="toggleNavGroup(this)"><span>📦</span> المخزون</a>
+                            <button type="button" class="nav-caret" onclick="toggleNavGroup(this)">▾</button>
+                        </div>
+                        <div class="subnav">
+                            <a class="subnav-link @NavActive("Dashboard", "Inventory")" asp-area="Inventory" asp-controller="Dashboard" asp-action="Index">لوحة المخزون</a>
+                            <a class="subnav-link @NavActive("Products")" asp-area="Inventory" asp-controller="Products" asp-action="Index">الأصناف</a>
+                            <a class="subnav-link @NavActive("Warehouses")" asp-area="Inventory" asp-controller="Warehouses" asp-action="Index">المخازن</a>
+                            <a class="subnav-link @NavActive("GoodsReceipts")" asp-area="Inventory" asp-controller="GoodsReceipts" asp-action="Index">أذون الاستلام</a>
+                            <a class="subnav-link @NavActive("GoodsIssues")" asp-area="Inventory" asp-controller="GoodsIssues" asp-action="Index">أذون الصرف</a>
+                            <a class="subnav-link @NavActive("Transfers")" asp-area="Inventory" asp-controller="Transfers" asp-action="Index">التحويلات</a>
+                            <a class="subnav-link @NavActive("Adjustments")" asp-area="Inventory" asp-controller="Adjustments" asp-action="Index">التسويات</a>
+                            <a class="subnav-link @NavActive("StockCounts")" asp-area="Inventory" asp-controller="StockCounts" asp-action="Index">الجرد</a>
+                            @if (Can(PermissionNames.InventoryReports))
+                            {
+                                <a class="subnav-link @NavActive("InventoryReports")" asp-area="Inventory" asp-controller="InventoryReports" asp-action="StockBalance">التقارير</a>
+                            }
+                            @if (canInvManage)
+                            {
+                                <a class="subnav-link @NavActive("Settings", "Inventory")" asp-area="Inventory" asp-controller="Settings" asp-action="Index">الإعدادات</a>
+                            }
+                        </div>
+                    </div>
+                }
                 @if (Can(PermissionNames.HrView))
                 {
                     var hrArea = ViewContext.RouteData.Values["area"]?.ToString();
@@ -279,7 +315,7 @@
                         <a class="subnav-link @NavActive("Account")" asp-area="" asp-controller="Account" asp-action="ChangePassword">تغيير كلمة المرور</a>
                         @if (Can(PermissionNames.SettingsManage))
                         {
-                            <a class="subnav-link @NavActive("Settings")" asp-area="" asp-controller="Settings" asp-action="Branding">بيانات المؤسسة</a>
+                            <a class="subnav-link @NavActive("Settings", "")" asp-area="" asp-controller="Settings" asp-action="Branding">بيانات المؤسسة</a>
                             <a class="subnav-link @NavActive("ProjectTypes")" asp-area="Projects" asp-controller="ProjectTypes" asp-action="Index">أنواع المشاريع</a>
                             <a class="subnav-link @NavActive("StageDefinitions")" asp-area="Projects" asp-controller="StageDefinitions" asp-action="Index">مراحل المشاريع</a>
                         }
@@ -317,8 +353,8 @@
                         <a class="btn-new-tenant" asp-area="Admin" asp-controller="Tenants" asp-action="Create">➕ مؤسسة جديدة</a>
                     }
                     <div class="clock">
-                        <div id="topDate">@DateTime.Now.ToString("dddd d MMMM yyyy", new System.Globalization.CultureInfo("ar-EG"))</div>
-                        <div id="topTime" class="time">@DateTime.Now.ToString("hh:mm tt", new System.Globalization.CultureInfo("ar-EG"))</div>
+                        <div id="topDate">@DateTime.Now.ToString("dddd d MMMM yyyy", RealState.Web.AppCulture.Ar)</div>
+                        <div id="topTime" class="time">@DateTime.Now.ToString("hh:mm tt", RealState.Web.AppCulture.Ar)</div>
                     </div>
                     @await Component.InvokeAsync("TaskAlerts")
                     <div class="user">

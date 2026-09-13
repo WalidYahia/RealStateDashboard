@@ -1,8 +1,8 @@
 @model TrialBalanceVm
 @{
     Layout = null;
-    string M(decimal v) => v == 0 ? "" : v.ToString("N2", new System.Globalization.CultureInfo("ar-EG"));
-    string N(decimal v) => v.ToString("N2", new System.Globalization.CultureInfo("ar-EG"));
+    string M(decimal v) => v == 0 ? "" : v.ToString("N2", RealState.Web.AppCulture.Ar);
+    string N(decimal v) => v.ToString("N2", RealState.Web.AppCulture.Ar);
 }
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">

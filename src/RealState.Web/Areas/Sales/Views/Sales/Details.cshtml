@@ -2,7 +2,7 @@
 @{
     ViewData["Title"] = $"عقد {Model.Code}";
     var installments = ViewBag.Installments as List<Installment> ?? new();
-    string N(decimal v) => v.ToString("N0", new System.Globalization.CultureInfo("ar-EG"));
+    string N(decimal v) => v.ToString("N0", RealState.Web.AppCulture.Ar);
     string D(DateTime? d) => d?.ToString("yyyy/MM/dd") ?? "—";
     string? F(DateTime? d) => d?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
     var paid = installments.Sum(i => i.PaidAmount);   // down payment is scheduled as an installment

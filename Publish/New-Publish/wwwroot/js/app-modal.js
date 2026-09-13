@@ -145,7 +145,7 @@ window.appToast = function (msg, icon) {
                     select.value = opt.value;
                     input.value = opt.textContent;
                     select.dispatchEvent(new Event('change', { bubbles: true }));
-                    menu.style.display = 'none';
+                    closeMenu();
                 });
                 menu.appendChild(it);
                 count++;
@@ -157,18 +157,43 @@ window.appToast = function (msg, icon) {
             }
         }
 
+        // Pin the open menu to the input in viewport coordinates, flipping above when there's no room
+        // below. Being fixed keeps it out of the page flow, so a table row never grows to fit it.
+        function place() {
+            var r = input.getBoundingClientRect();
+            var height = Math.min(menu.scrollHeight, 240);
+            var below = window.innerHeight - r.bottom;
+            menu.style.left = r.left + 'px';
+            menu.style.width = r.width + 'px';
+            menu.style.top = (below < height + 8 && r.top > below ? r.top - height - 4 : r.bottom + 4) + 'px';
+        }
+        function openMenu(filter) {
+            buildMenu(filter);
+            menu.classList.add('ss-fixed');
+            menu.style.display = '';
+            place();
+            window.addEventListener('scroll', place, true);   // capture: also follows inner scrollers
+            window.addEventListener('resize', place);
+        }
+        function closeMenu() {
+            menu.style.display = 'none';
+            menu.classList.remove('ss-fixed');
+            window.removeEventListener('scroll', place, true);
+            window.removeEventListener('resize', place);
+        }
+
         input.value = currentText();
-        input.addEventListener('focus', function () { buildMenu(''); menu.style.display = ''; });
-        input.addEventListener('input', function () { buildMenu(input.value); menu.style.display = ''; });
+        input.addEventListener('focus', function () { openMenu(''); });
+        input.addEventListener('input', function () { openMenu(input.value); });
         input.addEventListener('keydown', function (e) {
             if (e.key === 'Enter') {
                 e.preventDefault();
                 var first = menu.querySelector('.ss-opt');
                 if (first) { first.dispatchEvent(new MouseEvent('mousedown')); }
-            } else if (e.key === 'Escape') { menu.style.display = 'none'; }
+            } else if (e.key === 'Escape') { closeMenu(); }
         });
         input.addEventListener('blur', function () {
-            setTimeout(function () { input.value = currentText(); menu.style.display = 'none'; }, 150);
+            setTimeout(function () { input.value = currentText(); closeMenu(); }, 150);
         });
     };
 
@@ -233,6 +258,8 @@ window.appToast = function (msg, icon) {
     // Server-pushed error (TempData) shown once on load.
     document.addEventListener('DOMContentLoaded', function () {
         if (window.__appError) window.appAlertError(window.__appError);
+        // Enhance page-level searchable selects (filters, document headers, …); modal ones are done in bindForm.
+        document.querySelectorAll('select[data-searchable]').forEach(function (s) { window.appEnhanceSearchSelect(s); });
     });
 
     // Normalize text for searching: lowercase, convert Arabic-Indic digits to Latin, and drop
@@ -369,4 +396,44 @@ window.appToast = function (msg, icon) {
             if (f && seen.indexOf(f) < 0) { seen.push(f); dpSyncActive(f); }
         });
     });
+})();
+
+// Keep the side menu where it was when navigating. Every page is a full load, so the sidebar would
+// otherwise re-render scrolled back to the top and lose sight of the item you just clicked.
+(function () {
+    var KEY = 'appSidebarScroll';
+    function bar() { return document.querySelector('.sidebar'); }
+
+    function save() {
+        var el = bar();
+        if (el) { try { sessionStorage.setItem(KEY, String(el.scrollTop)); } catch (e) { } }
+    }
+
+    function restore() {
+        var el = bar();
+        if (!el) return;
+        var v = null;
+        try { v = sessionStorage.getItem(KEY); } catch (e) { }
+        if (v !== null && !isNaN(parseFloat(v))) {
+            el.scrollTop = parseFloat(v);
+        } else {
+            // First visit in this session: make sure the highlighted item is in view.
+            var active = el.querySelector('.subnav-link.active, .nav-link.active');
+            if (active && active.scrollIntoView) active.scrollIntoView({ block: 'nearest' });
+        }
+    }
+
+    function wire() {
+        var el = bar();
+        if (!el) return;
+        restore();
+        var t;
+        el.addEventListener('scroll', function () { clearTimeout(t); t = setTimeout(save, 100); });
+        el.addEventListener('click', function (e) { if (e.target.closest('a')) save(); });   // capture the exact spot on click
+        window.addEventListener('beforeunload', save);
+        window.addEventListener('pagehide', save);
+    }
+
+    // Restore as early as possible (the script runs at the end of <body>) to avoid a visible jump.
+    if (bar()) wire(); else document.addEventListener('DOMContentLoaded', wire);
 })();

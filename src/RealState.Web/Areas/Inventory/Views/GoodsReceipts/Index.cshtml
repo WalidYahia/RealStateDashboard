@@ -1,0 +1,64 @@
+@model DocListVm
+@{
+    ViewData["Title"] = "أذون الاستلام";
+    var canDoc = User.Can(PermissionNames.InventoryDocuments);
+    string N(decimal v) => v.ToString("N2", RealState.Web.AppCulture.Ar);
+    string? F(DateTime? d) => d?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+}
+<div class="page-head">
+    <h1>أذون الاستلام (IN)
+        <button type="button" title="شرح إذن الاستلام" onclick="appOpenModal('@Url.Action("Help")', 'شرح إذن الاستلام')" style="border:none;background:none;cursor:pointer;font-size:18px;vertical-align:middle;">❓</button>
+    </h1>
+    <span style="display:flex;gap:8px;">
+        <a class="btn-sm" asp-action="Print" asp-route-from="@F(Model.From)" asp-route-to="@F(Model.To)" target="_blank">🖨 طباعة (PDF)</a>
+        <a class="btn-sm" asp-action="Excel" asp-route-from="@F(Model.From)" asp-route-to="@F(Model.To)">⬇ Excel</a>
+        @if (canDoc)
+        {
+            <a class="btn-new-tenant" asp-action="Create">➕ إذن استلام جديد</a>
+        }
+    </span>
+</div>
+
+<partial name="_DateFilter" model="Model" />
+
+@if (TempData["StatusMessage"] is string status) { <div class="status-message">@status</div> }
+@if (TempData["ErrorMessage"] is string err) { <div class="status-message" style="background:rgba(208,59,59,.12);border-color:var(--critical);color:var(--critical);">@err</div> }
+
+<div class="card-tile">
+    <table class="rs-table" id="grnTable">
+        <thead><tr><th>الرقم</th><th>التاريخ</th><th>المخزن</th><th>الأسطر</th><th>الإجمالي</th><th>الحالة</th><th></th></tr></thead>
+        <tbody>
+        @foreach (var r in Model.Rows)
+        {
+            <tr>
+                <td dir="ltr" style="text-align:right;">@r.Number</td>
+                <td dir="ltr" style="text-align:right;">@r.Date.ToString("yyyy/MM/dd")</td>
+                <td>@r.Warehouse</td>
+                <td>@r.LineCount</td>
+                <td>@N(r.TotalCost)</td>
+                <td><partial name="_StatusBadge" model="r.Status" /></td>
+                <td style="white-space:nowrap;">
+                    <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("Details", new { id = r.Id })', 'تفاصيل إذن الاستلام')">📄</button>
+                    @if (canDoc && r.Status == InventoryDocStatus.Draft)
+                    {
+                        <a class="btn-sm" asp-action="Edit" asp-route-id="@r.Id">✏️</a>
+                        <form asp-action="Post" asp-route-id="@r.Id" method="post" style="display:inline;" data-confirm="ترحيل إذن الاستلام @r.Number؟">
+                            @Html.AntiForgeryToken()<button type="submit" class="btn-sm btn-primary">ترحيل</button>
+                        </form>
+                        <form asp-action="Delete" asp-route-id="@r.Id" method="post" style="display:inline;" data-confirm="حذف المسودة؟" data-danger>
+                            @Html.AntiForgeryToken()<button type="submit" class="btn-sm btn-danger">🗑</button>
+                        </form>
+                    }
+                    else if (canDoc && r.Status == InventoryDocStatus.Posted)
+                    {
+                        <form asp-action="Reverse" asp-route-id="@r.Id" method="post" style="display:inline;" data-confirm="عكس إذن الاستلام @r.Number؟" data-danger>
+                            @Html.AntiForgeryToken()<button type="submit" class="btn-sm btn-danger">عكس</button>
+                        </form>
+                    }
+                </td>
+            </tr>
+        }
+        @if (Model.Rows.Count == 0) { <tr><td colspan="7" style="color:var(--muted)">لا توجد أذون استلام بعد.</td></tr> }
+        </tbody>
+    </table>
+</div>

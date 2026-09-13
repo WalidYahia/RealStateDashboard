@@ -3,7 +3,7 @@
 @{
     Layout = null;
     var tenantId = (Guid)ViewBag.TenantId;
-    string N(decimal v) => v.ToString("N0", new CultureInfo("ar-EG"));
+    string N(decimal v) => v.ToString("N0", RealState.Web.AppCulture.Ar);
     string D(DateTime d) => d.ToString("yyyy/MM/dd", CultureInfo.InvariantCulture);
     var range = (Model.From.HasValue || Model.To.HasValue)
         ? $"من {(Model.From.HasValue ? D(Model.From.Value) : "…")} إلى {(Model.To.HasValue ? D(Model.To.Value) : "…")}"

@@ -1,6 +1,6 @@
 @model EntryVm
 @{
-    string N(decimal v) => v.ToString("N2", new System.Globalization.CultureInfo("ar-EG"));
+    string N(decimal v) => v.ToString("N2", RealState.Web.AppCulture.Ar);
     string D(DateTime d) => d.ToString("yyyy/MM/dd", System.Globalization.CultureInfo.InvariantCulture);
 }
 <div style="margin-bottom:10px;color:var(--muted);">

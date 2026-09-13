@@ -6,7 +6,7 @@
     var schedule = installments.Where(i => i.Number > 0).OrderBy(i => i.Number).ToList();
     var firstDue = schedule.FirstOrDefault()?.DueDate;
     var tenantId = (Guid)ViewBag.TenantId;
-    string N(decimal v) => v.ToString("N0", new System.Globalization.CultureInfo("ar-EG"));
+    string N(decimal v) => v.ToString("N0", RealState.Web.AppCulture.Ar);
     string D(DateTime? d) => d?.ToString("yyyy/MM/dd") ?? "—";
 }
 <!DOCTYPE html>

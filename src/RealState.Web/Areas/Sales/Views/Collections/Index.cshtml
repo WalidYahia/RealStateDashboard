@@ -1,7 +1,7 @@
 @model CollectionsVm
 @{
     ViewData["Title"] = "تحصيلات المشاريع";
-    string N(decimal v) => v.ToString("N0", new System.Globalization.CultureInfo("ar-EG"));
+    string N(decimal v) => v.ToString("N0", RealState.Web.AppCulture.Ar);
 }
 <div class="page-head">
     <h1>تحصيلات المشاريع</h1>

@@ -1,0 +1,183 @@
+@model InventorySettingsModel
+@{
+    ViewData["Title"] = "إعدادات المخزون";
+}
+<div class="page-head">
+    <h1>إعدادات المخزون</h1>
+</div>
+
+@if (TempData["StatusMessage"] is string status) { <div class="status-message">@status</div> }
+@if (TempData["ErrorMessage"] is string err) { <div class="status-message" style="background:rgba(208,59,59,.12);border-color:var(--critical);color:var(--critical);">@err</div> }
+
+<div class="settings-tabs">
+    <button type="button" class="stab" data-tab="accounts" onclick="invTab('accounts')">الترحيل المحاسبي</button>
+    <button type="button" class="stab" data-tab="categories" onclick="invTab('categories')">تصنيفات الأصناف</button>
+    <button type="button" class="stab" data-tab="units" onclick="invTab('units')">وحدات القياس</button>
+</div>
+
+@* ============================ Tab 1: posting profile ============================ *@
+<div class="card-tile stab-panel" data-panel="accounts">
+    <p style="color:var(--muted);font-size:13px;margin:0 0 12px;">تحدّد هذه الحسابات كيف تُرحَّل عمليات المخزون إلى دفتر الأستاذ العام.</p>
+    <form asp-area="Inventory" asp-controller="Settings" asp-action="Index" method="post">
+        @Html.AntiForgeryToken()
+        <div asp-validation-summary="ModelOnly" class="validation-summary-errors"></div>
+        <div class="form-grid">
+            <div>
+                <label asp-for="CostingMethod" class="form-label"></label>
+                <select asp-for="CostingMethod" class="form-control">
+                    <option value="WeightedAverage">المتوسط المرجّح</option>
+                </select>
+                <span style="color:var(--muted);font-size:12px;">الطريقة الوحيدة المطبّقة حاليًا.</span>
+            </div>
+            <div>
+                <label asp-for="InventoryCode" class="form-label"></label>
+                <input class="form-control" value="@Model.InventoryAccountLabel" readonly />
+                <span style="color:var(--muted);font-size:12px;">حساب تجميعي — تُنشأ تحته حسابات المخازن تلقائيًا ولا يُغيَّر من هنا.</span>
+            </div>
+            <div>
+                <label asp-for="CogsCode" class="form-label"></label>
+                <select asp-for="CogsCode" class="form-control" data-searchable asp-items="Model.Accounts"></select>
+                <span asp-validation-for="CogsCode" class="field-validation-error"></span>
+            </div>
+            <div>
+                <label asp-for="PurchaseGrniCode" class="form-label"></label>
+                <select asp-for="PurchaseGrniCode" class="form-control" data-searchable asp-items="Model.Accounts"></select>
+                <span asp-validation-for="PurchaseGrniCode" class="field-validation-error"></span>
+            </div>
+            <div>
+                <label asp-for="AdjustmentGainCode" class="form-label"></label>
+                <select asp-for="AdjustmentGainCode" class="form-control" data-searchable asp-items="Model.Accounts"></select>
+                <span asp-validation-for="AdjustmentGainCode" class="field-validation-error"></span>
+            </div>
+            <div>
+                <label asp-for="AdjustmentLossCode" class="form-label"></label>
+                <select asp-for="AdjustmentLossCode" class="form-control" data-searchable asp-items="Model.Accounts"></select>
+                <span asp-validation-for="AdjustmentLossCode" class="field-validation-error"></span>
+            </div>
+            <div>
+                <label asp-for="ConsumptionExpenseCode" class="form-label"></label>
+                <select asp-for="ConsumptionExpenseCode" class="form-control" data-searchable asp-items="Model.Accounts"></select>
+                <span asp-validation-for="ConsumptionExpenseCode" class="field-validation-error"></span>
+            </div>
+        </div>
+        <button type="submit" class="btn-primary" style="margin-top:14px;width:auto;">💾 حفظ الترحيل المحاسبي</button>
+    </form>
+</div>
+
+@* ============================ Tab 2: categories ============================ *@
+<div class="card-tile stab-panel" data-panel="categories">
+    <div class="card-head">
+        <h3>تصنيفات الأصناف</h3>
+        <span style="display:flex;gap:8px;">
+            <a class="btn-sm" asp-controller="Categories" asp-action="Print" target="_blank">🖨 طباعة (PDF)</a>
+            <a class="btn-sm" asp-controller="Categories" asp-action="Excel">⬇ Excel</a>
+        </span>
+    </div>
+    <form id="catForm" asp-action="SaveCategories" method="post" onsubmit="invRows('catTable','catPayload')">
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="payload" id="catPayload" />
+        <table class="rs-table" id="catTable" data-no-grid>
+            <thead><tr><th>اسم التصنيف</th><th style="width:120px;">الترتيب</th><th style="width:90px;">مفعّل</th><th style="width:60px;"></th></tr></thead>
+            <tbody>
+            @foreach (var c in Model.Categories)
+            {
+                <tr>
+                    <td><input type="hidden" data-field="id" value="@c.Id" /><input class="form-control" data-field="name" value="@c.Name" /></td>
+                    <td><input class="form-control" data-field="sortOrder" type="number" dir="ltr" value="@c.SortOrder" /></td>
+                    <td style="text-align:center;"><input type="checkbox" data-field="isActive" @(c.IsActive ? "checked" : "") /></td>
+                    <td><button type="button" class="btn-sm btn-danger" onclick="invDropRow(this)">🗑</button></td>
+                </tr>
+            }
+            </tbody>
+        </table>
+        <template id="catTpl">
+            <tr>
+                <td><input type="hidden" data-field="id" value="" /><input class="form-control" data-field="name" /></td>
+                <td><input class="form-control" data-field="sortOrder" type="number" dir="ltr" value="0" /></td>
+                <td style="text-align:center;"><input type="checkbox" data-field="isActive" checked /></td>
+                <td><button type="button" class="btn-sm btn-danger" onclick="invDropRow(this)">🗑</button></td>
+            </tr>
+        </template>
+        <div style="display:flex;gap:8px;margin-top:12px;">
+            <button type="button" class="btn-sm" onclick="invAddRow('catTable','catTpl')">➕ إضافة تصنيف</button>
+            <button type="submit" class="btn-primary" style="width:auto;">💾 حفظ التصنيفات</button>
+        </div>
+        <p style="color:var(--muted);font-size:12px;margin-top:8px;">حذف سطر يحذف التصنيف عند الحفظ — ولا يُسمح بحذف تصنيف مرتبط بأصناف.</p>
+    </form>
+</div>
+
+@* ============================ Tab 3: units ============================ *@
+<div class="card-tile stab-panel" data-panel="units">
+    <div class="card-head">
+        <h3>وحدات القياس</h3>
+        <span style="display:flex;gap:8px;">
+            <a class="btn-sm" asp-controller="Units" asp-action="Print" target="_blank">🖨 طباعة (PDF)</a>
+            <a class="btn-sm" asp-controller="Units" asp-action="Excel">⬇ Excel</a>
+        </span>
+    </div>
+    <form id="uomForm" asp-action="SaveUnits" method="post" onsubmit="invRows('uomTable','uomPayload')">
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="payload" id="uomPayload" />
+        <table class="rs-table" id="uomTable" data-no-grid>
+            <thead><tr><th style="width:160px;">الكود</th><th>الاسم</th><th style="width:90px;">مفعّل</th><th style="width:60px;"></th></tr></thead>
+            <tbody>
+            @foreach (var u in Model.Units)
+            {
+                <tr>
+                    <td><input type="hidden" data-field="id" value="@u.Id" /><input class="form-control" data-field="code" dir="ltr" value="@u.Code" /></td>
+                    <td><input class="form-control" data-field="name" value="@u.Name" /></td>
+                    <td style="text-align:center;"><input type="checkbox" data-field="isActive" @(u.IsActive ? "checked" : "") /></td>
+                    <td><button type="button" class="btn-sm btn-danger" onclick="invDropRow(this)">🗑</button></td>
+                </tr>
+            }
+            </tbody>
+        </table>
+        <template id="uomTpl">
+            <tr>
+                <td><input type="hidden" data-field="id" value="" /><input class="form-control" data-field="code" dir="ltr" /></td>
+                <td><input class="form-control" data-field="name" /></td>
+                <td style="text-align:center;"><input type="checkbox" data-field="isActive" checked /></td>
+                <td><button type="button" class="btn-sm btn-danger" onclick="invDropRow(this)">🗑</button></td>
+            </tr>
+        </template>
+        <div style="display:flex;gap:8px;margin-top:12px;">
+            <button type="button" class="btn-sm" onclick="invAddRow('uomTable','uomTpl')">➕ إضافة وحدة</button>
+            <button type="submit" class="btn-primary" style="width:auto;">💾 حفظ الوحدات</button>
+        </div>
+        <p style="color:var(--muted);font-size:12px;margin-top:8px;">حذف سطر يحذف الوحدة عند الحفظ — ولا يُسمح بحذف وحدة مرتبطة بأصناف.</p>
+    </form>
+</div>
+
+<style>
+    .settings-tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+    .settings-tabs .stab { padding: 8px 14px; border-radius: 10px; cursor: pointer; font-size: 14px;
+        background: var(--surface-2); border: 1px solid var(--border); color: var(--text-secondary); }
+    .settings-tabs .stab.active { background: var(--series-1, #3987e5); border-color: var(--series-1, #3987e5); color: #fff; font-weight: 700; }
+    .stab-panel[hidden] { display: none !important; }
+</style>
+
+<script>
+    function invTab(name) {
+        document.querySelectorAll('.stab-panel').forEach(function (p) { p.hidden = p.getAttribute('data-panel') !== name; });
+        document.querySelectorAll('.settings-tabs .stab').forEach(function (b) { b.classList.toggle('active', b.getAttribute('data-tab') === name); });
+        history.replaceState(null, '', '?tab=' + name);   // keep the tab on refresh / after save
+    }
+    function invAddRow(tableId, tplId) {
+        var body = document.querySelector('#' + tableId + ' tbody');
+        body.appendChild(document.importNode(document.getElementById(tplId).content, true));
+    }
+    function invDropRow(btn) { var tr = btn.closest('tr'); if (tr) tr.remove(); }
+    // Serialize the editor rows into the form's hidden payload before it posts.
+    function invRows(tableId, hiddenId) {
+        var out = [];
+        document.querySelectorAll('#' + tableId + ' tbody tr').forEach(function (tr) {
+            var o = {};
+            tr.querySelectorAll('[data-field]').forEach(function (el) {
+                o[el.getAttribute('data-field')] = el.type === 'checkbox' ? el.checked : el.value;
+            });
+            if ((o.name || '').trim() || (o.code || '').trim()) out.push(o);
+        });
+        document.getElementById(hiddenId).value = JSON.stringify(out);
+    }
+    invTab('@Model.ActiveTab');
+</script>

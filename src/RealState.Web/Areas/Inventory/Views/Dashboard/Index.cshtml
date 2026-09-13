@@ -1,0 +1,116 @@
+@model InventoryDashboardVm
+@{
+    ViewData["Title"] = "لوحة المخزون";
+    var ar = RealState.Web.AppCulture.Ar;
+    string N(decimal v) => v.ToString("N2", ar);
+    string N0(decimal v) => v.ToString("N0", ar);
+    string D(DateTime d) => d.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+    var max = Model.MaxWarehouseValue;
+}
+<div class="page-head">
+    <h1>لوحة المخزون</h1>
+    <span style="color:var(--muted);font-size:13px;">الأرصدة كما في @Model.AsOf.ToString("yyyy/MM/dd")</span>
+</div>
+
+<div class="card-tile" style="margin-bottom:12px;">
+    <form asp-action="Index" method="get" class="filter-form">
+        <div class="filter-row">
+            <div class="fld"><label class="form-label">حتى تاريخ</label><input type="date" name="asOf" value="@D(Model.AsOf)" class="form-control" dir="ltr" /></div>
+            <div class="fld" style="min-width:220px;">
+                <label class="form-label">التصنيف</label>
+                <select name="categoryId" class="form-control" data-searchable asp-items="Model.Categories"><option value="">— كل التصنيفات —</option></select>
+            </div>
+            <div class="filter-actions"><button type="submit" class="btn-primary">عرض</button></div>
+        </div>
+    </form>
+</div>
+
+@* ---------------- KPI tiles ---------------- *@
+<div class="kpi-grid">
+    <div class="kpi" style="--kpi: var(--series-1);">
+        <div class="kpi-label">قيمة المخزون</div>
+        <div class="kpi-value">@N0(Model.TotalValue) <span class="kpi-unit">ج.م</span></div>
+        <div class="kpi-foot">إجمالي التكلفة الدفترية</div>
+    </div>
+    <div class="kpi" style="--kpi: var(--aqua);">
+        <div class="kpi-label">إجمالي الأصناف</div>
+        <div class="kpi-value">@Model.TotalProducts</div>
+        <div class="kpi-foot">أصناف مفعّلة ومتتبَّعة</div>
+    </div>
+    <div class="kpi" style="--kpi: var(--violet);">
+        <div class="kpi-label">المخازن النشطة</div>
+        <div class="kpi-value">@Model.ActiveWarehouses</div>
+        <div class="kpi-foot">مخازن مفعّلة</div>
+    </div>
+    <div class="kpi" style="--kpi: var(--gold);">
+        <div class="kpi-label">مخزون منخفض</div>
+        <div class="kpi-value" style="color:var(--gold);">@Model.LowStock</div>
+        <div class="kpi-foot">⚠ وصل إلى حد إعادة الطلب</div>
+    </div>
+    <div class="kpi" style="--kpi: var(--critical);">
+        <div class="kpi-label">نفد من المخزون</div>
+        <div class="kpi-value" style="color:var(--critical);">@Model.OutOfStock</div>
+        <div class="kpi-foot">رصيد صفر</div>
+    </div>
+    <div class="kpi" style="--kpi: @(Model.NegativeStock > 0 ? "var(--critical)" : "var(--good)");">
+        <div class="kpi-label">أرصدة سالبة</div>
+        <div class="kpi-value" style="color:@(Model.NegativeStock > 0 ? "var(--critical)" : "var(--good)");">@Model.NegativeStock</div>
+        <div class="kpi-foot">@(Model.NegativeStock > 0 ? "يلزم المراجعة" : "لا توجد أرصدة سالبة")</div>
+    </div>
+</div>
+
+@* ---------------- value by warehouse ---------------- *@
+<div class="card-tile" style="margin-bottom:12px;">
+    <div class="card-head">
+        <h3>قيمة المخزون حسب المخزن</h3>
+        <a class="btn-sm" asp-controller="InventoryReports" asp-action="StockBalance">تفاصيل الأرصدة</a>
+    </div>
+    @if (Model.ByWarehouse.Count == 0)
+    {
+        <p style="color:var(--muted);margin:0;">لا توجد أرصدة لعرضها.</p>
+    }
+    else
+    {
+        <div style="display:flex;flex-direction:column;gap:12px;">
+            @foreach (var w in Model.ByWarehouse)
+            {
+                var pct = max > 0 ? (double)(Math.Abs(w.Value) / max) * 100 : 0;
+                <div>
+                    <div style="display:flex;justify-content:space-between;gap:10px;font-size:13px;margin-bottom:6px;">
+                        <span>@w.Warehouse <span style="color:var(--muted);">· @N0(w.Quantity) وحدة</span></span>
+                        <strong>@N0(w.Value) ج.م</strong>
+                    </div>
+                    <div class="bar"><span style="width:@pct.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)%;"></span></div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@* ---------------- alerts ---------------- *@
+<div class="card-tile">
+    <div class="card-head">
+        <h3>أصناف تحتاج انتباه</h3>
+        <a class="btn-sm" asp-controller="InventoryReports" asp-action="StockBalance">كل الأرصدة</a>
+    </div>
+    <table class="rs-table" data-no-grid>
+        <thead><tr><th>الكود</th><th>الصنف</th><th>الرصيد</th><th>حد إعادة الطلب</th><th>الحالة</th></tr></thead>
+        <tbody>
+        @foreach (var a in Model.Alerts)
+        {
+            var color = a.State == "سالب" || a.State == "نفد" ? "var(--critical)" : "var(--gold)";
+            <tr>
+                <td dir="ltr" style="text-align:right;">@a.Sku</td>
+                <td>@a.Product</td>
+                <td style="font-weight:600;">@N(a.Quantity)</td>
+                <td>@(a.ReorderLevel == 0 ? "—" : N(a.ReorderLevel))</td>
+                <td><span class="badge-role" style="color:@color;">@a.State</span></td>
+            </tr>
+        }
+        @if (Model.Alerts.Count == 0)
+        {
+            <tr><td colspan="5" style="color:var(--good,#199e70);">✔ كل الأصناف ضمن الحدود الآمنة.</td></tr>
+        }
+        </tbody>
+    </table>
+</div>

@@ -2,7 +2,7 @@
 @{
     Layout = null;
     var tenantId = (Guid)ViewBag.TenantId;
-    string N(decimal v) => v.ToString("N0", new System.Globalization.CultureInfo("ar-EG"));
+    string N(decimal v) => v.ToString("N0", RealState.Web.AppCulture.Ar);
     string Q(decimal v) => v.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
     string D(DateTime d) => d.ToString("yyyy/MM/dd", System.Globalization.CultureInfo.InvariantCulture);
     var total = Model.Items.Sum(i => i.LineTotal);

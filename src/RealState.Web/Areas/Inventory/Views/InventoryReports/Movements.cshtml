@@ -1,0 +1,51 @@
+@model MovementsVm
+@{
+    ViewData["Title"] = "حركة المخزون";
+    string N(decimal v) => v.ToString("N2", RealState.Web.AppCulture.Ar);
+    string? F(DateTime? d) => d?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+}
+<div class="page-head">
+    <h1>حركة المخزون</h1>
+    <span style="display:flex;gap:8px;">
+        <a class="btn-sm" asp-action="MovementsPrint" asp-route-productId="@Model.ProductId" asp-route-warehouseId="@Model.WarehouseId" asp-route-from="@F(Model.From)" asp-route-to="@F(Model.To)" target="_blank">🖨 طباعة (PDF)</a>
+        <a class="btn-sm" asp-action="MovementsExcel" asp-route-productId="@Model.ProductId" asp-route-warehouseId="@Model.WarehouseId" asp-route-from="@F(Model.From)" asp-route-to="@F(Model.To)">⬇ Excel</a>
+    </span>
+</div>
+
+<partial name="_ReportTabs" />
+
+<div class="card-tile" style="margin-bottom:12px;">
+    <form asp-action="Movements" method="get" class="filter-form">
+        <div class="filter-row">
+            <div class="fld"><label class="form-label">من</label><input type="date" name="from" value="@F(Model.From)" class="form-control" dir="ltr" /></div>
+            <div class="fld"><label class="form-label">إلى</label><input type="date" name="to" value="@F(Model.To)" class="form-control" dir="ltr" /></div>
+            <div class="fld" style="min-width:220px;"><label class="form-label">الصنف</label><select name="productId" class="form-control" data-searchable asp-items="Model.Products"><option value="">— الكل —</option></select></div>
+            <div class="fld" style="min-width:180px;"><label class="form-label">المخزن</label><select name="warehouseId" class="form-control" data-searchable asp-items="Model.Warehouses"><option value="">— الكل —</option></select></div>
+            <div class="filter-actions"><button type="submit" class="btn-primary">بحث</button></div>
+        </div>
+    </form>
+</div>
+
+<div class="card-tile">
+    <table class="rs-table" data-no-grid>
+        <thead><tr><th>التاريخ</th><th>النوع</th><th>المرجع</th><th>الصنف</th><th>المخزن</th><th>وارد</th><th>منصرف</th></tr></thead>
+        <tbody>
+        @foreach (var r in Model.Rows)
+        {
+            <tr>
+                <td dir="ltr" style="text-align:right;">@r.Date.ToString("yyyy/MM/dd")</td>
+                <td>@r.TypeAr</td>
+                <td>@r.Reference</td>
+                <td>@r.Product</td>
+                <td>@r.Warehouse</td>
+                <td>@(r.In == 0 ? "" : N(r.In))</td>
+                <td>@(r.Out == 0 ? "" : N(r.Out))</td>
+            </tr>
+        }
+        @if (Model.Rows.Count == 0) { <tr><td colspan="7" style="color:var(--muted)">لا توجد حركات في هذه الفترة.</td></tr> }
+        </tbody>
+        <tfoot>
+            <tr><th colspan="5" style="text-align:start;">الإجمالي</th><th>@N(Model.TotalIn)</th><th>@N(Model.TotalOut)</th></tr>
+        </tfoot>
+    </table>
+</div>

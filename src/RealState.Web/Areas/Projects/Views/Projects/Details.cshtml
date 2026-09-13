@@ -3,7 +3,7 @@
     var p = Model.Project;
     ViewData["Title"] = p.Name;
     string D(DateTime? d) => d?.ToString("yyyy/MM/dd") ?? "—";
-    string N(decimal v) => v.ToString("N0", new System.Globalization.CultureInfo("ar-EG"));
+    string N(decimal v) => v.ToString("N0", RealState.Web.AppCulture.Ar);
     bool Delayed(DateTime? planned, DateTime? actual) => planned.HasValue && actual.HasValue && actual.Value.Date > planned.Value.Date;
     string StatusClass(UnitStatus s) => s switch { UnitStatus.Sold => "state-off", UnitStatus.Available => "state-on", _ => "badge-role" };
     (string L, string C) StageStatus(ProjectStage s) =>

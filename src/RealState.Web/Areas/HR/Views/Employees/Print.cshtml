@@ -4,7 +4,7 @@
     var tenantId = (Guid)ViewBag.TenantId;
     var withSalary = ViewBag.WithSalary as bool? ?? false;
     var withNationalId = ViewBag.WithNationalId as bool? ?? false;
-    string N(decimal v) => v.ToString("N0", new System.Globalization.CultureInfo("ar-EG"));
+    string N(decimal v) => v.ToString("N0", RealState.Web.AppCulture.Ar);
     var totalSalary = Model.Sum(e => e.BasicSalary);
     var baseCols = 6 + (withNationalId ? 1 : 0);   // # + الاسم + الهاتف + القسم + الوظيفة + نوع التعاقد (+ الرقم القومي)
 }

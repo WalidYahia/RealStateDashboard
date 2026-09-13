@@ -1,7 +1,7 @@
 @model CustomerReportVm
 @{
     ViewData["Title"] = "تقرير العملاء";
-    string N(decimal v) => v.ToString("N0", new System.Globalization.CultureInfo("ar-EG"));
+    string N(decimal v) => v.ToString("N0", RealState.Web.AppCulture.Ar);
     string? F(DateTime? d) => d?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
 }
 <div class="page-head">

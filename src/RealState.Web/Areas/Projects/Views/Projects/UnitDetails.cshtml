@@ -2,7 +2,7 @@
 @{
     var u = Model.Unit;
     ViewData["Title"] = u.Name;
-    string N(decimal v) => v.ToString("N0", new System.Globalization.CultureInfo("ar-EG"));
+    string N(decimal v) => v.ToString("N0", RealState.Web.AppCulture.Ar);
     string StatusClass(UnitStatus s) => s switch { UnitStatus.Sold => "state-off", UnitStatus.Available => "state-on", _ => "badge-role" };
     var canEdit = User.Can(PermissionNames.ProjectsEdit);
 }

@@ -1,7 +1,7 @@
 @model Advance
 @{
     var canManage = ViewData["CanManage"] as bool? ?? false;
-    string N(decimal v) => v.ToString("N0", new System.Globalization.CultureInfo("ar-EG"));
+    string N(decimal v) => v.ToString("N0", RealState.Web.AppCulture.Ar);
     string D(DateTime? d) => d?.ToString("yyyy/MM/dd") ?? "—";
     var repaid = Model.Repayments.Where(r => r.Status == PayStatus.Paid).Sum(r => r.Amount);
     string ADV = "ADV-" + Model.Number.ToString("D4");

@@ -7,7 +7,7 @@
     var canProgress = ViewData["CanProgress"] as bool? ?? false;
     var canPay = ViewData["CanPay"] as bool? ?? false;
     string WO(int n) => "WO-" + n;
-    string N(decimal v) => v.ToString("N2", new System.Globalization.CultureInfo("ar-EG"));
+    string N(decimal v) => v.ToString("N2", RealState.Web.AppCulture.Ar);
     string P(decimal v) => v.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture) + "%";
     string D(DateTime d) => d.ToString("yyyy/MM/dd", System.Globalization.CultureInfo.InvariantCulture);
     string? F(DateTime? d) => d?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);

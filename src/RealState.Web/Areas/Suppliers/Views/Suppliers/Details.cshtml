@@ -2,7 +2,7 @@
 @{
     ViewData["Title"] = $"كشف حساب {Model.Supplier.Name}";
     var canPay = ViewData["CanPay"] as bool? ?? false;
-    string N(decimal v) => v.ToString("N0", new System.Globalization.CultureInfo("ar-EG"));
+    string N(decimal v) => v.ToString("N0", RealState.Web.AppCulture.Ar);
     string D(DateTime d) => d.ToString("yyyy/MM/dd", System.Globalization.CultureInfo.InvariantCulture);
     string? F(DateTime? d) => d?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
 }

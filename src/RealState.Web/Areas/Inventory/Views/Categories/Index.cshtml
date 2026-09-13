@@ -1,0 +1,46 @@
+@model List<ProductCategory>
+@{
+    ViewData["Title"] = "تصنيفات الأصناف";
+    var canManage = User.Can(PermissionNames.InventoryManage);
+}
+<div class="page-head">
+    <h1>تصنيفات الأصناف</h1>
+    <span style="display:flex;gap:8px;">
+        <a class="btn-sm" asp-action="Print" target="_blank">🖨 طباعة (PDF)</a>
+        <a class="btn-sm" asp-action="Excel">⬇ Excel</a>
+        @if (canManage)
+        {
+            <button type="button" class="btn-new-tenant" onclick="appOpenModal('@Url.Action("Form")', 'تصنيف جديد')">➕ تصنيف جديد</button>
+        }
+    </span>
+</div>
+
+@if (TempData["StatusMessage"] is string status) { <div class="status-message">@status</div> }
+@if (TempData["ErrorMessage"] is string err) { <div class="status-message" style="background:rgba(208,59,59,.12);border-color:var(--critical);color:var(--critical);">@err</div> }
+
+<div class="card-tile">
+    <table class="rs-table">
+        <thead><tr><th>الاسم</th><th>الترتيب</th><th>الحالة</th><th></th></tr></thead>
+        <tbody>
+        @foreach (var c in Model)
+        {
+            <tr>
+                <td>@c.Name</td>
+                <td>@c.SortOrder</td>
+                <td>@(c.IsActive ? "مفعّل" : "متوقف")</td>
+                <td style="white-space:nowrap;">
+                    @if (canManage)
+                    {
+                        <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("Form", new { id = c.Id })', 'تعديل التصنيف')">✏️ تعديل</button>
+                        <form asp-action="Delete" asp-route-id="@c.Id" method="post" style="display:inline;" data-confirm="حذف التصنيف «@c.Name»؟" data-danger>
+                            @Html.AntiForgeryToken()
+                            <button type="submit" class="btn-sm btn-danger">حذف</button>
+                        </form>
+                    }
+                </td>
+            </tr>
+        }
+        @if (Model.Count == 0) { <tr><td colspan="4" style="color:var(--muted)">لا توجد تصنيفات بعد.</td></tr> }
+        </tbody>
+    </table>
+</div>

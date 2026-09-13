@@ -2,7 +2,7 @@
 @using System.Globalization
 
 @{
-    string N(decimal v) => v.ToString("N0", new CultureInfo("ar-EG"));
+    string N(decimal v) => v.ToString("N0", RealState.Web.AppCulture.Ar);
     string RawNum(decimal v) => v.ToString("0.##", CultureInfo.InvariantCulture);
     string D(DateTime d) => d.ToString("yyyy/MM/dd", CultureInfo.InvariantCulture);
 

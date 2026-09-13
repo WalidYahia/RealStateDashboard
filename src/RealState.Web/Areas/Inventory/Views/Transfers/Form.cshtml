@@ -1,0 +1,78 @@
+@model TransferFormModel
+@{
+    ViewData["Title"] = Model.Id == Guid.Empty ? "تحويل مخزني جديد" : $"تعديل التحويل {Model.Number}";
+    string F(DateTime d) => d.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+}
+<div class="page-head">
+    <h1>@ViewData["Title"]</h1>
+    <a class="btn-sm" href="javascript:history.back()">↩ رجوع</a>
+</div>
+
+<div class="card-tile">
+    <form id="invForm" asp-action="Save" method="post">
+        @Html.AntiForgeryToken()
+        <div asp-validation-summary="ModelOnly" class="validation-summary-errors"></div>
+        <input type="hidden" asp-for="Id" />
+        <input type="hidden" id="linesJson" name="linesJson" />
+
+        <div class="form-grid">
+            <div>
+                <label asp-for="Date" class="form-label"></label>
+                <input asp-for="Date" type="date" value="@F(Model.Date)" class="form-control" dir="ltr" />
+            </div>
+            <div></div>@* spacer: keeps «من مخزن» and «إلى مخزن» together on the next row *@
+            <div>
+                <label asp-for="FromWarehouseId" class="form-label"></label>
+                <select asp-for="FromWarehouseId" class="form-control" data-searchable asp-items="Model.Warehouses"><option value="">— اختر —</option></select>
+            </div>
+            <div>
+                <label asp-for="ToWarehouseId" class="form-label"></label>
+                <select asp-for="ToWarehouseId" class="form-control" data-searchable asp-items="Model.Warehouses"><option value="">— اختر —</option></select>
+            </div>
+            <div class="full">
+                <label asp-for="Notes" class="form-label"></label>
+                <input asp-for="Notes" class="form-control" />
+            </div>
+        </div>
+
+        <div style="overflow-x:auto;margin-top:12px;">
+            <table class="rs-table" id="invLines" data-no-grid>
+                <thead><tr><th style="min-width:240px;">الصنف</th><th>الكمية</th><th></th></tr></thead>
+                <tbody>
+                @foreach (var l in Model.ExistingLines)
+                {
+                    <tr>
+                        <td>
+                            <select class="form-control" data-field="productId" data-searchable>
+                                <option value="">— اختر —</option>
+                                @foreach (var p in Model.Products) { <option value="@p.Value" selected="@(string.Equals(p.Value, l.ProductId.ToString(), StringComparison.OrdinalIgnoreCase))">@p.Text</option> }
+                            </select>
+                        </td>
+                        <td><input class="form-control" data-field="quantity" type="number" step="0.01" min="0" dir="ltr" style="width:120px;" value="@l.Quantity" /></td>
+                        <td><button type="button" class="btn-sm btn-danger" onclick="invRemoveLine(this)">🗑</button></td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+
+        <template id="invLineTpl">
+            <tr>
+                <td>
+                    <select class="form-control" data-field="productId" data-searchable>
+                        <option value="">— اختر —</option>
+                        @foreach (var p in Model.Products) { <option value="@p.Value">@p.Text</option> }
+                    </select>
+                </td>
+                <td><input class="form-control" data-field="quantity" type="number" step="0.01" min="0" dir="ltr" style="width:120px;" /></td>
+                <td><button type="button" class="btn-sm btn-danger" onclick="invRemoveLine(this)">🗑</button></td>
+            </tr>
+        </template>
+
+        <div style="display:flex;gap:8px;margin-top:12px;">
+            <button type="button" class="btn-sm" onclick="invAddLine()">➕ إضافة سطر</button>
+            <button type="submit" class="btn-primary" style="width:auto;">💾 حفظ كمسودة</button>
+        </div>
+    </form>
+</div>
+<script src="~/js/inv-doc.js" asp-append-version="true"></script>

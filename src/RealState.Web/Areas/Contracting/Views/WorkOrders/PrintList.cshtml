@@ -1,7 +1,7 @@
 @model List<WorkOrderListItem>
 @{
     Layout = null;
-    string N(decimal v) => v.ToString("N2", new System.Globalization.CultureInfo("ar-EG"));
+    string N(decimal v) => v.ToString("N2", RealState.Web.AppCulture.Ar);
     string P(decimal v) => v.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture) + "%";
     string D(DateTime d) => d.ToString("yyyy/MM/dd", System.Globalization.CultureInfo.InvariantCulture);
     var totalActual = Model.Sum(r => r.ActualTotal);

@@ -1,6 +1,6 @@
 @model List<CollectionRow>
 @{
-    string N(decimal v) => v.ToString("N0", new System.Globalization.CultureInfo("ar-EG"));
+    string N(decimal v) => v.ToString("N0", RealState.Web.AppCulture.Ar);
     string RawNum(decimal v) => v.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
     var payable = (bool?)ViewData["Payable"] ?? false;
     var canEdit = User.Can(PermissionNames.CollectionsCollect);

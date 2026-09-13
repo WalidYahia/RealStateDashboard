@@ -4,7 +4,7 @@
 @{
     Layout = null;
     var tenantId = (Guid)ViewBag.TenantId;
-    string N(decimal v) => v.ToString("N0", new CultureInfo("ar-EG"));
+    string N(decimal v) => v.ToString("N0", RealState.Web.AppCulture.Ar);
     var palette = new[] { "#3987e5", "#199e70", "#9085e9", "#c98500", "#d03b3b", "#2bb8a3" };
     var projLabels = Model.ByProject.Select(p => p.Project).ToList();
     var projValues = Model.ByProject.Select(p => p.Value).ToList();

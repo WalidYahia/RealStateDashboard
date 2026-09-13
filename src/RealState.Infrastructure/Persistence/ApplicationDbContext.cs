@@ -42,6 +42,23 @@ public class ApplicationDbContext
     public DbSet<JournalEntry> JournalEntries => Set<JournalEntry>();
     public DbSet<JournalLine> JournalLines => Set<JournalLine>();
 
+    public DbSet<ProductCategory> ProductCategories => Set<ProductCategory>();
+    public DbSet<UnitOfMeasure> UnitsOfMeasure => Set<UnitOfMeasure>();
+    public DbSet<Warehouse> Warehouses => Set<Warehouse>();
+    public DbSet<Product> Products => Set<Product>();
+    public DbSet<InventoryMovement> InventoryMovements => Set<InventoryMovement>();
+    public DbSet<GoodsReceipt> GoodsReceipts => Set<GoodsReceipt>();
+    public DbSet<GoodsReceiptLine> GoodsReceiptLines => Set<GoodsReceiptLine>();
+    public DbSet<GoodsIssue> GoodsIssues => Set<GoodsIssue>();
+    public DbSet<GoodsIssueLine> GoodsIssueLines => Set<GoodsIssueLine>();
+    public DbSet<StockTransfer> StockTransfers => Set<StockTransfer>();
+    public DbSet<StockTransferLine> StockTransferLines => Set<StockTransferLine>();
+    public DbSet<InventoryAdjustment> InventoryAdjustments => Set<InventoryAdjustment>();
+    public DbSet<InventoryAdjustmentLine> InventoryAdjustmentLines => Set<InventoryAdjustmentLine>();
+    public DbSet<StockCount> StockCounts => Set<StockCount>();
+    public DbSet<StockCountLine> StockCountLines => Set<StockCountLine>();
+    public DbSet<InventoryPostingProfile> InventoryPostingProfiles => Set<InventoryPostingProfile>();
+
     public DbSet<Country> Countries => Set<Country>();
     public DbSet<City> Cities => Set<City>();
     public DbSet<Currency> Currencies => Set<Currency>();
@@ -145,6 +162,48 @@ public class ApplicationDbContext
         builder.Entity<JournalEntry>().HasIndex(e => new { e.SourceType, e.SourceId });
         builder.Entity<JournalLine>().HasOne(l => l.Entry).WithMany(e => e.Lines).HasForeignKey(l => l.JournalEntryId).OnDelete(DeleteBehavior.Cascade);
         builder.Entity<JournalLine>().HasOne(l => l.Account).WithMany().HasForeignKey(l => l.AccountId).OnDelete(DeleteBehavior.Restrict);
+
+        // Inventory quantities and unit costs need more than 2 decimals (fractional units, low unit costs).
+        // Money totals stay (18,2) from the global convention above.
+        builder.Entity<InventoryMovement>().Property(m => m.QuantityIn).HasPrecision(18, 4);
+        builder.Entity<InventoryMovement>().Property(m => m.QuantityOut).HasPrecision(18, 4);
+        builder.Entity<InventoryMovement>().Property(m => m.UnitCost).HasPrecision(18, 4);
+        builder.Entity<GoodsReceiptLine>().Property(l => l.Quantity).HasPrecision(18, 4);
+        builder.Entity<GoodsReceiptLine>().Property(l => l.UnitCost).HasPrecision(18, 4);
+        builder.Entity<GoodsIssueLine>().Property(l => l.Quantity).HasPrecision(18, 4);
+        builder.Entity<GoodsIssueLine>().Property(l => l.UnitCost).HasPrecision(18, 4);
+        builder.Entity<StockTransferLine>().Property(l => l.Quantity).HasPrecision(18, 4);
+        builder.Entity<StockTransferLine>().Property(l => l.UnitCost).HasPrecision(18, 4);
+        builder.Entity<InventoryAdjustmentLine>().Property(l => l.QuantityDelta).HasPrecision(18, 4);
+        builder.Entity<InventoryAdjustmentLine>().Property(l => l.UnitCost).HasPrecision(18, 4);
+        builder.Entity<StockCountLine>().Property(l => l.SystemQty).HasPrecision(18, 4);
+        builder.Entity<StockCountLine>().Property(l => l.CountedQty).HasPrecision(18, 4);
+
+        // Inventory: unique master codes + document numbers per tenant; subledger lookup; cascade doc lines.
+        builder.Entity<Product>().HasIndex(p => new { p.TenantId, p.Sku }).IsUnique().HasFilter("[IsDeleted] = 0");
+        builder.Entity<Warehouse>().HasIndex(w => new { w.TenantId, w.Code }).IsUnique().HasFilter("[IsDeleted] = 0");
+        builder.Entity<UnitOfMeasure>().HasIndex(u => new { u.TenantId, u.Code }).IsUnique().HasFilter("[IsDeleted] = 0");
+        builder.Entity<InventoryPostingProfile>().HasIndex(p => p.TenantId).IsUnique().HasFilter("[IsDeleted] = 0");
+        builder.Entity<InventoryMovement>().HasIndex(m => new { m.TenantId, m.ProductId, m.WarehouseId, m.Date });
+        builder.Entity<InventoryMovement>().HasIndex(m => new { m.ReferenceType, m.ReferenceId });
+
+        builder.Entity<GoodsReceipt>().HasIndex(d => new { d.TenantId, d.Number }).IsUnique().HasFilter("[IsDeleted] = 0");
+        builder.Entity<GoodsIssue>().HasIndex(d => new { d.TenantId, d.Number }).IsUnique().HasFilter("[IsDeleted] = 0");
+        builder.Entity<StockTransfer>().HasIndex(d => new { d.TenantId, d.Number }).IsUnique().HasFilter("[IsDeleted] = 0");
+        builder.Entity<InventoryAdjustment>().HasIndex(d => new { d.TenantId, d.Number }).IsUnique().HasFilter("[IsDeleted] = 0");
+        builder.Entity<StockCount>().HasIndex(d => new { d.TenantId, d.Number }).IsUnique().HasFilter("[IsDeleted] = 0");
+
+        builder.Entity<GoodsReceiptLine>().HasOne<GoodsReceipt>().WithMany(d => d.Lines).HasForeignKey(l => l.GoodsReceiptId).OnDelete(DeleteBehavior.Cascade);
+        builder.Entity<GoodsIssueLine>().HasOne<GoodsIssue>().WithMany(d => d.Lines).HasForeignKey(l => l.GoodsIssueId).OnDelete(DeleteBehavior.Cascade);
+        builder.Entity<StockTransferLine>().HasOne<StockTransfer>().WithMany(d => d.Lines).HasForeignKey(l => l.StockTransferId).OnDelete(DeleteBehavior.Cascade);
+        builder.Entity<InventoryAdjustmentLine>().HasOne<InventoryAdjustment>().WithMany(d => d.Lines).HasForeignKey(l => l.InventoryAdjustmentId).OnDelete(DeleteBehavior.Cascade);
+        builder.Entity<StockCountLine>().HasOne<StockCount>().WithMany(d => d.Lines).HasForeignKey(l => l.StockCountId).OnDelete(DeleteBehavior.Cascade);
+
+        // Product FKs restricted (deletes handled in code); movement → product/warehouse restricted.
+        builder.Entity<Product>().HasOne(p => p.Category).WithMany().HasForeignKey(p => p.CategoryId).OnDelete(DeleteBehavior.Restrict);
+        builder.Entity<Product>().HasOne(p => p.UnitOfMeasure).WithMany().HasForeignKey(p => p.UnitOfMeasureId).OnDelete(DeleteBehavior.Restrict);
+        builder.Entity<InventoryMovement>().HasOne(m => m.Product).WithMany().HasForeignKey(m => m.ProductId).OnDelete(DeleteBehavior.Restrict);
+        builder.Entity<InventoryMovement>().HasOne(m => m.Warehouse).WithMany().HasForeignKey(m => m.WarehouseId).OnDelete(DeleteBehavior.Restrict);
 
         // Sale contract references three parents — avoid multiple SQL Server cascade paths; deletes are handled in code.
         builder.Entity<SaleContract>().HasOne(s => s.Customer).WithMany().HasForeignKey(s => s.CustomerId).OnDelete(DeleteBehavior.Restrict);

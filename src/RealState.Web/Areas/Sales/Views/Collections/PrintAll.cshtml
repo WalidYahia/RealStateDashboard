@@ -2,7 +2,7 @@
 @{
     Layout = null;
     var tenantId = (Guid)ViewBag.TenantId;
-    string N(decimal v) => v.ToString("N0", new System.Globalization.CultureInfo("ar-EG"));
+    string N(decimal v) => v.ToString("N0", RealState.Web.AppCulture.Ar);
     var groups = Model.GroupBy(r => r.CustomerName).OrderBy(g => g.Key);
 }
 <!DOCTYPE html>

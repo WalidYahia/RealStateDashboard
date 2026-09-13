@@ -1,7 +1,7 @@
 @model AccountNode
 @{
     var canManage = ViewData["CanManage"] as bool? ?? false;
-    string N(decimal v) => v.ToString("N0", new System.Globalization.CultureInfo("ar-EG"));
+    string N(decimal v) => v.ToString("N0", RealState.Web.AppCulture.Ar);
     string TypeAr(RealState.Application.Enums.AccountType t) => t switch
     {
         RealState.Application.Enums.AccountType.Asset => "أصول",
@@ -31,7 +31,7 @@
             <span class="coa-actions">
                 @if (Model.IsControlManaged)
                 {
-                    <span class="coa-info" title="تُضاف الحسابات الفرعية من صفحاتها المخصّصة: العملاء / الموردون / المقاولون / الخزائن / الموظفون — ولا تُضاف يدويًا من هنا.">ℹ️</span>
+                    <span class="coa-info" title="تُضاف الحسابات الفرعية من صفحاتها المخصّصة: العملاء / الموردون / المقاولون / الخزائن / الموظفون / المخازن — ولا تُضاف يدويًا من هنا.">ℹ️</span>
                 }
                 else if (!Model.IsPostable)
                 {

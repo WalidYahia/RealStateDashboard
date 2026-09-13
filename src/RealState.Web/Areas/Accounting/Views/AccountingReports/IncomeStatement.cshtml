@@ -1,7 +1,7 @@
 @model IncomeStatementVm
 @{
     ViewData["Title"] = "قائمة الدخل";
-    string N(decimal v) => v.ToString("N2", new System.Globalization.CultureInfo("ar-EG"));
+    string N(decimal v) => v.ToString("N2", RealState.Web.AppCulture.Ar);
     string D(DateTime? d) => (d ?? DateTime.Today).ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
     var from = D(Model.From); var to = D(Model.To);
     var today = DateTime.Today;

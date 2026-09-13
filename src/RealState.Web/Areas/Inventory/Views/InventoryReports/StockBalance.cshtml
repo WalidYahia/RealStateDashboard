@@ -1,0 +1,47 @@
+@model StockBalanceVm
+@{
+    ViewData["Title"] = Model.ByProductOnly ? "تقييم المخزون" : "أرصدة المخزون";
+    string N(decimal v) => v.ToString("N2", RealState.Web.AppCulture.Ar);
+}
+<div class="page-head">
+    <h1>@ViewData["Title"]</h1>
+    <span style="display:flex;gap:8px;">
+        @if (Model.ByProductOnly)
+        {
+            <a class="btn-sm" asp-action="ValuationPrint" target="_blank">🖨 طباعة (PDF)</a>
+            <a class="btn-sm" asp-action="ValuationExcel">⬇ Excel</a>
+        }
+        else
+        {
+            <a class="btn-sm" asp-action="StockBalancePrint" target="_blank">🖨 طباعة (PDF)</a>
+            <a class="btn-sm" asp-action="StockBalanceExcel">⬇ Excel</a>
+        }
+    </span>
+</div>
+
+<partial name="_ReportTabs" />
+
+<div class="card-tile">
+    <div class="list-search-bar"><input class="form-control list-search" data-target="#balTable" placeholder="🔍 بحث في القائمة..." /></div>
+    <table class="rs-table" id="balTable">
+        <thead><tr><th>الكود</th><th>الصنف</th><th>المخزن</th><th>الكمية</th><th>متوسط التكلفة</th><th>القيمة</th></tr></thead>
+        <tbody>
+        @foreach (var r in Model.Rows)
+        {
+            <tr>
+                <td dir="ltr" style="text-align:right;">@r.Sku</td>
+                <td>@r.Product</td>
+                <td>@r.Warehouse</td>
+                <td>@N(r.Quantity)</td>
+                <td>@N(r.AvgCost)</td>
+                <td>@N(r.Value)</td>
+            </tr>
+        }
+        @if (Model.Rows.Count == 0) { <tr data-skip-search><td colspan="6" style="color:var(--muted)">لا توجد أرصدة.</td></tr> }
+        <tr data-no-results data-skip-search style="display:none;"><td colspan="6" style="color:var(--muted)">لا توجد نتائج مطابقة.</td></tr>
+        </tbody>
+        <tfoot>
+            <tr><th colspan="5" style="text-align:start;">إجمالي قيمة المخزون</th><th>@N(Model.TotalValue)</th></tr>
+        </tfoot>
+    </table>
+</div>
