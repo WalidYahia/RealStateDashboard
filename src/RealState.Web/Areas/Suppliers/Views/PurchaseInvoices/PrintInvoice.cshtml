@@ -1,0 +1,72 @@
+@model InvoiceDetailsVm
+@{
+    Layout = null;
+    var inv = Model.Invoice;
+    string N(decimal v) => v.ToString("N2", RealState.Web.AppCulture.Ar);
+    string Q(decimal v) => v.ToString("0.####", System.Globalization.CultureInfo.InvariantCulture);
+    string D(DateTime d) => d.ToString("yyyy/MM/dd", System.Globalization.CultureInfo.InvariantCulture);
+}
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="utf-8" />
+    <title>فاتورة مشتريات PI-@inv.Number</title>
+    <style>
+        body { font-family: "Segoe UI", Tahoma, sans-serif; padding: 28px; color: #111; }
+        h1 { font-size: 20px; text-align: center; margin: 6px 0 2px; }
+        .sub { text-align: center; color: #666; font-size: 12px; margin-bottom: 18px; }
+        h2 { font-size: 14px; margin: 18px 0 8px; border-bottom: 1px solid #ddd; padding-bottom: 4px; }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 8px; }
+        th, td { border: 1px solid #ccc; padding: 7px 8px; text-align: start; unicode-bidi: plaintext; }
+        th { background: #f2f2f2; }
+        .kv th { width: 180px; background: #fafafa; }
+        .sign { display: flex; justify-content: space-between; margin-top: 48px; font-size: 13px; }
+        .sign div { width: 40%; border-top: 1px solid #333; padding-top: 6px; text-align: center; }
+        .no-print { margin-bottom: 14px; } @@media print { .no-print { display: none; } }
+    </style>
+</head>
+<body>
+    @await Component.InvokeAsync("ReportBackground", new { part = "open" })
+    <div class="no-print"><button onclick="window.print()">🖨 طباعة / حفظ PDF</button></div>
+    <h1>فاتورة مشتريات رقم PI-@inv.Number</h1>
+    <div class="sub">تاريخ التحرير: @DateTime.Now.ToString("yyyy/MM/dd")</div>
+
+    <h2>البيانات</h2>
+    <table class="kv">
+        <tr><th>المورد</th><td>@Model.Supplier @(string.IsNullOrEmpty(Model.SupplierPhone) ? "" : "— " + Model.SupplierPhone)</td></tr>
+        <tr><th>المشروع</th><td>@(Model.Project ?? "بدون مشروع")</td></tr>
+        <tr><th>أمر التوريد</th><td>@(Model.OrderNumber.HasValue ? "PO-" + Model.OrderNumber.Value.ToString("D4") : "—")</td></tr>
+        <tr><th>المخزن</th><td>@(Model.Warehouse ?? "—")</td></tr>
+        <tr><th>تاريخ الفاتورة</th><td>@D(inv.InvoiceDate)</td></tr>
+    </table>
+
+    <h2>الأصناف</h2>
+    <table>
+        <thead><tr><th>#</th><th>الصنف</th><th>تكلفة الوحدة (ج.م)</th><th>الكمية</th><th>الإجمالي (ج.م)</th></tr></thead>
+        <tbody>
+        @{ var n = 0; }
+        @foreach (var it in inv.Items)
+        {
+            n++;
+            <tr><td>@n</td><td>@it.Name</td><td>@N(it.Cost)</td><td>@Q(it.Quantity)</td><td>@N(it.LineTotal)</td></tr>
+        }
+        </tbody>
+        <tfoot>
+            <tr><th colspan="4">الإجمالي</th><th>@N(Model.Total) ج.م</th></tr>
+            <tr><th colspan="4">المسدَّد</th><th>@N(Model.Paid) ج.م</th></tr>
+            <tr><th colspan="4">المتبقي</th><th>@N(Model.Remaining) ج.م</th></tr>
+        </tfoot>
+    </table>
+
+    @if (!string.IsNullOrEmpty(inv.Notes))
+    {
+        <h2>ملاحظات</h2>
+        <p>@inv.Notes</p>
+    }
+
+    <div class="sign"><div>توقيع المسؤول</div><div>توقيع المورد</div></div>
+
+    <script>window.addEventListener('load', function () { setTimeout(function () { window.print(); }, 500); });</script>
+    @await Component.InvokeAsync("ReportBackground", new { part = "close" })
+</body>
+</html>

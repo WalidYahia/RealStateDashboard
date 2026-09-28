@@ -38,6 +38,9 @@ public abstract class TxnControllerBase : Controller
 
     private bool Can(string permission) => User.HasClaim("permission", permission);
 
+    // «سحب على المكشوف» guard — resolved per request so the subclasses' constructors stay unchanged.
+    private ISafeBalanceGuard Guard => HttpContext.RequestServices.GetRequiredService<ISafeBalanceGuard>();
+
     public async Task<IActionResult> Index(DateTime? from, DateTime? to, string? q, string? source, CancellationToken ct)
     {
         if (!Can(ViewPerm)) return Forbid();
@@ -99,6 +102,22 @@ public abstract class TxnControllerBase : Controller
 
         if (!ModelState.IsValid) { await LoadHrOptionsAsync(model, ct); return PartialView("_TxnForm", model); }
 
+        // «سحب على المكشوف»: a new/raised expense — or an edit that lowers or moves an income — may not overdraw
+        // a safe that doesn't allow it. Net per-safe change = new effect − old effect.
+        var sign = TxnType == TxnType.Income ? 1 : -1;
+        var changes = new List<(Guid, decimal)> { (model.SafeId!.Value, sign * model.Amount) };
+        if (model.Id != Guid.Empty)
+        {
+            var before = await _db.SafeTransactions.AsNoTracking().FirstOrDefaultAsync(x => x.Id == model.Id, ct);
+            if (before is not null) changes.Add((before.SafeId, -sign * before.Amount));
+        }
+        if (await Guard.CheckChangesAsync(changes, ct) is string overdraw)
+        {
+            ModelState.AddModelError(nameof(model.Amount), overdraw);
+            await LoadHrOptionsAsync(model, ct);
+            return PartialView("_TxnForm", model);
+        }
+
         var label = TxnType == TxnType.Expense ? "مصروف" : "إيراد";
         int serial;
         if (model.Id == Guid.Empty)
@@ -133,6 +152,8 @@ public abstract class TxnControllerBase : Controller
         {
             var adv = await _db.Advances.FirstOrDefaultAsync(a => a.Id == model.AdvanceId && a.Status == DisbursementStatus.NotDisbursed, ct);
             if (adv is null) ModelState.AddModelError(nameof(model.AdvanceId), "اختر سلفة غير مصروفة.");
+            else if (model.SafeId.HasValue && await Guard.CheckWithdrawalAsync(model.SafeId.Value, adv.Amount, ct) is string overdraw)
+                ModelState.AddModelError(nameof(model.SafeId), overdraw);
             if (!ModelState.IsValid) return PartialView("_TxnForm", model);
             var empName = await _db.Employees.Where(e => e.Id == adv!.EmployeeId).Select(e => e.FullName).FirstOrDefaultAsync(ct) ?? "—";
             var txn = await _accounting.AddTransactionAsync(model.SafeId!.Value, TxnType.Expense, TxnSource.AdvanceDisbursement,
@@ -148,6 +169,8 @@ public abstract class TxnControllerBase : Controller
         {
             var rw = await _db.Rewards.FirstOrDefaultAsync(r => r.Id == model.RewardId && r.PayVia == RewardPayVia.Cash && r.Status == PayStatus.NotPaid, ct);
             if (rw is null) ModelState.AddModelError(nameof(model.RewardId), "اختر مكافأة نقدية غير مصروفة.");
+            else if (model.SafeId.HasValue && await Guard.CheckWithdrawalAsync(model.SafeId.Value, rw.Amount, ct) is string overdraw)
+                ModelState.AddModelError(nameof(model.SafeId), overdraw);
             if (!ModelState.IsValid) return PartialView("_TxnForm", model);
             var empName = await _db.Employees.Where(e => e.Id == rw!.EmployeeId).Select(e => e.FullName).FirstOrDefaultAsync(ct) ?? "—";
             var txn = await _accounting.AddTransactionAsync(model.SafeId!.Value, TxnType.Expense, TxnSource.RewardPayment,
@@ -210,8 +233,15 @@ public abstract class TxnControllerBase : Controller
     {
         if (!Can(DeletePerm)) return Forbid();
 
-        var t = await _db.SafeTransactions.FirstOrDefaultAsync(x => x.Id == id && x.Type == TxnType, ct);
+        var t = await _db.SafeTransactions.FirstOrDefaultAsync(x => x.Id == id && x.Type == TxnType && x.Source != TxnSource.SafeTransfer, ct);
         if (t is null) return RedirectToAction(nameof(Index));
+
+        // Deleting an income takes its money back out of the safe — «سحب على المكشوف» applies.
+        if (t.Type == TxnType.Income && await Guard.CheckWithdrawalAsync(t.SafeId, t.Amount, ct) is string overdraw)
+        {
+            TempData["ErrorMessage"] = $"لا يمكن حذف الإيراد رقم {t.Serial:D4}: {overdraw}";
+            return RedirectToAction(nameof(Index));
+        }
 
         if (t.Source == TxnSource.Manual)
         {
@@ -297,7 +327,7 @@ public abstract class TxnControllerBase : Controller
     public async Task<IActionResult> PrintOne(Guid id, CancellationToken ct)
     {
         if (!Can(ViewPerm)) return Forbid();
-        var t = await _db.SafeTransactions.FirstOrDefaultAsync(x => x.Id == id && x.Type == TxnType, ct);
+        var t = await _db.SafeTransactions.FirstOrDefaultAsync(x => x.Id == id && x.Type == TxnType && x.Source != TxnSource.SafeTransfer, ct);
         if (t is null) return NotFound();
         ViewBag.SafeName = await _db.Safes.Where(s => s.Id == t.SafeId).Select(s => s.Name).FirstOrDefaultAsync(ct);
         ViewBag.TenantId = _currentUser.TenantId;
@@ -328,7 +358,8 @@ public abstract class TxnControllerBase : Controller
     {
         var safeNames = await _db.Safes.ToDictionaryAsync(s => s.Id, s => s.Name, ct);
         var catNames = await _db.TxnCategories.ToDictionaryAsync(c => c.Id, c => c.Name, ct);
-        var txns = await _db.SafeTransactions.Where(t => t.Type == TxnType).ToListAsync(ct);
+        // Transfers between safes are neither income nor expense — they live on the transfers page.
+        var txns = await _db.SafeTransactions.Where(t => t.Type == TxnType && t.Source != TxnSource.SafeTransfer).ToListAsync(ct);
 
         // Parse the encoded «المصدر» selection: "c:{guid}" filters by category, "s:{int}" by system source.
         Guid? catFilter = null; TxnSource? srcFilter = null;

@@ -18,6 +18,16 @@ public enum TxnSource
     RewardPayment = 5,       // صرف مكافأة لموظف (مصروف)
     AdvanceRepayment = 6,    // تحصيل سداد سلفة (إيراد)
     ContractorPayment = 7,   // سداد دفعة لمقاول على أمر شغل (مصروف)
+    SafeTransfer = 8,        // تحويل نقدية بين الخزائن (منصرف من خزنة / وارد إلى أخرى) — ليس إيرادًا ولا مصروفًا
+}
+
+/// <summary>Kind of safe (نوع الخزنة) — where the money is held.</summary>
+public enum SafeType
+{
+    Normal = 0,        // عادية (نقدية)
+    Bank = 1,          // بنك
+    DigitalWallet = 2, // محفظة إلكترونية
+    Instapay = 3,      // إنستاباي
 }
 
 /// <summary>The five classic account classes of a double-entry chart of accounts.</summary>

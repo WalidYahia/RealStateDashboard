@@ -18,12 +18,14 @@ public class WorkOrdersController : Controller
     private readonly IApplicationDbContext _db;
     private readonly ICurrentUserService _currentUser;
     private readonly IAccountingService _accounting;
+    private readonly ISafeBalanceGuard _guard;
 
-    public WorkOrdersController(IApplicationDbContext db, ICurrentUserService currentUser, IAccountingService accounting)
+    public WorkOrdersController(IApplicationDbContext db, ICurrentUserService currentUser, IAccountingService accounting, ISafeBalanceGuard guard)
     {
         _db = db;
         _currentUser = currentUser;
         _accounting = accounting;
+        _guard = guard;
     }
 
     private bool Can(string permission) => User.HasClaim("permission", permission);
@@ -331,6 +333,8 @@ public class WorkOrdersController : Controller
             ModelState.AddModelError(nameof(model.Amount), "أدخل مبلغًا أكبر من صفر.");
         if (model.Amount > remaining)
             ModelState.AddModelError(nameof(model.Amount), $"المبلغ يتجاوز المتبقي على الأمر ({remaining:N0} ج.م).");
+        if (ModelState.IsValid && await _guard.CheckWithdrawalAsync(model.SafeId!.Value, model.Amount, ct) is string overdraw)
+            ModelState.AddModelError(nameof(model.Amount), overdraw);   // «سحب على المكشوف»
 
         if (!ModelState.IsValid)
         {

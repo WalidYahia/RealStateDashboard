@@ -115,8 +115,10 @@
                     var supArea = ViewContext.RouteData.Values["area"]?.ToString();
                     var supCtrl = ViewContext.RouteData.Values["controller"]?.ToString();
                     var supOpen = supArea == "Suppliers";
+                    var canSuppliers = Can(PermissionNames.SuppliersView);
+                    var canPurchaseInvoices = Can(PermissionNames.PurchaseInvoicesView);
                 }
-                @if (Can(PermissionNames.SuppliersView))
+                @if (canSuppliers || canPurchaseInvoices)
                 {
                     <div class="nav-group @(supOpen ? "open" : "")">
                         <div class="nav-parent">
@@ -124,8 +126,15 @@
                             <button type="button" class="nav-caret" onclick="toggleNavGroup(this)">▾</button>
                         </div>
                         <div class="subnav">
-                            <a class="subnav-link @(supOpen && supCtrl == "Suppliers" ? "active" : "")" asp-area="Suppliers" asp-controller="Suppliers" asp-action="Index">قائمة الموردين</a>
-                            <a class="subnav-link @(supOpen && supCtrl == "Orders" ? "active" : "")" asp-area="Suppliers" asp-controller="Orders" asp-action="Index">أوامر التوريد</a>
+                            @if (canSuppliers)
+                            {
+                                <a class="subnav-link @(supOpen && supCtrl == "Suppliers" ? "active" : "")" asp-area="Suppliers" asp-controller="Suppliers" asp-action="Index">قائمة الموردين</a>
+                                <a class="subnav-link @(supOpen && supCtrl == "Orders" ? "active" : "")" asp-area="Suppliers" asp-controller="Orders" asp-action="Index">أوامر التوريد</a>
+                            }
+                            @if (canPurchaseInvoices)
+                            {
+                                <a class="subnav-link @(supOpen && supCtrl == "PurchaseInvoices" ? "active" : "")" asp-area="Suppliers" asp-controller="PurchaseInvoices" asp-action="Index">فواتير المشتريات</a>
+                            }
                         </div>
                     </div>
                 }
@@ -157,7 +166,7 @@
                 }
                 @{
                     var accCtrl = ViewContext.RouteData.Values["controller"]?.ToString();
-                    var accOpen = accCtrl is "Safes" or "Expenses" or "Incomes";
+                    var accOpen = accCtrl is "Safes" or "SafeTransfers" or "Expenses" or "Incomes";
                     var canSafes = Can(PermissionNames.SafesView);
                     var canExpenses = Can(PermissionNames.ExpensesView);
                     var canIncomes = Can(PermissionNames.IncomesView);
@@ -174,6 +183,7 @@
                             @if (canSafes)
                             {
                                 <a class="subnav-link @NavActive("Safes")" asp-area="Accounting" asp-controller="Safes" asp-action="Index">الخزائن</a>
+                                <a class="subnav-link @NavActive("SafeTransfers")" asp-area="Accounting" asp-controller="SafeTransfers" asp-action="Index">التحويلات بين الخزائن</a>
                             }
                             @if (canExpenses)
                             {

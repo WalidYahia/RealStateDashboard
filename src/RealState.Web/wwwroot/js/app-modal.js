@@ -1,5 +1,5 @@
 // Reusable modal CRUD + system-wide SweetAlert confirmations, errors and toasts.
-// Usage: appOpenModal('/Area/Controller/Form?id=...', 'Title')
+// Usage: appOpenModal('/Area/Controller/Form?id=...', 'Title'[, 'xl'])
 // The loaded partial must contain a <form id="appModalForm">. The POST action returns
 //   { ok: true }            -> success (page reloads / redirects)
 //   { ok: false, error: '' } -> error (SweetAlert shown, form stays open)
@@ -32,8 +32,11 @@ window.appToast = function (msg, icon) {
         return modal || (modal = new bootstrap.Modal(document.getElementById('appModal')));
     }
 
-    window.appOpenModal = function (url, title) {
+    // Optional size: 'xl' for wide forms (e.g. documents with line tables); default is the large dialog.
+    window.appOpenModal = function (url, title, size) {
         var m = ensureModal();
+        var dlg = document.querySelector('#appModal .modal-dialog');
+        if (dlg) { dlg.classList.toggle('modal-xl', size === 'xl'); dlg.classList.toggle('modal-lg', size !== 'xl'); }
         document.getElementById('appModalTitle').textContent = title || '';
         document.getElementById('appModalBody').innerHTML = '<div style="padding:24px;text-align:center;color:var(--muted)">جارٍ التحميل…</div>';
         m.show();

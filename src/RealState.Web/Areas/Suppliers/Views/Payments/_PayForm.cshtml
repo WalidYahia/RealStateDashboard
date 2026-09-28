@@ -1,14 +1,14 @@
 @model SupplierPayFormModel
 @{
-    string N(decimal v) => v.ToString("N0", RealState.Web.AppCulture.Ar);
+    string N(decimal v) => v.ToString("N2", RealState.Web.AppCulture.Ar);
 }
-<form id="appModalForm" asp-area="Suppliers" asp-controller="Orders" asp-action="Pay" method="post" data-open-tab>
+<form id="appModalForm" asp-area="Suppliers" asp-controller="Payments" asp-action="Pay" method="post" data-open-tab>
     @Html.AntiForgeryToken()
     <div asp-validation-summary="ModelOnly" class="validation-summary-errors"></div>
-    <input type="hidden" asp-for="OrderId" />
+    <input type="hidden" asp-for="Target" />
 
     <div class="status-message" style="background:var(--surface-2);border-color:var(--border);color:var(--text-secondary);">
-        <div style="margin-bottom:6px;font-weight:600;">@Model.OrderLabel</div>
+        <div style="margin-bottom:6px;font-weight:600;">@Model.DocumentLabel</div>
         <div style="display:flex;gap:18px;flex-wrap:wrap;">
             <span>الإجمالي: <strong>@N(Model.Total)</strong> ج.م</span>
             <span>المسدَّد: <strong style="color:var(--good);">@N(Model.Paid)</strong> ج.م</span>

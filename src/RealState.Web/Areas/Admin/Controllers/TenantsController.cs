@@ -196,10 +196,13 @@ public class TenantsController : Controller
             await using var tx = await _db.Database.BeginTransactionAsync(ct);
 
             // Delete every tenant-scoped table, children before parents so the Restrict FKs pass.
-            // --- Accounting movements (before Safe/Project) ---
+            // --- Accounting movements (transfers -> movements, before Safe/Project) ---
+            await _db.SafeTransfers.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
             await _db.SafeTransactions.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
-            // --- Suppliers (items/payments -> orders -> suppliers) ---
+            // --- Purchasing (payments -> invoice items -> invoices -> order items -> orders -> suppliers) ---
             await _db.SupplierPayments.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
+            await _db.PurchaseInvoiceItems.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
+            await _db.PurchaseInvoices.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
             await _db.SupplierOrderItems.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
             await _db.SupplierOrders.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
             await _db.Suppliers.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
@@ -207,7 +210,6 @@ public class TenantsController : Controller
             await _db.Installments.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
             await _db.SaleContracts.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
             await _db.SalesInvoices.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
-            await _db.PurchaseInvoices.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
             // --- Tasks (logs/attachments -> tasks; before Employee/Department) ---
             await _db.WorkTaskLogs.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
             await _db.WorkTaskAttachments.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);

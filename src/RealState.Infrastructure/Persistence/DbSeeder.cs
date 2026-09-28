@@ -56,6 +56,7 @@ public static class DbSeeder
         var existing = await db.Permissions.ToListAsync();
         var byName = existing.ToDictionary(p => p.Name);
         var changed = false;
+        var added = new List<Permission>();
 
         foreach (var info in PermissionNames.Catalog)
         {
@@ -71,9 +72,22 @@ public static class DbSeeder
             }
             else
             {
-                db.Permissions.Add(new Permission { Name = info.Name, DisplayName = info.Display, Group = info.Group });
+                var perm = new Permission { Name = info.Name, DisplayName = info.Display, Group = info.Group };
+                db.Permissions.Add(perm);
+                added.Add(perm);
                 changed = true;
             }
+        }
+
+        // A newly-added permission that splits off an existing one is granted to every role holding the
+        // source permission — once, at creation — so upgrading doesn't hide a screen users already reached.
+        foreach (var perm in added)
+        {
+            if (!PermissionNames.InheritedFrom.TryGetValue(perm.Name, out var sourceName)) continue;
+            if (!byName.TryGetValue(sourceName, out var source)) continue;
+            var roleIds = await db.RolePermissions.Where(rp => rp.PermissionId == source.Id).Select(rp => rp.RoleId).ToListAsync();
+            foreach (var roleId in roleIds)
+                db.RolePermissions.Add(new RolePermission { RoleId = roleId, Permission = perm });
         }
 
         // Prune permissions that no longer exist in the catalog (e.g. after consolidating a module's
@@ -102,7 +116,8 @@ public static class DbSeeder
         // Legacy serials are small counters; year-prefixed ones are >= 100,000,000 (year × 100000).
         const int YearPrefixFloor = 100_000_000;
 
-        var txns = await db.SafeTransactions.IgnoreQueryFilters().ToListAsync();
+        // Safe-transfer movements carry no receipt serial (0) — they are not income/expense vouchers.
+        var txns = await db.SafeTransactions.IgnoreQueryFilters().Where(t => t.Source != TxnSource.SafeTransfer).ToListAsync();
         if (txns.Count == 0 || txns.All(t => t.Serial >= YearPrefixFloor)) return;   // nothing legacy to fix
 
         // (tenant, type, old serial) -> new serial, so supplier-payment receipt numbers can follow.

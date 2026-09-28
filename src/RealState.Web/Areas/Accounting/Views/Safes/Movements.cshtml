@@ -43,9 +43,9 @@
         @foreach (var t in Model.Transactions)
         {
             <tr>
-                <td dir="ltr" style="text-align:right;">@t.Serial.ToString("D4")</td>
+                <td dir="ltr" style="text-align:right;">@(t.DocNo ?? t.Serial.ToString("D4"))</td>
                 <td dir="ltr" style="text-align:right;">@DT(t.OccurredAt)</td>
-                <td><span class="badge-state @(t.Type == TxnType.Income ? "state-on" : "state-off")">@t.Type.Ar()</span></td>
+                <td><span class="badge-state @(t.Type == TxnType.Income ? "state-on" : "state-off")">@(t.IsTransfer ? (t.Type == TxnType.Income ? "تحويل وارد" : "تحويل صادر") : t.Type.Ar())</span></td>
                 <td>@t.Source.Ar()</td>
                 <td>@t.Description</td>
                 <td style="color:@(t.Type == TxnType.Income ? "var(--good)" : "var(--critical)")">@(t.Type == TxnType.Income ? "+" : "−")@N(t.Amount)</td>

@@ -2,8 +2,8 @@
 @{
     Layout = null;
     var tenantId = (Guid)ViewBag.TenantId;
-    string N(decimal v) => v.ToString("N0", RealState.Web.AppCulture.Ar);
-    string Q(decimal v) => v.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+    string N(decimal v) => v.ToString("N2", RealState.Web.AppCulture.Ar);
+    string Q(decimal v) => v.ToString("0.####", System.Globalization.CultureInfo.InvariantCulture);
     string D(DateTime d) => d.ToString("yyyy/MM/dd", System.Globalization.CultureInfo.InvariantCulture);
     var total = Model.Items.Sum(i => i.LineTotal);
 }
@@ -35,24 +35,24 @@
 
     <h2>البيانات</h2>
     <table class="kv">
-        <tr><th>المورد / المقاول</th><td>@Model.Supplier?.Name @(string.IsNullOrEmpty(Model.Supplier?.Phone) ? "" : "— " + Model.Supplier?.Phone)</td></tr>
         <tr><th>المشروع</th><td>@(Model.Project is null ? "بدون مشروع" : $"#{Model.Project.Code} {Model.Project.Name}")</td></tr>
         <tr><th>تاريخ الأمر</th><td>@D(Model.OrderDate)</td></tr>
     </table>
 
-    <h2>البنود</h2>
+    <h2>الأصناف</h2>
     <table>
-        <thead><tr><th>#</th><th>البند</th><th>تكلفة الوحدة (ج.م)</th><th>الكمية</th><th>الإجمالي (ج.م)</th></tr></thead>
+        @* Orders are quantity-only; a legacy order (which still owns a supplier payable) also prints its costs. *@
+        <thead><tr><th>#</th><th>الصنف</th><th>الكمية</th>@if (Model.IsLegacy) {<th>تكلفة الوحدة (ج.م)</th><th>الإجمالي (ج.م)</th>}</tr></thead>
         <tbody>
         @{ var n = 0; }
         @foreach (var it in Model.Items)
         {
             n++;
-            <tr><td>@n</td><td>@it.Name</td><td>@N(it.Cost)</td><td>@Q(it.Quantity)</td><td>@N(it.LineTotal)</td></tr>
+            <tr><td>@n</td><td>@it.Name</td><td>@Q(it.Quantity)</td>@if (Model.IsLegacy) {<td>@N(it.Cost)</td><td>@N(it.LineTotal)</td>}</tr>
         }
         </tbody>
         <tfoot>
-            <tr><th colspan="4">الإجمالي</th><th>@N(total) ج.م</th></tr>
+            <tr><th colspan="2">إجمالي الكميات</th><th>@Q(Model.Items.Sum(i => i.Quantity))</th>@if (Model.IsLegacy) {<th></th><th>@N(total) ج.م</th>}</tr>
         </tfoot>
     </table>
 
@@ -62,7 +62,7 @@
         <p>@Model.Notes</p>
     }
 
-    <div class="sign"><div>توقيع المسؤول</div><div>توقيع المورد</div></div>
+    <div class="sign"><div>إعداد</div><div>اعتماد</div></div>
 
     <script>window.addEventListener('load', function () { setTimeout(function () { window.print(); }, 500); });</script>
     @await Component.InvokeAsync("ReportBackground", new { part = "close" })

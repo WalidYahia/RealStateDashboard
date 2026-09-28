@@ -17,12 +17,14 @@ public class CollectionsController : Controller
     private readonly IApplicationDbContext _db;
     private readonly ICurrentUserService _currentUser;
     private readonly IAccountingService _accounting;
+    private readonly ISafeBalanceGuard _guard;
 
-    public CollectionsController(IApplicationDbContext db, ICurrentUserService currentUser, IAccountingService accounting)
+    public CollectionsController(IApplicationDbContext db, ICurrentUserService currentUser, IAccountingService accounting, ISafeBalanceGuard guard)
     {
         _db = db;
         _currentUser = currentUser;
         _accounting = accounting;
+        _guard = guard;
     }
 
     // ---------- Page shell + status cards ----------
@@ -144,6 +146,14 @@ public class CollectionsController : Controller
     {
         var inst = await _db.Installments.FirstOrDefaultAsync(i => i.Id == id, ct);
         if (inst is null) return NotFound();
+        // Cancelling takes the collected money back out of its safe(s) — «سحب على المكشوف» applies.
+        var incomes = await _db.SafeTransactions.Where(t => t.InstallmentId == inst.Id && t.Type == TxnType.Income)
+            .Select(t => new { t.SafeId, t.Amount }).ToListAsync(ct);
+        if (await _guard.CheckChangesAsync(incomes.Select(t => (t.SafeId, -t.Amount)), ct) is string overdraw)
+        {
+            TempData["ErrorMessage"] = $"لا يمكن إلغاء التحصيل: {overdraw}";
+            return RedirectToAction(nameof(Index));
+        }
         inst.PaidAmount = 0;
         inst.PaidDate = null;
         inst.ReceiptNo = null;

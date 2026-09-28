@@ -86,6 +86,7 @@ public class ApplicationDbContext
     public DbSet<Installment> Installments => Set<Installment>();
     public DbSet<Safe> Safes => Set<Safe>();
     public DbSet<SafeTransaction> SafeTransactions => Set<SafeTransaction>();
+    public DbSet<SafeTransfer> SafeTransfers => Set<SafeTransfer>();
     public DbSet<Supplier> Suppliers => Set<Supplier>();
     public DbSet<SupplierOrder> SupplierOrders => Set<SupplierOrder>();
     public DbSet<SupplierOrderItem> SupplierOrderItems => Set<SupplierOrderItem>();
@@ -105,6 +106,7 @@ public class ApplicationDbContext
     public DbSet<ProjectUnitAttachment> ProjectUnitAttachments => Set<ProjectUnitAttachment>();
     public DbSet<SalesInvoice> SalesInvoices => Set<SalesInvoice>();
     public DbSet<PurchaseInvoice> PurchaseInvoices => Set<PurchaseInvoice>();
+    public DbSet<PurchaseInvoiceItem> PurchaseInvoiceItems => Set<PurchaseInvoiceItem>();
     public DbSet<Income> Incomes => Set<Income>();
     public DbSet<Expense> Expenses => Set<Expense>();
     public DbSet<TaskItem> Tasks => Set<TaskItem>();
@@ -214,12 +216,36 @@ public class ApplicationDbContext
         builder.Entity<SafeTransaction>().HasOne(t => t.Safe).WithMany().HasForeignKey(t => t.SafeId).OnDelete(DeleteBehavior.Restrict);
         builder.Entity<SafeTransaction>().HasOne(t => t.Project).WithMany().HasForeignKey(t => t.ProjectId).OnDelete(DeleteBehavior.Restrict);
 
+        // Safe transfers: unique number per tenant; both safes + both movements restricted (deletes handled in code).
+        builder.Entity<SafeTransfer>().HasIndex(t => new { t.TenantId, t.Number }).IsUnique().HasFilter("[IsDeleted] = 0");
+        builder.Entity<SafeTransfer>().HasOne(t => t.FromSafe).WithMany().HasForeignKey(t => t.FromSafeId).OnDelete(DeleteBehavior.Restrict);
+        builder.Entity<SafeTransfer>().HasOne(t => t.ToSafe).WithMany().HasForeignKey(t => t.ToSafeId).OnDelete(DeleteBehavior.Restrict);
+        builder.Entity<SafeTransfer>().HasOne<SafeTransaction>().WithMany().HasForeignKey(t => t.OutTransactionId).OnDelete(DeleteBehavior.Restrict);
+        builder.Entity<SafeTransfer>().HasOne<SafeTransaction>().WithMany().HasForeignKey(t => t.InTransactionId).OnDelete(DeleteBehavior.Restrict);
+
         // Supplier orders reference a supplier and (optionally) a project — restrict to avoid multiple
         // cascade paths; items cascade with their order, payments/safe are restricted (handled in code).
         builder.Entity<SupplierOrder>().HasOne(o => o.Supplier).WithMany().HasForeignKey(o => o.SupplierId).OnDelete(DeleteBehavior.Restrict);
         builder.Entity<SupplierOrder>().HasOne(o => o.Project).WithMany().HasForeignKey(o => o.ProjectId).OnDelete(DeleteBehavior.Restrict);
         builder.Entity<SupplierOrderItem>().HasOne(i => i.Order).WithMany(o => o.Items).HasForeignKey(i => i.SupplierOrderId).OnDelete(DeleteBehavior.Cascade);
         builder.Entity<SupplierOrderAttachment>().HasOne(a => a.Order).WithMany().HasForeignKey(a => a.SupplierOrderId).OnDelete(DeleteBehavior.Cascade);
+        builder.Entity<SupplierOrderItem>().HasOne(i => i.Product).WithMany().HasForeignKey(i => i.ProductId).OnDelete(DeleteBehavior.Restrict);
+        builder.Entity<SupplierOrderItem>().Property(i => i.Quantity).HasPrecision(18, 4);
+        builder.Entity<SupplierOrderItem>().Property(i => i.Cost).HasPrecision(18, 4);
+
+        // Purchase invoices reference a supplier, and optionally a project and a purchase order — all
+        // restricted (deletes handled in code); items cascade with their invoice.
+        builder.Entity<PurchaseInvoice>().HasIndex(i => new { i.TenantId, i.Number }).IsUnique().HasFilter("[IsDeleted] = 0");
+        builder.Entity<PurchaseInvoice>().HasOne(i => i.Supplier).WithMany().HasForeignKey(i => i.SupplierId).OnDelete(DeleteBehavior.Restrict);
+        builder.Entity<PurchaseInvoice>().HasOne(i => i.Project).WithMany().HasForeignKey(i => i.ProjectId).OnDelete(DeleteBehavior.Restrict);
+        builder.Entity<PurchaseInvoice>().HasOne(i => i.PurchaseOrder).WithMany().HasForeignKey(i => i.PurchaseOrderId).OnDelete(DeleteBehavior.Restrict);
+        builder.Entity<PurchaseInvoice>().HasOne(i => i.Warehouse).WithMany().HasForeignKey(i => i.WarehouseId).OnDelete(DeleteBehavior.Restrict);
+        // An invoice's automatic goods receipts point back at it (SET NULL so a hard tenant purge of invoices can't be blocked).
+        builder.Entity<GoodsReceipt>().HasOne<PurchaseInvoice>().WithMany().HasForeignKey(r => r.PurchaseInvoiceId).OnDelete(DeleteBehavior.SetNull);
+        builder.Entity<PurchaseInvoiceItem>().HasOne(i => i.Invoice).WithMany(v => v.Items).HasForeignKey(i => i.PurchaseInvoiceId).OnDelete(DeleteBehavior.Cascade);
+        builder.Entity<PurchaseInvoiceItem>().HasOne(i => i.Product).WithMany().HasForeignKey(i => i.ProductId).OnDelete(DeleteBehavior.Restrict);
+        builder.Entity<PurchaseInvoiceItem>().Property(i => i.Quantity).HasPrecision(18, 4);
+        builder.Entity<PurchaseInvoiceItem>().Property(i => i.Cost).HasPrecision(18, 4);
 
         // Contracting: work orders reference a contractor + project (restrict); logs cascade with their order;
         // payments restrict (deletes handled in code).
@@ -231,6 +257,7 @@ public class ApplicationDbContext
         builder.Entity<WorkOrderPayment>().HasOne<Safe>().WithMany().HasForeignKey(p => p.SafeId).OnDelete(DeleteBehavior.Restrict);
         builder.Entity<SupplierPayment>().HasOne(p => p.Supplier).WithMany().HasForeignKey(p => p.SupplierId).OnDelete(DeleteBehavior.Restrict);
         builder.Entity<SupplierPayment>().HasOne(p => p.Order).WithMany(o => o.Payments).HasForeignKey(p => p.SupplierOrderId).OnDelete(DeleteBehavior.Restrict);
+        builder.Entity<SupplierPayment>().HasOne(p => p.Invoice).WithMany(i => i.Payments).HasForeignKey(p => p.PurchaseInvoiceId).OnDelete(DeleteBehavior.Restrict);
         builder.Entity<SupplierPayment>().HasOne<Safe>().WithMany().HasForeignKey(p => p.SafeId).OnDelete(DeleteBehavior.Restrict);
 
         // HR relationships — restrict most (deletes handled in code); employee attachments & advance

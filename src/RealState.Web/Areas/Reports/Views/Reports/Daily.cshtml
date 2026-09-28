@@ -22,7 +22,7 @@
 
 <div class="kpi-grid" style="grid-template-columns: repeat(5, 1fr);">
     <div class="kpi k-sales"><div class="kpi-label">عقود البيع</div><div class="kpi-value">@N(Model.ContractsTotal) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">@Model.Contracts.Count عقد</div></div>
-    <div class="kpi k-reserve"><div class="kpi-label">أوامر التوريد</div><div class="kpi-value">@N(Model.OrdersTotal) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">@Model.Orders.Count أمر</div></div>
+    <div class="kpi k-reserve"><div class="kpi-label">فواتير المشتريات</div><div class="kpi-value">@N(Model.OrdersTotal) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">@Model.Orders.Count فاتورة</div></div>
     <div class="kpi k-collect"><div class="kpi-label">الإيرادات</div><div class="kpi-value">@N(Model.IncomeTotal) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">@Model.Incomes.Count حركة</div></div>
     <div class="kpi k-alerts"><div class="kpi-label">المصروفات</div><div class="kpi-value">@N(Model.ExpenseTotal) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">@Model.Expenses.Count حركة</div></div>
     <div class="kpi k-tasks"><div class="kpi-label">صافي الحركة النقدية</div><div class="kpi-value">@N(Model.NetCash) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">إيراد − مصروف</div></div>
@@ -40,12 +40,12 @@
         </table>
     </div>
     <div class="card-tile">
-        <div class="card-head"><h3>أوامر التوريد</h3></div>
+        <div class="card-head"><h3>فواتير المشتريات</h3></div>
         <table class="rs-table">
             <thead><tr><th>الرقم</th><th>المورد</th><th>المشروع</th><th>القيمة</th></tr></thead>
             <tbody>
             @foreach (var o in Model.Orders) { <tr><td dir="ltr" style="text-align:right;">@o.Number</td><td>@o.Supplier</td><td>@o.Project</td><td>@N(o.Value)</td></tr> }
-            @if (Model.Orders.Count == 0) { <tr><td colspan="4" style="color:var(--muted)">لا توجد أوامر في هذا اليوم.</td></tr> }
+            @if (Model.Orders.Count == 0) { <tr><td colspan="4" style="color:var(--muted)">لا توجد فواتير مشتريات في هذا اليوم.</td></tr> }
             </tbody>
         </table>
     </div>

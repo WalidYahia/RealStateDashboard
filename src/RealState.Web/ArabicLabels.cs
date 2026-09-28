@@ -240,7 +240,17 @@ public static class ArabicLabels
         TxnSource.RewardPayment => "صرف مكافأة",
         TxnSource.AdvanceRepayment => "سداد سلفة",
         TxnSource.ContractorPayment => "سداد مقاول",
+        TxnSource.SafeTransfer => "تحويل بين الخزائن",
         _ => s.ToString()
+    };
+
+    public static string Ar(this SafeType t) => t switch
+    {
+        SafeType.Normal => "عادية",
+        SafeType.Bank => "بنك",
+        SafeType.DigitalWallet => "محفظة إلكترونية",
+        SafeType.Instapay => "إنستاباي",
+        _ => t.ToString()
     };
 
     public static string Ar(this WorkOrderField f) => f switch

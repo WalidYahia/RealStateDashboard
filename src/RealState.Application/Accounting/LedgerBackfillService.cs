@@ -83,6 +83,8 @@ public class LedgerBackfillService : ILedgerBackfillService
                     if (t.InstallmentId is Guid iid && instToContract.TryGetValue(iid, out var cid) && contracts.TryGetValue(cid, out var con))
                     { customerId = con.CustomerId; projectId ??= con.ProjectId; unitId = con.UnitId; }
                     break;
+                case TxnSource.SafeTransfer:
+                    continue;   // posted once per transfer (Dr to-safe / Cr from-safe), not per movement
                 case TxnSource.SupplierPayment:
                     if (supPayByReceipt.TryGetValue(t.Serial, out var sp)) supplierId = sp.SupplierId;
                     break;

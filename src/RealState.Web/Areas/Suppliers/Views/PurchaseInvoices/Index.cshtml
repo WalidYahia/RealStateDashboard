@@ -1,0 +1,133 @@
+@model List<InvoiceListItem>
+@{
+    ViewData["Title"] = "فواتير المشتريات";
+    var canCreate = ViewData["CanCreate"] as bool? ?? false;
+    var canEdit = ViewData["CanEdit"] as bool? ?? false;
+    var canViewOrders = User.Can(PermissionNames.SuppliersView);
+    string N(decimal v) => v.ToString("N2", RealState.Web.AppCulture.Ar);
+    string D(DateTime d) => d.ToString("yyyy/MM/dd", System.Globalization.CultureInfo.InvariantCulture);
+    string? F(DateTime? d) => d?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+    string PI(int n) => "PI-" + n;
+    string PO(int n) => "PO-" + n.ToString("D4");
+    var total = Model.Sum(r => r.Total);
+    var paid = Model.Sum(r => r.Paid);
+}
+<div class="page-head">
+    <h1>فواتير المشتريات
+        <button type="button" title="شرح فاتورة المشتريات" onclick="appOpenModal('@Url.Action("Help")', 'شرح فاتورة المشتريات')" style="border:none;background:none;cursor:pointer;font-size:18px;vertical-align:middle;">❓</button>
+    </h1>
+    <div style="display:flex;gap:8px;">
+        @if (canCreate)
+        {
+            <button type="button" class="btn-new-tenant" onclick="appOpenModal('@Url.Action("Form")', 'فاتورة مشتريات جديدة', 'xl')">➕ فاتورة مشتريات جديدة</button>
+        }
+    </div>
+</div>
+
+@if (TempData["StatusMessage"] is string status)
+{
+    <div class="status-message">@status</div>
+}
+
+<div class="card-tile" style="margin-bottom:12px;">
+    <form asp-action="Index" method="get" class="filter-form">
+        @{
+            var supId = (ViewBag.SupplierId as Guid?)?.ToString();
+            var projId = (ViewBag.ProjectId as Guid?)?.ToString();
+            var ordId = (ViewBag.OrderId as Guid?)?.ToString();
+            var supList = ViewBag.Suppliers as List<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem> ?? new();
+            var projList = ViewBag.Projects as List<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem> ?? new();
+            var ordList = ViewBag.Orders as List<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem> ?? new();
+        }
+        <div class="filter-row">
+            <div class="fld"><label class="form-label">من (تاريخ الفاتورة)</label><input type="date" name="from" value="@F((DateTime?)ViewBag.From)" class="form-control" dir="ltr" /></div>
+            <div class="fld"><label class="form-label">إلى</label><input type="date" name="to" value="@F((DateTime?)ViewBag.To)" class="form-control" dir="ltr" /></div>
+            <div class="filter-presets">
+                <button type="button" class="btn-sm date-preset" data-from="@F(DateTime.Today)" data-to="@F(DateTime.Today)">اليوم</button>
+                <button type="button" class="btn-sm date-preset" data-from="@F(DateTime.Today.AddDays(-7))" data-to="@F(DateTime.Today)">آخر أسبوع</button>
+                <button type="button" class="btn-sm date-preset" data-from="@F(DateTime.Today.AddMonths(-1))" data-to="@F(DateTime.Today)">آخر شهر</button>
+            </div>
+        </div>
+        <div class="filter-row">
+            <div class="fld">
+                <label class="form-label">المورد</label>
+                <select name="supplierId" class="form-control" data-searchable><option value="">الكل</option>
+                    @foreach (var s in supList) { <option value="@s.Value" selected="@(supId == s.Value)">@s.Text</option> }
+                </select>
+            </div>
+            <div class="fld">
+                <label class="form-label">المشروع</label>
+                <select name="projectId" class="form-control" data-searchable><option value="">الكل</option>
+                    @foreach (var p in projList) { <option value="@p.Value" selected="@(projId == p.Value)">@p.Text</option> }
+                </select>
+            </div>
+            <div class="fld">
+                <label class="form-label">أمر التوريد</label>
+                <select name="orderId" class="form-control" data-searchable><option value="">الكل</option>
+                    @foreach (var o in ordList) { <option value="@o.Value" selected="@(ordId == o.Value)">@o.Text</option> }
+                </select>
+            </div>
+            <div class="filter-actions">
+                <button type="submit" class="btn-primary">بحث</button>
+                <a class="btn-sm" asp-action="PrintList" asp-route-from="@F((DateTime?)ViewBag.From)" asp-route-to="@F((DateTime?)ViewBag.To)" asp-route-supplierId="@supId" asp-route-projectId="@projId" asp-route-orderId="@ordId" target="_blank">🖨 طباعة (PDF)</a>
+            </div>
+        </div>
+    </form>
+</div>
+
+<div class="card-tile">
+    <div class="card-head">
+        <h3>الفواتير</h3>
+        <span class="pill">الفواتير: <span data-live-count="#invTable">@Model.Count</span> · الإجمالي: <span data-live-sum="#invTable:5">@N(total)</span> ج.م · المتبقي: <span data-live-sum="#invTable:7">@N(total - paid)</span> ج.م</span>
+    </div>
+    <div class="list-search-bar"><input class="form-control list-search" data-target="#invTable" placeholder="🔍 بحث في القائمة..." /></div>
+    <table class="rs-table" id="invTable">
+        <thead>
+            <tr><th>الرقم</th><th>التاريخ</th><th>المورد</th><th>المشروع</th><th>أمر التوريد</th><th>الإجمالي</th><th>المسدَّد</th><th>المتبقي</th><th></th></tr>
+        </thead>
+        <tbody>
+        @foreach (var i in Model)
+        {
+            <tr>
+                <td style="white-space:nowrap;"><a asp-action="Details" asp-route-id="@i.Id" dir="ltr" style="color:var(--series-1);text-decoration:none;font-weight:600;">@PI(i.Number)</a></td>
+                <td dir="ltr" style="text-align:right;">@D(i.InvoiceDate)</td>
+                <td>@i.Supplier</td>
+                <td>@i.Project</td>
+                <td style="white-space:nowrap;">
+                    @if (i.OrderId.HasValue && i.OrderNumber.HasValue && canViewOrders)
+                    {
+                        <a asp-controller="Orders" asp-action="Details" asp-route-id="@i.OrderId" dir="ltr" style="color:var(--series-1);text-decoration:none;">@PO(i.OrderNumber.Value)</a>
+                    }
+                    else if (i.OrderNumber.HasValue)
+                    {
+                        <span dir="ltr">@PO(i.OrderNumber.Value)</span>
+                    }
+                    else
+                    {
+                        <span style="color:var(--muted);">—</span>
+                    }
+                </td>
+                <td>@N(i.Total)</td>
+                <td class="tag-up">@N(i.Paid)</td>
+                <td>@N(i.Remaining)</td>
+                <td style="white-space:nowrap;">
+                    <a class="btn-sm" asp-action="Details" asp-route-id="@i.Id">التفاصيل</a>
+                    @if (canEdit)
+                    {
+                        <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("Form", new { id = i.Id })', 'تعديل فاتورة المشتريات', 'xl')">✏️ تعديل</button>
+                    }
+                </td>
+            </tr>
+        }
+        @if (Model.Count == 0)
+        {
+            <tr data-skip-search><td colspan="9" style="color:var(--muted)">لا توجد فواتير مشتريات.</td></tr>
+        }
+        <tr data-no-results data-skip-search style="display:none;"><td colspan="9" style="color:var(--muted)">لا توجد نتائج مطابقة للبحث.</td></tr>
+        </tbody>
+    </table>
+</div>
+
+@section Scripts {
+    <script src="~/js/purchase-doc.js" asp-append-version="true"></script>
+}

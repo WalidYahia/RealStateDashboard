@@ -43,14 +43,24 @@ public class DashboardService : IDashboardService
             .Sum(i => i.Amount - i.PaidAmount);
         vm.CollectedThisMonth = installments.Where(i => i.PaidDate != null && i.PaidDate >= monthStart).Sum(i => i.PaidAmount);
 
-        // --- Suppliers: outstanding payables (per-order remaining, summed over orders not fully paid) ---
-        var orderTotals = (await _db.SupplierOrderItems.GroupBy(i => i.SupplierOrderId)
-            .Select(g => new { g.Key, Sum = g.Sum(x => x.Cost) }).ToListAsync(ct))
+        // --- Suppliers: outstanding payables (per-document remaining, summed over documents not fully paid).
+        // Obligations are purchase invoices, plus legacy orders that still carry a supplier. ---
+        var legacyOrderIds = _db.SupplierOrders.Where(o => o.SupplierId != null).Select(o => o.Id);
+        var orderTotals = (await _db.SupplierOrderItems.Where(i => legacyOrderIds.Contains(i.SupplierOrderId))
+            .GroupBy(i => i.SupplierOrderId)
+            .Select(g => new { g.Key, Sum = g.Sum(x => x.Cost * x.Quantity) }).ToListAsync(ct))
             .ToDictionary(x => x.Key, x => x.Sum);
         var orderPaid = (await _db.SupplierPayments.Where(p => p.SupplierOrderId != null)
             .GroupBy(p => p.SupplierOrderId!.Value).Select(g => new { g.Key, Sum = g.Sum(x => x.Amount) }).ToListAsync(ct))
             .ToDictionary(x => x.Key, x => x.Sum);
-        vm.SupplierPayables = orderTotals.Sum(o => Math.Max(0, o.Value - orderPaid.GetValueOrDefault(o.Key, 0)));
+        var invoiceTotals = (await _db.PurchaseInvoiceItems.GroupBy(i => i.PurchaseInvoiceId)
+            .Select(g => new { g.Key, Sum = g.Sum(x => x.LineTotal) }).ToListAsync(ct))
+            .ToDictionary(x => x.Key, x => x.Sum);
+        var invoicePaid = (await _db.SupplierPayments.Where(p => p.PurchaseInvoiceId != null)
+            .GroupBy(p => p.PurchaseInvoiceId!.Value).Select(g => new { g.Key, Sum = g.Sum(x => x.Amount) }).ToListAsync(ct))
+            .ToDictionary(x => x.Key, x => x.Sum);
+        vm.SupplierPayables = orderTotals.Sum(o => Math.Max(0, o.Value - orderPaid.GetValueOrDefault(o.Key, 0)))
+            + invoiceTotals.Sum(i => Math.Max(0, i.Value - invoicePaid.GetValueOrDefault(i.Key, 0)));
 
         // --- Projects / units ---
         vm.ProjectsCount = await _db.Projects.CountAsync(ct);

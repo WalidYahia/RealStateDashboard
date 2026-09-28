@@ -10,12 +10,36 @@
             <span asp-validation-for="Name" class="field-validation-error"></span>
         </div>
         <div>
+            <label asp-for="Type" class="form-label"></label>
+            <select asp-for="Type" class="form-control">
+                @foreach (var t in Enum.GetValues<SafeType>())
+                {
+                    <option value="@t" selected="@(t == Model.Type)">@t.Ar()</option>
+                }
+            </select>
+            <span asp-validation-for="Type" class="field-validation-error"></span>
+        </div>
+        <div>
             <label asp-for="InitialAmount" class="form-label"></label>
             <input asp-for="InitialAmount" class="form-control" type="number" step="0.01" min="0" dir="ltr" />
             <span asp-validation-for="InitialAmount" class="field-validation-error"></span>
         </div>
         <div class="full">
             <label class="form-check"><input asp-for="IsActive" type="checkbox" /> مفعّلة</label>
+        </div>
+        <div class="full">
+            @if (Model.CanSetOverdraft)
+            {
+                <label class="form-check"><input asp-for="AllowOverdraft" type="checkbox" /> سحب على المكشوف</label>
+            }
+            else
+            {
+                @* Without Safes.Overdraft the option is shown but can't be changed (the server ignores it too). *@
+                <label class="form-check" style="opacity:.6;" title="تغيير هذا الخيار يتطلب صلاحية «السحب على المكشوف»">
+                    <input type="checkbox" disabled checked="@Model.AllowOverdraft" /> سحب على المكشوف
+                </label>
+            }
+            <div style="color:var(--muted);font-size:12px;">عند التفعيل يُسمح بصرف أو سداد أو تحويل مبالغ من الخزنة تتجاوز رصيدها (قد يصبح رصيدها سالبًا). بدونه تُرفض أي عملية تُنقص الرصيد عن صفر.</div>
         </div>
     </div>
     <button type="submit" class="btn-primary" style="margin-top:12px;">💾 حفظ</button>

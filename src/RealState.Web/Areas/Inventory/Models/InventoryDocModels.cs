@@ -83,6 +83,9 @@ public class DocListRow
     public InventoryDocStatus Status { get; set; }
     public int LineCount { get; set; }
     public decimal TotalCost { get; set; }
+    /// <summary>Goods receipts only: the purchase invoice that generated it (then it's managed from the invoice).</summary>
+    public Guid? PurchaseInvoiceId { get; set; }
+    public string? SourceLabel { get; set; }
 }
 
 /// <summary>Document details view (header + lines + resulting movements).</summary>
@@ -95,6 +98,10 @@ public class DocDetailsVm
     public string Status { get; set; } = string.Empty;
     public string? Notes { get; set; }
     public List<DocDetailLine> Lines { get; set; } = new();
+    /// <summary>Optional extra header rows for the printed document (e.g. المورد, فاتورة المشتريات).</summary>
+    public List<(string Label, string Value)> Extra { get; set; } = new();
+    /// <summary>When set, the details popup shows a print button opening this URL in a new tab.</summary>
+    public string? PrintUrl { get; set; }
 }
 
 public class DocDetailLine

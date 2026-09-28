@@ -2,10 +2,10 @@
 @{
     Layout = null;
     var tenantId = (Guid)ViewBag.TenantId;
-    string N(decimal v) => v.ToString("N0", RealState.Web.AppCulture.Ar);
+    string Q(decimal v) => v.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
     string D(DateTime d) => d.ToString("yyyy/MM/dd", System.Globalization.CultureInfo.InvariantCulture);
     string PO(int x) => "PO-" + x.ToString("D4");
-    var total = Model.Sum(r => r.Total);
+    var totalQty = Model.Sum(r => r.TotalQuantity);
 }
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -30,18 +30,18 @@
     <div class="sub">@DateTime.Now.ToString("yyyy/MM/dd HH:mm")</div>
 
     <table>
-        <thead><tr><th>الرقم</th><th>التاريخ</th><th>المورد</th><th>المشروع</th><th>عدد البنود</th><th>الإجمالي</th></tr></thead>
+        <thead><tr><th>الرقم</th><th>التاريخ</th><th>المشروع</th><th>عدد الأصناف</th><th>إجمالي الكميات</th><th>فواتير المشتريات</th></tr></thead>
         <tbody>
         @foreach (var o in Model)
         {
-            <tr><td>@PO(o.Number)</td><td>@D(o.OrderDate)</td><td>@o.Supplier</td><td>@o.Project</td><td>@o.ItemCount</td><td>@N(o.Total)</td></tr>
+            <tr><td>@PO(o.Number)</td><td>@D(o.OrderDate)</td><td>@o.Project</td><td>@o.ItemCount</td><td>@Q(o.TotalQuantity)</td><td>@(o.Invoices.Count == 0 ? "—" : string.Join("، ", o.Invoices.Select(i => "PI-" + i.Number)))</td></tr>
         }
         @if (Model.Count == 0)
         {
             <tr><td colspan="6">لا توجد أوامر توريد.</td></tr>
         }
         </tbody>
-        <tfoot><tr><th colspan="5">الإجمالي</th><th>@N(total)</th></tr></tfoot>
+        <tfoot><tr><th colspan="4">الإجمالي</th><th>@Q(totalQty)</th><th></th></tr></tfoot>
     </table>
 
     <script>window.addEventListener('load', function () { setTimeout(function () { window.print(); }, 400); });</script>

@@ -12,23 +12,94 @@ public class SafeFormModel
     [Display(Name = "اسم الخزنة")]
     public string Name { get; set; } = string.Empty;
 
+    [Display(Name = "نوع الخزنة")]
+    public SafeType Type { get; set; } = SafeType.Normal;
+
     [Range(0, 999999999999, ErrorMessage = "قيمة غير صالحة")]
     [Display(Name = "الرصيد الافتتاحي (ج.م)")]
     public decimal InitialAmount { get; set; }
 
     [Display(Name = "مفعّلة")]
     public bool IsActive { get; set; } = true;
+
+    [Display(Name = "سحب على المكشوف")]
+    public bool AllowOverdraft { get; set; }
+
+    /// <summary>Display only: whether the current user may change <see cref="AllowOverdraft"/>.</summary>
+    public bool CanSetOverdraft { get; set; }
+}
+
+// ---------- Safe transfers (تحويل بين الخزائن) ----------
+public class SafeTransferFormModel
+{
+    public Guid Id { get; set; }
+    /// <summary>Display only: the transfer's number, or the number the next new transfer will take.</summary>
+    public int Number { get; set; }
+
+    [Required(ErrorMessage = "اختر الخزنة المحوَّل منها")]
+    [Display(Name = "من خزنة")]
+    public Guid? FromSafeId { get; set; }
+
+    [Required(ErrorMessage = "اختر الخزنة المحوَّل إليها")]
+    [Display(Name = "إلى خزنة")]
+    public Guid? ToSafeId { get; set; }
+
+    [Range(0.01, 999999999999, ErrorMessage = "أدخل مبلغًا أكبر من صفر")]
+    [Display(Name = "المبلغ (ج.م)")]
+    public decimal Amount { get; set; }
+
+    [Required][Display(Name = "التاريخ والوقت")]
+    public DateTime OccurredAt { get; set; } = DateTime.Now;
+
+    [Display(Name = "ملاحظات")]
+    public string? Notes { get; set; }
+
+    /// <summary>Active safes with their current balance in the label (and data-balance for the form hint).</summary>
+    public List<SafeOption> Safes { get; set; } = new();
+}
+
+public record SafeOption(Guid Id, string Name, SafeType Type, decimal Balance, bool AllowOverdraft);
+
+public class SafeTransferRow
+{
+    public Guid Id { get; set; }
+    public int Number { get; set; }
+    public DateTime OccurredAt { get; set; }
+    public string FromSafe { get; set; } = string.Empty;
+    public string ToSafe { get; set; } = string.Empty;
+    public decimal Amount { get; set; }
+    public string? Notes { get; set; }
+    public string? CreatedBy { get; set; }
+}
+
+public class SafeTransferListVm
+{
+    public List<SafeTransferRow> Rows { get; set; } = new();
+    public DateTime? From { get; set; }
+    public DateTime? To { get; set; }
+    /// <summary>Filter: transfers where this safe is the source or the destination.</summary>
+    public Guid? SafeId { get; set; }
+    public string? Q { get; set; }
+    public List<SelectListItem> SafeOptions { get; set; } = new();
+    public decimal Total => Rows.Sum(r => r.Amount);
 }
 
 public class SafeRow
 {
     public Guid Id { get; set; }
     public string Name { get; set; } = string.Empty;
+    public SafeType Type { get; set; }
+    public bool IsActive { get; set; }
+    public bool AllowOverdraft { get; set; }
     public decimal InitialAmount { get; set; }
+    /// <summary>Real income / expense — transfers between safes are excluded and shown as <see cref="TransfersNet"/>.</summary>
     public decimal Income { get; set; }
     public decimal Expense { get; set; }
+    public decimal TransferIn { get; set; }
+    public decimal TransferOut { get; set; }
+    public decimal TransfersNet => TransferIn - TransferOut;
     public int TxnCount { get; set; }
-    public decimal Balance => InitialAmount + Income - Expense;
+    public decimal Balance => InitialAmount + Income - Expense + TransfersNet;
 }
 
 /// <summary>Create/update a manual income or expense (Type is fixed by the controller).</summary>
@@ -111,6 +182,9 @@ public class TxnRow
     public DateTime OccurredAt { get; set; }
     public string Description { get; set; } = string.Empty;
     public string? CategoryName { get; set; }
+    /// <summary>Document number shown instead of the serial — e.g. SF-2026000001 for a transfer movement.</summary>
+    public string? DocNo { get; set; }
+    public bool IsTransfer => Source == TxnSource.SafeTransfer;
     public bool IsManual => Source == TxnSource.Manual;
     /// <summary>An advance disbursement expense — deletable here to "un-disburse" the advance.</summary>
     public bool IsAdvanceDisbursement => Source == TxnSource.AdvanceDisbursement;

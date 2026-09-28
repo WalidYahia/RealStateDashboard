@@ -1,0 +1,69 @@
+@model SafeTransferFormModel
+@{
+    var inv = System.Globalization.CultureInfo.InvariantCulture;
+    string N(decimal v) => v.ToString("N2", RealState.Web.AppCulture.Ar);
+}
+<form id="appModalForm" asp-area="Accounting" asp-controller="SafeTransfers" asp-action="Form" method="post">
+    @Html.AntiForgeryToken()
+    <div asp-validation-summary="ModelOnly" class="validation-summary-errors"></div>
+    <input type="hidden" asp-for="Id" />
+    <input type="hidden" asp-for="Number" />
+
+    @if (Model.Safes.Count < 2)
+    {
+        <div class="status-message" style="background:rgba(250,178,25,.12);border-color:var(--warning);color:var(--warning);">
+            التحويل يحتاج خزنتين مفعّلتين على الأقل.
+        </div>
+    }
+
+    <div class="form-grid">
+        <div>
+            <label class="form-label">رقم التحويل</label>
+            <input class="form-control" value="SF-@Model.Number" dir="ltr" readonly
+                   title="@(Model.Id == Guid.Empty ? "الرقم المتوقع — يُثبَّت عند الحفظ" : "")" />
+        </div>
+        <div>
+            <label asp-for="OccurredAt" class="form-label"></label>
+            <input asp-for="OccurredAt" class="form-control" type="datetime-local" dir="ltr" />
+            <span asp-validation-for="OccurredAt" class="field-validation-error"></span>
+        </div>
+        <div>
+            <label asp-for="FromSafeId" class="form-label"></label>
+            <select asp-for="FromSafeId" class="form-control" data-searchable
+                    onchange="var o=this.options[this.selectedIndex];var h=document.getElementById('sfFromBal');if(h)h.textContent=o&&o.value?('الرصيد المتاح: '+o.getAttribute('data-balance-text')+' ج.م'+(o.hasAttribute('data-overdraft')?' — يُسمح بالسحب على المكشوف':'')):'';">
+                <option value="">— اختر الخزنة —</option>
+                @foreach (var s in Model.Safes)
+                {
+                    <option value="@s.Id" data-balance-text="@N(s.Balance)" data-overdraft="@(s.AllowOverdraft ? "1" : null)" selected="@(s.Id == Model.FromSafeId)">@s.Name — @s.Type.Ar() (@N(s.Balance))</option>
+                }
+            </select>
+            <span asp-validation-for="FromSafeId" class="field-validation-error"></span>
+            <div id="sfFromBal" style="color:var(--muted);font-size:12px;margin-top:2px;">
+                @{ var fromSafe = Model.Safes.FirstOrDefault(s => s.Id == Model.FromSafeId); }
+                @if (fromSafe is not null) { <text>الرصيد المتاح: @N(fromSafe.Balance) ج.م@(fromSafe.AllowOverdraft ? " — يُسمح بالسحب على المكشوف" : "")</text> }
+            </div>
+        </div>
+        <div>
+            <label asp-for="ToSafeId" class="form-label"></label>
+            <select asp-for="ToSafeId" class="form-control" data-searchable>
+                <option value="">— اختر الخزنة —</option>
+                @foreach (var s in Model.Safes)
+                {
+                    <option value="@s.Id" selected="@(s.Id == Model.ToSafeId)">@s.Name — @s.Type.Ar() (@N(s.Balance))</option>
+                }
+            </select>
+            <span asp-validation-for="ToSafeId" class="field-validation-error"></span>
+        </div>
+        <div>
+            <label asp-for="Amount" class="form-label"></label>
+            <input asp-for="Amount" class="form-control" type="number" step="0.01" min="0" dir="ltr" value="@(Model.Amount == 0 ? "" : Model.Amount.ToString("0.##", inv))" />
+            <span asp-validation-for="Amount" class="field-validation-error"></span>
+        </div>
+        <div class="full">
+            <label asp-for="Notes" class="form-label"></label>
+            <input asp-for="Notes" class="form-control" />
+        </div>
+    </div>
+
+    <button type="submit" class="btn-primary" style="margin-top:12px;" disabled="@(Model.Safes.Count < 2)">🔁 حفظ التحويل</button>
+</form>

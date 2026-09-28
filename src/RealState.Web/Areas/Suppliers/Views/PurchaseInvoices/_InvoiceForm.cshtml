@@ -1,0 +1,65 @@
+@model InvoiceFormModel
+<form id="appModalForm" asp-area="Suppliers" asp-controller="PurchaseInvoices" asp-action="Form" method="post"
+      data-modal-init="pdInit" data-order-lines-url="@Url.Action("OrderLines", "PurchaseInvoices", new { area = "Suppliers" })">
+    @Html.AntiForgeryToken()
+    <div asp-validation-summary="ModelOnly" class="validation-summary-errors"></div>
+    <input type="hidden" asp-for="Id" />
+    <input type="hidden" asp-for="Number" />
+
+    @if (Model.Suppliers.Count == 0)
+    {
+        <div class="status-message" style="background:rgba(250,178,25,.12);border-color:var(--warning);color:var(--warning);">
+            أضف موردًا واحدًا على الأقل قبل إنشاء فاتورة مشتريات.
+        </div>
+    }
+
+    <div class="form-grid">
+        <div>
+            <label class="form-label">رقم الفاتورة</label>
+            <input class="form-control" value="PI-@Model.Number" dir="ltr" readonly
+                   title="@(Model.Id == Guid.Empty ? "الرقم المتوقع — يُثبَّت عند الحفظ" : "")" />
+        </div>
+        <div>
+            <label asp-for="InvoiceDate" class="form-label"></label>
+            <input asp-for="InvoiceDate" class="form-control" type="date" dir="ltr" />
+            <span asp-validation-for="InvoiceDate" class="field-validation-error"></span>
+        </div>
+        <div>
+            <label asp-for="SupplierId" class="form-label"></label>
+            <select asp-for="SupplierId" class="form-control" data-searchable asp-items="Model.Suppliers"><option value="">— اختر المورد —</option></select>
+            <span asp-validation-for="SupplierId" class="field-validation-error"></span>
+        </div>
+        <div>
+            <label asp-for="ProjectId" class="form-label"></label>
+            <select asp-for="ProjectId" class="form-control" data-searchable asp-items="Model.Projects"><option value="">— بدون مشروع —</option></select>
+            <span asp-validation-for="ProjectId" class="field-validation-error"></span>
+        </div>
+        <div>
+            <label asp-for="PurchaseOrderId" class="form-label"></label>
+            <select asp-for="PurchaseOrderId" class="form-control" data-searchable asp-items="Model.Orders" onchange="pdOrderPicked(this)"><option value="">— بدون أمر توريد —</option></select>
+            <span asp-validation-for="PurchaseOrderId" class="field-validation-error"></span>
+        </div>
+        <div>
+            <label asp-for="WarehouseId" class="form-label"></label>
+            <select asp-for="WarehouseId" class="form-control" data-searchable asp-items="Model.Warehouses"><option value="">— اختر المخزن —</option></select>
+            <span asp-validation-for="WarehouseId" class="field-validation-error"></span>
+        </div>
+        <div class="full">
+            @* Inline (collapsible) so reading it doesn't replace the form in the shared modal. *@
+            <details style="border:1px solid var(--border);border-radius:8px;padding:6px 10px;background:var(--surface-2);">
+                <summary style="cursor:pointer;color:var(--text-secondary);font-size:13px;">
+                    ❓ عند الحفظ تُستلم الأصناف المخزنية في المخزن المختار بإذن استلام تلقائي بتكلفة الوحدة المُدخلة، فتتحدّث تكلفة الصنف حسب طريقة التكلفة — اضغط للشرح
+                </summary>
+                <div style="margin-top:8px;"><partial name="_Help" /></div>
+            </details>
+        </div>
+        <div class="full">
+            <label asp-for="Notes" class="form-label"></label>
+            <textarea asp-for="Notes" class="form-control" rows="2"></textarea>
+        </div>
+    </div>
+
+    <partial name="_DocItems" model="new DocItemsVm(Model.Items, Model.Products, true)" />
+
+    <button type="submit" class="btn-primary" style="margin-top:12px;" disabled="@(Model.Suppliers.Count == 0 || Model.Products.Count == 0)">💾 حفظ فاتورة المشتريات</button>
+</form>

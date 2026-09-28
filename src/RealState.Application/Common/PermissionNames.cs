@@ -51,6 +51,8 @@ public static class PermissionNames
     public const string SafesCreate = "Safes.Create";
     public const string SafesEdit = "Safes.Edit";
     public const string SafesDelete = "Safes.Delete";
+    public const string SafesTransfer = "Safes.Transfer";   // create/edit/delete transfers between safes (viewing needs Safes.View)
+    public const string SafesOverdraft = "Safes.Overdraft"; // turn a safe's «سحب على المكشوف» option on/off
 
     // ----- Accounting: expenses -----
     public const string ExpensesView = "Expenses.View";
@@ -94,6 +96,12 @@ public static class PermissionNames
     public const string SuppliersEdit = "Suppliers.Edit";
     public const string SuppliersDelete = "Suppliers.Delete";
     public const string SuppliersPay = "Suppliers.Pay";
+
+    // ----- Purchasing: purchase invoices (فواتير المشتريات) ----- (paying an invoice uses Suppliers.Pay)
+    public const string PurchaseInvoicesView = "PurchaseInvoices.View";
+    public const string PurchaseInvoicesCreate = "PurchaseInvoices.Create";
+    public const string PurchaseInvoicesEdit = "PurchaseInvoices.Edit";
+    public const string PurchaseInvoicesDelete = "PurchaseInvoices.Delete";
 
     // ----- Contracting: contractors + work orders (المقاولات) -----
     public const string ContractingView = "Contracting.View";
@@ -188,6 +196,8 @@ public static class PermissionNames
         new PermissionInfo(SafesCreate, "إضافة خزنة",           GSafes),
         new PermissionInfo(SafesEdit,   "تعديل الخزائن",        GSafes),
         new PermissionInfo(SafesDelete, "حذف الخزائن",          GSafes),
+        new PermissionInfo(SafesTransfer, "تحويل الأموال بين الخزائن (إضافة/تعديل/حذف)", GSafes),
+        new PermissionInfo(SafesOverdraft, "تفعيل/إلغاء «السحب على المكشوف» للخزائن", GSafes),
 
         new PermissionInfo(ExpensesView,   "عرض المصروفات",  GExpenses),
         new PermissionInfo(ExpensesCreate, "إضافة مصروف",    GExpenses),
@@ -221,6 +231,10 @@ public static class PermissionNames
         new PermissionInfo(SuppliersEdit,   "تعديل الموردين وأوامر التوريد",           GSuppliers),
         new PermissionInfo(SuppliersDelete, "حذف الموردين وأوامر التوريد",             GSuppliers),
         new PermissionInfo(SuppliersPay,    "سداد دفعات للموردين",                     GSuppliers),
+        new PermissionInfo(PurchaseInvoicesView,   "عرض فواتير المشتريات",  GSuppliers),
+        new PermissionInfo(PurchaseInvoicesCreate, "إضافة فاتورة مشتريات",  GSuppliers),
+        new PermissionInfo(PurchaseInvoicesEdit,   "تعديل فواتير المشتريات", GSuppliers),
+        new PermissionInfo(PurchaseInvoicesDelete, "حذف فواتير المشتريات",  GSuppliers),
 
         new PermissionInfo(ContractingView,   "عرض المقاولين وأوامر الشغل وكشوف الحساب", GContracting),
         new PermissionInfo(ContractingCreate, "إضافة مقاول / أمر شغل",                  GContracting),
@@ -268,6 +282,19 @@ public static class PermissionNames
 
     /// <summary>Every permission string, for policy registration and SuperAdmin seeding.</summary>
     public static IReadOnlyList<string> All { get; } = Catalog.Select(p => p.Name).ToArray();
+
+    /// <summary>
+    /// Permissions split off an existing one. When such a permission is first seeded, every role that holds
+    /// the source permission is granted it too, so an upgrade doesn't hide a screen users already reached.
+    /// </summary>
+    public static IReadOnlyDictionary<string, string> InheritedFrom { get; } = new Dictionary<string, string>
+    {
+        [PurchaseInvoicesView] = SuppliersView,
+        [PurchaseInvoicesCreate] = SuppliersCreate,
+        [PurchaseInvoicesEdit] = SuppliersEdit,
+        [PurchaseInvoicesDelete] = SuppliersDelete,
+        [SafesTransfer] = SafesEdit,
+    };
 
     /// <summary>Permissions granted to a TenantAdmin: everything except cross-tenant management.</summary>
     public static IReadOnlyList<string> ForTenantAdmin { get; } =

@@ -31,11 +31,13 @@ public class ProjectsController : Controller
     private readonly IApplicationDbContext _db;
     private readonly ICurrentUserService _currentUser;
     private readonly IAccountingService _accounting;
-    public ProjectsController(IApplicationDbContext db, ICurrentUserService currentUser, IAccountingService accounting)
+    private readonly ISafeBalanceGuard _guard;
+    public ProjectsController(IApplicationDbContext db, ICurrentUserService currentUser, IAccountingService accounting, ISafeBalanceGuard guard)
     {
         _db = db;
         _currentUser = currentUser;
         _accounting = accounting;
+        _guard = guard;
     }
 
     // ---------- All-projects summary print ----------
@@ -218,6 +220,8 @@ public class ProjectsController : Controller
             ModelState.AddModelError(nameof(model.SafeId), "اختر خزنة صالحة.");
         var project = await _db.Projects.FirstOrDefaultAsync(p => p.Id == model.ProjectId, ct);
         if (project is null) return NotFound();
+        if (ModelState.IsValid && await _guard.CheckWithdrawalAsync(model.SafeId!.Value, model.Value, ct) is string overdraw)
+            ModelState.AddModelError(nameof(model.Value), overdraw);   // «سحب على المكشوف»
         if (!ModelState.IsValid) { model.Safes = await SafesAsync(ct); return PartialView("_ProjectExpenseForm", model); }
 
         var desc = string.IsNullOrWhiteSpace(model.Description)
@@ -378,17 +382,35 @@ public class ProjectsController : Controller
             return RedirectToAction(nameof(Details), new { id });
         }
 
+        // Purchase invoices are supplier obligations (with journal entries + payments) — they must be handled first.
+        var invoiceCount = await _db.PurchaseInvoices.CountAsync(i => i.ProjectId == id, ct);
+        if (invoiceCount > 0)
+        {
+            TempData["ErrorMessage"] = $"لا يمكن حذف المشروع «{p.Name}» لارتباطه بفواتير مشتريات (عدد: {invoiceCount}). يجب حذف الفواتير المرتبطة أو نقلها لمشروع آخر أولًا.";
+            return RedirectToAction(nameof(Details), new { id });
+        }
+
         var stageIds = await _db.ProjectStages.Where(s => s.ProjectId == id).Select(s => s.Id).ToListAsync(ct);
         var orderIds = await _db.SupplierOrders.Where(o => o.ProjectId == id).Select(o => o.Id).ToListAsync(ct);
 
         // Reverse the project-charged money (stage expenses + supplier-order payments) — safe balances
         // recompute since they're derived from these transactions. Each also removes its journal entry.
-        foreach (var t in await _db.SafeTransactions.Where(t => t.ProjectId == id).ToListAsync(ct))
+        var projectTxns = await _db.SafeTransactions.Where(t => t.ProjectId == id).ToListAsync(ct);
+        // Removing a project income takes money back out of its safe — «سحب على المكشوف» applies to the net change.
+        if (await _guard.CheckChangesAsync(projectTxns.Select(t => (t.SafeId, t.Type == TxnType.Income ? -t.Amount : t.Amount)), ct) is string overdraw)
+        {
+            TempData["ErrorMessage"] = $"لا يمكن حذف المشروع «{p.Name}»: {overdraw}";
+            return RedirectToAction(nameof(Details), new { id });
+        }
+        foreach (var t in projectTxns)
             await _accounting.RemoveTransactionAsync(t, ct);
 
         // Supplier orders tied to this project (+ their items and payments).
         _db.SupplierPayments.RemoveRange(await _db.SupplierPayments.Where(x => x.SupplierOrderId != null && orderIds.Contains(x.SupplierOrderId.Value)).ToListAsync(ct));
         _db.SupplierOrderItems.RemoveRange(await _db.SupplierOrderItems.Where(x => orderIds.Contains(x.SupplierOrderId)).ToListAsync(ct));
+        foreach (var oid in orderIds) await _accounting.RemoveObligationAsync("SupplierOrder", oid, ct);   // legacy orders' purchase entries
+        foreach (var inv in await _db.PurchaseInvoices.Where(i => i.PurchaseOrderId != null && orderIds.Contains(i.PurchaseOrderId!.Value)).ToListAsync(ct))
+            inv.PurchaseOrderId = null;   // other projects' invoices that billed these orders just lose the link
         _db.SupplierOrders.RemoveRange(await _db.SupplierOrders.Where(o => o.ProjectId == id).ToListAsync(ct));
 
         // Stages + their activities/expenses, then units and attachments.

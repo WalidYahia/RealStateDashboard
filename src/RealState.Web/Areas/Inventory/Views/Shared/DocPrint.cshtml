@@ -1,0 +1,79 @@
+@model DocDetailsVm
+@*
+    Printable single inventory document (header + lines), opened in a new tab. Shared by any document
+    type that builds a DocDetailsVm (currently the goods receipt — إذن استلام).
+*@
+@{
+    Layout = null;
+    string N(decimal v) => v.ToString("N2", RealState.Web.AppCulture.Ar);
+    var total = Model.Lines.Sum(l => l.TotalCost);
+    var n = 0;
+}
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="utf-8" />
+    <title>@Model.Title @Model.Number</title>
+    <style>
+        body { font-family: "Segoe UI", Tahoma, sans-serif; padding: 28px; color: #111; }
+        h1 { font-size: 20px; text-align: center; margin: 6px 0 2px; }
+        .sub { text-align: center; color: #666; font-size: 12px; margin-bottom: 18px; }
+        h2 { font-size: 14px; margin: 18px 0 8px; border-bottom: 1px solid #ddd; padding-bottom: 4px; }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 8px; }
+        th, td { border: 1px solid #ccc; padding: 7px 8px; text-align: start; unicode-bidi: plaintext; }
+        th { background: #f2f2f2; }
+        .kv th { width: 180px; background: #fafafa; }
+        .sign { display: flex; justify-content: space-between; margin-top: 48px; font-size: 13px; }
+        .sign div { width: 28%; border-top: 1px solid #333; padding-top: 6px; text-align: center; }
+        .no-print { margin-bottom: 14px; } @@media print { .no-print { display: none; } }
+    </style>
+</head>
+<body>
+    @await Component.InvokeAsync("ReportBackground", new { part = "open" })
+    <div class="no-print"><button onclick="window.print()">🖨 طباعة / حفظ PDF</button></div>
+    <h1>@Model.Title رقم @Model.Number</h1>
+    <div class="sub">تاريخ الطباعة: @DateTime.Now.ToString("yyyy/MM/dd HH:mm")</div>
+
+    <h2>البيانات</h2>
+    <table class="kv">
+        <tr><th>التاريخ</th><td>@Model.Date.ToString("yyyy/MM/dd")</td></tr>
+        <tr><th>المخزن</th><td>@Model.Warehouse</td></tr>
+        @foreach (var (label, value) in Model.Extra)
+        {
+            <tr><th>@label</th><td>@value</td></tr>
+        }
+        <tr><th>الحالة</th><td>@Model.Status</td></tr>
+        @if (!string.IsNullOrWhiteSpace(Model.Notes))
+        {
+            <tr><th>ملاحظات</th><td>@Model.Notes</td></tr>
+        }
+    </table>
+
+    <h2>الأصناف</h2>
+    <table>
+        <thead><tr><th>#</th><th>الصنف</th><th>الكمية</th><th>تكلفة الوحدة (ج.م)</th><th>الإجمالي (ج.م)</th></tr></thead>
+        <tbody>
+        @foreach (var l in Model.Lines)
+        {
+            n++;
+            <tr>
+                <td>@n</td>
+                <td>@l.Product</td>
+                <td>@N(l.Quantity)</td>
+                <td>@(l.UnitCost == 0 ? "" : N(l.UnitCost))</td>
+                <td>@(l.TotalCost == 0 ? "" : N(l.TotalCost))</td>
+            </tr>
+        }
+        @if (Model.Lines.Count == 0) { <tr><td colspan="5">لا توجد أسطر.</td></tr> }
+        </tbody>
+        <tfoot>
+            <tr><th colspan="2">الإجمالي</th><th>@N(Model.Lines.Sum(l => l.Quantity))</th><th></th><th>@N(total) ج.م</th></tr>
+        </tfoot>
+    </table>
+
+    <div class="sign"><div>أمين المخزن (المستلم)</div><div>المُسلِّم</div><div>الاعتماد</div></div>
+
+    <script>window.addEventListener('load', function () { setTimeout(function () { window.print(); }, 500); });</script>
+    @await Component.InvokeAsync("ReportBackground", new { part = "close" })
+</body>
+</html>

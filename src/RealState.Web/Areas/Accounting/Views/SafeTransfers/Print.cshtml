@@ -1,0 +1,47 @@
+@model SafeTransferRow
+@{
+    Layout = null;
+    string N(decimal v) => v.ToString("N2", RealState.Web.AppCulture.Ar);
+}
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="utf-8" />
+    <title>إذن تحويل نقدية SF-@Model.Number</title>
+    <style>
+        body { font-family: "Segoe UI", Tahoma, sans-serif; padding: 28px; color: #111; }
+        h1 { font-size: 20px; text-align: center; margin: 6px 0 2px; }
+        .sub { text-align: center; color: #666; font-size: 12px; margin-bottom: 18px; }
+        table { width: 100%; border-collapse: collapse; font-size: 14px; }
+        th, td { border: 1px solid #ccc; padding: 9px 10px; text-align: start; unicode-bidi: plaintext; }
+        th { width: 180px; background: #fafafa; }
+        .amount { font-size: 18px; font-weight: 700; }
+        .sign { display: flex; justify-content: space-between; margin-top: 56px; font-size: 13px; }
+        .sign div { width: 28%; border-top: 1px solid #333; padding-top: 6px; text-align: center; }
+        .no-print { margin-bottom: 14px; } @@media print { .no-print { display: none; } }
+    </style>
+</head>
+<body>
+    @await Component.InvokeAsync("ReportBackground", new { part = "open" })
+    <div class="no-print"><button onclick="window.print()">🖨 طباعة / حفظ PDF</button></div>
+    <h1>إذن تحويل نقدية رقم SF-@Model.Number</h1>
+    <div class="sub">تاريخ الطباعة: @DateTime.Now.ToString("yyyy/MM/dd HH:mm")</div>
+
+    <table>
+        <tr><th>التاريخ والوقت</th><td>@Model.OccurredAt.ToString("yyyy/MM/dd HH:mm")</td></tr>
+        <tr><th>من خزنة</th><td>@Model.FromSafe</td></tr>
+        <tr><th>إلى خزنة</th><td>@Model.ToSafe</td></tr>
+        <tr><th>المبلغ</th><td class="amount">@N(Model.Amount) ج.م</td></tr>
+        @if (!string.IsNullOrWhiteSpace(Model.Notes))
+        {
+            <tr><th>ملاحظات</th><td>@Model.Notes</td></tr>
+        }
+        <tr><th>سُجّل بواسطة</th><td>@Model.CreatedBy</td></tr>
+    </table>
+
+    <div class="sign"><div>المُسلِّم</div><div>المُستلِم</div><div>الاعتماد</div></div>
+
+    <script>window.addEventListener('load', function () { setTimeout(function () { window.print(); }, 500); });</script>
+    @await Component.InvokeAsync("ReportBackground", new { part = "close" })
+</body>
+</html>

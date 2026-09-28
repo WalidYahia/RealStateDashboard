@@ -5,13 +5,17 @@
     var canCreate = User.Can(PermissionNames.SafesCreate);
     var canEdit = User.Can(PermissionNames.SafesEdit);
     var canDelete = User.Can(PermissionNames.SafesDelete);
+    var type = ViewBag.Type as SafeType?;
 }
 <div class="page-head">
     <h1>الخزائن</h1>
-    @if (canCreate)
-    {
-        <button type="button" class="btn-new-tenant" onclick="appOpenModal('@Url.Action("Form")', 'خزنة جديدة')">➕ خزنة جديدة</button>
-    }
+    <div style="display:flex;gap:8px;">
+        <a class="btn-sm" asp-controller="SafeTransfers" asp-action="Index">🔁 التحويلات بين الخزائن</a>
+        @if (canCreate)
+        {
+            <button type="button" class="btn-new-tenant" onclick="appOpenModal('@Url.Action("Form")', 'خزنة جديدة')">➕ خزنة جديدة</button>
+        }
+    </div>
 </div>
 
 @if (TempData["StatusMessage"] is string status)
@@ -19,18 +23,46 @@
     <div class="status-message">@status</div>
 }
 
+<div class="card-tile" style="margin-bottom:12px;">
+    <form asp-action="Index" method="get" class="filter-form">
+        <div class="filter-row">
+            <div class="fld">
+                <label class="form-label">نوع الخزنة</label>
+                <select name="type" class="form-control" data-searchable><option value="">الكل</option>
+                    @foreach (var t in Enum.GetValues<SafeType>())
+                    {
+                        <option value="@t" selected="@(t == type)">@t.Ar()</option>
+                    }
+                </select>
+            </div>
+            <div class="filter-actions">
+                <button type="submit" class="btn-primary">بحث</button>
+            </div>
+        </div>
+    </form>
+</div>
+
 <div class="card-tile">
-    <table class="rs-table">
-        <thead><tr><th>الاسم</th><th>الرصيد الافتتاحي</th><th>الإيرادات</th><th>المصروفات</th><th>الرصيد الحالي</th><th>الحركات</th><th></th></tr></thead>
+    <div class="list-search-bar"><input class="form-control list-search" data-target="#safesTable" placeholder="🔍 بحث في القائمة..." /></div>
+    <table class="rs-table" id="safesTable">
+        <thead><tr><th>الاسم</th><th>النوع</th><th>الرصيد الافتتاحي</th><th>الإيرادات</th><th>المصروفات</th><th title="المحوَّل إلى الخزنة − المحوَّل منها">صافي التحويلات</th><th>الرصيد الحالي</th><th>الحركات</th><th></th></tr></thead>
         <tbody>
         @foreach (var s in Model)
         {
             <tr>
-                <td>@s.Name</td>
+                <td>@s.Name @if (!s.IsActive) { <span style="color:var(--muted);font-size:12px;">(موقوفة)</span> }</td>
+                <td style="white-space:nowrap;">
+                    <span class="badge-role">@s.Type.Ar()</span>
+                    @if (s.AllowOverdraft)
+                    {
+                        <span class="badge-role" style="color:var(--warning);" title="يُسمح بالسحب على المكشوف (قد يصبح الرصيد سالبًا)">سحب على المكشوف</span>
+                    }
+                </td>
                 <td>@N(s.InitialAmount)</td>
                 <td class="tag-up">@N(s.Income)</td>
                 <td>@N(s.Expense)</td>
-                <td><strong>@N(s.Balance)</strong> ج.م</td>
+                <td style="color:@(s.TransfersNet > 0 ? "var(--good)" : s.TransfersNet < 0 ? "var(--critical)" : "inherit");">@(s.TransfersNet > 0 ? "+" : s.TransfersNet < 0 ? "−" : "")@N(Math.Abs(s.TransfersNet))</td>
+                <td style="@(s.Balance < 0 ? "color:var(--critical);" : "")"><strong>@N(s.Balance)</strong> ج.م</td>
                 <td>@s.TxnCount</td>
                 <td style="white-space:nowrap;">
                     <a class="btn-sm" asp-action="Movements" asp-route-id="@s.Id">📁 الحركات</a>
@@ -50,8 +82,9 @@
         }
         @if (Model.Count == 0)
         {
-            <tr><td colspan="7" style="color:var(--muted)">لا توجد خزائن بعد.</td></tr>
+            <tr data-skip-search><td colspan="9" style="color:var(--muted)">لا توجد خزائن@(type.HasValue ? " من هذا النوع" : " بعد").</td></tr>
         }
+        <tr data-no-results data-skip-search style="display:none;"><td colspan="9" style="color:var(--muted)">لا توجد نتائج مطابقة للبحث.</td></tr>
         </tbody>
     </table>
 </div>

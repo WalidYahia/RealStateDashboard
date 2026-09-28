@@ -212,15 +212,75 @@ public class AccountingService : IAccountingService
     public async Task SyncSupplierOrderAsync(SupplierOrder o, decimal orderValue, CancellationToken ct = default)
     {
         await _engine.RemoveBySourceAsync("SupplierOrder", o.Id, ct);
-        if (orderValue <= 0) return;
-        var supName = await _db.Suppliers.Where(s => s.Id == o.SupplierId).Select(s => s.Name).FirstOrDefaultAsync(ct);
+        // Only legacy orders (with a supplier) own a payable; new orders are plain requests.
+        if (orderValue <= 0 || o.SupplierId is not Guid supplierId) return;
+        var supName = await _db.Suppliers.Where(s => s.Id == supplierId).Select(s => s.Name).FirstOrDefaultAsync(ct);
         var desc = $"أمر توريد PO-{o.Number:D4}";
         await _engine.PostAsync(o.OrderDate, desc, "SupplierOrder", o.Id, new[]
         {
-            new LedgerLine(LedgerAccounts.Purchases, orderValue, 0, desc, SupplierId: o.SupplierId, ProjectId: o.ProjectId),
+            new LedgerLine(LedgerAccounts.Purchases, orderValue, 0, desc, SupplierId: supplierId, ProjectId: o.ProjectId),
             new LedgerLine(LedgerAccounts.AccountsPayable, 0, orderValue, desc,
-                SubKind: "Supplier", SubRefId: o.SupplierId, SubName: supName, SupplierId: o.SupplierId, ProjectId: o.ProjectId),
+                SubKind: "Supplier", SubRefId: supplierId, SubName: supName, SupplierId: supplierId, ProjectId: o.ProjectId),
         }, ct);
+    }
+
+    public async Task SyncPurchaseInvoiceAsync(PurchaseInvoice inv, IReadOnlyList<PurchaseInvoiceItem> items, CancellationToken ct = default)
+    {
+        await _engine.RemoveBySourceAsync(AccountingSources.PurchaseInvoice, inv.Id, ct);
+        var total = items.Sum(i => i.LineTotal);
+        if (total <= 0) return;
+
+        // Stock-tracked products clear the GRNI liability that goods receipts credit (Dr Inventory / Cr GRNI);
+        // non-stock products (services, consumables) are expensed straight to المشتريات.
+        var productIds = items.Select(i => i.ProductId).Distinct().ToList();
+        var stocked = (await _db.Products.Where(p => productIds.Contains(p.Id) && p.TrackInventory)
+            .Select(p => p.Id).ToListAsync(ct)).ToHashSet();
+        var grniCode = await _db.InventoryPostingProfiles.Select(p => p.PurchaseGrniCode).FirstOrDefaultAsync(ct);
+        if (string.IsNullOrWhiteSpace(grniCode)) grniCode = LedgerAccounts.GoodsReceivedNotInvoiced;
+
+        var stockValue = items.Where(i => stocked.Contains(i.ProductId)).Sum(i => i.LineTotal);
+        var otherValue = total - stockValue;
+        var supName = await _db.Suppliers.Where(s => s.Id == inv.SupplierId).Select(s => s.Name).FirstOrDefaultAsync(ct);
+        var desc = $"فاتورة مشتريات PI-{inv.Number}";
+
+        var lines = new List<LedgerLine>();
+        if (stockValue > 0)
+            lines.Add(new LedgerLine(grniCode, stockValue, 0, $"{desc} — أصناف مخزنية", SupplierId: inv.SupplierId, ProjectId: inv.ProjectId));
+        if (otherValue > 0)
+            lines.Add(new LedgerLine(LedgerAccounts.Purchases, otherValue, 0, $"{desc} — أصناف غير مخزنية", SupplierId: inv.SupplierId, ProjectId: inv.ProjectId));
+        lines.Add(new LedgerLine(LedgerAccounts.AccountsPayable, 0, total, desc,
+            SubKind: "Supplier", SubRefId: inv.SupplierId, SubName: supName, SupplierId: inv.SupplierId, ProjectId: inv.ProjectId));
+
+        await _engine.PostAsync(inv.InvoiceDate, desc, AccountingSources.PurchaseInvoice, inv.Id, lines, ct);
+    }
+
+    public async Task PostSafeTransferAsync(SafeTransfer transfer, SafeTransaction outTxn, SafeTransaction inTxn, CancellationToken ct = default)
+    {
+        await RemoveSafeTransferEntriesAsync(transfer, outTxn, inTxn, ct);
+        var fromName = await _db.Safes.Where(s => s.Id == outTxn.SafeId).Select(s => s.Name).FirstOrDefaultAsync(ct);
+        var toName = await _db.Safes.Where(s => s.Id == inTxn.SafeId).Select(s => s.Name).FirstOrDefaultAsync(ct);
+
+        // One direct entry for the whole transfer: Dr destination safe / Cr source safe.
+        await _engine.PostAsync(transfer.OccurredAt, outTxn.Description, AccountingSources.SafeTransfer, transfer.Id, new[]
+        {
+            new LedgerLine(LedgerAccounts.CashAndBanks, transfer.Amount, 0, outTxn.Description, SubKind: "Safe", SubRefId: inTxn.SafeId, SubName: toName),
+            new LedgerLine(LedgerAccounts.CashAndBanks, 0, transfer.Amount, outTxn.Description, SubKind: "Safe", SubRefId: outTxn.SafeId, SubName: fromName),
+        }, ct);
+    }
+
+    public async Task RemoveSafeTransferAsync(SafeTransfer transfer, SafeTransaction outTxn, SafeTransaction inTxn, CancellationToken ct = default)
+    {
+        await RemoveSafeTransferEntriesAsync(transfer, outTxn, inTxn, ct);
+        _db.SafeTransactions.Remove(outTxn);
+        _db.SafeTransactions.Remove(inTxn);
+    }
+
+    private async Task RemoveSafeTransferEntriesAsync(SafeTransfer transfer, SafeTransaction outTxn, SafeTransaction inTxn, CancellationToken ct)
+    {
+        await _engine.RemoveBySourceAsync(AccountingSources.SafeTransfer, transfer.Id, ct);
+        // Transfers saved before the direct entry was introduced had one entry per movement — clear those too.
+        await _engine.RemoveBySourceAsync("SafeTransaction", outTxn.Id, ct);
+        await _engine.RemoveBySourceAsync("SafeTransaction", inTxn.Id, ct);
     }
 
     public async Task SyncWorkOrderAsync(WorkOrder o, CancellationToken ct = default)

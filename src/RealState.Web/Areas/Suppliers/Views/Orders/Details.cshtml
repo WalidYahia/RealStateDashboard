@@ -1,33 +1,32 @@
 @model SupplierOrder
 @{
     ViewData["Title"] = $"أمر توريد PO-{Model.Number:D4}";
-    var canPay = ViewData["CanPay"] as bool? ?? false;
-    string N(decimal v) => v.ToString("N0", RealState.Web.AppCulture.Ar);
-    string Q(decimal v) => v.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+    var canViewInvoices = ViewData["CanViewInvoices"] as bool? ?? false;
+    var canCreateInvoice = ViewData["CanCreateInvoice"] as bool? ?? false;
+    var invoices = ViewBag.Invoices as List<InvoiceListItem> ?? new();
+    string N(decimal v) => v.ToString("N2", RealState.Web.AppCulture.Ar);
+    string Q(decimal v) => v.ToString("0.####", System.Globalization.CultureInfo.InvariantCulture);
     string D(DateTime d) => d.ToString("yyyy/MM/dd", System.Globalization.CultureInfo.InvariantCulture);
-    var total = Model.Items.Sum(i => i.LineTotal);
-    var paid = Model.Payments.Sum(p => p.Amount);
-    var remaining = total - paid;
+    string PI(int n) => "PI-" + n;
+    var total = Model.Items.Sum(i => i.LineTotal);   // legacy orders only
+    var totalQty = Model.Items.Sum(i => i.Quantity);
+    var invoiced = invoices.Sum(i => i.Total);
 }
 <div class="page-head">
     <div>
         <h1>أمر توريد <span class="proj-code">PO-@Model.Number.ToString("D4")</span></h1>
-        <p style="color:var(--muted);margin:2px 0 0;">@Model.Supplier?.Name · @(Model.Project?.Name ?? "بدون مشروع") · @D(Model.OrderDate)</p>
+        <p style="color:var(--muted);margin:2px 0 0;">@(Model.Project?.Name ?? "بدون مشروع") · @D(Model.OrderDate)</p>
     </div>
     <div style="display:flex;gap:8px;">
         <a class="btn-sm" asp-action="Index" onclick="if (history.length > 1) { history.back(); return false; }">رجوع</a>
-        @if (Model.Supplier is not null)
+        @if (canCreateInvoice)
         {
-            <a class="btn-sm" asp-controller="Suppliers" asp-action="Details" asp-route-id="@Model.SupplierId">كشف حساب المورد</a>
-        }
-        @if (canPay && remaining > 0)
-        {
-            <button type="button" class="btn-new-tenant" onclick="appOpenModal('@Url.Action("Pay", new { id = Model.Id })', 'سداد دفعة على الأمر')">💵 سداد دفعة</button>
+            <button type="button" class="btn-new-tenant" onclick="appOpenModal('@Url.Action("Form", "PurchaseInvoices", new { orderId = Model.Id })', 'فاتورة مشتريات جديدة', 'xl')">🧾 إنشاء فاتورة مشتريات</button>
         }
         <a class="btn-new-tenant" asp-action="PrintOrder" asp-route-id="@Model.Id" target="_blank">🖨 طباعة الأمر (PDF)</a>
         @if (User.Can(PermissionNames.SuppliersEdit))
         {
-            <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("Form", new { id = Model.Id })', 'تعديل أمر التوريد')">✏️ تعديل</button>
+            <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("Form", new { id = Model.Id })', 'تعديل أمر التوريد', 'xl')">✏️ تعديل</button>
         }
         @if (User.Can(PermissionNames.SuppliersDelete))
         {
@@ -41,23 +40,25 @@
     <div class="status-message">@status</div>
 }
 
-<div class="kpi-grid" style="grid-template-columns: repeat(3, 1fr);">
-    <div class="kpi k-reserve"><div class="kpi-label">إجمالي الأمر</div><div class="kpi-value">@N(total) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">@Model.Items.Count بند</div></div>
-    <div class="kpi k-collect"><div class="kpi-label">المسدَّد</div><div class="kpi-value">@N(paid) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">@Model.Payments.Count دفعة</div></div>
-    <div class="kpi k-alerts"><div class="kpi-label">المتبقي</div><div class="kpi-value">@N(remaining) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">مستحق الدفع</div></div>
+<div class="kpi-grid" style="grid-template-columns: repeat(2, 1fr);">
+    <div class="kpi k-reserve"><div class="kpi-label">الأصناف المطلوبة</div><div class="kpi-value">@Model.Items.Count <span class="kpi-unit">صنف</span></div><div class="kpi-foot">إجمالي الكميات: @Q(totalQty)</div></div>
+    <div class="kpi k-collect"><div class="kpi-label">المُفوتَر</div><div class="kpi-value">@N(invoiced) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">@invoices.Count فاتورة مشتريات</div></div>
 </div>
 
 <div class="card-tile" style="margin-bottom:14px;">
-    <div class="card-head"><h3>البنود</h3></div>
+    <div class="card-head"><h3>الأصناف</h3></div>
     <table class="rs-table">
-        <thead><tr><th>البند</th><th>تكلفة الوحدة</th><th>الكمية</th><th>الإجمالي</th></tr></thead>
+        @* Orders are quantity-only; a legacy order (which still owns a supplier payable) also shows its costs. *@
+        <thead><tr><th>#</th><th>الصنف</th><th>الكمية</th>@if (Model.IsLegacy) {<th>تكلفة الوحدة</th><th>الإجمالي</th>}</tr></thead>
         <tbody>
+        @{ var n = 0; }
         @foreach (var it in Model.Items)
         {
-            <tr><td>@it.Name</td><td>@N(it.Cost)</td><td dir="ltr" style="text-align:right;">@Q(it.Quantity)</td><td>@N(it.LineTotal)</td></tr>
+            n++;
+            <tr><td>@n</td><td>@it.Name</td><td dir="ltr" style="text-align:right;">@Q(it.Quantity)</td>@if (Model.IsLegacy) {<td>@N(it.Cost)</td><td>@N(it.LineTotal)</td>}</tr>
         }
         </tbody>
-        <tfoot><tr><th colspan="3">الإجمالي</th><th>@N(total) ج.م</th></tr></tfoot>
+        <tfoot><tr><th colspan="2">الإجمالي</th><th dir="ltr" style="text-align:right;">@Q(totalQty)</th>@if (Model.IsLegacy) {<th></th><th>@N(total) ج.م</th>}</tr></tfoot>
     </table>
     @if (!string.IsNullOrWhiteSpace(Model.Notes))
     {
@@ -65,27 +66,67 @@
     }
 </div>
 
-<div class="card-tile">
-    <div class="card-head"><h3>الدفعات</h3></div>
+<div class="card-tile" style="margin-bottom:14px;">
+    <div class="card-head"><h3>فواتير المشتريات المرتبطة</h3></div>
     <table class="rs-table">
-        <thead><tr><th>رقم الإيصال</th><th>التاريخ</th><th>المبلغ</th><th></th></tr></thead>
+        <thead><tr><th>رقم الفاتورة</th><th>التاريخ</th><th>المورد</th><th>عدد الأصناف</th><th>الإجمالي</th></tr></thead>
         <tbody>
-        @foreach (var p in Model.Payments)
+        @foreach (var i in invoices)
         {
             <tr>
-                <td dir="ltr" style="text-align:right;">@p.ReceiptNo.ToString("D5")</td>
-                <td dir="ltr" style="text-align:right;">@D(p.PaidDate)</td>
-                <td class="tag-up">@N(p.Amount)</td>
-                <td><a class="btn-sm" asp-action="Receipt" asp-route-id="@p.Id" target="_blank">🖨 إيصال صرف نقدية</a></td>
+                <td dir="ltr" style="text-align:right;">
+                    @if (canViewInvoices)
+                    {
+                        <a asp-controller="PurchaseInvoices" asp-action="Details" asp-route-id="@i.Id" style="color:var(--series-1);text-decoration:none;font-weight:600;">@PI(i.Number)</a>
+                    }
+                    else
+                    {
+                        @PI(i.Number)
+                    }
+                </td>
+                <td dir="ltr" style="text-align:right;">@D(i.InvoiceDate)</td>
+                <td>@i.Supplier</td>
+                <td>@i.ItemCount</td>
+                <td>@N(i.Total)</td>
             </tr>
         }
-        @if (Model.Payments.Count == 0)
+        @if (invoices.Count == 0)
         {
-            <tr><td colspan="4" style="color:var(--muted)">لا توجد دفعات بعد.</td></tr>
+            <tr><td colspan="5" style="color:var(--muted)">لا توجد فواتير مشتريات على هذا الأمر بعد.</td></tr>
         }
         </tbody>
     </table>
 </div>
+
+@if (Model.IsLegacy)
+{
+    @* Orders from before the invoice stage carried the supplier + payments themselves — keep showing them. *@
+    <div class="card-tile" style="margin-bottom:14px;">
+        <div class="card-head"><h3>المورد والدفعات (أمر سابق لمرحلة الفواتير)</h3></div>
+        <p style="margin:0 0 10px;">
+            المورد: <a asp-controller="Suppliers" asp-action="Details" asp-route-id="@Model.SupplierId" style="color:var(--series-1);font-weight:600;">@Model.Supplier?.Name</a>
+            · المسدَّد: @N(Model.Payments.Sum(p => p.Amount)) ج.م · المتبقي: @N(total - Model.Payments.Sum(p => p.Amount)) ج.م
+        </p>
+        <table class="rs-table">
+            <thead><tr><th>رقم الإيصال</th><th>التاريخ</th><th>المبلغ</th><th></th></tr></thead>
+            <tbody>
+            @foreach (var p in Model.Payments)
+            {
+                <tr>
+                    <td dir="ltr" style="text-align:right;">@p.ReceiptNo.ToString("D5")</td>
+                    <td dir="ltr" style="text-align:right;">@D(p.PaidDate)</td>
+                    <td class="tag-up">@N(p.Amount)</td>
+                    <td><a class="btn-sm" asp-controller="Payments" asp-action="Receipt" asp-route-id="@p.Id" target="_blank">🖨 إيصال صرف نقدية</a></td>
+                </tr>
+            }
+            @if (Model.Payments.Count == 0)
+            {
+                <tr><td colspan="4" style="color:var(--muted)">لا توجد دفعات.</td></tr>
+            }
+            </tbody>
+        </table>
+    </div>
+}
 
 @{
     var attachments = ViewBag.Attachments as List<SupplierOrderAttachment> ?? new();
@@ -134,3 +175,7 @@
         </tbody>
     </table>
 </div>
+
+@section Scripts {
+    <script src="~/js/purchase-doc.js" asp-append-version="true"></script>
+}

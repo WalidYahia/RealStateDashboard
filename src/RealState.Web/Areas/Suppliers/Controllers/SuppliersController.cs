@@ -1,11 +1,11 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using RealState.Application.Common;
 using RealState.Application.Entities;
 using RealState.Application.Interfaces;
 using RealState.Web.Areas.Suppliers.Models;
+using static RealState.Web.Areas.Suppliers.Controllers.PurchasingLookups;
 
 namespace RealState.Web.Areas.Suppliers.Controllers;
 
@@ -81,10 +81,11 @@ public class SuppliersController : Controller
     {
         var s = await _db.Suppliers.FirstOrDefaultAsync(x => x.Id == id, ct);
         if (s is null) return NotFound();
-        if (await _db.SupplierOrders.AnyAsync(o => o.SupplierId == id, ct) ||
+        if (await _db.PurchaseInvoices.AnyAsync(i => i.SupplierId == id, ct) ||
+            await _db.SupplierOrders.AnyAsync(o => o.SupplierId == id, ct) ||
             await _db.SupplierPayments.AnyAsync(p => p.SupplierId == id, ct))
         {
-            TempData["ErrorMessage"] = "لا يمكن حذف مورد لديه أوامر توريد أو مدفوعات.";
+            TempData["ErrorMessage"] = "لا يمكن حذف مورد لديه فواتير مشتريات أو أوامر توريد أو مدفوعات.";
             return RedirectToAction(nameof(Index));
         }
         _db.Suppliers.Remove(s);
@@ -100,6 +101,7 @@ public class SuppliersController : Controller
         if (supplier is null) return NotFound();
         (from, to) = DateFilterDefaults.TodayIfFresh(Request, from, to);
         ViewData["CanPay"] = Can(PermissionNames.SuppliersPay);
+        ViewData["CanViewInvoices"] = Can(PermissionNames.PurchaseInvoicesView);
         return View(await BuildStatementAsync(supplier, from, to, ct));
     }
 
@@ -112,50 +114,81 @@ public class SuppliersController : Controller
         return View("PrintStatement", await BuildStatementAsync(supplier, from, to, ct));
     }
 
+    /// <summary>An obligation (purchase invoice, or legacy order) with its total and what's been paid on it.</summary>
+    private sealed record Obligation(SupplierLedgerKind Kind, Guid Id, string Label, DateTime Date, string Statement, decimal Total, decimal Paid)
+    {
+        public decimal Remaining => Total - Paid;
+    }
+
+    /// <summary>The supplier's obligations: every purchase invoice, plus legacy orders that still carry the supplier.</summary>
+    private async Task<List<Obligation>> ObligationsAsync(Guid supplierId, CancellationToken ct)
+    {
+        var invoices = await _db.PurchaseInvoices.Where(i => i.SupplierId == supplierId).ToListAsync(ct);
+        var invIds = invoices.Select(i => i.Id).ToList();
+        var invItems = (await _db.PurchaseInvoiceItems.Where(i => invIds.Contains(i.PurchaseInvoiceId)).ToListAsync(ct))
+            .GroupBy(i => i.PurchaseInvoiceId).ToDictionary(g => g.Key, g => g.ToList());
+
+        var orders = await _db.SupplierOrders.Where(o => o.SupplierId == supplierId).ToListAsync(ct);
+        var ordIds = orders.Select(o => o.Id).ToList();
+        var ordItems = (await _db.SupplierOrderItems.Where(i => ordIds.Contains(i.SupplierOrderId)).ToListAsync(ct))
+            .GroupBy(i => i.SupplierOrderId).ToDictionary(g => g.Key, g => g.ToList());
+
+        var payments = await _db.SupplierPayments.Where(p => p.SupplierId == supplierId).ToListAsync(ct);
+        var paidByInvoice = payments.Where(p => p.PurchaseInvoiceId.HasValue)
+            .GroupBy(p => p.PurchaseInvoiceId!.Value).ToDictionary(g => g.Key, g => g.Sum(x => x.Amount));
+        var paidByOrder = payments.Where(p => p.SupplierOrderId.HasValue)
+            .GroupBy(p => p.SupplierOrderId!.Value).ToDictionary(g => g.Key, g => g.Sum(x => x.Amount));
+
+        string Names(IEnumerable<string> names, string fallback)
+        {
+            var list = names.ToList();
+            return list.Count > 0 ? string.Join("، ", list) : fallback;
+        }
+
+        return invoices.Select(i =>
+            {
+                var items = invItems.GetValueOrDefault(i.Id, new());
+                return new Obligation(SupplierLedgerKind.Invoice, i.Id, $"فاتورة مشتريات رقم {PI(i.Number)}", i.InvoiceDate,
+                    Names(items.Select(x => x.Name), "فاتورة مشتريات"), items.Sum(x => x.LineTotal), paidByInvoice.GetValueOrDefault(i.Id, 0));
+            })
+            .Concat(orders.Select(o =>
+            {
+                var items = ordItems.GetValueOrDefault(o.Id, new());
+                return new Obligation(SupplierLedgerKind.Order, o.Id, $"أمر توريد رقم {PO(o.Number)}", o.OrderDate,
+                    Names(items.Select(x => x.Name), "أمر توريد"), Math.Round(items.Sum(x => x.Cost * x.Quantity), 2), paidByOrder.GetValueOrDefault(o.Id, 0));
+            }))
+            .ToList();
+    }
+
     private async Task<SupplierStatementVm> BuildStatementAsync(Supplier supplier, DateTime? from, DateTime? to, CancellationToken ct)
     {
-        var orders = await _db.SupplierOrders.Where(o => o.SupplierId == supplier.Id).ToListAsync(ct);
-        var itemsByOrder = (await _db.SupplierOrderItems.Where(i => orders.Select(o => o.Id).Contains(i.SupplierOrderId)).ToListAsync(ct))
-            .GroupBy(i => i.SupplierOrderId).ToDictionary(g => g.Key, g => g.ToList());
+        var obligations = await ObligationsAsync(supplier.Id, ct);
         var payments = await _db.SupplierPayments.Where(p => p.SupplierId == supplier.Id).ToListAsync(ct);
 
-        // Build one ledger row per order (obligation, +) and per payment (settlement, −).
-        var rows = new List<SupplierLedgerRow>();
-        foreach (var o in orders)
+        // Build one ledger row per obligation (+) and per payment (settlement, −).
+        var rows = obligations.Select(o => new SupplierLedgerRow
         {
-            var items = itemsByOrder.GetValueOrDefault(o.Id, new());
-            rows.Add(new SupplierLedgerRow
-            {
-                Kind = SupplierLedgerKind.Order,
-                Id = o.Id,
-                Source = $"أمر توريد رقم PO-{o.Number:D4}",
-                Date = o.OrderDate,
-                Statement = items.Count > 0 ? string.Join("، ", items.Select(i => i.Name)) : "أمر توريد",
-                Amount = items.Sum(i => i.Cost * i.Quantity)
-            });
-        }
-        foreach (var p in payments)
+            Kind = o.Kind, Id = o.Id, Source = o.Label, Date = o.Date, Statement = o.Statement, Amount = o.Total
+        }).ToList();
+        rows.AddRange(payments.Select(p => new SupplierLedgerRow
         {
-            rows.Add(new SupplierLedgerRow
-            {
-                Kind = SupplierLedgerKind.Payment,
-                Id = p.Id,
-                Source = "إيصال صرف نقدية",
-                Date = p.PaidDate,
-                Statement = $"إيصال صرف نقدية رقم {p.ReceiptNo:D5}",
-                ReceiptNo = p.ReceiptNo,
-                Amount = p.Amount
-            });
-        }
+            Kind = SupplierLedgerKind.Payment,
+            Id = p.Id,
+            Source = "إيصال صرف نقدية",
+            Date = p.PaidDate,
+            Statement = $"إيصال صرف نقدية رقم {p.ReceiptNo:D5}",
+            ReceiptNo = p.ReceiptNo,
+            Amount = p.Amount
+        }));
 
-        // Chronological running balance (owed to supplier) over ALL rows — orders before payments on
+        // Chronological running balance (owed to supplier) over ALL rows — obligations before payments on
         // the same date — so each row's balance stays correct even when the list is date-filtered.
-        var ordered = rows.OrderBy(r => r.Date).ThenBy(r => r.Kind == SupplierLedgerKind.Order ? 0 : 1).ToList();
+        var ordered = rows.OrderBy(r => r.Date).ThenBy(r => r.IsObligation ? 0 : 1).ToList();
         decimal running = 0;
         foreach (var r in ordered)
         {
             r.BalanceBefore = running;
-            running += r.Kind == SupplierLedgerKind.Order ? r.Amount : -r.Amount;
+            running += r.IsObligation ? r.Amount : -r.Amount;
             r.Balance = running;
         }
 
@@ -166,29 +199,24 @@ public class SuppliersController : Controller
             ? running
             : ordered.Where(r => r.Date < to.Value.Date.AddDays(1)).Select(r => r.Balance).DefaultIfEmpty(0m).Last();
 
-        // The pay button shows when ANY single order still has an outstanding balance — independent of
-        // the net supplier balance (a supplier can be net-overpaid yet still have an unpaid order).
-        var paidByOrder = payments.Where(p => p.SupplierOrderId.HasValue)
-            .GroupBy(p => p.SupplierOrderId!.Value).ToDictionary(g => g.Key, g => g.Sum(x => x.Amount));
-        var hasPayable = orders.Any(o =>
-            (itemsByOrder.TryGetValue(o.Id, out var it) ? it.Sum(x => x.Cost * x.Quantity) : 0) - paidByOrder.GetValueOrDefault(o.Id, 0) > 0);
-
         return new SupplierStatementVm
         {
             Supplier = supplier,
             From = from,
             To = to,
-            TotalObligations = orders.Sum(o => itemsByOrder.TryGetValue(o.Id, out var it) ? it.Sum(x => x.Cost * x.Quantity) : 0),
+            TotalObligations = obligations.Sum(o => o.Total),
             TotalPaid = payments.Sum(p => p.Amount),
-            OrdersCount = orders.Count,
+            InvoicesCount = obligations.Count,
             PaymentsCount = payments.Count,
-            HasPayableOrders = hasPayable,
+            // The pay button shows when ANY single document still has an outstanding balance — independent of
+            // the net supplier balance (a supplier can be net-overpaid yet still have an unpaid invoice).
+            HasPayableDocuments = obligations.Any(o => o.Remaining > 0),
             Rows = ordered.Where(r => InRange(r.Date)).ToList(),
             ClosingBalance = closing,
         };
     }
 
-    // ---------- Pay from the statement: pick one of the supplier's not-fully-paid orders ----------
+    // ---------- Pay from the statement: pick one of the supplier's not-fully-paid invoices ----------
     [HttpGet]
     public async Task<IActionResult> PayForm(Guid id, CancellationToken ct)
     {
@@ -196,31 +224,21 @@ public class SuppliersController : Controller
         var supplier = await _db.Suppliers.FirstOrDefaultAsync(s => s.Id == id, ct);
         if (supplier is null) return NotFound();
 
-        var orders = await _db.SupplierOrders.Where(o => o.SupplierId == id).OrderBy(o => o.Number).ToListAsync(ct);
-        var orderIds = orders.Select(o => o.Id).ToList();
-        var itemSums = (await _db.SupplierOrderItems.Where(i => orderIds.Contains(i.SupplierOrderId))
-            .GroupBy(i => i.SupplierOrderId).Select(g => new { g.Key, Sum = g.Sum(x => x.Cost * x.Quantity) }).ToListAsync(ct))
-            .ToDictionary(x => x.Key, x => x.Sum);
-        var paidSums = (await _db.SupplierPayments.Where(p => p.SupplierOrderId != null && orderIds.Contains(p.SupplierOrderId!.Value))
-            .GroupBy(p => p.SupplierOrderId!.Value).Select(g => new { g.Key, Sum = g.Sum(x => x.Amount) }).ToListAsync(ct))
-            .ToDictionary(x => x.Key, x => x.Sum);
-
-        var options = orders
-            .Select(o => new { o.Number, o.Id, Rem = itemSums.GetValueOrDefault(o.Id, 0) - paidSums.GetValueOrDefault(o.Id, 0) })
-            .Where(x => x.Rem > 0)
-            .Select(x => new SupplierOrderOption(x.Id, $"PO-{x.Number:D4} — متبقٍ {x.Rem:N0} ج.م", x.Rem))
+        var options = (await ObligationsAsync(id, ct))
+            .Where(o => o.Remaining > 0)
+            .OrderBy(o => o.Date)
+            .Select(o => new PayableOption(
+                (o.Kind == SupplierLedgerKind.Invoice ? "I:" : "O:") + o.Id,
+                $"{o.Label} — متبقٍ {o.Remaining:N2} ج.م",
+                o.Remaining))
             .ToList();
 
         return PartialView("_SupplierPayPicker", new SupplierPayPickerModel
         {
             SupplierId = id,
             SupplierName = supplier.Name,
-            Orders = options,
-            Safes = await SafesAsync(ct)
+            Documents = options,
+            Safes = await SafesAsync(_db, ct)
         });
     }
-
-    private async Task<List<SelectListItem>> SafesAsync(CancellationToken ct)
-        => await _db.Safes.Where(s => s.IsActive).OrderBy(s => s.Name)
-            .Select(s => new SelectListItem { Value = s.Id.ToString(), Text = s.Name }).ToListAsync(ct);
 }

@@ -3,20 +3,19 @@
     ViewData["Title"] = "أوامر التوريد";
     var canCreate = ViewData["CanCreate"] as bool? ?? false;
     var canEdit = ViewData["CanEdit"] as bool? ?? false;
-    var canDelete = ViewData["CanDelete"] as bool? ?? false;
-    var canPay = ViewData["CanPay"] as bool? ?? false;
-    string N(decimal v) => v.ToString("N0", RealState.Web.AppCulture.Ar);
+    var canViewInvoices = ViewData["CanViewInvoices"] as bool? ?? false;
     string D(DateTime d) => d.ToString("yyyy/MM/dd", System.Globalization.CultureInfo.InvariantCulture);
     string? F(DateTime? d) => d?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
     string PO(int n) => "PO-" + n.ToString("D4");
-    var total = Model.Sum(r => r.Total);
+    string PI(int n) => "PI-" + n;
+    string Q(decimal v) => v.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
 }
 <div class="page-head">
     <h1>أوامر التوريد</h1>
     <div style="display:flex;gap:8px;">
         @if (canCreate)
         {
-            <button type="button" class="btn-new-tenant" onclick="appOpenModal('@Url.Action("Form")', 'أمر توريد جديد')">➕ أمر توريد جديد</button>
+            <button type="button" class="btn-new-tenant" onclick="appOpenModal('@Url.Action("Form")', 'أمر توريد جديد', 'xl')">➕ أمر توريد جديد</button>
         }
     </div>
 </div>
@@ -29,9 +28,7 @@
 <div class="card-tile" style="margin-bottom:12px;">
     <form asp-action="Index" method="get" class="filter-form">
         @{
-            var supId = (ViewBag.SupplierId as Guid?)?.ToString();
             var projId = (ViewBag.ProjectId as Guid?)?.ToString();
-            var supList = ViewBag.Suppliers as List<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem> ?? new();
             var projList = ViewBag.Projects as List<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem> ?? new();
         }
         <div class="filter-row">
@@ -45,20 +42,14 @@
         </div>
         <div class="filter-row">
             <div class="fld">
-                <label class="form-label">المورد</label>
-                <select name="supplierId" class="form-control"><option value="">الكل</option>
-                    @foreach (var s in supList) { <option value="@s.Value" selected="@(supId == s.Value)">@s.Text</option> }
-                </select>
-            </div>
-            <div class="fld">
                 <label class="form-label">المشروع</label>
-                <select name="projectId" class="form-control"><option value="">الكل</option>
+                <select name="projectId" class="form-control" data-searchable><option value="">الكل</option>
                     @foreach (var p in projList) { <option value="@p.Value" selected="@(projId == p.Value)">@p.Text</option> }
                 </select>
             </div>
             <div class="filter-actions">
                 <button type="submit" class="btn-primary">بحث</button>
-                <a class="btn-sm" asp-action="PrintList" asp-route-from="@F((DateTime?)ViewBag.From)" asp-route-to="@F((DateTime?)ViewBag.To)" asp-route-supplierId="@supId" asp-route-projectId="@projId" target="_blank">🖨 طباعة (PDF)</a>
+                <a class="btn-sm" asp-action="PrintList" asp-route-from="@F((DateTime?)ViewBag.From)" asp-route-to="@F((DateTime?)ViewBag.To)" asp-route-projectId="@projId" target="_blank">🖨 طباعة (PDF)</a>
             </div>
         </div>
     </form>
@@ -67,90 +58,62 @@
 <div class="card-tile">
     <div class="card-head">
         <h3>الأوامر</h3>
-        <span class="pill">الأوامر: <span data-live-count="#ordTable">@Model.Count</span> · الإجمالي: <span data-live-sum="#ordTable:4">@N(total)</span> ج.م</span>
+        <span class="pill">الأوامر: <span data-live-count="#ordTable">@Model.Count</span></span>
     </div>
     <div class="list-search-bar"><input class="form-control list-search" data-target="#ordTable" placeholder="🔍 بحث في القائمة..." /></div>
     <table class="rs-table" id="ordTable">
         <thead>
-            <tr><th>الرقم</th><th>التاريخ</th><th>المورد</th><th>المشروع</th><th>الإجمالي</th><th>المسدَّد</th><th>المتبقي</th><th></th></tr>
+            <tr><th>الرقم</th><th>التاريخ</th><th>المشروع</th><th>عدد الأصناف</th><th>إجمالي الكميات</th><th>فواتير المشتريات</th><th></th></tr>
         </thead>
         <tbody>
         @foreach (var o in Model)
         {
-            <tr data-search="@((PO(o.Number) + " " + o.Supplier + " " + o.Project).ToLower())">
+            <tr data-search="@((PO(o.Number) + " " + o.Project + " " + string.Join(" ", o.Invoices.Select(i => PI(i.Number)))).ToLower())">
                 <td style="white-space:nowrap;"><span style="display:inline-flex;align-items:center;gap:6px;direction:rtl;"><a asp-action="Details" asp-route-id="@o.Id" style="color:var(--series-1);text-decoration:none;font-weight:600;">@PO(o.Number)</a>@if (o.HasAttachments) {<span title="يوجد مرفقات على هذا الأمر" style="font-size:18px;line-height:1;cursor:default;">📎</span>}</span></td>
                 <td dir="ltr" style="text-align:right;">@D(o.OrderDate)</td>
-                <td>@o.Supplier</td>
                 <td>@o.Project</td>
-                <td>@N(o.Total)</td>
-                <td class="tag-up">@N(o.Paid)</td>
-                <td>@N(o.Remaining)</td>
+                <td>@o.ItemCount</td>
+                <td dir="ltr" style="text-align:right;">@Q(o.TotalQuantity)</td>
+                <td>
+                    @if (o.Invoices.Count == 0)
+                    {
+                        <span style="color:var(--muted);">—</span>
+                    }
+                    else
+                    {
+                        <span style="display:inline-flex;flex-wrap:wrap;gap:4px 10px;">
+                        @foreach (var inv in o.Invoices)
+                        {
+                            if (canViewInvoices)
+                            {
+                                <a asp-controller="PurchaseInvoices" asp-action="Details" asp-route-id="@inv.Id" dir="ltr" style="color:var(--series-1);text-decoration:none;">@PI(inv.Number)</a>
+                            }
+                            else
+                            {
+                                <span dir="ltr">@PI(inv.Number)</span>
+                            }
+                        }
+                        </span>
+                    }
+                </td>
                 <td style="white-space:nowrap;">
                     <a class="btn-sm" asp-action="Details" asp-route-id="@o.Id">التفاصيل</a>
                     @if (canEdit)
                     {
-                        <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("Form", new { id = o.Id })', 'تعديل أمر التوريد')">✏️ تعديل</button>
+                        <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("Form", new { id = o.Id })', 'تعديل أمر التوريد', 'xl')">✏️ تعديل</button>
                     }
                 </td>
             </tr>
         }
         @if (Model.Count == 0)
         {
-            <tr data-skip-search><td colspan="8" style="color:var(--muted)">لا توجد أوامر توريد بعد.</td></tr>
+            <tr data-skip-search><td colspan="7" style="color:var(--muted)">لا توجد أوامر توريد بعد.</td></tr>
         }
-        <tr data-no-results data-skip-search style="display:none;"><td colspan="8" style="color:var(--muted)">لا توجد نتائج مطابقة للبحث.</td></tr>
+        <tr data-no-results data-skip-search style="display:none;"><td colspan="7" style="color:var(--muted)">لا توجد نتائج مطابقة للبحث.</td></tr>
         </tbody>
     </table>
 </div>
 
 @section Scripts {
-    <script>
-        // Dynamic line items inside the order modal (defined globally — modal-injected scripts don't run).
-        window.__ordSeq = 1000;
-        // Size the البنود scroll box to exactly 3 rows (header + 3 rows) so a 4th row starts the scroll.
-        window.ordSizeItems = function () {
-            var box = document.querySelector('#appModalBody .ord-items-scroll'); if (!box) return;
-            var table = box.querySelector('table'); if (!table) return;
-            var headH = table.tHead ? table.tHead.offsetHeight : 0;
-            var row = table.querySelector('tbody tr');
-            var rowH = row ? row.offsetHeight : 62;
-            box.style.maxHeight = (headH + rowH * 3 + 2) + 'px';
-        };
-        window.addOrderItem = function () {
-            var body = document.getElementById('ordItemsBody'); if (!body) return;
-            var k = 'k' + (window.__ordSeq++);
-            var tr = document.createElement('tr');
-            tr.innerHTML =
-                '<td><input type="hidden" name="Items.Index" value="' + k + '"/>' +
-                '<input class="form-control" style="margin:0" name="Items[' + k + '].Name" placeholder="مثال: أسمنت، حديد، أجر مقاول..."/></td>' +
-                '<td><input class="form-control" style="margin:0" type="number" step="0.01" min="0" dir="ltr" name="Items[' + k + '].Cost" oninput="orderRecalcTotal()"/></td>' +
-                '<td><input class="form-control" style="margin:0" type="number" step="0.01" min="0" dir="ltr" value="1" name="Items[' + k + '].Quantity" oninput="orderRecalcTotal()"/></td>' +
-                '<td dir="ltr" style="text-align:right;"><span class="ord-line-total">0</span></td>' +
-                '<td><button type="button" class="btn-sm btn-danger" onclick="this.closest(\'tr\').remove(); orderRecalcTotal();">✕</button></td>';
-            body.appendChild(tr);
-            orderRecalcTotal();
-            ordSizeItems();
-            // Focus the new row's item field and bring it into view within the scroll box.
-            var nameInput = tr.querySelector('input[name$=".Name"]');
-            if (nameInput) nameInput.focus();
-            tr.scrollIntoView({ block: 'nearest' });
-        };
-        window.orderRecalcTotal = function () {
-            var body = document.getElementById('ordItemsBody'); if (!body) return;
-            var sum = 0;
-            body.querySelectorAll('tr').forEach(function (tr) {
-                var costEl = tr.querySelector('input[name$=".Cost"]');
-                var qtyEl = tr.querySelector('input[name$=".Quantity"]');
-                if (!costEl) return;
-                var cost = parseFloat(costEl.value); if (isNaN(cost)) cost = 0;
-                var qty = qtyEl ? parseFloat(qtyEl.value) : 1; if (isNaN(qty)) qty = 1;   // blank qty = 1 unit
-                var line = cost * qty;
-                var lineEl = tr.querySelector('.ord-line-total');
-                if (lineEl) lineEl.textContent = line.toLocaleString('en-US', { maximumFractionDigits: 2 });
-                sum += line;
-            });
-            var el = document.getElementById('ordTotal');
-            if (el) el.textContent = sum.toLocaleString('en-US', { maximumFractionDigits: 2 });
-        };
-    </script>
+    <script src="~/js/purchase-doc.js" asp-append-version="true"></script>
 }

@@ -1459,6 +1459,9 @@ namespace RealState.Infrastructure.Persistence.Migrations
                     b.Property<int>("Number")
                         .HasColumnType("int");
 
+                    b.Property<Guid?>("PurchaseInvoiceId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<byte[]>("RowVersion")
                         .IsConcurrencyToken()
                         .ValueGeneratedOnAddOrUpdate()
@@ -1483,6 +1486,8 @@ namespace RealState.Infrastructure.Persistence.Migrations
                         .HasColumnType("uniqueidentifier");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("PurchaseInvoiceId");
 
                     b.HasIndex("WarehouseId");
 
@@ -2957,10 +2962,6 @@ namespace RealState.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<decimal>("Amount")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
@@ -2979,25 +2980,102 @@ namespace RealState.Infrastructure.Persistence.Migrations
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
 
-                    b.Property<string>("Number")
-                        .IsRequired()
+                    b.Property<string>("Notes")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<decimal>("PaidAmount")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
+                    b.Property<int>("Number")
+                        .HasColumnType("int");
+
+                    b.Property<Guid?>("ProjectId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("PurchaseOrderId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<byte[]>("RowVersion")
                         .IsConcurrencyToken()
                         .ValueGeneratedOnAddOrUpdate()
                         .HasColumnType("rowversion");
 
-                    b.Property<int>("Status")
-                        .HasColumnType("int");
+                    b.Property<Guid>("SupplierId")
+                        .HasColumnType("uniqueidentifier");
 
-                    b.Property<string>("SupplierName")
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid?>("WarehouseId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProjectId");
+
+                    b.HasIndex("PurchaseOrderId");
+
+                    b.HasIndex("SupplierId");
+
+                    b.HasIndex("WarehouseId");
+
+                    b.HasIndex("TenantId", "Number")
+                        .IsUnique()
+                        .HasFilter("[IsDeleted] = 0");
+
+                    b.ToTable("PurchaseInvoices");
+                });
+
+            modelBuilder.Entity("RealState.Application.Entities.PurchaseInvoiceItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Cost")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("DeletedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<decimal>("LineTotal")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("PurchaseInvoiceId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Quantity")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
 
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uniqueidentifier");
@@ -3010,7 +3088,11 @@ namespace RealState.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("PurchaseInvoices");
+                    b.HasIndex("ProductId");
+
+                    b.HasIndex("PurchaseInvoiceId");
+
+                    b.ToTable("PurchaseInvoiceItems");
                 });
 
             modelBuilder.Entity("RealState.Application.Entities.ReportTemplate", b =>
@@ -3171,6 +3253,9 @@ namespace RealState.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<bool>("AllowOverdraft")
+                        .HasColumnType("bit");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
@@ -3204,6 +3289,9 @@ namespace RealState.Infrastructure.Persistence.Migrations
 
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Type")
+                        .HasColumnType("int");
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
@@ -3293,6 +3381,83 @@ namespace RealState.Infrastructure.Persistence.Migrations
                     b.HasIndex("SafeId");
 
                     b.ToTable("SafeTransactions");
+                });
+
+            modelBuilder.Entity("RealState.Application.Entities.SafeTransfer", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("DeletedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid>("FromSafeId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("InTransactionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Notes")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("Number")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("OccurredAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("OutTransactionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ToSafeId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FromSafeId");
+
+                    b.HasIndex("InTransactionId");
+
+                    b.HasIndex("OutTransactionId");
+
+                    b.HasIndex("ToSafeId");
+
+                    b.HasIndex("TenantId", "Number")
+                        .IsUnique()
+                        .HasFilter("[IsDeleted] = 0");
+
+                    b.ToTable("SafeTransfers");
                 });
 
             modelBuilder.Entity("RealState.Application.Entities.SaleContract", b =>
@@ -4007,7 +4172,7 @@ namespace RealState.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAddOrUpdate()
                         .HasColumnType("rowversion");
 
-                    b.Property<Guid>("SupplierId")
+                    b.Property<Guid?>("SupplierId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<Guid>("TenantId")
@@ -4094,8 +4259,8 @@ namespace RealState.Infrastructure.Persistence.Migrations
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<decimal>("Cost")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
@@ -4116,9 +4281,12 @@ namespace RealState.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<Guid?>("ProductId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<decimal>("Quantity")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
 
                     b.Property<byte[]>("RowVersion")
                         .IsConcurrencyToken()
@@ -4138,6 +4306,8 @@ namespace RealState.Infrastructure.Persistence.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("ProductId");
 
                     b.HasIndex("SupplierOrderId");
 
@@ -4175,6 +4345,9 @@ namespace RealState.Infrastructure.Persistence.Migrations
                     b.Property<DateTime>("PaidDate")
                         .HasColumnType("datetime2");
 
+                    b.Property<Guid?>("PurchaseInvoiceId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<int>("ReceiptNo")
                         .HasColumnType("int");
 
@@ -4202,6 +4375,8 @@ namespace RealState.Infrastructure.Persistence.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("PurchaseInvoiceId");
 
                     b.HasIndex("SafeId");
 
@@ -5267,6 +5442,11 @@ namespace RealState.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("RealState.Application.Entities.GoodsReceipt", b =>
                 {
+                    b.HasOne("RealState.Application.Entities.PurchaseInvoice", null)
+                        .WithMany()
+                        .HasForeignKey("PurchaseInvoiceId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("RealState.Application.Entities.Warehouse", "Warehouse")
                         .WithMany()
                         .HasForeignKey("WarehouseId")
@@ -5452,6 +5632,57 @@ namespace RealState.Infrastructure.Persistence.Migrations
                     b.Navigation("Unit");
                 });
 
+            modelBuilder.Entity("RealState.Application.Entities.PurchaseInvoice", b =>
+                {
+                    b.HasOne("RealState.Application.Entities.Project", "Project")
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("RealState.Application.Entities.SupplierOrder", "PurchaseOrder")
+                        .WithMany()
+                        .HasForeignKey("PurchaseOrderId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("RealState.Application.Entities.Supplier", "Supplier")
+                        .WithMany()
+                        .HasForeignKey("SupplierId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("RealState.Application.Entities.Warehouse", "Warehouse")
+                        .WithMany()
+                        .HasForeignKey("WarehouseId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Project");
+
+                    b.Navigation("PurchaseOrder");
+
+                    b.Navigation("Supplier");
+
+                    b.Navigation("Warehouse");
+                });
+
+            modelBuilder.Entity("RealState.Application.Entities.PurchaseInvoiceItem", b =>
+                {
+                    b.HasOne("RealState.Application.Entities.Product", "Product")
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("RealState.Application.Entities.PurchaseInvoice", "Invoice")
+                        .WithMany("Items")
+                        .HasForeignKey("PurchaseInvoiceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Invoice");
+
+                    b.Navigation("Product");
+                });
+
             modelBuilder.Entity("RealState.Application.Entities.Reward", b =>
                 {
                     b.HasOne("RealState.Application.Entities.Employee", "Employee")
@@ -5490,6 +5721,37 @@ namespace RealState.Infrastructure.Persistence.Migrations
                     b.Navigation("Project");
 
                     b.Navigation("Safe");
+                });
+
+            modelBuilder.Entity("RealState.Application.Entities.SafeTransfer", b =>
+                {
+                    b.HasOne("RealState.Application.Entities.Safe", "FromSafe")
+                        .WithMany()
+                        .HasForeignKey("FromSafeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("RealState.Application.Entities.SafeTransaction", null)
+                        .WithMany()
+                        .HasForeignKey("InTransactionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("RealState.Application.Entities.SafeTransaction", null)
+                        .WithMany()
+                        .HasForeignKey("OutTransactionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("RealState.Application.Entities.Safe", "ToSafe")
+                        .WithMany()
+                        .HasForeignKey("ToSafeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("FromSafe");
+
+                    b.Navigation("ToSafe");
                 });
 
             modelBuilder.Entity("RealState.Application.Entities.SaleContract", b =>
@@ -5613,8 +5875,7 @@ namespace RealState.Infrastructure.Persistence.Migrations
                     b.HasOne("RealState.Application.Entities.Supplier", "Supplier")
                         .WithMany()
                         .HasForeignKey("SupplierId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Project");
 
@@ -5634,6 +5895,11 @@ namespace RealState.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("RealState.Application.Entities.SupplierOrderItem", b =>
                 {
+                    b.HasOne("RealState.Application.Entities.Product", "Product")
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("RealState.Application.Entities.SupplierOrder", "Order")
                         .WithMany("Items")
                         .HasForeignKey("SupplierOrderId")
@@ -5641,10 +5907,17 @@ namespace RealState.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("Order");
+
+                    b.Navigation("Product");
                 });
 
             modelBuilder.Entity("RealState.Application.Entities.SupplierPayment", b =>
                 {
+                    b.HasOne("RealState.Application.Entities.PurchaseInvoice", "Invoice")
+                        .WithMany("Payments")
+                        .HasForeignKey("PurchaseInvoiceId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("RealState.Application.Entities.Safe", null)
                         .WithMany()
                         .HasForeignKey("SafeId")
@@ -5661,6 +5934,8 @@ namespace RealState.Infrastructure.Persistence.Migrations
                         .WithMany("Payments")
                         .HasForeignKey("SupplierOrderId")
                         .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Invoice");
 
                     b.Navigation("Order");
 
@@ -5826,6 +6101,13 @@ namespace RealState.Infrastructure.Persistence.Migrations
                     b.Navigation("Activities");
 
                     b.Navigation("Expenses");
+                });
+
+            modelBuilder.Entity("RealState.Application.Entities.PurchaseInvoice", b =>
+                {
+                    b.Navigation("Items");
+
+                    b.Navigation("Payments");
                 });
 
             modelBuilder.Entity("RealState.Application.Entities.SaleContract", b =>

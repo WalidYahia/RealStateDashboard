@@ -100,17 +100,6 @@ public class SalesInvoice : AuditableEntity, ITenantEntity
     public bool IsReservation { get; set; }
 }
 
-public class PurchaseInvoice : AuditableEntity, ITenantEntity
-{
-    public Guid TenantId { get; set; }
-    public string Number { get; set; } = string.Empty;
-    public string SupplierName { get; set; } = string.Empty;
-    public decimal Amount { get; set; }
-    public decimal PaidAmount { get; set; }
-    public InvoiceStatus Status { get; set; } = InvoiceStatus.Draft;
-    public DateTime InvoiceDate { get; set; }
-}
-
 public class Income : AuditableEntity, ITenantEntity
 {
     public Guid TenantId { get; set; }

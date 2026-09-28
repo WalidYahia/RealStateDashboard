@@ -87,20 +87,53 @@ role/permission‑based administration.
 
 ### 2.6 Suppliers & Contractors — الموردون والمقاولون (`Suppliers` area)
 - **Suppliers** list/CRUD (name, phone, email, notes) + supplier **account statement (كشف حساب)**.
-- **Purchase / supply orders (أوامر التوريد)**: number `PO‑####`, date, optional project, line items
-  (البنود: name + cost), total; create/edit with dynamic item rows; per‑order & list prints.
-- **Per‑order payments**: pay from the orders list or the statement’s **order picker**, capped at the
-  order’s remaining and disabled once fully paid. Each payment:
-  - records an **expense** on the order’s **project** (appears in the project’s expenses & summary),
-  - issues a printable **إيصال دفع** (`P‑#####`, opens in a new tab),
-  - shows on the supplier’s statement.
+Purchasing runs in two stages — **purchase order → purchase invoice**.
+- **Purchase orders (أوامر التوريد)** — stage 1, a plain request: number `PO‑YYYY####` (shown on the
+  form before saving), date, optional project (searchable), product lines (الأصناف: product picked
+  by code/name + **quantity only** — no unit cost or totals). **No supplier**, and saving
+  posts nothing (no ledger, stock or safe effect). The list shows each order’s **related invoices**;
+  an order with invoices can’t be deleted. Orders from before the invoice stage keep their supplier,
+  payable entry, payments and unit costs (shown on the order and in the supplier statement). When an
+  invoice copies an order's lines, the unit costs are left empty to be entered from the supplier invoice.
+- **Purchase invoices (فواتير المشتريات)** — stage 2, own menu item: number `PI‑YYYY######`
+  (e.g. `PI‑2026000001`, shown on the form before saving), date, supplier (required), optional project
+  and optional purchase order (all searchable; picking an order offers to copy its lines + project).
+  Product lines show product, unit cost (entered manually), **current stock** (all warehouses), quantity,
+  total, plus a **warehouse** (required when there are stock‑tracked products). Several invoices may
+  reference the same order. Saving:
+  - posts the invoice entry **Dr بضاعة واردة لم تُفوتر** (stock‑tracked products) / **Dr المشتريات**
+    (non‑stock products), **Cr الموردون** (the supplier’s payable);
+  - **auto‑creates and posts a goods receipt (إذن استلام)** for the stock‑tracked lines in the chosen
+    warehouse at the invoice unit costs and date (Dr المخزون / Cr بضاعة واردة لم تُفوتر), so stock and
+    the product’s cost follow the invoice under the costing method — net effect Dr المخزون / Cr المورد.
+  Edits re‑post the entry and, when the stock lines/warehouse/date change, reverse the receipt and
+  post a new one; deleting reverses both (blocked once paid, or when the received goods were already
+  issued). Auto receipts are locked on the goods‑receipts page. Every goods receipt can be printed (🖨 in
+  the list and in its details popup: header, supplier, source invoice, lines). ❓ help on the list, form and details
+  explains the flow. List filters: date, supplier, project, order.
+- **Per‑invoice payments**: pay from the invoice page or the statement’s **invoice picker**, capped at
+  the invoice’s remaining. Each payment records a safe **expense** (on the invoice’s project), issues a
+  printable **إيصال صرف نقدية** (opens in a new tab) and shows on the supplier’s statement.
 - **Account statement** = a running‑balance ledger (المصدر / التاريخ / البيان / رصيد قبل / المبلغ /
-  الرصيد) with date‑range filter and period **closing balance**; editing an order below its paid
-  amount is blocked.
+  الرصيد) over invoices (+ legacy orders) and payments, with date‑range filter and period
+  **closing balance**; editing an invoice below its paid amount is blocked.
 
 ### 2.7 Accounting / Finance (`Accounting` area)
-- **Safes (الخزائن)**: CRUD, initial amount, active flag; **movements** view with per‑transaction
-  **running balance** and print.
+- **Safes (الخزائن)**: CRUD, initial amount, active flag, **safe type** (عادية — default / بنك /
+  محفظة إلكترونية / إنستاباي) with a type filter + column on the list; **movements** view with
+  per‑transaction **running balance** and print.
+- **Transfers between safes (التحويلات بين الخزائن)**: own page + menu item; number `SF‑YYYY######`
+  (e.g. `SF‑2026000001`, shown on the form before saving), date/time, from/to safe (searchable, with
+  balances), amount, notes; create/edit/delete (permission `Safes.Transfer`), printable **إذن تحويل
+  نقدية**, list filters (date range + presets, one safe filter matching either side, text) with print +
+  Excel. A transfer writes an outflow on the source safe and an inflow on the destination (source
+  `SafeTransfer`, no income/expense serial) — so all safe balances include it — and posts **one direct
+  journal entry: Dr destination safe / Cr source safe** (tagged with the transfer). Changes that would
+  overdraw a safe are refused unless the safe has **سحب على المكشوف** enabled (a per‑safe option only users
+  with `Safes.Overdraft` can change). The same rule guards every money‑out action: manual expenses and
+  their edits, advance / reward payouts, project expenses, supplier and contractor payments, and removing an
+  income (deleting an income, cancelling a collection, deleting a project with incomes). Transfers are excluded from the incomes/expenses pages and the daily
+  report’s income/expense lists; the safes list shows them as «صافي التحويلات».
 - **Incomes / Expenses**: ledgers over the safe transactions (income serial / expense serial), with
   date/text filters, manual add/edit/delete, whole‑list print, and **per‑transaction voucher**
   (سند قبض / سند صرف, opens in a new tab).
@@ -112,11 +145,11 @@ role/permission‑based administration.
 - **Campaigns** (platform, type, objective, status) with dated **updates** (spend, leads, metrics).
 
 ### 2.9 Reports (`Reports` area)
-- **Daily report**: one‑day summary of contracts, supplier orders, income & expense receipts, plus
+- **Daily report**: one‑day summary of contracts, purchase invoices, income & expense receipts, plus
   **each safe’s balance** at end of day; date picker + print.
 - **Customer report**: per customer — contracts, contract value, remaining installments, collected,
   residual; date‑range filter, **column totals**, print.
-- **Supplier report**: per supplier — orders, order value, paid, residual; date‑range filter,
+- **Supplier report**: per supplier — invoices, invoice value, paid, residual; date‑range filter,
   **column totals**, print.
 
 ### 2.10 Administration & Settings
@@ -138,12 +171,12 @@ Grouped, each is an authorization policy + assignable privilege:
 | المشاريع | Projects.View / Create / Edit / Delete |
 | المبيعات (العقود) | Sales.View / Create / Delete |
 | التحصيلات | Collections.View / Collect / Cancel |
-| الخزائن | Safes.View / Create / Edit / Delete |
+| الخزائن | Safes.View / Create / Edit / Delete / Transfer / Overdraft |
 | المصروفات | Expenses.View / Create / Edit / Delete |
 | الإيرادات | Incomes.View / Create / Edit / Delete |
 | العملاء | Customers.View / Create / Edit / Delete |
 | مندوبو المبيعات | Salespersons.View / Create / Edit / Delete |
-| الموردون والمقاولون | Suppliers.View / Create / Edit / Delete / Pay |
+| المشتريات | Suppliers.View / Create / Edit / Delete / Pay (suppliers, purchase orders, payments); PurchaseInvoices.View / Create / Edit / Delete |
 | التقارير | Reports.View |
 | التسويق | Campaigns.View / Create / Edit / Delete |
 | المستخدمون والصلاحيات | Users.View / Create / Edit / Delete |
@@ -158,7 +191,8 @@ Grouped, each is an authorization policy + assignable privilege:
 - **Projects**: `Project`, `ProjectUnit`, `ProjectStage`, `StageActivity`, `StageDefinition`,
   `ProjectAttachment` (`StageExpense` retained for history).
 - **Sales/CRM**: `SaleContract`, `Installment`, `Customer`, `Lead`, `Employee` (salespersons).
-- **Suppliers**: `Supplier`, `SupplierOrder`, `SupplierOrderItem`, `SupplierPayment`.
+- **Purchasing**: `Supplier`, `SupplierOrder` + `SupplierOrderItem` (purchase order), `PurchaseInvoice` +
+  `PurchaseInvoiceItem`, `SupplierPayment` (settles an invoice, or a legacy order).
 - **Accounting**: `Safe`, `SafeTransaction` (Income/Expense serial ledger, optionally linked to
   installment / project / stage).
 - **Marketing**: `Campaign`, `CampaignUpdate`.
@@ -166,6 +200,6 @@ Grouped, each is an authorization policy + assignable privilege:
 
 ---
 
-*Reserved / partially scaffolded for future passes: Purchases & Finance areas, `SalesInvoice` /
-`PurchaseInvoice` / `Income` / `Expense` business‑invoice entities, `TaskItem`, `Notification`,
+*Reserved / partially scaffolded for future passes: Finance area, `SalesInvoice` /
+`Income` / `Expense` business‑invoice entities, `TaskItem`, `Notification`,
 `Attachment`, HR beyond salespersons.*

@@ -101,6 +101,9 @@ public class GoodsReceipt : AuditableEntity, ITenantEntity
     public Guid WarehouseId { get; set; }
     public Warehouse? Warehouse { get; set; }
     public Guid? SupplierId { get; set; }
+    /// <summary>Set when the receipt was created automatically by a purchase invoice; it is then managed
+    /// (re-built / reversed) only through that invoice.</summary>
+    public Guid? PurchaseInvoiceId { get; set; }
     public InventoryDocStatus Status { get; set; } = InventoryDocStatus.Draft;
     public string? Notes { get; set; }
     public List<GoodsReceiptLine> Lines { get; set; } = new();

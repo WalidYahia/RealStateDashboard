@@ -13,8 +13,11 @@
     </div>
     <div style="display:flex;gap:8px;">
         <a class="btn-sm" asp-controller="Suppliers" asp-action="Index" onclick="if (history.length > 1) { history.back(); return false; }">رجوع</a>
-        <a class="btn-sm" asp-controller="Orders" asp-action="Index">أوامر التوريد</a>
-        @if (canPay && Model.HasPayableOrders)
+        @if (ViewData["CanViewInvoices"] as bool? ?? false)
+        {
+            <a class="btn-sm" asp-controller="PurchaseInvoices" asp-action="Index" asp-route-supplierId="@Model.Supplier.Id">فواتير المشتريات</a>
+        }
+        @if (canPay && Model.HasPayableDocuments)
         {
             <button type="button" class="btn-new-tenant" onclick="appOpenModal('@Url.Action("PayForm", new { id = Model.Supplier.Id })', 'سداد دفعة للمورد')">💵 سداد دفعة</button>
         }
@@ -35,7 +38,7 @@
 }
 
 <div class="kpi-grid" style="grid-template-columns: repeat(3, 1fr);">
-    <div class="kpi k-reserve"><div class="kpi-label">إجمالي المستحقات</div><div class="kpi-value">@N(Model.TotalObligations) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">@Model.OrdersCount أمر توريد</div></div>
+    <div class="kpi k-reserve"><div class="kpi-label">إجمالي المستحقات</div><div class="kpi-value">@N(Model.TotalObligations) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">@Model.InvoicesCount فاتورة</div></div>
     <div class="kpi k-collect"><div class="kpi-label">المسدَّد</div><div class="kpi-value">@N(Model.TotalPaid) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">@Model.PaymentsCount دفعة</div></div>
     <div class="kpi k-alerts"><div class="kpi-label">المتبقي</div><div class="kpi-value">@N(Model.TotalRemaining) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">مستحق الدفع للمورد</div></div>
 </div>
@@ -67,13 +70,26 @@
         {
             var isPay = r.Kind == SupplierLedgerKind.Payment;
             <tr>
-                <td>@r.Source</td>
+                <td>
+                    @if (r.Kind == SupplierLedgerKind.Invoice && (ViewData["CanViewInvoices"] as bool? ?? false))
+                    {
+                        <a asp-controller="PurchaseInvoices" asp-action="Details" asp-route-id="@r.Id" style="color:var(--series-1);text-decoration:none;font-weight:600;">@r.Source</a>
+                    }
+                    else if (r.Kind == SupplierLedgerKind.Order)
+                    {
+                        <a asp-controller="Orders" asp-action="Details" asp-route-id="@r.Id" style="color:var(--series-1);text-decoration:none;font-weight:600;">@r.Source</a>
+                    }
+                    else
+                    {
+                        @r.Source
+                    }
+                </td>
                 <td dir="ltr" style="text-align:right;">@D(r.Date)</td>
                 <td>
                     @r.Statement
                     @if (isPay)
                     {
-                        <a class="btn-sm" asp-controller="Orders" asp-action="Receipt" asp-route-id="@r.Id" target="_blank" style="margin-inline-start:8px;">🖨 طباعة</a>
+                        <a class="btn-sm" asp-controller="Payments" asp-action="Receipt" asp-route-id="@r.Id" target="_blank" style="margin-inline-start:8px;">🖨 طباعة</a>
                     }
                 </td>
                 <td style="white-space:nowrap;color:var(--muted);">@N(r.BalanceBefore)</td>

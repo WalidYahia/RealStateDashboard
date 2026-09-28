@@ -31,7 +31,7 @@
         <tbody>
         @foreach (var t in Model.Transactions)
         {
-            <tr><td>@t.Serial.ToString("D4")</td><td>@DT(t.OccurredAt)</td><td>@t.Type.Ar()</td><td>@t.Source.Ar()</td><td>@t.Description</td><td>@(t.Type == TxnType.Income ? "+" : "−")@N(t.Amount)</td><td>@N(t.RunningBalance)</td></tr>
+            <tr><td>@(t.DocNo ?? t.Serial.ToString("D4"))</td><td>@DT(t.OccurredAt)</td><td>@(t.IsTransfer ? (t.Type == TxnType.Income ? "تحويل وارد" : "تحويل صادر") : t.Type.Ar())</td><td>@t.Source.Ar()</td><td>@t.Description</td><td>@(t.Type == TxnType.Income ? "+" : "−")@N(t.Amount)</td><td>@N(t.RunningBalance)</td></tr>
         }
         </tbody>
         @if (Model.Transactions.Count > 0)

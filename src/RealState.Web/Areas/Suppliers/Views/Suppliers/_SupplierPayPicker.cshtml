@@ -1,5 +1,5 @@
 @model SupplierPayPickerModel
-<form id="appModalForm" asp-area="Suppliers" asp-controller="Orders" asp-action="Pay" method="post" data-open-tab>
+<form id="appModalForm" asp-area="Suppliers" asp-controller="Payments" asp-action="Pay" method="post" data-open-tab>
     @Html.AntiForgeryToken()
     <div asp-validation-summary="ModelOnly" class="validation-summary-errors"></div>
 
@@ -7,10 +7,10 @@
         المورد: <strong>@Model.SupplierName</strong>
     </div>
 
-    @if (Model.Orders.Count == 0)
+    @if (Model.Documents.Count == 0)
     {
         <div class="status-message" style="background:rgba(250,178,25,.12);border-color:var(--warning);color:var(--warning);">
-            لا توجد أوامر توريد غير مسدَّدة بالكامل لهذا المورد.
+            لا توجد فواتير مشتريات غير مسدَّدة بالكامل لهذا المورد.
         </div>
     }
     else if (Model.Safes.Count == 0)
@@ -23,11 +23,11 @@
     {
         <div class="form-grid">
             <div class="full">
-                <label class="form-label">أمر التوريد</label>
-                <select name="OrderId" class="form-control" data-cascade-init onchange="supplierPayPick(this)">
-                    @foreach (var o in Model.Orders)
+                <label class="form-label">الفاتورة</label>
+                <select name="Target" class="form-control" data-cascade-init onchange="supplierPayPick(this)">
+                    @foreach (var d in Model.Documents)
                     {
-                        <option value="@o.Id" data-remaining="@o.Remaining">@o.Label</option>
+                        <option value="@d.Target" data-remaining="@d.Remaining.ToString(System.Globalization.CultureInfo.InvariantCulture)">@d.Label</option>
                     }
                 </select>
             </div>

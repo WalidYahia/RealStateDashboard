@@ -68,6 +68,7 @@ public interface IApplicationDbContext
     DbSet<Installment> Installments { get; }
     DbSet<Safe> Safes { get; }
     DbSet<SafeTransaction> SafeTransactions { get; }
+    DbSet<SafeTransfer> SafeTransfers { get; }
     DbSet<Supplier> Suppliers { get; }
     DbSet<SupplierOrder> SupplierOrders { get; }
     DbSet<SupplierOrderItem> SupplierOrderItems { get; }
@@ -87,6 +88,7 @@ public interface IApplicationDbContext
     DbSet<ProjectUnitAttachment> ProjectUnitAttachments { get; }
     DbSet<SalesInvoice> SalesInvoices { get; }
     DbSet<PurchaseInvoice> PurchaseInvoices { get; }
+    DbSet<PurchaseInvoiceItem> PurchaseInvoiceItems { get; }
     DbSet<Income> Incomes { get; }
     DbSet<Expense> Expenses { get; }
     DbSet<TaskItem> Tasks { get; }

@@ -46,20 +46,29 @@ public class ReportsController : Controller
         vm.Contracts = contracts.OrderBy(c => c.Code).Select(c => new DailyContractRow(
             c.Code, custNames.GetValueOrDefault(c.CustomerId, "—"), unitNames.GetValueOrDefault(c.UnitId, "—"), c.TotalPrice)).ToList();
 
-        var orders = await _db.SupplierOrders.Where(o => o.OrderDate >= day && o.OrderDate < next).ToListAsync(ct);
+        // Purchases of the day: purchase invoices, plus legacy orders that still carry a supplier obligation.
+        var invoices = await _db.PurchaseInvoices.Where(i => i.InvoiceDate >= day && i.InvoiceDate < next).ToListAsync(ct);
+        var invoiceIds = invoices.Select(i => i.Id).ToList();
+        var invoiceSums = (await _db.PurchaseInvoiceItems.Where(i => invoiceIds.Contains(i.PurchaseInvoiceId))
+            .GroupBy(i => i.PurchaseInvoiceId).Select(g => new { g.Key, Sum = g.Sum(x => x.LineTotal) }).ToListAsync(ct))
+            .ToDictionary(x => x.Key, x => x.Sum);
+        var orders = await _db.SupplierOrders.Where(o => o.SupplierId != null && o.OrderDate >= day && o.OrderDate < next).ToListAsync(ct);
         var orderIds = orders.Select(o => o.Id).ToList();
         var itemSums = (await _db.SupplierOrderItems.Where(i => orderIds.Contains(i.SupplierOrderId))
             .GroupBy(i => i.SupplierOrderId).Select(g => new { g.Key, Sum = g.Sum(x => x.Cost * x.Quantity) }).ToListAsync(ct))
             .ToDictionary(x => x.Key, x => x.Sum);
-        vm.Orders = orders.OrderBy(o => o.Number).Select(o => new DailyOrderRow(
-            $"PO-{o.Number:D4}", supNames.GetValueOrDefault(o.SupplierId, "—"),
-            o.ProjectId.HasValue ? projNames.GetValueOrDefault(o.ProjectId.Value, "—") : "—",
-            itemSums.GetValueOrDefault(o.Id, 0))).ToList();
+        string Proj(Guid? id) => id.HasValue ? projNames.GetValueOrDefault(id.Value, "—") : "—";
+        vm.Orders = invoices.OrderBy(i => i.Number).Select(i => new DailyOrderRow(
+                $"PI-{i.Number}", supNames.GetValueOrDefault(i.SupplierId, "—"), Proj(i.ProjectId), invoiceSums.GetValueOrDefault(i.Id, 0)))
+            .Concat(orders.OrderBy(o => o.Number).Select(o => new DailyOrderRow(
+                $"PO-{o.Number:D4}", supNames.GetValueOrDefault(o.SupplierId!.Value, "—"), Proj(o.ProjectId), itemSums.GetValueOrDefault(o.Id, 0))))
+            .ToList();
 
         var dayTxns = await _db.SafeTransactions.Where(t => t.OccurredAt >= day && t.OccurredAt < next).ToListAsync(ct);
-        vm.Incomes = dayTxns.Where(t => t.Type == TxnType.Income).OrderBy(t => t.Serial)
+        // Transfers between safes move money but are neither income nor expense (safe balances below still include them).
+        vm.Incomes = dayTxns.Where(t => t.Type == TxnType.Income && t.Source != TxnSource.SafeTransfer).OrderBy(t => t.Serial)
             .Select(t => new DailyTxnRow(t.Serial, t.Description, t.Amount)).ToList();
-        vm.Expenses = dayTxns.Where(t => t.Type == TxnType.Expense).OrderBy(t => t.Serial)
+        vm.Expenses = dayTxns.Where(t => t.Type == TxnType.Expense && t.Source != TxnSource.SafeTransfer).OrderBy(t => t.Serial)
             .Select(t => new DailyTxnRow(t.Serial, t.Description, t.Amount)).ToList();
 
         // Safe balances as of the end of the selected day.
@@ -154,7 +163,7 @@ public class ReportsController : Controller
     public async Task<IActionResult> SuppliersCsv(DateTime? from, DateTime? to, CancellationToken ct)
     {
         var vm = await BuildSuppliersAsync(from, to, ct);
-        var headers = new[] { "المورد", "الهاتف", "عدد الأوامر", "قيمة الأوامر", "المسدَّد", "المتبقي" };
+        var headers = new[] { "المورد", "الهاتف", "عدد الفواتير", "قيمة الفواتير", "المسدَّد", "المتبقي" };
         var rows = vm.Rows.Select(r => (IReadOnlyList<object?>)new object?[]
         {
             r.Name, r.Phone, r.Orders, r.OrdersValue, r.Paid, r.Residual
@@ -166,10 +175,22 @@ public class ReportsController : Controller
     private async Task<SupplierReportVm> BuildSuppliersAsync(DateTime? from, DateTime? to, CancellationToken ct)
     {
         var vm = new SupplierReportVm { From = from, To = to };
-        var orders = await _db.SupplierOrders.ToListAsync(ct);
-        if (from.HasValue) orders = orders.Where(o => o.OrderDate >= from.Value).ToList();
-        if (to.HasValue) orders = orders.Where(o => o.OrderDate < to.Value.Date.AddDays(1)).ToList();
 
+        // A supplier's documents: purchase invoices, plus legacy orders that still carry the supplier.
+        var invQ = _db.PurchaseInvoices.AsQueryable();
+        var ordQ = _db.SupplierOrders.Where(o => o.SupplierId != null);
+        if (from.HasValue) { invQ = invQ.Where(i => i.InvoiceDate >= from.Value); ordQ = ordQ.Where(o => o.OrderDate >= from.Value); }
+        if (to.HasValue) { invQ = invQ.Where(i => i.InvoiceDate < to.Value.Date.AddDays(1)); ordQ = ordQ.Where(o => o.OrderDate < to.Value.Date.AddDays(1)); }
+        var invoices = await invQ.ToListAsync(ct);
+        var orders = await ordQ.ToListAsync(ct);
+
+        var invoiceIds = invoices.Select(i => i.Id).ToList();
+        var invoiceSums = (await _db.PurchaseInvoiceItems.Where(i => invoiceIds.Contains(i.PurchaseInvoiceId))
+            .GroupBy(i => i.PurchaseInvoiceId).Select(g => new { g.Key, Sum = g.Sum(x => x.LineTotal) }).ToListAsync(ct))
+            .ToDictionary(x => x.Key, x => x.Sum);
+        var paidByInvoice = (await _db.SupplierPayments.Where(p => p.PurchaseInvoiceId != null && invoiceIds.Contains(p.PurchaseInvoiceId!.Value))
+            .GroupBy(p => p.PurchaseInvoiceId!.Value).Select(g => new { g.Key, Sum = g.Sum(x => x.Amount) }).ToListAsync(ct))
+            .ToDictionary(x => x.Key, x => x.Sum);
         var orderIds = orders.Select(o => o.Id).ToList();
         var itemSums = (await _db.SupplierOrderItems.Where(i => orderIds.Contains(i.SupplierOrderId))
             .GroupBy(i => i.SupplierOrderId).Select(g => new { g.Key, Sum = g.Sum(x => x.Cost * x.Quantity) }).ToListAsync(ct))
@@ -179,11 +200,14 @@ public class ReportsController : Controller
             .ToDictionary(x => x.Key, x => x.Sum);
         var suppliers = await _db.Suppliers.ToDictionaryAsync(s => s.Id, s => s, ct);
 
-        vm.Rows = orders.GroupBy(o => o.SupplierId).Select(g =>
+        var docs = invoices.Select(i => (SupplierId: i.SupplierId, Value: invoiceSums.GetValueOrDefault(i.Id, 0), Paid: paidByInvoice.GetValueOrDefault(i.Id, 0)))
+            .Concat(orders.Select(o => (SupplierId: o.SupplierId!.Value, Value: itemSums.GetValueOrDefault(o.Id, 0), Paid: paidByOrder.GetValueOrDefault(o.Id, 0))));
+
+        vm.Rows = docs.GroupBy(d => d.SupplierId).Select(g =>
         {
             suppliers.TryGetValue(g.Key, out var sup);
-            var value = g.Sum(o => itemSums.GetValueOrDefault(o.Id, 0));
-            var paid = g.Sum(o => paidByOrder.GetValueOrDefault(o.Id, 0));
+            var value = g.Sum(d => d.Value);
+            var paid = g.Sum(d => d.Paid);
             return new SupplierReportRow
             {
                 Name = sup?.Name ?? "—",

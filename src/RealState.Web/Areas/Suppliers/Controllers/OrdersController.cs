@@ -1,16 +1,20 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using RealState.Application.Accounting;
 using RealState.Application.Common;
 using RealState.Application.Entities;
-using RealState.Application.Enums;
 using RealState.Application.Interfaces;
 using RealState.Web.Areas.Suppliers.Models;
+using static RealState.Web.Areas.Suppliers.Controllers.PurchasingLookups;
 
 namespace RealState.Web.Areas.Suppliers.Controllers;
 
+/// <summary>
+/// Purchase orders (أوامر التوريد) — the first purchasing stage. An order is a plain request for products:
+/// saving it touches no ledger, stock or safe, and it has no supplier. Suppliers are billed through
+/// purchase invoices, which may reference an order (several invoices per order).
+/// </summary>
 [Area("Suppliers")]
 [Authorize(Policy = PermissionNames.SuppliersView)]
 public class OrdersController : Controller
@@ -29,42 +33,34 @@ public class OrdersController : Controller
     private bool Can(string permission) => User.HasClaim("permission", permission);
 
     // ---------- Orders list ----------
-    public async Task<IActionResult> Index(DateTime? from, DateTime? to, Guid? supplierId, Guid? projectId, CancellationToken ct)
+    public async Task<IActionResult> Index(DateTime? from, DateTime? to, Guid? projectId, CancellationToken ct)
     {
         (from, to) = DateFilterDefaults.TodayIfFresh(Request, from, to);
         ViewData["CanCreate"] = Can(PermissionNames.SuppliersCreate);
         ViewData["CanEdit"] = Can(PermissionNames.SuppliersEdit);
-        ViewData["CanDelete"] = Can(PermissionNames.SuppliersDelete);
-        ViewData["CanPay"] = Can(PermissionNames.SuppliersPay);
+        ViewData["CanViewInvoices"] = Can(PermissionNames.PurchaseInvoicesView);
         ViewBag.From = from;
         ViewBag.To = to;
-        ViewBag.SupplierId = supplierId;
         ViewBag.ProjectId = projectId;
-        ViewBag.Suppliers = await _db.Suppliers.OrderBy(s => s.Name)
-            .Select(s => new Microsoft.AspNetCore.Mvc.Rendering.SelectListItem { Value = s.Id.ToString(), Text = s.Name }).ToListAsync(ct);
-        ViewBag.Projects = await _db.Projects.OrderBy(p => p.Name)
-            .Select(p => new Microsoft.AspNetCore.Mvc.Rendering.SelectListItem { Value = p.Id.ToString(), Text = p.Name }).ToListAsync(ct);
-        return View(await BuildRowsAsync(ct, from, to, supplierId, projectId));
+        ViewBag.Projects = await ProjectsAsync(_db, ct);
+        return View(await BuildRowsAsync(ct, from, to, projectId));
     }
 
-    private async Task<List<OrderListItem>> BuildRowsAsync(CancellationToken ct, DateTime? from = null, DateTime? to = null,
-        Guid? supplierId = null, Guid? projectId = null)
+    private async Task<List<OrderListItem>> BuildRowsAsync(CancellationToken ct, DateTime? from = null, DateTime? to = null, Guid? projectId = null)
     {
         var q = _db.SupplierOrders.AsQueryable();
         if (from.HasValue) q = q.Where(o => o.OrderDate >= from.Value.Date);
         if (to.HasValue) q = q.Where(o => o.OrderDate < to.Value.Date.AddDays(1));
-        if (supplierId.HasValue) q = q.Where(o => o.SupplierId == supplierId.Value);
         if (projectId.HasValue) q = q.Where(o => o.ProjectId == projectId.Value);
         var orders = await q.OrderByDescending(o => o.Number).ToListAsync(ct);
-        var supNames = await _db.Suppliers.ToDictionaryAsync(s => s.Id, s => s.Name, ct);
-        var projNames = await _db.Projects.ToDictionaryAsync(p => p.Id, p => p.Name, ct);
-        var itemsByOrder = (await _db.SupplierOrderItems.GroupBy(i => i.SupplierOrderId)
-            .Select(g => new { g.Key, Sum = g.Sum(x => x.Cost * x.Quantity), Count = g.Count() }).ToListAsync(ct))
-            .ToDictionary(x => x.Key, x => (x.Sum, x.Count));
-        var paidByOrder = (await _db.SupplierPayments.Where(p => p.SupplierOrderId != null)
-            .GroupBy(p => p.SupplierOrderId!.Value).Select(g => new { g.Key, Sum = g.Sum(x => x.Amount) }).ToListAsync(ct))
-            .ToDictionary(x => x.Key, x => x.Sum);
         var orderIds = orders.Select(o => o.Id).ToList();
+        var projNames = await _db.Projects.ToDictionaryAsync(p => p.Id, p => p.Name, ct);
+        var itemsByOrder = (await _db.SupplierOrderItems.Where(i => orderIds.Contains(i.SupplierOrderId)).GroupBy(i => i.SupplierOrderId)
+            .Select(g => new { g.Key, Qty = g.Sum(x => x.Quantity), Count = g.Count() }).ToListAsync(ct))
+            .ToDictionary(x => x.Key, x => (x.Qty, x.Count));
+        var invoicesByOrder = (await _db.PurchaseInvoices.Where(i => i.PurchaseOrderId != null && orderIds.Contains(i.PurchaseOrderId!.Value))
+            .OrderBy(i => i.Number).Select(i => new { OrderId = i.PurchaseOrderId!.Value, i.Id, i.Number }).ToListAsync(ct))
+            .GroupBy(x => x.OrderId).ToDictionary(g => g.Key, g => g.Select(x => new InvoiceRef(x.Id, x.Number)).ToList());
         var withAttachments = (await _db.SupplierOrderAttachments
             .Where(a => orderIds.Contains(a.SupplierOrderId)).Select(a => a.SupplierOrderId).Distinct().ToListAsync(ct)).ToHashSet();
 
@@ -76,12 +72,11 @@ public class OrdersController : Controller
                 Id = o.Id,
                 Number = o.Number,
                 OrderDate = o.OrderDate,
-                Supplier = supNames.GetValueOrDefault(o.SupplierId, "—"),
                 Project = o.ProjectId.HasValue ? projNames.GetValueOrDefault(o.ProjectId.Value, "—") : "—",
-                Total = agg.Sum,
+                TotalQuantity = agg.Qty,
                 ItemCount = agg.Count,
-                Paid = paidByOrder.GetValueOrDefault(o.Id, 0),
                 HasAttachments = withAttachments.Contains(o.Id),
+                Invoices = invoicesByOrder.GetValueOrDefault(o.Id, new()),
             };
         }).ToList();
     }
@@ -91,20 +86,30 @@ public class OrdersController : Controller
     public async Task<IActionResult> Form(Guid? id, CancellationToken ct)
     {
         if (!Can(id is null ? PermissionNames.SuppliersCreate : PermissionNames.SuppliersEdit)) return Forbid();
-        if (id is null) return PartialView("_OrderForm", await FillAsync(new OrderFormModel { Items = { new OrderItemInput() } }, ct));
+        if (id is null)
+            return PartialView("_OrderForm", await FillAsync(new OrderFormModel
+            {
+                Number = await NextNumberAsync(DateTime.Today.Year, ct),
+                Items = { new DocItemInput() }
+            }, ct));
 
         var o = await _db.SupplierOrders.FirstOrDefaultAsync(x => x.Id == id, ct);
         if (o is null) return NotFound();
-        var items = await _db.SupplierOrderItems.Where(i => i.SupplierOrderId == o.Id).ToListAsync(ct);
+        var items = await _db.SupplierOrderItems.Where(i => i.SupplierOrderId == o.Id).OrderBy(i => i.CreatedAt).ToListAsync(ct);
         return PartialView("_OrderForm", await FillAsync(new OrderFormModel
         {
             Id = o.Id,
             Number = o.Number,
-            SupplierId = o.SupplierId,
             ProjectId = o.ProjectId,
             OrderDate = o.OrderDate,
             Notes = o.Notes,
-            Items = items.Select(i => new OrderItemInput { Name = i.Name, Cost = i.Cost, Quantity = i.Quantity }).ToList()
+            Items = items.Select(i => new DocItemInput
+            {
+                ProductId = i.ProductId,
+                LegacyName = i.ProductId is null ? i.Name : null,
+                Cost = i.Cost,
+                Quantity = i.Quantity
+            }).ToList()
         }, ct));
     }
 
@@ -114,54 +119,61 @@ public class OrdersController : Controller
     {
         if (!Can(model.Id == Guid.Empty ? PermissionNames.SuppliersCreate : PermissionNames.SuppliersEdit)) return Forbid();
 
-        var items = (model.Items ?? new()).Where(i => !string.IsNullOrWhiteSpace(i.Name)).ToList();
+        var items = (model.Items ?? new()).Where(i => !i.IsBlank).ToList();
         foreach (var it in items) if (it.Quantity <= 0) it.Quantity = 1m;   // a blank quantity means one unit
-        if (items.Count == 0) ModelState.AddModelError(string.Empty, "أضف بندًا واحدًا على الأقل.");
-        if (model.SupplierId is null || !await _db.Suppliers.AnyAsync(s => s.Id == model.SupplierId, ct))
-            ModelState.AddModelError(nameof(model.SupplierId), "المورد غير موجود.");
+        var productIds = items.Where(i => i.ProductId.HasValue).Select(i => i.ProductId!.Value).Distinct().ToList();
+        var products = await _db.Products.Where(p => productIds.Contains(p.Id)).ToDictionaryAsync(p => p.Id, ct);
+        if (items.Count == 0) ModelState.AddModelError(string.Empty, "أضف صنفًا واحدًا على الأقل.");
+        if (productIds.Count != products.Count) ModelState.AddModelError(string.Empty, "أحد الأصناف المختارة غير موجود.");
+        if (model.ProjectId.HasValue && !await _db.Projects.AnyAsync(p => p.Id == model.ProjectId, ct))
+            ModelState.AddModelError(nameof(model.ProjectId), "المشروع غير موجود.");
 
         if (!ModelState.IsValid) return PartialView("_OrderForm", await FillAsync(model, ct));
 
+        SupplierOrder order;
         if (model.Id == Guid.Empty)
         {
-            var order = new SupplierOrder
-            {
-                Number = await NextNumberAsync(model.OrderDate.Year, ct),
-                OrderDate = model.OrderDate,
-                SupplierId = model.SupplierId!.Value,
-                ProjectId = model.ProjectId,
-                Notes = model.Notes
-            };
+            order = new SupplierOrder { Number = await NextNumberAsync(model.OrderDate.Year, ct) };
             _db.SupplierOrders.Add(order);
-            foreach (var it in items)
-                _db.SupplierOrderItems.Add(new SupplierOrderItem { SupplierOrderId = order.Id, Name = it.Name, Cost = it.Cost, Quantity = it.Quantity });
-            await _accounting.SyncSupplierOrderAsync(order, items.Sum(i => i.LineTotal), ct);   // Dr المشتريات  Cr الموردون
-            await _db.SaveChangesAsync(ct);
-            TempData["StatusMessage"] = $"تم إنشاء أمر التوريد PO-{order.Number:D4}.";
         }
         else
         {
-            var order = await _db.SupplierOrders.FirstOrDefaultAsync(x => x.Id == model.Id, ct);
+            order = (await _db.SupplierOrders.FirstOrDefaultAsync(x => x.Id == model.Id, ct))!;
             if (order is null) return NotFound();
-            // Don't allow the order total to drop below what's already been paid on it (would overpay it).
-            var alreadyPaid = await _db.SupplierPayments.Where(p => p.SupplierOrderId == order.Id).SumAsync(p => (decimal?)p.Amount, ct) ?? 0;
-            if (items.Sum(i => i.LineTotal) < alreadyPaid)
+            if (order.IsLegacy)
             {
-                ModelState.AddModelError(string.Empty, $"لا يمكن أن يقل إجمالي الأمر ({items.Sum(i => i.LineTotal):N0}) عن المبلغ المسدَّد عليه ({alreadyPaid:N0}).");
-                return PartialView("_OrderForm", await FillAsync(model, ct));
+                // A legacy order still owns its supplier payable: don't let its total drop below what's paid on it.
+                var alreadyPaid = await _db.SupplierPayments.Where(p => p.SupplierOrderId == order.Id).SumAsync(p => (decimal?)p.Amount, ct) ?? 0;
+                var newTotal = items.Sum(i => i.LineTotal);
+                if (newTotal < alreadyPaid)
+                {
+                    ModelState.AddModelError(string.Empty, $"لا يمكن أن يقل إجمالي الأمر ({newTotal:N0}) عن المبلغ المسدَّد عليه ({alreadyPaid:N0}).");
+                    return PartialView("_OrderForm", await FillAsync(model, ct));
+                }
             }
-            order.OrderDate = model.OrderDate;
-            order.SupplierId = model.SupplierId!.Value;
-            order.ProjectId = model.ProjectId;
-            order.Notes = model.Notes;
-            var old = await _db.SupplierOrderItems.Where(i => i.SupplierOrderId == order.Id).ToListAsync(ct);
-            foreach (var o in old) _db.SupplierOrderItems.Remove(o);
-            foreach (var it in items)
-                _db.SupplierOrderItems.Add(new SupplierOrderItem { SupplierOrderId = order.Id, Name = it.Name, Cost = it.Cost, Quantity = it.Quantity });
-            await _accounting.SyncSupplierOrderAsync(order, items.Sum(i => i.LineTotal), ct);   // re-sync Dr المشتريات  Cr الموردون
-            await _db.SaveChangesAsync(ct);
-            TempData["StatusMessage"] = $"تم تعديل أمر التوريد PO-{order.Number:D4}.";
+            _db.SupplierOrderItems.RemoveRange(await _db.SupplierOrderItems.Where(i => i.SupplierOrderId == order.Id).ToListAsync(ct));
         }
+
+        order.OrderDate = model.OrderDate;
+        order.ProjectId = model.ProjectId;
+        order.Notes = model.Notes;
+        foreach (var it in items)
+        {
+            var name = it.ProductId is Guid pid ? ProductLabel(products[pid].Sku, products[pid].Name) : it.LegacyName!.Trim();
+            _db.SupplierOrderItems.Add(new SupplierOrderItem
+            {
+                // Orders are quantity-only; only a legacy order (which owns a payable) keeps its unit costs.
+                SupplierOrderId = order.Id, ProductId = it.ProductId, Name = name, Cost = order.IsLegacy ? it.Cost : 0m, Quantity = it.Quantity
+            });
+        }
+        // New orders post nothing. A legacy order (one with a supplier) keeps its payable in sync with its lines.
+        if (order.IsLegacy)
+            await _accounting.SyncSupplierOrderAsync(order, Math.Round(items.Sum(i => i.Cost * i.Quantity), 2), ct);
+
+        await _db.SaveChangesAsync(ct);
+        TempData["StatusMessage"] = model.Id == Guid.Empty
+            ? $"تم إنشاء أمر التوريد {PO(order.Number)}."
+            : $"تم تعديل أمر التوريد {PO(order.Number)}.";
         return Json(new { ok = true });
     }
 
@@ -172,18 +184,23 @@ public class OrdersController : Controller
     {
         var order = await _db.SupplierOrders.FirstOrDefaultAsync(x => x.Id == id, ct);
         if (order is null) return NotFound();
+        var invoiceCount = await _db.PurchaseInvoices.CountAsync(i => i.PurchaseOrderId == id, ct);
+        if (invoiceCount > 0)
+        {
+            TempData["ErrorMessage"] = $"لا يمكن حذف أمر التوريد {PO(order.Number)} لارتباطه بفواتير مشتريات (عدد: {invoiceCount}).";
+            return RedirectToAction(nameof(Details), new { id });
+        }
         if (await _db.SupplierPayments.AnyAsync(p => p.SupplierOrderId == id, ct))
         {
             TempData["ErrorMessage"] = "لا يمكن حذف أمر توريد له مدفوعات.";
-            return RedirectToAction(nameof(Index));
+            return RedirectToAction(nameof(Details), new { id });
         }
-        var items = await _db.SupplierOrderItems.Where(i => i.SupplierOrderId == id).ToListAsync(ct);
-        foreach (var it in items) _db.SupplierOrderItems.Remove(it);
-        foreach (var a in await _db.SupplierOrderAttachments.Where(a => a.SupplierOrderId == id).ToListAsync(ct)) _db.SupplierOrderAttachments.Remove(a);
-        await _accounting.RemoveObligationAsync("SupplierOrder", id, ct);   // reverse the purchase journal entry
+        _db.SupplierOrderItems.RemoveRange(await _db.SupplierOrderItems.Where(i => i.SupplierOrderId == id).ToListAsync(ct));
+        _db.SupplierOrderAttachments.RemoveRange(await _db.SupplierOrderAttachments.Where(a => a.SupplierOrderId == id).ToListAsync(ct));
+        await _accounting.RemoveObligationAsync("SupplierOrder", id, ct);   // legacy orders: reverse their purchase entry
         _db.SupplierOrders.Remove(order);
         await _db.SaveChangesAsync(ct);
-        TempData["StatusMessage"] = $"تم حذف أمر التوريد PO-{order.Number:D4}.";
+        TempData["StatusMessage"] = $"تم حذف أمر التوريد {PO(order.Number)}.";
         return RedirectToAction(nameof(Index));
     }
 
@@ -192,9 +209,11 @@ public class OrdersController : Controller
     {
         var order = await LoadOrderAsync(id, ct);
         if (order is null) return NotFound();
-        ViewData["CanPay"] = Can(PermissionNames.SuppliersPay);
+        ViewData["CanViewInvoices"] = Can(PermissionNames.PurchaseInvoicesView);
+        ViewData["CanCreateInvoice"] = Can(PermissionNames.PurchaseInvoicesCreate);
         ViewBag.Attachments = await _db.SupplierOrderAttachments
             .Where(a => a.SupplierOrderId == id).OrderBy(a => a.FileName).ToListAsync(ct);
+        ViewBag.Invoices = await InvoicesOfAsync(id, ct);
         return View(order);
     }
 
@@ -272,113 +291,10 @@ public class OrdersController : Controller
     }
 
     [HttpGet]
-    public async Task<IActionResult> PrintList(DateTime? from, DateTime? to, Guid? supplierId, Guid? projectId, CancellationToken ct)
+    public async Task<IActionResult> PrintList(DateTime? from, DateTime? to, Guid? projectId, CancellationToken ct)
     {
         ViewBag.TenantId = _currentUser.TenantId;
-        return View("PrintList", await BuildRowsAsync(ct, from, to, supplierId, projectId));
-    }
-
-    // ---------- Pay an order (expense on the order's project) ----------
-    [HttpGet]
-    public async Task<IActionResult> Pay(Guid id, CancellationToken ct)
-    {
-        if (!Can(PermissionNames.SuppliersPay)) return Forbid();
-        var order = await _db.SupplierOrders.FirstOrDefaultAsync(o => o.Id == id, ct);
-        if (order is null) return NotFound();
-        var (total, paid, supplierName) = await OrderTotalsAsync(order, ct);
-        return PartialView("_PayForm", new SupplierPayFormModel
-        {
-            OrderId = order.Id,
-            OrderLabel = $"PO-{order.Number:D4} — {supplierName}",
-            Total = total,
-            Paid = paid,
-            Remaining = total - paid,
-            Amount = 0,
-            PaidDate = DateTime.Today,
-            Safes = await SafesAsync(ct)
-        });
-    }
-
-    [HttpPost]
-    [Authorize(Policy = PermissionNames.SuppliersPay)]
-    [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Pay(SupplierPayFormModel model, CancellationToken ct)
-    {
-        var order = await _db.SupplierOrders.FirstOrDefaultAsync(o => o.Id == model.OrderId, ct);
-        if (order is null) return NotFound();
-        var (total, paid, supplierName) = await OrderTotalsAsync(order, ct);
-        var remaining = total - paid;
-
-        if (model.SafeId is null || !await _db.Safes.AnyAsync(s => s.Id == model.SafeId && s.IsActive, ct))
-            ModelState.AddModelError(nameof(model.SafeId), "اختر خزنة صالحة.");
-        if (model.Amount <= 0)
-            ModelState.AddModelError(nameof(model.Amount), "أدخل مبلغًا أكبر من صفر.");
-        if (model.Amount > remaining)
-            ModelState.AddModelError(nameof(model.Amount), $"المبلغ يتجاوز المتبقي على الأمر ({remaining:N0} ج.م).");
-
-        if (!ModelState.IsValid)
-        {
-            model.Safes = await SafesAsync(ct);
-            model.Total = total;
-            model.Paid = paid;
-            model.Remaining = remaining;
-            model.OrderLabel = $"PO-{order.Number:D4} — {supplierName}";
-            return PartialView("_PayForm", model);
-        }
-
-        // Record as an Expense on the order's project. The expense's serial IS the pay-receipt number.
-        var projPart = "";
-        if (order.ProjectId.HasValue)
-        {
-            var pn = await _db.Projects.Where(p => p.Id == order.ProjectId).Select(p => p.Name).FirstOrDefaultAsync(ct);
-            if (pn != null) projPart = $" — مشروع {pn}";
-        }
-        var desc = $"دفعة للمورد «{supplierName}» على أمر التوريد PO-{order.Number:D4}{projPart}";
-        var txn = await _accounting.AddTransactionAsync(model.SafeId!.Value, TxnType.Expense, TxnSource.SupplierPayment,
-            model.Amount, model.PaidDate, desc, projectId: order.ProjectId, supplierId: order.SupplierId, ct: ct);
-
-        var payment = new SupplierPayment
-        {
-            SupplierId = order.SupplierId,
-            SupplierOrderId = order.Id,
-            Amount = model.Amount,
-            PaidDate = model.PaidDate,
-            SafeId = model.SafeId.Value,
-            ReceiptNo = txn.Serial,
-            Description = model.Description
-        };
-        _db.SupplierPayments.Add(payment);
-        txn.Description = $"{desc} (إيصال صرف نقدية رقم {txn.Serial:D5})";
-        await _db.SaveChangesAsync(ct);
-
-        TempData["StatusMessage"] = $"تم سداد {model.Amount:N0} ج.م على أمر التوريد PO-{order.Number:D4} (إيصال صرف نقدية رقم {txn.Serial:D5}).";
-        return Json(new { ok = true, openTab = Url.Action("Receipt", new { id = payment.Id }) });
-    }
-
-    // The supplier pay receipt IS the unified cash-payment voucher (إيصال صرف نقدية) of the linked
-    // expense movement — supplier payments no longer have a separate receipt document.
-    [HttpGet]
-    public async Task<IActionResult> Receipt(Guid id, CancellationToken ct)
-    {
-        var payment = await _db.SupplierPayments.FirstOrDefaultAsync(p => p.Id == id, ct);
-        if (payment is null) return NotFound();
-        var txn = await _db.SafeTransactions.FirstOrDefaultAsync(
-            t => t.Type == TxnType.Expense && t.Source == TxnSource.SupplierPayment && t.Serial == payment.ReceiptNo, ct)
-            ?? new SafeTransaction
-            {
-                Type = TxnType.Expense, Source = TxnSource.SupplierPayment, Serial = payment.ReceiptNo,
-                Amount = payment.Amount, OccurredAt = payment.PaidDate, SafeId = payment.SafeId,
-                Description = payment.Description ?? ""
-            };
-        var supplier = await _db.Suppliers.FirstOrDefaultAsync(s => s.Id == payment.SupplierId, ct);
-        var order = payment.SupplierOrderId.HasValue
-            ? await _db.SupplierOrders.FirstOrDefaultAsync(o => o.Id == payment.SupplierOrderId, ct) : null;
-        ViewBag.PartyLabel = "المورد";
-        ViewBag.Party = supplier?.Name;
-        ViewBag.About = order != null ? $"سداد أمر توريد PO-{order.Number:D4}" : "سداد للمورد";
-        ViewBag.SafeName = await _db.Safes.Where(s => s.Id == payment.SafeId).Select(s => s.Name).FirstOrDefaultAsync(ct);
-        ViewBag.TenantId = _currentUser.TenantId;
-        return View("~/Areas/Accounting/Views/Shared/PrintOne.cshtml", txn);
+        return View("PrintList", await BuildRowsAsync(ct, from, to, projectId));
     }
 
     // ---------- helpers ----------
@@ -386,20 +302,30 @@ public class OrdersController : Controller
     {
         var order = await _db.SupplierOrders.FirstOrDefaultAsync(o => o.Id == id, ct);
         if (order is null) return null;
-        order.Items = await _db.SupplierOrderItems.Where(i => i.SupplierOrderId == id).ToListAsync(ct);
+        order.Items = await _db.SupplierOrderItems.Where(i => i.SupplierOrderId == id).OrderBy(i => i.CreatedAt).ToListAsync(ct);
         order.Payments = await _db.SupplierPayments.Where(p => p.SupplierOrderId == id).OrderBy(p => p.PaidDate).ToListAsync(ct);
-        order.Supplier = await _db.Suppliers.FirstOrDefaultAsync(s => s.Id == order.SupplierId, ct);
+        if (order.SupplierId.HasValue)
+            order.Supplier = await _db.Suppliers.FirstOrDefaultAsync(s => s.Id == order.SupplierId.Value, ct);
         if (order.ProjectId.HasValue)
             order.Project = await _db.Projects.FirstOrDefaultAsync(p => p.Id == order.ProjectId.Value, ct);
         return order;
     }
 
-    private async Task<(decimal Total, decimal Paid, string SupplierName)> OrderTotalsAsync(SupplierOrder order, CancellationToken ct)
+    /// <summary>Invoices that reference the order, with their supplier and total.</summary>
+    private async Task<List<InvoiceListItem>> InvoicesOfAsync(Guid orderId, CancellationToken ct)
     {
-        var total = await _db.SupplierOrderItems.Where(i => i.SupplierOrderId == order.Id).SumAsync(i => (decimal?)(i.Cost * i.Quantity), ct) ?? 0;
-        var paid = await _db.SupplierPayments.Where(p => p.SupplierOrderId == order.Id).SumAsync(p => (decimal?)p.Amount, ct) ?? 0;
-        var name = await _db.Suppliers.Where(s => s.Id == order.SupplierId).Select(s => s.Name).FirstOrDefaultAsync(ct) ?? "—";
-        return (total, paid, name);
+        var invoices = await _db.PurchaseInvoices.Where(i => i.PurchaseOrderId == orderId).OrderBy(i => i.Number).ToListAsync(ct);
+        var ids = invoices.Select(i => i.Id).ToList();
+        var supNames = await _db.Suppliers.ToDictionaryAsync(s => s.Id, s => s.Name, ct);
+        var totals = (await _db.PurchaseInvoiceItems.Where(i => ids.Contains(i.PurchaseInvoiceId)).GroupBy(i => i.PurchaseInvoiceId)
+            .Select(g => new { g.Key, Sum = g.Sum(x => x.LineTotal), Count = g.Count() }).ToListAsync(ct))
+            .ToDictionary(x => x.Key, x => (x.Sum, x.Count));
+        return invoices.Select(i => new InvoiceListItem
+        {
+            Id = i.Id, Number = i.Number, InvoiceDate = i.InvoiceDate,
+            Supplier = supNames.GetValueOrDefault(i.SupplierId, "—"),
+            Total = totals.GetValueOrDefault(i.Id).Sum, ItemCount = totals.GetValueOrDefault(i.Id).Count
+        }).ToList();
     }
 
     // Year-prefixed serial (PO-2026 0001 = 20260001), resetting each year.
@@ -411,16 +337,13 @@ public class OrdersController : Controller
         return maxThisYear + 1;
     }
 
-    private async Task<List<SelectListItem>> SafesAsync(CancellationToken ct)
-        => await _db.Safes.Where(s => s.IsActive).OrderBy(s => s.Name)
-            .Select(s => new SelectListItem { Value = s.Id.ToString(), Text = s.Name }).ToListAsync(ct);
-
     private async Task<OrderFormModel> FillAsync(OrderFormModel model, CancellationToken ct)
     {
-        model.Suppliers = await _db.Suppliers.OrderBy(s => s.Name)
-            .Select(s => new SelectListItem { Value = s.Id.ToString(), Text = s.Name }).ToListAsync(ct);
-        model.Projects = await _db.Projects.OrderBy(p => p.Name)
-            .Select(p => new SelectListItem { Value = p.Id.ToString(), Text = p.Code + " — " + p.Name }).ToListAsync(ct);
+        model.Projects = await ProjectsAsync(_db, ct);
+        model.Products = await ProductsAsync(_db, model.Items.Where(i => i.ProductId.HasValue).Select(i => i.ProductId!.Value), ct);
+        // Orders are quantity-only; a legacy order (with a supplier + payable) still edits its unit costs.
+        model.ShowCost = model.Id != Guid.Empty && await _db.SupplierOrders.AnyAsync(o => o.Id == model.Id && o.SupplierId != null, ct);
+        if (model.Id == Guid.Empty && model.Number == 0) model.Number = await NextNumberAsync(model.OrderDate.Year, ct);
         return model;
     }
 }
