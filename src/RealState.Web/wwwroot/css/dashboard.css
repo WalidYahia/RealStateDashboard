@@ -1,5 +1,7 @@
-/* Executive dashboard — Arabic RTL dark theme.
-   Colors use the validated dark-mode data-viz palette (surface #1a1a19). */
+/* Executive dashboard — Arabic RTL, dark (default) + day (light) themes.
+   The theme is <html data-theme="dark|light">, set before first paint by the inline script in _Layout
+   (saved per browser). Every color below is a token — components never hard-code theme colors.
+   Dark colors use the validated dark-mode data-viz palette (surface #1a1a19). */
 :root {
     --page: #0d0d0d;
     --surface-1: #1a1a19;
@@ -11,6 +13,14 @@
     --baseline: #383835;
     --border: rgba(255,255,255,0.10);
 
+    /* Interaction tokens (formerly hard-coded for dark). */
+    --text-strong: #ffffff;                    /* hover / active text */
+    --hover-bg: #2b2c2a;                       /* hovered neutral button */
+    --overlay-hover: rgba(255,255,255,.08);    /* hovered option in a list */
+    --placeholder: #ffffff;                    /* list-search placeholder at rest */
+    --shadow-pop: 0 10px 30px rgba(0,0,0,.45); /* floating menus */
+    --chart-grid: rgba(255,255,255,.06);       /* chart grid lines */
+
     --series-1: #3987e5; /* blue  */
     --aqua: #199e70;     /* green */
     --good: #0ca30c;
@@ -21,8 +31,72 @@
 
     --radius: 14px;
     --gap: 16px;
+    color-scheme: dark;   /* native controls (date pickers, scrollbars) follow the theme */
     font-family: system-ui, -apple-system, "Segoe UI", "Tahoma", sans-serif;
 }
+
+/* ---------- Day theme (نهاري) ---------- */
+:root[data-theme="light"] {
+    --page: #f3f4f6;
+    --surface-1: #ffffff;
+    --surface-2: #f0f1f3;
+    --text-primary: #16181b;
+    --text-secondary: #474b52;
+    --muted: #6b7078;
+    --grid: #e4e6e9;
+    --baseline: #d3d7dc;
+    --border: rgba(17,24,39,0.12);
+
+    --text-strong: #0b0d10;
+    --hover-bg: #e6e8eb;
+    --overlay-hover: rgba(17,24,39,.06);
+    --placeholder: #474b52;
+    --shadow-pop: 0 10px 30px rgba(17,24,39,.16);
+    --chart-grid: rgba(17,24,39,.08);
+
+    /* Same hues, deepened where they carry text on a white surface (contrast). */
+    --series-1: #2f78d6;
+    --aqua: #13855e;
+    --good: #0a8a0a;
+    --warning: #b97c00;
+    --critical: #c62f2f;
+    --violet: #6e62d4;
+    --gold: #a86f00;
+
+    color-scheme: light;
+}
+/* Cards read as raised panels on the light page. */
+:root[data-theme="light"] .card-tile,
+:root[data-theme="light"] .kpi,
+:root[data-theme="light"] .auth-card { box-shadow: 0 1px 2px rgba(17,24,39,.06); }
+
+/* ---------- Soft theme switch ---------- */
+/* Fallback (no View Transitions API): colors ease while html.theme-fading is set by theme.js. */
+html.theme-fading, html.theme-fading *, html.theme-fading *::before, html.theme-fading *::after {
+    transition: background-color .45s ease, color .45s ease, border-color .45s ease, box-shadow .45s ease, fill .45s ease !important;
+}
+/* View Transitions: the new theme is revealed as a circle growing from the toggle (see theme.js). */
+::view-transition-old(root), ::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
+@media (prefers-reduced-motion: reduce) {
+    html.theme-fading, html.theme-fading * { transition: none !important; }
+}
+
+/* Theme toggle button (top bar + login page) */
+.theme-toggle {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 40px; height: 40px; border-radius: 10px; cursor: pointer; font-size: 18px; line-height: 1;
+    background: var(--surface-2); border: 1px solid var(--border); color: var(--text-secondary);
+}
+.theme-toggle:hover { background: var(--hover-bg); color: var(--text-strong); }
+/* The icon shows the theme a click switches TO: ☀️ while dark, 🌙 while day. */
+.theme-toggle .ico-moon, :root[data-theme="light"] .theme-toggle .ico-sun { display: none; }
+:root[data-theme="light"] .theme-toggle .ico-moon { display: inline; }
+.auth-theme-toggle { position: fixed; top: 16px; inset-inline-end: 16px; z-index: 10; }
+
+/* SweetAlert2 dialogs / toasts follow the theme too. */
+.swal2-popup { background: var(--surface-1) !important; color: var(--text-primary) !important; border: 1px solid var(--border); }
+.swal2-title, .swal2-html-container { color: var(--text-primary) !important; }
+.swal2-timer-progress-bar { background: var(--series-1) !important; }
 
 * { box-sizing: border-box; }
 
@@ -70,7 +144,7 @@ body {
 .state-on { background: rgba(12,163,12,.15); color: var(--good); }
 .state-off { background: rgba(208,59,59,.15); color: var(--critical); }
 .btn-sm { padding: 6px 12px; border-radius: 8px; font-size: 12px; font-weight: 600; text-decoration: none; border: 1px solid var(--border); background: var(--surface-2); color: var(--text-primary); cursor: pointer; }
-.btn-sm:hover { background: #2b2c2a; color: #fff; }
+.btn-sm:hover { background: var(--hover-bg); color: var(--text-strong); }
 .btn-danger { border-color: rgba(208,59,59,.4); color: var(--critical); background: rgba(208,59,59,.08); }
 
 /* Unified action controls — identical height & vertical alignment for every action button, whether
@@ -99,14 +173,14 @@ select.form-control { appearance: auto; }
 .mk-modal .modal-header h5 { margin: 0; font-size: 16px; font-weight: 700; }
 .mk-modal .modal-body { padding: 18px; }
 .mk-close { background: var(--surface-2); border: 1px solid var(--border); color: var(--text-secondary); width: 30px; height: 30px; border-radius: 8px; cursor: pointer; margin-inline-start: auto; }
-.mk-close:hover { color: #fff; }
+.mk-close:hover { color: var(--text-strong); }
 .modal-backdrop.show { opacity: .6; }
 
 /* Sub-tabs (e.g. العملاء: المناديب / العملاء) */
 .subtabs { display: flex; gap: 6px; border-bottom: 1px solid var(--border); margin-bottom: 18px; }
 .subtab { padding: 10px 18px; color: var(--text-secondary); text-decoration: none; font-weight: 600; font-size: 14px; border-bottom: 2px solid transparent; }
 .subtab:hover { color: var(--text-primary); }
-.subtab.active { color: #fff; border-bottom-color: var(--series-1); }
+.subtab.active { color: var(--text-strong); border-bottom-color: var(--series-1); }
 
 /* Projects grid / cards */
 .proj-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: var(--gap); }
@@ -133,7 +207,7 @@ select.form-control { appearance: auto; }
 }
 .side-nav .nav-link span { width: 20px; text-align: center; }
 .side-nav .nav-link:hover { background: var(--surface-2); color: var(--text-primary); }
-.side-nav .nav-link.active { background: linear-gradient(90deg, rgba(57,135,229,.18), transparent); color: #fff; }
+.side-nav .nav-link.active { background: linear-gradient(90deg, rgba(57,135,229,.18), transparent); color: var(--text-strong); }
 .side-nav .nav-link.active::before {
     content: ""; position: absolute; inset-inline-start: 0; width: 3px; height: 22px;
     background: var(--series-1); border-radius: 3px;
@@ -149,8 +223,8 @@ select.form-control { appearance: auto; }
 .nav-group .subnav { display: none; flex-direction: column; gap: 2px; margin: 2px 0 4px; max-height: 320px; overflow-y: auto; }
 .nav-group.open .subnav { display: flex; }
 .subnav-link { display: block; color: var(--text-secondary); text-decoration: none; font-size: 12.5px; padding: 7px 14px; border-radius: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.subnav-link:hover { background: var(--surface-2); color: #fff; }
-.subnav-link.active { background: linear-gradient(90deg, rgba(57,135,229,.18), transparent); color: #fff; }
+.subnav-link:hover { background: var(--surface-2); color: var(--text-strong); }
+.subnav-link.active { background: linear-gradient(90deg, rgba(57,135,229,.18), transparent); color: var(--text-strong); }
 .subnav-empty { color: var(--muted); font-size: 12px; padding: 6px 14px; }
 
 /* ---------- Main ---------- */
@@ -172,7 +246,7 @@ select.form-control { appearance: auto; }
 
 /* Assigned-tasks bell in the top bar */
 .task-bell { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 38px; height: 38px; border-radius: 10px; text-decoration: none; color: var(--text-secondary); background: var(--surface-2); border: 1px solid var(--border); }
-.task-bell:hover { color: #fff; background: #2b2c2a; }
+.task-bell:hover { color: var(--text-strong); background: var(--hover-bg); }
 .task-bell .bell-ico { font-size: 17px; line-height: 1; }
 .task-bell .bell-count { position: absolute; top: -6px; inset-inline-start: -6px; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 9px; background: var(--critical); color: #fff; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
 .clock .time { color: var(--series-1); font-weight: 700; font-size: 18px; }
@@ -309,7 +383,7 @@ select.form-control { appearance: auto; }
 /* Inline list-search header: a full-width search bar at the top of a list card. */
 .list-search-bar { margin-bottom: 12px; }
 .list-search { width: 100%; margin: 0; }
-.list-search::placeholder { color: #fff; opacity: 1; }          /* white when not focused */
+.list-search::placeholder { color: var(--placeholder); opacity: 1; }   /* bright when not focused */
 .list-search:focus::placeholder { color: var(--muted); }         /* dim once focused */
 
 /* Searchable <select> enhancement: a filter input over an options dropdown (task assignee picker). */
@@ -318,13 +392,13 @@ select.form-control { appearance: auto; }
 .ss-menu {
     position: absolute; z-index: 60; top: 100%; inset-inline: 0; margin-top: 4px; max-height: 240px;
     overflow-y: auto; background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px;
-    box-shadow: 0 10px 30px rgba(0,0,0,.45);
+    box-shadow: var(--shadow-pop);
 }
 /* While open the menu is positioned to the viewport so it floats over scrolling ancestors
    (document line tables use overflow-x:auto, which would otherwise clip it). */
 .ss-menu.ss-fixed { position: fixed; inset-inline: auto; margin-top: 0; }
 .ss-opt { padding: 9px 12px; cursor: pointer; color: var(--text-primary); font-size: 14px; }
-.ss-opt:hover, .ss-opt.ss-active { background: rgba(255,255,255,.08); }
+.ss-opt:hover, .ss-opt.ss-active { background: var(--overlay-hover); }
 .ss-empty { padding: 9px 12px; color: var(--muted); font-size: 13px; }
 
 /* Two-row filter form: row 1 = time range (+ presets), row 2 = other filters (+ actions). */

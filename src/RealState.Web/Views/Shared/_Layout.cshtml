@@ -12,10 +12,12 @@
             ? "active" : "";
 }
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="ar" dir="rtl" data-theme="dark">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    @* Apply the saved theme (dark = default) before first paint so pages never flash the wrong one. *@
+    <script>(function () { var t = 'dark'; try { t = localStorage.getItem('appTheme') === 'light' ? 'light' : 'dark'; } catch (e) { } document.documentElement.setAttribute('data-theme', t); })();</script>
     <title>@ViewData["Title"] — لوحة القيادة التنفيذية</title>
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.rtl.min.css" />
     <link rel="stylesheet" href="~/css/dashboard.css" asp-append-version="true" />
@@ -371,6 +373,9 @@
                         <div class="user-name">مرحبًا، @fullName</div>
                         @* <div class="user-role">رئيس مجلس الإدارة</div> *@
                     </div>
+                    <button type="button" class="theme-toggle" onclick="appToggleTheme(this)" title="تبديل المظهر (نهاري / ليلي)" aria-label="تبديل المظهر">
+                        <span class="ico-sun">☀️</span><span class="ico-moon">🌙</span>
+                    </button>
                     <form asp-area="" asp-controller="Account" asp-action="Logout" method="post" class="logout-form">
                         @Html.AntiForgeryToken()
                         <button type="submit" title="تسجيل الخروج">⏻</button>
@@ -396,6 +401,9 @@
     else
     {
         <div class="auth-wrap">
+            <button type="button" class="theme-toggle auth-theme-toggle" onclick="appToggleTheme(this)" title="تبديل المظهر (نهاري / ليلي)" aria-label="تبديل المظهر">
+                <span class="ico-sun">☀️</span><span class="ico-moon">🌙</span>
+            </button>
             @RenderBody()
             <partial name="_Footer" />
         </div>
@@ -403,6 +411,7 @@
 
     <script src="~/lib/jquery/dist/jquery.min.js"></script>
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="~/js/theme.js" asp-append-version="true"></script>
     <script src="~/lib/chartjs/chart.umd.min.js"></script>
     <script src="~/lib/sweetalert2/sweetalert2.all.min.js"></script>
     <script src="~/js/app-modal.js" asp-append-version="true"></script>

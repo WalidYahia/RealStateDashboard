@@ -108,7 +108,7 @@
     <script>
         (function () {
             if (!window.Chart) return;
-            Chart.defaults.color = '#c3c2b7';
+            Chart.defaults.color = appThemeColor('--text-secondary');
             Chart.defaults.font.family = 'system-ui, "Segoe UI", Tahoma, sans-serif';
 
             new Chart(document.getElementById('mChart'), {
@@ -120,7 +120,7 @@
                 options: {
                     maintainAspectRatio: false,
                     plugins: { legend: { display: false } },
-                    scales: { y: { beginAtZero: true, ticks: { callback: function (v) { return v >= 1000 ? (v / 1000) + 'k' : v; } }, grid: { color: 'rgba(255,255,255,.06)' } }, x: { grid: { display: false } } }
+                    scales: { y: { beginAtZero: true, ticks: { callback: function (v) { return v >= 1000 ? (v / 1000) + 'k' : v; } }, grid: { color: appThemeColor('--chart-grid') } }, x: { grid: { display: false } } }
                 }
             });
 
@@ -136,7 +136,7 @@
                     options: {
                         maintainAspectRatio: false,
                         plugins: { legend: { display: false } },
-                        scales: { y: { beginAtZero: true, ticks: { callback: moneyTick }, grid: { color: 'rgba(255,255,255,.06)' } }, x: { grid: { display: false } } }
+                        scales: { y: { beginAtZero: true, ticks: { callback: moneyTick }, grid: { color: appThemeColor('--chart-grid') } }, x: { grid: { display: false } } }
                     }
                 });
             }

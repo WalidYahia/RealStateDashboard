@@ -118,9 +118,17 @@
                 all: '@Url.Action("All")'
             },
             palette: ['#3987e5', '#d95926', '#199e70', '#c98500', '#d55181', '#9085e9'],
-            colors: { blue: '#3987e5', aqua: '#199e70', ink: '#c3c2b7', grid: '#2c2c2a', surface: '#1a1a19', track: '#383835' }
+            colors: { blue: '#3987e5', aqua: '#199e70' }   // neutrals (ink/grid/surface/track) come from the theme below
         };
-        Chart.defaults.color = MK.colors.ink;
+        // Neutral chart colors follow the dark/day theme — refreshed on every switch.
+        appOnTheme(function () {
+            Object.assign(MK.colors, {
+                ink: appThemeColor('--text-secondary'), grid: appThemeColor('--chart-grid'),
+                surface: appThemeColor('--surface-1'), track: appThemeColor('--baseline')
+            });
+            Chart.defaults.color = MK.colors.ink;
+            if (window.mkSourcesChart) { mkSourcesChart.data.datasets[0].borderColor = MK.colors.surface; mkSourcesChart.update('none'); }
+        });
         Chart.defaults.font.family = 'system-ui, "Segoe UI", Tahoma, sans-serif';
 
         /* ---------- modal AJAX ---------- */
@@ -187,7 +195,7 @@
         (function () {
             if (!MK.sources.length) return;
             const legend = document.getElementById('mkSourcesLegend');
-            new Chart(document.getElementById('mkSources'), {
+            window.mkSourcesChart = new Chart(document.getElementById('mkSources'), {
                 type: 'doughnut',
                 data: { labels: MK.sources.map(s => s.Platform), datasets: [{ data: MK.sources.map(s => s.Leads), backgroundColor: MK.palette, borderColor: MK.colors.surface, borderWidth: 2 }] },
                 options: { maintainAspectRatio: false, cutout: '70%', plugins: { legend: { display: false } } }

@@ -157,6 +157,11 @@ Purchasing runs in two stages — **purchase order → purchase invoice**.
 - **Tenants (المؤسسات)**: host‑only management of organizations; per‑tenant onboarding/switching.
 - **Settings / Branding**: organization data and logo (used across all printed documents).
 - **Activity log** viewer.
+- **Dark / day theme**: ☀️/🌙 toggle in the top bar (and on the login page); the choice is saved per browser,
+  applied before first paint (no flash) and synced across open tabs. Switching is soft — a circle reveal
+  from the toggle (View Transitions), else a short color fade; reduced-motion users get an instant switch.
+  All colors are CSS tokens in `dashboard.css` (`:root` = dark, `:root[data-theme="light"]` = day); charts
+  and SweetAlert dialogs follow the theme.
 - **Account**: login, logout, change password.
 
 ---

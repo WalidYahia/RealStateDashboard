@@ -72,12 +72,19 @@
 
 @section Scripts {
     <script>
-        Chart.defaults.color = '#c3c2b7';
+        Chart.defaults.color = appThemeColor('--text-secondary');
         Chart.defaults.font.family = 'system-ui, "Segoe UI", Tahoma, sans-serif';
-        new Chart(document.getElementById('collDonut'), {
+        var collDonut = new Chart(document.getElementById('collDonut'), {
             type: 'doughnut',
-            data: { datasets: [{ data: [@Model.TotalCollected, @Model.TotalOutstanding], backgroundColor: ['#199e70', '#383835'], borderColor: '#1a1a19', borderWidth: 2 }] },
+            data: { datasets: [{ data: [@Model.TotalCollected, @Model.TotalOutstanding], borderWidth: 2 }] },
             options: { maintainAspectRatio: false, cutout: '72%', plugins: { legend: { display: false } } }
+        });
+        // Collected / outstanding track / slice border follow the theme (initially and on every switch).
+        appOnTheme(function () {
+            var ds = collDonut.data.datasets[0];
+            ds.backgroundColor = [appThemeColor('--aqua'), appThemeColor('--baseline')];
+            ds.borderColor = appThemeColor('--surface-1');
+            collDonut.update('none');
         });
     </script>
 }
