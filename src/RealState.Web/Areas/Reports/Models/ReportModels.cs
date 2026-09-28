@@ -3,7 +3,7 @@ namespace RealState.Web.Areas.Reports.Models;
 // ---------- Daily report ----------
 public record DailyContractRow(string Code, string Customer, string Unit, decimal Value);
 public record DailyOrderRow(string Number, string Supplier, string Project, decimal Value);
-public record DailyTxnRow(int Serial, string Description, decimal Amount);
+public record DailyTxnRow(long Serial, string Description, decimal Amount);
 public record SafeBalanceRow(string Name, decimal Balance);
 
 public class DailyReportVm

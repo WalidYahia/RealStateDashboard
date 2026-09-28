@@ -67,6 +67,7 @@ builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 builder.Services.AddMemoryCache();
 builder.Services.AddScoped<RealState.Web.Services.Reports.IReportTemplateService, RealState.Web.Services.Reports.ReportTemplateService>();
 builder.Services.AddScoped<RealState.Web.Services.ITxnCategoryService, RealState.Web.Services.TxnCategoryService>();
+builder.Services.AddScoped<RealState.Web.Services.IStartupPageService, RealState.Web.Services.StartupPageService>();
 
 // One authorization policy per permission; matched by the "permission" claim.
 builder.Services.AddAuthorization(options =>
@@ -150,6 +151,6 @@ app.MapControllerRoute(
     pattern: "{area:exists}/{controller=Home}/{action=Index}/{id?}");
 app.MapControllerRoute(
     name: "default",
-    pattern: "{controller=Dashboard}/{action=Index}/{id?}");
+    pattern: "{controller=Home}/{action=Index}/{id?}");   // "/" → Home/Index → the tenant's startup page
 
 app.Run();

@@ -28,8 +28,8 @@ public class SupplierFormModel
 }
 
 // ---------- Product picker shared by order + invoice lines ----------
-/// <summary>A product offered in a line's searchable picker, with its total on-hand stock (<see cref="Tracked"/> = stock-tracked).</summary>
-public record ProductOption(Guid Id, string Label, decimal Stock, bool Tracked);
+/// <summary>A product offered in a line's searchable picker: total on-hand stock (<see cref="Tracked"/> = stock-tracked) and unit of measure.</summary>
+public record ProductOption(Guid Id, string Label, decimal Stock, bool Tracked, string? Unit);
 
 /// <summary>One product line (صنف) on an order or invoice form.</summary>
 public class DocItemInput
@@ -180,7 +180,7 @@ public class SupplierLedgerRow
     public string Source { get; set; } = string.Empty;    // المصدر — e.g. "فاتورة مشتريات رقم PI-2026000001" / "إيصال صرف نقدية"
     public DateTime Date { get; set; }
     public string Statement { get; set; } = string.Empty; // البيان
-    public int ReceiptNo { get; set; }              // for payments
+    public long ReceiptNo { get; set; }             // for payments
     public decimal Amount { get; set; }
     public decimal BalanceBefore { get; set; }      // running amount owed before this row
     public decimal Balance { get; set; }            // running amount owed after this row

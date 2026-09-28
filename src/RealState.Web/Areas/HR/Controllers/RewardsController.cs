@@ -72,7 +72,10 @@ public class RewardsController : Controller
             return Json(new { ok = true });
         }
 
-        var number = (await _db.Rewards.MaxAsync(r => (int?)r.Number, ct) ?? 0) + 1;
+        // Year rule: RWD-{year}{4-digit seq} (20260001 … 20270001) by the reward's date.
+        long lo = YearSerial.Base(model.Date.Year, 4), hi = YearSerial.End(model.Date.Year, 4);
+        var number = (int)YearSerial.Next(
+            await _db.Rewards.Where(r => r.Number > lo && r.Number < hi).MaxAsync(r => (int?)r.Number, ct), model.Date.Year, 4);
         _db.Rewards.Add(new Reward
         {
             Number = number, Date = model.Date, EmployeeId = model.EmployeeId!.Value, Amount = model.Amount,

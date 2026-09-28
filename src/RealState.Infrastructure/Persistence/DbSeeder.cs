@@ -106,27 +106,29 @@ public static class DbSeeder
     }
 
     /// <summary>
-    /// One-time data fix: renumber existing safe-transaction serials onto the year-prefixed scheme
-    /// (year × 100000 + sequence — e.g. 202600001 — reset per year, per transaction type, per tenant),
-    /// preserving each group's chronological order. Supplier-payment receipt numbers (which mirror the
-    /// expense serial) are remapped to match. Idempotent: skips once every serial is already prefixed.
+    /// One-time data fix: renumber legacy safe-transaction serials (small counters from before year prefixes)
+    /// onto the voucher scheme (year × 10,000,000 + sequence — e.g. 20260000001 — reset per year, per
+    /// transaction type, per tenant), preserving each group's chronological order. Supplier- and
+    /// contractor-payment receipt numbers (which mirror the expense serial) are remapped to match.
+    /// Idempotent: skips once every serial is prefixed. (The 9-digit year × 100000 serials were converted
+    /// in place by the VoucherSerials11Digits migration, keeping their sequence numbers.)
     /// </summary>
     private static async Task MigrateTransactionSerialsAsync(ApplicationDbContext db)
     {
-        // Legacy serials are small counters; year-prefixed ones are >= 100,000,000 (year × 100000).
-        const int YearPrefixFloor = 100_000_000;
+        // Year-prefixed serials are >= 1,000,000,000 (smallest: year 100 × 10,000,000); legacy ones are small counters.
+        const long YearPrefixFloor = 1_000_000_000L;
 
         // Safe-transfer movements carry no receipt serial (0) — they are not income/expense vouchers.
         var txns = await db.SafeTransactions.IgnoreQueryFilters().Where(t => t.Source != TxnSource.SafeTransfer).ToListAsync();
         if (txns.Count == 0 || txns.All(t => t.Serial >= YearPrefixFloor)) return;   // nothing legacy to fix
 
-        // (tenant, type, old serial) -> new serial, so supplier-payment receipt numbers can follow.
-        var remap = new Dictionary<(Guid Tenant, TxnType Type, int OldSerial), int>();
+        // (tenant, type, old serial) -> new serial, so payment receipt numbers can follow.
+        var remap = new Dictionary<(Guid Tenant, TxnType Type, long OldSerial), long>();
 
         var groups = txns.GroupBy(t => (t.TenantId, t.Type, Year: t.OccurredAt.Year)).ToList();
         foreach (var g in groups)
         {
-            var yearBase = g.Key.Year * 100000;
+            var yearBase = g.Key.Year * RealState.Application.Accounting.VoucherSerials.YearMultiplier;
             var ordered = g.OrderBy(t => t.Serial).ThenBy(t => t.CreatedAt).ToList();   // fix order before mutating
             var seq = 0;
             foreach (var t in ordered)
@@ -137,9 +139,11 @@ public static class DbSeeder
             }
         }
 
-        // Supplier payment ReceiptNo == the linked Expense transaction's serial — keep it in sync.
-        var payments = await db.SupplierPayments.IgnoreQueryFilters().ToListAsync();
-        foreach (var p in payments)
+        // Supplier / contractor payment ReceiptNo == the linked Expense transaction's serial — keep them in sync.
+        foreach (var p in await db.SupplierPayments.IgnoreQueryFilters().ToListAsync())
+            if (remap.TryGetValue((p.TenantId, TxnType.Expense, p.ReceiptNo), out var ns))
+                p.ReceiptNo = ns;
+        foreach (var p in await db.WorkOrderPayments.IgnoreQueryFilters().ToListAsync())
             if (remap.TryGetValue((p.TenantId, TxnType.Expense, p.ReceiptNo), out var ns))
                 p.ReceiptNo = ns;
 

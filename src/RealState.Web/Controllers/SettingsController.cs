@@ -18,15 +18,18 @@ public class SettingsController : Controller
     private readonly ICurrentUserService _currentUser;
     private readonly RealState.Web.Services.Reports.IReportTemplateService _reportTemplate;
     private readonly RealState.Application.Accounting.ILedgerBackfillService _ledgerBackfill;
+    private readonly RealState.Web.Services.IStartupPageService _startup;
 
     public SettingsController(ApplicationDbContext db, ICurrentUserService currentUser,
         RealState.Web.Services.Reports.IReportTemplateService reportTemplate,
-        RealState.Application.Accounting.ILedgerBackfillService ledgerBackfill)
+        RealState.Application.Accounting.ILedgerBackfillService ledgerBackfill,
+        RealState.Web.Services.IStartupPageService startup)
     {
         _db = db;
         _currentUser = currentUser;
         _reportTemplate = reportTemplate;
         _ledgerBackfill = ledgerBackfill;
+        _startup = startup;
     }
 
     // One-time gated command: reconstruct double-entry journal entries for this tenant's existing data.
@@ -47,7 +50,31 @@ public class SettingsController : Controller
         var t = await _db.Tenants.FirstOrDefaultAsync(x => x.Id == _currentUser.TenantId, ct);
         if (t is null) return NotFound();
         ViewBag.ReportTemplate = await _reportTemplate.GetActiveAsync(ct);   // print/report template (or null)
+        await FillStartupAsync(ct);
         return View(new BrandingSettingsModel { Name = t.Name, HasLogo = t.LogoData != null });
+    }
+
+    // ---------- Default / startup page (الصفحة الافتتاحية) — per tenant ----------
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> StartupPage(string key, CancellationToken ct)
+    {
+        var page = _startup.Catalog.FirstOrDefault(p => p.Key == key);
+        if (page is null)
+        {
+            TempData["ErrorMessage"] = "اختر صفحة صالحة.";
+            return RedirectToAction(nameof(Branding));
+        }
+        await _startup.SetTenantKeyAsync(page.Key, ct);
+        await _db.SaveChangesAsync(ct);
+        TempData["StatusMessage"] = $"تم تعيين الصفحة الافتتاحية للمؤسسة: «{page.Group} — {page.Label}».";
+        return RedirectToAction(nameof(Branding));
+    }
+
+    private async Task FillStartupAsync(CancellationToken ct)
+    {
+        ViewBag.StartupPages = _startup.Catalog;
+        ViewBag.StartupKey = await _startup.GetTenantKeyAsync(ct);
     }
 
     [HttpPost]
@@ -63,7 +90,13 @@ public class SettingsController : Controller
             else if (!AllowedLogoTypes.Contains(logo.ContentType)) ModelState.AddModelError("logo", "صيغة الشعار غير مدعومة.");
         }
 
-        if (!ModelState.IsValid) { model.HasLogo = t.LogoData != null; return View(model); }
+        if (!ModelState.IsValid)
+        {
+            model.HasLogo = t.LogoData != null;
+            ViewBag.ReportTemplate = await _reportTemplate.GetActiveAsync(ct);
+            await FillStartupAsync(ct);
+            return View(model);
+        }
 
         t.Name = model.Name;
         if (logo is { Length: > 0 })

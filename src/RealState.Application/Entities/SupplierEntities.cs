@@ -60,6 +60,9 @@ public class SupplierOrderItem : AuditableEntity, ITenantEntity
     /// <summary>Line label — the product's "code — name" at save time (or the legacy free text).</summary>
     public string Name { get; set; } = string.Empty;
 
+    /// <summary>The product's unit of measure name at save time (الوحدة). Null on legacy lines.</summary>
+    public string? Unit { get; set; }
+
     /// <summary>Unit cost (تكلفة الوحدة).</summary>
     public decimal Cost { get; set; }
 
@@ -124,6 +127,9 @@ public class PurchaseInvoiceItem : AuditableEntity, ITenantEntity
     /// <summary>The product's "code — name" at save time, so the invoice reads the same after a rename.</summary>
     public string Name { get; set; } = string.Empty;
 
+    /// <summary>The product's unit of measure name at save time (الوحدة).</summary>
+    public string? Unit { get; set; }
+
     /// <summary>Unit cost (تكلفة الوحدة).</summary>
     public decimal Cost { get; set; }
     public decimal Quantity { get; set; }
@@ -154,8 +160,8 @@ public class SupplierPayment : AuditableEntity, ITenantEntity
     /// <summary>The safe the money was paid from.</summary>
     public Guid SafeId { get; set; }
 
-    /// <summary>Pay-receipt number (إيصال الدفع) — equal to the linked Expense transaction's serial.</summary>
-    public int ReceiptNo { get; set; }
+    /// <summary>Pay-receipt number (إيصال الدفع) — equal to the linked Expense transaction's serial (e.g. 20260000001).</summary>
+    public long ReceiptNo { get; set; }
 
     public string? Description { get; set; }
 }

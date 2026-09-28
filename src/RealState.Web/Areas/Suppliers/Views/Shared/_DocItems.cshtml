@@ -30,6 +30,7 @@
         <thead>
             <tr>
                 <th style="min-width:240px;">الصنف</th>
+                <th style="width:90px;">الوحدة</th>
                 @if (Model.ShowCost) { <th style="width:130px;">تكلفة الوحدة</th> }
                 @if (Model.ShowStock) { <th style="width:110px;">المخزون الحالي</th> }
                 <th style="width:110px;">الكمية</th>
@@ -56,11 +57,12 @@
                             <option value="">— اختر الصنف —</option>
                             @foreach (var p in Model.Products)
                             {
-                                <option value="@p.Id" data-stock="@(p.Tracked ? Q(p.Stock) : "")" selected="@(p.Id == it.ProductId)">@p.Label</option>
+                                <option value="@p.Id" data-stock="@(p.Tracked ? Q(p.Stock) : "")" data-unit="@p.Unit" selected="@(p.Id == it.ProductId)">@p.Label</option>
                             }
                         </select>
                     }
                 </td>
+                <td class="pd-unit" style="color:var(--text-secondary);">@(Model.Products.FirstOrDefault(p => p.Id == it.ProductId)?.Unit ?? "—")</td>
                 @if (Model.ShowCost) { <td><input class="form-control" style="margin:0" type="number" step="0.0001" min="0" dir="ltr" name="Items[@i].Cost" value="@C(it.Cost)" data-pd-cost /></td> }
                 @if (Model.ShowStock) { <td class="pd-stock" dir="ltr" style="text-align:right;">—</td> }
                 <td><input class="form-control" style="margin:0" type="number" step="0.0001" min="0" dir="ltr" name="Items[@i].Quantity" value="@Q(it.Quantity)" data-pd-qty /></td>
@@ -79,10 +81,11 @@
                 <option value="">— اختر الصنف —</option>
                 @foreach (var p in Model.Products)
                 {
-                    <option value="@p.Id" data-stock="@(p.Tracked ? Q(p.Stock) : "")">@p.Label</option>
+                    <option value="@p.Id" data-stock="@(p.Tracked ? Q(p.Stock) : "")" data-unit="@p.Unit">@p.Label</option>
                 }
             </select>
         </td>
+        <td class="pd-unit" style="color:var(--text-secondary);">—</td>
         @if (Model.ShowCost) { <td><input class="form-control" style="margin:0" type="number" step="0.0001" min="0" dir="ltr" name="Items[__k__].Cost" data-pd-cost /></td> }
         @if (Model.ShowStock) { <td class="pd-stock" dir="ltr" style="text-align:right;">—</td> }
         <td><input class="form-control" style="margin:0" type="number" step="0.0001" min="0" dir="ltr" name="Items[__k__].Quantity" value="1" data-pd-qty /></td>

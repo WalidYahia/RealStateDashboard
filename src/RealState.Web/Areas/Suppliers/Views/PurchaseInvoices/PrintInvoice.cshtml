@@ -42,19 +42,19 @@
 
     <h2>الأصناف</h2>
     <table>
-        <thead><tr><th>#</th><th>الصنف</th><th>تكلفة الوحدة (ج.م)</th><th>الكمية</th><th>الإجمالي (ج.م)</th></tr></thead>
+        <thead><tr><th>#</th><th>الصنف</th><th>الوحدة</th><th>تكلفة الوحدة (ج.م)</th><th>الكمية</th><th>الإجمالي (ج.م)</th></tr></thead>
         <tbody>
         @{ var n = 0; }
         @foreach (var it in inv.Items)
         {
             n++;
-            <tr><td>@n</td><td>@it.Name</td><td>@N(it.Cost)</td><td>@Q(it.Quantity)</td><td>@N(it.LineTotal)</td></tr>
+            <tr><td>@n</td><td>@it.Name</td><td>@(it.Unit ?? "—")</td><td>@N(it.Cost)</td><td>@Q(it.Quantity)</td><td>@N(it.LineTotal)</td></tr>
         }
         </tbody>
         <tfoot>
-            <tr><th colspan="4">الإجمالي</th><th>@N(Model.Total) ج.م</th></tr>
-            <tr><th colspan="4">المسدَّد</th><th>@N(Model.Paid) ج.م</th></tr>
-            <tr><th colspan="4">المتبقي</th><th>@N(Model.Remaining) ج.م</th></tr>
+            <tr><th colspan="5">الإجمالي</th><th>@N(Model.Total) ج.م</th></tr>
+            <tr><th colspan="5">المسدَّد</th><th>@N(Model.Paid) ج.م</th></tr>
+            <tr><th colspan="5">المتبقي</th><th>@N(Model.Remaining) ج.م</th></tr>
         </tfoot>
     </table>
 

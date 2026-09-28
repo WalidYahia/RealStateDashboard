@@ -60,8 +60,9 @@ public class SafeTransaction : AuditableEntity, ITenantEntity
     public TxnType Type { get; set; }
     public TxnSource Source { get; set; }
 
-    /// <summary>Sequential number within its Type (income serial / expense serial).</summary>
-    public int Serial { get; set; }
+    /// <summary>Voucher number within its Type (سند قبض / سند صرف): year × 10,000,000 + sequence, reset each year
+    /// (e.g. 20260000001). 64-bit — 11 digits exceed int. Transfer legs carry 0 (not vouchers).</summary>
+    public long Serial { get; set; }
 
     public decimal Amount { get; set; }
     public DateTime OccurredAt { get; set; }

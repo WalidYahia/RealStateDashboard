@@ -171,7 +171,7 @@
             fetch(form.action, { method: 'POST', body: new FormData(form), headers: { 'X-Requested-With': 'XMLHttpRequest' } })
                 .then(r => r.headers.get('content-type')?.includes('application/json') ? r.json().then(j => ({ json: j })) : r.text().then(t => ({ html: t })))
                 .then(res => {
-                    if (res.json && res.json.ok) { location.reload(); }
+                    if (res.json && res.json.ok) { if (window.appLoader) appLoader.show(); location.reload(); }
                     else if (res.html) { document.getElementById('mkModalBody').innerHTML = res.html; mkBindForm(); }
                 });
         }

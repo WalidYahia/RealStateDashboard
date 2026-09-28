@@ -53,6 +53,6 @@ public class HostController : Controller
 
         // Re-issue the host cookie carrying the chosen tenant, then open the app on it.
         await HostAuth.SignInAsync(HttpContext, tenant.Id, tenant.Name);
-        return RedirectToAction("Index", "Dashboard", new { area = "" });
+        return RedirectToAction("Index", "Home", new { area = "" });   // → the chosen tenant's startup page
     }
 }

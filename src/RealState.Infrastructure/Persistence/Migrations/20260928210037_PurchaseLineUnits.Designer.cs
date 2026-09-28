@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using RealState.Infrastructure.Persistence;
 
@@ -11,9 +12,11 @@ using RealState.Infrastructure.Persistence;
 namespace RealState.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260928210037_PurchaseLineUnits")]
+    partial class PurchaseLineUnits
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -3356,8 +3359,8 @@ namespace RealState.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("SafeId")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<long>("Serial")
-                        .HasColumnType("bigint");
+                    b.Property<int>("Serial")
+                        .HasColumnType("int");
 
                     b.Property<int>("Source")
                         .HasColumnType("int");
@@ -4354,8 +4357,8 @@ namespace RealState.Infrastructure.Persistence.Migrations
                     b.Property<Guid?>("PurchaseInvoiceId")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<long>("ReceiptNo")
-                        .HasColumnType("bigint");
+                    b.Property<int>("ReceiptNo")
+                        .HasColumnType("int");
 
                     b.Property<byte[]>("RowVersion")
                         .IsConcurrencyToken()
@@ -4910,8 +4913,8 @@ namespace RealState.Infrastructure.Persistence.Migrations
                     b.Property<DateTime>("PaidDate")
                         .HasColumnType("datetime2");
 
-                    b.Property<long>("ReceiptNo")
-                        .HasColumnType("bigint");
+                    b.Property<int>("ReceiptNo")
+                        .HasColumnType("int");
 
                     b.Property<byte[]>("RowVersion")
                         .IsConcurrencyToken()

@@ -13,9 +13,15 @@ public class HomeController : Controller
         _logger = logger;
     }
 
-    public IActionResult Index()
+    /// <summary>
+    /// Site root ("/") and the post-login landing: redirects to the tenant's default/startup page
+    /// (Settings → الصفحة الافتتاحية), or a page the user can open when they lack access to it.
+    /// </summary>
+    [Microsoft.AspNetCore.Authorization.Authorize]
+    public async Task<IActionResult> Index([FromServices] RealState.Web.Services.IStartupPageService startup, CancellationToken ct)
     {
-        return View();
+        var page = await startup.ResolveAsync(User, ct);
+        return RedirectToAction(page.Action, page.Controller, new { area = page.Area ?? "" });
     }
 
     public IActionResult Privacy()

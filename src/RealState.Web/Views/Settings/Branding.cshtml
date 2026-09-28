@@ -36,6 +36,34 @@
 </div>
 
 @{
+    var startupPages = ViewBag.StartupPages as IReadOnlyList<RealState.Web.Services.StartupPage> ?? Array.Empty<RealState.Web.Services.StartupPage>();
+    var startupKey = ViewBag.StartupKey as string;
+}
+<div class="card-tile" style="max-width:620px;margin-top:16px;">
+    <h3 style="margin:0 0 8px;">الصفحة الافتتاحية</h3>
+    <p style="color:var(--muted);font-size:13px;margin-bottom:14px;">
+        الصفحة التي يفتح عليها النظام لكل مستخدمي المؤسسة بعد تسجيل الدخول (وعند فتح الرابط الرئيسي).
+        المستخدم الذي لا يملك صلاحية عرضها يُفتح له «الرئيسية»، أو أول صفحة مسموح له بها.
+    </p>
+    <form asp-controller="Settings" asp-action="StartupPage" method="post">
+        @Html.AntiForgeryToken()
+        <label class="form-label" for="startupKey">الصفحة الافتتاحية</label>
+        <select id="startupKey" name="key" class="form-control" data-searchable>
+            @foreach (var g in startupPages.GroupBy(p => p.Group))
+            {
+                <optgroup label="@g.Key">
+                    @foreach (var p in g)
+                    {
+                        <option value="@p.Key" selected="@(p.Key == startupKey)">@g.Key — @p.Label</option>
+                    }
+                </optgroup>
+            }
+        </select>
+        <button type="submit" class="btn-primary" style="margin-top:12px;">حفظ الصفحة الافتتاحية</button>
+    </form>
+</div>
+
+@{
     var tpl = ViewBag.ReportTemplate as RealState.Application.Entities.ReportTemplate;
 }
 <div class="card-tile" style="max-width:620px;margin-top:16px;">

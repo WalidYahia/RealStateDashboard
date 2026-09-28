@@ -93,6 +93,36 @@ html.theme-fading, html.theme-fading *, html.theme-fading *::before, html.theme-
 :root[data-theme="light"] .theme-toggle .ico-moon { display: inline; }
 .auth-theme-toggle { position: fixed; top: 16px; inset-inline-end: 16px; z-index: 10; }
 
+/* ---------- System-wide preloader (loader.js) ---------- */
+/* Blocks the page while a submit / save / delete runs. It fades in after a short delay, so instant
+   operations don't flash it; hidden it doesn't intercept clicks. */
+.app-loader {
+    position: fixed; inset: 0; z-index: 2000;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(0,0,0,.35);                                   /* fallback */
+    background: color-mix(in srgb, var(--page) 55%, transparent);
+    backdrop-filter: blur(2px);
+    opacity: 0; visibility: hidden; pointer-events: none;
+    transition: opacity .2s ease, visibility 0s linear .2s;
+}
+.app-loader.show {
+    opacity: 1; visibility: visible; pointer-events: all; cursor: progress;
+    transition: opacity .2s ease .15s, visibility 0s linear 0s;
+}
+.app-loader-box {
+    display: flex; flex-direction: column; align-items: center; gap: 14px;
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 16px;
+    padding: 22px 30px; box-shadow: var(--shadow-pop); min-width: 180px;
+}
+.app-loader-spinner {
+    width: 42px; height: 42px; border-radius: 50%;
+    border: 4px solid var(--grid); border-top-color: var(--series-1);
+    animation: app-loader-spin .8s linear infinite;
+}
+.app-loader-text { color: var(--text-primary); font-weight: 700; font-size: 14px; }
+@keyframes app-loader-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .app-loader-spinner { animation-duration: 2.4s; } }
+
 /* SweetAlert2 dialogs / toasts follow the theme too. */
 .swal2-popup { background: var(--surface-1) !important; color: var(--text-primary) !important; border: 1px solid var(--border); }
 .swal2-title, .swal2-html-container { color: var(--text-primary) !important; }

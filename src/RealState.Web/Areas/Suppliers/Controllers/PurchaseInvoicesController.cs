@@ -116,9 +116,9 @@ public class PurchaseInvoicesController : Controller
             {
                 model.PurchaseOrderId = order.Id;
                 model.ProjectId = order.ProjectId;
-                model.Items = await _db.SupplierOrderItems.Where(i => i.SupplierOrderId == order.Id && i.ProductId != null)
-                    .OrderBy(i => i.CreatedAt)
-                    .Select(i => new DocItemInput { ProductId = i.ProductId, Cost = i.Cost, Quantity = i.Quantity }).ToListAsync(ct);
+                // Only what's still to be invoiced on the order (ordered − already invoiced), per product.
+                model.Items = (await RemainingOrderLinesAsync(order.Id, null, ct))
+                    .Select(l => new DocItemInput { ProductId = l.ProductId, Cost = l.Cost ?? 0, Quantity = l.Remaining }).ToList();
             }
             if (model.Items.Count == 0) model.Items.Add(new DocItemInput());
             return PartialView("_InvoiceForm", await FillAsync(model, ct));
@@ -166,8 +166,33 @@ public class PurchaseInvoicesController : Controller
             ModelState.AddModelError(nameof(model.SupplierId), "المورد غير موجود.");
         if (model.ProjectId.HasValue && !await _db.Projects.AnyAsync(p => p.Id == model.ProjectId, ct))
             ModelState.AddModelError(nameof(model.ProjectId), "المشروع غير موجود.");
-        if (model.PurchaseOrderId.HasValue && !await _db.SupplierOrders.AnyAsync(o => o.Id == model.PurchaseOrderId, ct))
-            ModelState.AddModelError(nameof(model.PurchaseOrderId), "أمر التوريد غير موجود.");
+        if (model.PurchaseOrderId.HasValue)
+        {
+            var order = await _db.SupplierOrders.FirstOrDefaultAsync(o => o.Id == model.PurchaseOrderId, ct);
+            if (order is null) ModelState.AddModelError(nameof(model.PurchaseOrderId), "أمر التوريد غير موجود.");
+            else
+            {
+                // An invoice linked to an order may only bill the order's products, and — together with the order's
+                // other invoices — no more of each than was ordered.
+                var ordered = await OrderedQtyAsync(_db, order.Id, ct);
+                var invoiced = await InvoicedQtyAsync(_db, order.Id, isNew ? null : model.Id, ct);
+                foreach (var g in items.GroupBy(i => i.ProductId!.Value))
+                {
+                    var label = products.TryGetValue(g.Key, out var pr) ? ProductLabel(pr.Sku, pr.Name) : "—";
+                    var qty = g.Sum(i => i.Quantity);
+                    if (!ordered.TryGetValue(g.Key, out var orderedQty))
+                    {
+                        ModelState.AddModelError(string.Empty, $"الصنف «{label}» غير موجود في أمر التوريد {PO(order.Number)}.");
+                        continue;
+                    }
+                    var remaining = orderedQty - invoiced.GetValueOrDefault(g.Key);
+                    if (qty > remaining)
+                        ModelState.AddModelError(string.Empty,
+                            $"كمية الصنف «{label}» ({qty:0.####}) تتجاوز المتبقي في أمر التوريد {PO(order.Number)} " +
+                            $"({Math.Max(remaining, 0):0.####} من {orderedQty:0.####} — المُفوتَر في فواتير أخرى {invoiced.GetValueOrDefault(g.Key):0.####}).");
+                }
+            }
+        }
 
         PurchaseInvoice? inv = null;
         if (!isNew)
@@ -203,12 +228,13 @@ public class PurchaseInvoicesController : Controller
         inv.PurchaseOrderId = model.PurchaseOrderId;
         inv.WarehouseId = model.WarehouseId;
         inv.Notes = model.Notes;
+        var units = await UnitsAsync(_db, products.Keys, ct);   // snapshot each line's unit of measure
         var newItems = items.Select(it =>
         {
             var p = products[it.ProductId!.Value];
             return new PurchaseInvoiceItem
             {
-                PurchaseInvoiceId = inv.Id, ProductId = p.Id, Name = ProductLabel(p.Sku, p.Name),
+                PurchaseInvoiceId = inv.Id, ProductId = p.Id, Name = ProductLabel(p.Sku, p.Name), Unit = units.GetValueOrDefault(p.Id),
                 Cost = it.Cost, Quantity = it.Quantity, LineTotal = it.LineTotal
             };
         }).ToList();
@@ -356,14 +382,35 @@ public class PurchaseInvoicesController : Controller
 
     /// <summary>A purchase order's product lines + project as JSON — the invoice form copies them when an order is picked.</summary>
     [HttpGet]
-    public async Task<IActionResult> OrderLines(Guid id, CancellationToken ct)
+    public async Task<IActionResult> OrderLines(Guid id, Guid? exceptInvoiceId, CancellationToken ct)
     {
         var order = await _db.SupplierOrders.FirstOrDefaultAsync(o => o.Id == id, ct);
         if (order is null) return NotFound();
-        var lines = await _db.SupplierOrderItems.Where(i => i.SupplierOrderId == id && i.ProductId != null)
-            // Orders are quantity-only: a zero cost goes out as null so the invoice line waits for the real cost.
-            .OrderBy(i => i.CreatedAt).Select(i => new { productId = i.ProductId, cost = i.Cost > 0 ? (decimal?)i.Cost : null, quantity = i.Quantity }).ToListAsync(ct);
+        var lines = (await RemainingOrderLinesAsync(id, exceptInvoiceId, ct))
+            .Select(l => new { productId = l.ProductId, cost = l.Cost, quantity = l.Remaining });
         return Json(new { projectId = order.ProjectId, lines });
+    }
+
+    /// <summary>
+    /// An order's products still to be invoiced: per product, ordered − already invoiced by the order's other
+    /// invoices (excluding <paramref name="exceptInvoiceId"/> when editing), in order-line order; fully invoiced
+    /// products are left out. Cost is null unless the (legacy) order carried one — orders are quantity-only.
+    /// </summary>
+    private async Task<List<(Guid ProductId, decimal? Cost, decimal Remaining)>> RemainingOrderLinesAsync(Guid orderId, Guid? exceptInvoiceId, CancellationToken ct)
+    {
+        var lines = await _db.SupplierOrderItems.Where(i => i.SupplierOrderId == orderId && i.ProductId != null)
+            .OrderBy(i => i.CreatedAt).Select(i => new { ProductId = i.ProductId!.Value, i.Cost }).ToListAsync(ct);
+        var ordered = await OrderedQtyAsync(_db, orderId, ct);
+        var invoiced = await InvoicedQtyAsync(_db, orderId, exceptInvoiceId, ct);
+        var result = new List<(Guid ProductId, decimal? Cost, decimal Remaining)>();
+        foreach (var g in lines.GroupBy(l => l.ProductId))
+        {
+            var remaining = ordered.GetValueOrDefault(g.Key) - invoiced.GetValueOrDefault(g.Key);
+            if (remaining <= 0) continue;
+            var cost = g.Max(x => x.Cost);
+            result.Add((g.Key, cost > 0 ? cost : null, remaining));
+        }
+        return result;
     }
 
     // ---------- helpers ----------
@@ -402,7 +449,8 @@ public class PurchaseInvoicesController : Controller
     {
         model.Suppliers = await SuppliersAsync(_db, ct);
         model.Projects = await ProjectsAsync(_db, ct);
-        model.Orders = await OrdersAsync(_db, ct);
+        // Only orders with something left to bill (plus the invoice's own order when editing).
+        model.Orders = await OpenOrdersAsync(_db, model.Id == Guid.Empty ? null : model.Id, model.PurchaseOrderId, ct);
         model.Warehouses = await _db.Warehouses.Where(w => w.IsActive || w.Id == model.WarehouseId).OrderBy(w => w.Name)
             .Select(w => new Microsoft.AspNetCore.Mvc.Rendering.SelectListItem { Value = w.Id.ToString(), Text = w.Name }).ToListAsync(ct);
         model.Products = await ProductsAsync(_db, model.Items.Where(i => i.ProductId.HasValue).Select(i => i.ProductId!.Value), ct);

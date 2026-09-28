@@ -90,7 +90,7 @@ role/permission‑based administration.
 Purchasing runs in two stages — **purchase order → purchase invoice**.
 - **Purchase orders (أوامر التوريد)** — stage 1, a plain request: number `PO‑YYYY####` (shown on the
   form before saving), date, optional project (searchable), product lines (الأصناف: product picked
-  by code/name + **quantity only** — no unit cost or totals). **No supplier**, and saving
+  by code/name + its **unit (الوحدة)** + **quantity only** — no unit cost or totals). **No supplier**, and saving
   posts nothing (no ledger, stock or safe effect). The list shows each order’s **related invoices**;
   an order with invoices can’t be deleted. Orders from before the invoice stage keep their supplier,
   payable entry, payments and unit costs (shown on the order and in the supplier statement). When an
@@ -99,8 +99,11 @@ Purchasing runs in two stages — **purchase order → purchase invoice**.
   (e.g. `PI‑2026000001`, shown on the form before saving), date, supplier (required), optional project
   and optional purchase order (all searchable; picking an order offers to copy its lines + project).
   Product lines show product, unit cost (entered manually), **current stock** (all warehouses), quantity,
-  total, plus a **warehouse** (required when there are stock‑tracked products). Several invoices may
-  reference the same order. Saving:
+  total, and each line's **unit (الوحدة)** from the product; plus a **warehouse** (required when there are
+  stock‑tracked products). Several invoices may reference the same order, but **together they may not bill
+  more of any product than the order has** (and only its products); copying an order brings its remaining
+  quantities, the order page shows ordered / invoiced / remaining per product, and an order can't be cut
+  below what was invoiced. Saving:
   - posts the invoice entry **Dr بضاعة واردة لم تُفوتر** (stock‑tracked products) / **Dr المشتريات**
     (non‑stock products), **Cr الموردون** (the supplier’s payable);
   - **auto‑creates and posts a goods receipt (إذن استلام)** for the stock‑tracked lines in the chosen
@@ -156,6 +159,10 @@ Purchasing runs in two stages — **purchase order → purchase invoice**.
 - **Users**: CRUD, activate/disable, assign granular permissions per user.
 - **Tenants (المؤسسات)**: host‑only management of organizations; per‑tenant onboarding/switching.
 - **Settings / Branding**: organization data and logo (used across all printed documents).
+- **Startup page (الصفحة الافتتاحية)** per tenant: chosen on the organization settings page (Settings.Manage)
+  from a catalog of main pages; users land there after login and on the site root (`/` → Home/Index
+  redirects). A user without access to the chosen page falls back to the dashboard, then the first page
+  they can open, then «مهامي». Stored in the tenant's `Settings` (key `StartupPage`).
 - **Activity log** viewer.
 - **Dark / day theme**: ☀️/🌙 toggle in the top bar (and on the login page); the choice is saved per browser,
   applied before first paint (no flash) and synced across open tabs. Switching is soft — a circle reveal
@@ -163,6 +170,24 @@ Purchasing runs in two stages — **purchase order → purchase invoice**.
   All colors are CSS tokens in `dashboard.css` (`:root` = dark, `:root[data-theme="light"]` = day); charts
   and SweetAlert dialogs follow the theme.
 - **Account**: login, logout, change password.
+
+---
+
+## 2.11 Document numbering (year rule)
+
+Every document number is **year‑prefixed and restarts at 1 each year**, using the document's own date:
+`number = year × 10^digits + sequence` (helper `YearSerial` in `RealState.Application.Common`).
+
+| Series | Digits | Example (2026 → 2027) |
+|---|---|---|
+| سند قبض / سند صرف (income / expense vouchers) + supplier/contractor payment receipts | 7 | 20260000001 → 20270000001 |
+| Purchase invoice PI‑, safe transfer SF‑, inventory documents | 6 | 2026000001 → 2027000001 |
+| Work order WO‑, journal entry, collection receipt C‑ | 5 | 202600001 → 202700001 |
+| Purchase order PO‑, advance ADV‑, reward RWD‑, task T‑, sale contract S‑ | 4 | 20260001 → 20270001 |
+
+Voucher serials are 64‑bit (`bigint`); migration `VoucherSerials11Digits` converted the earlier 9‑digit
+vouchers in place (202600007 → 20260000007, same sequence). Contract codes, rewards, tasks and collection
+receipts issued before the year rule keep their original numbers.
 
 ---
 

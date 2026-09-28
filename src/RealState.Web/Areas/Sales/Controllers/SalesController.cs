@@ -189,7 +189,7 @@ public class SalesController : Controller
 
         var contract = new SaleContract
         {
-            Code = await NextCodeAsync(ct),
+            Code = await NextCodeAsync(model.ContractDate.Year, ct),
             CustomerId = model.CustomerId!.Value,
             ProjectId = unit!.ProjectId,   // derived from the chosen unit
             UnitId = model.UnitId!.Value,
@@ -339,11 +339,15 @@ public class SalesController : Controller
         return c;
     }
 
-    private async Task<string> NextCodeAsync(CancellationToken ct)
+    // Year rule: S-{year}{4-digit seq} (S-20260001 … S-20270001), restarting each contract year. Older
+    // S-0001-style codes are left as issued (they're printed on signed contracts) and don't affect the sequence.
+    private async Task<string> NextCodeAsync(int year, CancellationToken ct)
     {
-        var codes = await _db.SaleContracts.Select(s => s.Code).ToListAsync(ct);
-        var max = codes.Select(c => int.TryParse(c.Replace("S-", ""), out var n) ? n : 0).DefaultIfEmpty(0).Max();
-        return "S-" + (max + 1).ToString("D4");
+        long lo = YearSerial.Base(year, 4), hi = YearSerial.End(year, 4);
+        var codes = await _db.SaleContracts.Where(s => s.Code.StartsWith("S-" + year)).Select(s => s.Code).ToListAsync(ct);
+        long? max = codes.Select(c => long.TryParse(c.Replace("S-", ""), out var n) ? n : 0L)
+            .Where(n => n > lo && n < hi).Select(n => (long?)n).DefaultIfEmpty(null).Max();
+        return "S-" + YearSerial.Next(max, year, 4);
     }
 
     private async Task<List<SaleListItem>> BuildRowsAsync(DateTime? from, DateTime? to, CancellationToken ct)

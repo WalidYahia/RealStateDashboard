@@ -125,7 +125,7 @@ public class ContractorLedgerRow
 {
     public ContractorLedgerKind Kind { get; set; }
     public Guid Id { get; set; }
-    public int Number { get; set; }              // WO number / receipt no
+    public long Number { get; set; }             // WO number / receipt no (receipts are 11-digit, e.g. 20260000001)
     public DateTime Date { get; set; }
     public string Project { get; set; } = "—";
     public string Statement { get; set; } = "";  // البيان

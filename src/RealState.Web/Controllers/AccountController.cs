@@ -127,5 +127,7 @@ public class AccountController : Controller
     public IActionResult AccessDenied() => View();
 
     private IActionResult RedirectToLocal(string? returnUrl)
-        => Url.IsLocalUrl(returnUrl) ? Redirect(returnUrl!) : RedirectToAction("Index", "Dashboard");
+        // No return URL → the site root, which sends the user to the tenant's startup page (resolved on the next
+        // request, once the new sign-in's permission claims are in place).
+        => Url.IsLocalUrl(returnUrl) ? Redirect(returnUrl!) : RedirectToAction("Index", "Home", new { area = "" });
 }

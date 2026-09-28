@@ -23,6 +23,13 @@
     <link rel="stylesheet" href="~/css/dashboard.css" asp-append-version="true" />
 </head>
 <body class="@(isAuth ? "app-shell" : "auth-shell")">
+    @* System-wide preloader — driven by wwwroot/js/loader.js (every submit / save / delete). *@
+    <div id="appLoader" class="app-loader" role="status" aria-live="polite" aria-hidden="true">
+        <div class="app-loader-box">
+            <div class="app-loader-spinner"></div>
+            <div id="appLoaderText" class="app-loader-text">جارٍ التنفيذ…</div>
+        </div>
+    </div>
     @if (isAuth)
     {
         <aside class="sidebar">
@@ -412,6 +419,7 @@
     <script src="~/lib/jquery/dist/jquery.min.js"></script>
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
     <script src="~/js/theme.js" asp-append-version="true"></script>
+    <script src="~/js/loader.js" asp-append-version="true"></script>
     <script src="~/lib/chartjs/chart.umd.min.js"></script>
     <script src="~/lib/sweetalert2/sweetalert2.all.min.js"></script>
     <script src="~/js/app-modal.js" asp-append-version="true"></script>

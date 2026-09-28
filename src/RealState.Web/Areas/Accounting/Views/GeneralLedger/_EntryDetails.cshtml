@@ -3,9 +3,10 @@
     string N(decimal v) => v.ToString("N2", RealState.Web.AppCulture.Ar);
     string D(DateTime d) => d.ToString("yyyy/MM/dd", System.Globalization.CultureInfo.InvariantCulture);
 }
-<div style="margin-bottom:10px;color:var(--muted);">
-    قيد رقم <span dir="ltr">@Model.Number</span> · @D(Model.Date)
+<div style="margin-bottom:10px;color:var(--muted);display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+    <span>قيد رقم <span dir="ltr">@Model.Number</span> · @D(Model.Date)</span>
     @if (Model.IsManual) { <span class="badge-role">يدوي</span> } else { <span class="badge-role">آلي</span> }
+    <a class="btn-sm" style="margin-inline-start:auto;" href="@Url.Action("PrintEntry", "GeneralLedger", new { area = "Accounting", id = Model.Id })" target="_blank">🖨 طباعة القيد</a>
 </div>
 <p style="font-weight:600;margin:0 0 10px;">@Model.Description</p>
 <table class="rs-table">

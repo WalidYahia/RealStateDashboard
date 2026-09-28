@@ -69,6 +69,8 @@ window.appToast = function (msg, icon) {
             .then(function (res) {
                 if (res.json) {
                     if (res.json.ok) {
+                        // Keep the preloader up until the reloaded / redirected page replaces this one.
+                        if (window.appLoader) window.appLoader.show();
                         if (res.json.openTab) {
                             if (preTab) { preTab.location.href = res.json.openTab; } else { window.open(res.json.openTab, '_blank'); }
                             window.location.reload();
@@ -243,7 +245,14 @@ window.appToast = function (msg, icon) {
         if (msg === null) return;                       // not a confirm-guarded form
         e.preventDefault();
         var danger = form.hasAttribute('data-danger');
-        function go() { form.removeAttribute('data-confirm'); form.submit(); }
+        // form.submit() fires no submit event, so the preloader is shown here (unless it opens another tab).
+        function go() {
+            form.removeAttribute('data-confirm');
+            var target = form.getAttribute('target');
+            if (window.appLoader && !form.hasAttribute('data-no-loader') && (!target || target === '_self'))
+                window.appLoader.show(form.getAttribute('data-loader-text'));
+            form.submit();
+        }
         if (!window.Swal) { if (window.confirm(msg)) go(); return; }
         Swal.fire({
             icon: danger ? 'warning' : 'question',

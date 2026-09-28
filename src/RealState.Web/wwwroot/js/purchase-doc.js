@@ -2,7 +2,8 @@
 // scripts inside modal-injected HTML don't run, so everything here is global or delegated).
 // Markup contract (see Areas/Suppliers/Views/Shared/_DocItems.cshtml):
 //   #pdBody            the <tbody> of line rows          #pdRowTpl  <template> of one row, keyed "__k__"
-//   [data-pd-product]  product <select>; options carry data-stock ("" = non-stock product)
+//   [data-pd-product]  product <select>; options carry data-stock ("" = non-stock product) and data-unit
+//   .pd-unit           unit-of-measure cell (الوحدة), filled from the picked product
 //   [data-pd-cost]     unit cost input                   [data-pd-qty]  quantity input
 //   .pd-stock          current-stock cell (optional)     .pd-line   line-total cell     #pdTotal  grand total
 //   #pdQtyTotal        total quantity (quantity-only purchase orders have no cost / totals)
@@ -15,8 +16,11 @@
     function selectedOption(sel) { return sel && sel.value ? sel.options[sel.selectedIndex] : null; }
 
     function showStock(tr) {
+        var opt0 = selectedOption(tr.querySelector('[data-pd-product]'));
+        var unitCell = tr.querySelector('.pd-unit');
+        if (unitCell && tr.querySelector('[data-pd-product]')) unitCell.textContent = (opt0 && opt0.getAttribute('data-unit')) || '—';
         var cell = tr.querySelector('.pd-stock'); if (!cell) return;
-        var opt = selectedOption(tr.querySelector('[data-pd-product]'));
+        var opt = opt0;
         var raw = opt ? opt.getAttribute('data-stock') : null;
         var stock = raw ? parseFloat(raw) : NaN;
         // An empty data-stock marks a non-stock product (not received into a warehouse).
@@ -90,7 +94,10 @@
         var hasLines = tb && Array.prototype.some.call(tb.querySelectorAll('[data-pd-product]'), function (s) { return !!s.value; });
 
         function load() {
-            fetch(url + (url.indexOf('?') < 0 ? '?' : '&') + 'id=' + encodeURIComponent(sel.value), { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+            // The invoice being edited (if any) is excluded, so the remaining quantities include its own lines.
+            var idEl = form.querySelector('input[name="Id"]');
+            var except = idEl && idEl.value && idEl.value !== '00000000-0000-0000-0000-000000000000' ? '&exceptInvoiceId=' + encodeURIComponent(idEl.value) : '';
+            fetch(url + (url.indexOf('?') < 0 ? '?' : '&') + 'id=' + encodeURIComponent(sel.value) + except, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
                 .then(function (r) { return r.ok ? r.json() : null; })
                 .then(function (data) {
                     if (!data) return;

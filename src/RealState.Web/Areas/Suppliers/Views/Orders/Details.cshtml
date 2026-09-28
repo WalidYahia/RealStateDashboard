@@ -3,6 +3,7 @@
     ViewData["Title"] = $"أمر توريد PO-{Model.Number:D4}";
     var canViewInvoices = ViewData["CanViewInvoices"] as bool? ?? false;
     var canCreateInvoice = ViewData["CanCreateInvoice"] as bool? ?? false;
+    var fullyInvoiced = ViewData["FullyInvoiced"] as bool? ?? false;
     var invoices = ViewBag.Invoices as List<InvoiceListItem> ?? new();
     string N(decimal v) => v.ToString("N2", RealState.Web.AppCulture.Ar);
     string Q(decimal v) => v.ToString("0.####", System.Globalization.CultureInfo.InvariantCulture);
@@ -19,7 +20,11 @@
     </div>
     <div style="display:flex;gap:8px;">
         <a class="btn-sm" asp-action="Index" onclick="if (history.length > 1) { history.back(); return false; }">رجوع</a>
-        @if (canCreateInvoice)
+        @if (fullyInvoiced)
+        {
+            <span class="badge-state state-on" style="display:inline-flex;align-items:center;min-height:34px;" title="كل أصناف الأمر فُوترت بالكامل">✓ مُفوتَر بالكامل</span>
+        }
+        else if (canCreateInvoice)
         {
             <button type="button" class="btn-new-tenant" onclick="appOpenModal('@Url.Action("Form", "PurchaseInvoices", new { orderId = Model.Id })', 'فاتورة مشتريات جديدة', 'xl')">🧾 إنشاء فاتورة مشتريات</button>
         }
@@ -49,16 +54,29 @@
     <div class="card-head"><h3>الأصناف</h3></div>
     <table class="rs-table">
         @* Orders are quantity-only; a legacy order (which still owns a supplier payable) also shows its costs. *@
-        <thead><tr><th>#</th><th>الصنف</th><th>الكمية</th>@if (Model.IsLegacy) {<th>تكلفة الوحدة</th><th>الإجمالي</th>}</tr></thead>
+        @* المُفوتَر / المتبقي are per product (an order may list a product on more than one line). *@
+        <thead><tr><th>#</th><th>الصنف</th><th>الوحدة</th><th>الكمية</th><th>المُفوتَر</th><th>المتبقي</th>@if (Model.IsLegacy) {<th>تكلفة الوحدة</th><th>الإجمالي</th>}</tr></thead>
         <tbody>
-        @{ var n = 0; }
+        @{
+            var n = 0;
+            var invoicedQty = ViewBag.InvoicedQty as Dictionary<Guid, decimal> ?? new();
+            var orderedQty = Model.Items.Where(i => i.ProductId.HasValue).GroupBy(i => i.ProductId!.Value).ToDictionary(g => g.Key, g => g.Sum(i => i.Quantity));
+        }
         @foreach (var it in Model.Items)
         {
             n++;
-            <tr><td>@n</td><td>@it.Name</td><td dir="ltr" style="text-align:right;">@Q(it.Quantity)</td>@if (Model.IsLegacy) {<td>@N(it.Cost)</td><td>@N(it.LineTotal)</td>}</tr>
+            var billed = it.ProductId is Guid pid ? invoicedQty.GetValueOrDefault(pid) : 0m;
+            var left = it.ProductId is Guid pid2 ? orderedQty[pid2] - billed : 0m;
+            <tr>
+                <td>@n</td><td>@it.Name</td><td>@(it.Unit ?? "—")</td>
+                <td dir="ltr" style="text-align:right;">@Q(it.Quantity)</td>
+                <td dir="ltr" style="text-align:right;">@(it.ProductId.HasValue ? Q(billed) : "—")</td>
+                <td dir="ltr" style="text-align:right;@(it.ProductId.HasValue && left <= 0 ? "color:var(--good);font-weight:700;" : "")">@(it.ProductId.HasValue ? (left <= 0 ? "مكتمل ✓" : Q(left)) : "—")</td>
+                @if (Model.IsLegacy) {<td>@N(it.Cost)</td><td>@N(it.LineTotal)</td>}
+            </tr>
         }
         </tbody>
-        <tfoot><tr><th colspan="2">الإجمالي</th><th dir="ltr" style="text-align:right;">@Q(totalQty)</th>@if (Model.IsLegacy) {<th></th><th>@N(total) ج.م</th>}</tr></tfoot>
+        <tfoot><tr><th colspan="3">الإجمالي</th><th dir="ltr" style="text-align:right;">@Q(totalQty)</th><th dir="ltr" style="text-align:right;">@Q(invoicedQty.Values.Sum())</th><th></th>@if (Model.IsLegacy) {<th></th><th>@N(total) ج.م</th>}</tr></tfoot>
     </table>
     @if (!string.IsNullOrWhiteSpace(Model.Notes))
     {

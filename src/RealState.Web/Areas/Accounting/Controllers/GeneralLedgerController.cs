@@ -26,7 +26,24 @@ public class GeneralLedgerController : Controller
     {
         await _engine.EnsureChartAsync(ct);
         (from, to) = DateFilterDefaults.TodayIfFresh(Request, from, to);
+        return View(await BuildLedgerAsync(accountId, from, to, ct));
+    }
 
+    /// <summary>Printable general ledger (دفتر الأستاذ) for the same account + period as the screen.</summary>
+    [HttpGet]
+    public async Task<IActionResult> Print(Guid? accountId, DateTime? from, DateTime? to, CancellationToken ct)
+        => View("Print", await BuildLedgerAsync(accountId, from, to, ct));
+
+    /// <summary>Printable journal entry (قيد) — header + lines, opened in a new tab.</summary>
+    [HttpGet]
+    public async Task<IActionResult> PrintEntry(Guid id, CancellationToken ct)
+    {
+        var vm = await BuildEntryAsync(id, ct);
+        return vm is null ? NotFound() : View("PrintEntry", vm);
+    }
+
+    private async Task<LedgerVm> BuildLedgerAsync(Guid? accountId, DateTime? from, DateTime? to, CancellationToken ct)
+    {
         var vm = new LedgerVm
         {
             AccountId = accountId, From = from, To = to, CanManage = CanPost(),
@@ -47,7 +64,7 @@ public class GeneralLedgerController : Controller
         else
         {
             acc = await _db.Accounts.FirstOrDefaultAsync(a => a.Id == accountId, ct);
-            if (acc is null) return View(vm);
+            if (acc is null) return vm;
             vm.AccountCode = acc.Code; vm.AccountName = acc.Name; vm.IsDebitNormal = acc.IsDebitNormal;
 
             // A parent account rolls up all its descendants' lines.
@@ -104,25 +121,32 @@ public class GeneralLedgerController : Controller
                 });
             }
         }
-        return View(vm);
+        return vm;
     }
 
     // ---------- View a journal entry's full details ----------
     [HttpGet]
     public async Task<IActionResult> Entry(Guid id, CancellationToken ct)
     {
+        var vm = await BuildEntryAsync(id, ct);
+        return vm is null ? NotFound() : PartialView("_EntryDetails", vm);
+    }
+
+    private async Task<EntryVm?> BuildEntryAsync(Guid id, CancellationToken ct)
+    {
         var e = await _db.JournalEntries.FirstOrDefaultAsync(x => x.Id == id, ct);
-        if (e is null) return NotFound();
+        if (e is null) return null;
         var lines = await (from l in _db.JournalLines
                            join a in _db.Accounts on l.AccountId equals a.Id
                            where l.JournalEntryId == id
                            select new EntryLineVm { AccountCode = a.Code, AccountName = a.Name, Debit = l.Debit, Credit = l.Credit, Memo = l.Memo })
                           .ToListAsync(ct);
-        return PartialView("_EntryDetails", new EntryVm
+        return new EntryVm
         {
             Id = e.Id, Number = e.Number, Date = e.Date, Description = e.Description,
-            SourceType = e.SourceType, IsManual = e.SourceType == "ManualJournal", Lines = lines
-        });
+            SourceType = e.SourceType, IsManual = e.SourceType == "ManualJournal", Lines = lines,
+            CreatedBy = e.CreatedBy
+        };
     }
 
     // ---------- Manual journal entry (قيد يدوي) ----------

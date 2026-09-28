@@ -253,7 +253,10 @@ public class TasksController : Controller
         }
         else
         {
-            var number = (await _db.WorkTasks.MaxAsync(x => (int?)x.Number, ct) ?? 0) + 1;
+            // Year rule: T-{year}{4-digit seq} (20260001 … 20270001) by the assignment date.
+            long lo = YearSerial.Base(model.AssignedOn.Year, 4), hi = YearSerial.End(model.AssignedOn.Year, 4);
+            var number = (int)YearSerial.Next(
+                await _db.WorkTasks.Where(x => x.Number > lo && x.Number < hi).MaxAsync(x => (int?)x.Number, ct), model.AssignedOn.Year, 4);
             var t = new WorkTask
             {
                 Number = number, AssignedOn = model.AssignedOn, DepartmentId = deptId,

@@ -128,7 +128,23 @@ public class OrdersController : Controller
         if (model.ProjectId.HasValue && !await _db.Projects.AnyAsync(p => p.Id == model.ProjectId, ct))
             ModelState.AddModelError(nameof(model.ProjectId), "المشروع غير موجود.");
 
+        // An order can't be cut below what its purchase invoices have already billed, product by product.
+        if (model.Id != Guid.Empty)
+        {
+            var invoiced = await InvoicedQtyAsync(_db, model.Id, null, ct);
+            if (invoiced.Count > 0)
+            {
+                var newQty = items.Where(i => i.ProductId.HasValue).GroupBy(i => i.ProductId!.Value).ToDictionary(g => g.Key, g => g.Sum(i => i.Quantity));
+                var labels = await _db.Products.Where(p => invoiced.Keys.Contains(p.Id)).ToDictionaryAsync(p => p.Id, p => ProductLabel(p.Sku, p.Name), ct);
+                foreach (var (pid, billed) in invoiced.Where(x => x.Value > 0))
+                    if (newQty.GetValueOrDefault(pid) < billed)
+                        ModelState.AddModelError(string.Empty,
+                            $"لا يمكن أن تقل كمية الصنف «{labels.GetValueOrDefault(pid, "—")}» في الأمر ({newQty.GetValueOrDefault(pid):0.####}) عن الكمية المُفوتَرة منه ({billed:0.####}).");
+            }
+        }
+
         if (!ModelState.IsValid) return PartialView("_OrderForm", await FillAsync(model, ct));
+        var units = await UnitsAsync(_db, productIds, ct);   // snapshot each line's unit of measure
 
         SupplierOrder order;
         if (model.Id == Guid.Empty)
@@ -163,7 +179,8 @@ public class OrdersController : Controller
             _db.SupplierOrderItems.Add(new SupplierOrderItem
             {
                 // Orders are quantity-only; only a legacy order (which owns a payable) keeps its unit costs.
-                SupplierOrderId = order.Id, ProductId = it.ProductId, Name = name, Cost = order.IsLegacy ? it.Cost : 0m, Quantity = it.Quantity
+                SupplierOrderId = order.Id, ProductId = it.ProductId, Name = name, Cost = order.IsLegacy ? it.Cost : 0m, Quantity = it.Quantity,
+                Unit = it.ProductId is Guid up ? units.GetValueOrDefault(up) : null
             });
         }
         // New orders post nothing. A legacy order (one with a supplier) keeps its payable in sync with its lines.
@@ -214,6 +231,12 @@ public class OrdersController : Controller
         ViewBag.Attachments = await _db.SupplierOrderAttachments
             .Where(a => a.SupplierOrderId == id).OrderBy(a => a.FileName).ToListAsync(ct);
         ViewBag.Invoices = await InvoicesOfAsync(id, ct);
+        var invoiced = await InvoicedQtyAsync(_db, id, null, ct);
+        ViewBag.InvoicedQty = invoiced;   // per product, for المُفوتَر / المتبقي columns
+        // Fully invoiced = the order has product lines and every product's invoiced quantity reached its ordered
+        // quantity — nothing is left to bill, so the «إنشاء فاتورة مشتريات» action is hidden.
+        var ordered = await OrderedQtyAsync(_db, id, ct);
+        ViewData["FullyInvoiced"] = ordered.Count > 0 && ordered.All(o => invoiced.GetValueOrDefault(o.Key) >= o.Value);
         return View(order);
     }
 

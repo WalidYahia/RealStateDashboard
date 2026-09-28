@@ -3,6 +3,13 @@ using RealState.Application.Enums;
 
 namespace RealState.Application.Accounting;
 
+/// <summary>Numbering of income / expense vouchers (سند قبض / سند صرف) — <see cref="Entities.SafeTransaction.Serial"/>.</summary>
+public static class VoucherSerials
+{
+    /// <summary>Serial = year × this + sequence (7 digits), e.g. 20260000001; resets each year per voucher type.</summary>
+    public const long YearMultiplier = 10_000_000L;
+}
+
 /// <summary>Journal source tags for business documents whose entries are removed/re-posted by source.</summary>
 public static class AccountingSources
 {

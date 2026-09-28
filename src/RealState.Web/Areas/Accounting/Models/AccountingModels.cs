@@ -174,7 +174,7 @@ public class TxnListVm
 public class TxnRow
 {
     public Guid Id { get; set; }
-    public int Serial { get; set; }
+    public long Serial { get; set; }   // voucher serial, e.g. 20260000001
     public string SafeName { get; set; } = string.Empty;
     public TxnType Type { get; set; }
     public TxnSource Source { get; set; }

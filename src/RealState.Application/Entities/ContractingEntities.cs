@@ -83,6 +83,6 @@ public class WorkOrderPayment : AuditableEntity, ITenantEntity
     public Guid SafeId { get; set; }
 
     /// <summary>Pay-receipt number — equal to the linked Expense transaction's serial.</summary>
-    public int ReceiptNo { get; set; }
+    public long ReceiptNo { get; set; }
     public string? Description { get; set; }
 }

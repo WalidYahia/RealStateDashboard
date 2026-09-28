@@ -191,7 +191,7 @@ public class ProjectExpenseFormModel
 public class ProjectExpenseRow
 {
     public Guid Id { get; set; }
-    public int Serial { get; set; }
+    public long Serial { get; set; }   // expense voucher serial, e.g. 20260000001
     public DateTime Date { get; set; }
     public string Description { get; set; } = string.Empty;
     public decimal Amount { get; set; }

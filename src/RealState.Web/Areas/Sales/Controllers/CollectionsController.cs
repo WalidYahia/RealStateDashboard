@@ -118,8 +118,11 @@ public class CollectionsController : Controller
 
         inst.PaidAmount += pay;
         inst.PaidDate = DateTime.Today;
-        var maxNo = await _db.Installments.MaxAsync(i => (int?)i.ReceiptNo, ct) ?? 0;
-        inst.ReceiptNo = maxNo + 1;
+        // Year rule: C-{year}{5-digit seq} (202600001 … 202700001) by the collection date.
+        var year = inst.PaidDate.Value.Year;
+        long lo = YearSerial.Base(year, 5), hi = YearSerial.End(year, 5);
+        inst.ReceiptNo = (int)YearSerial.Next(
+            await _db.Installments.Where(i => i.ReceiptNo > lo && i.ReceiptNo < hi).MaxAsync(i => i.ReceiptNo, ct), year, 5);
 
         // Auto-record this collection as its own income movement on the chosen safe.
         var contract = await _db.SaleContracts.FirstOrDefaultAsync(s => s.Id == inst.SaleContractId, ct);

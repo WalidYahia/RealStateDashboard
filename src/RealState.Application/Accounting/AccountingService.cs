@@ -22,11 +22,12 @@ public class AccountingService : IAccountingService
         Guid? customerId = null, Guid? supplierId = null, Guid? contractorId = null, Guid? employeeId = null,
         Guid? unitId = null, Guid? categoryId = null, CancellationToken ct = default)
     {
-        // Serial is year-prefixed and resets each year, per transaction type (e.g. 2026 + 00001 = 202600001).
-        var yearBase = occurredAt.Year * 100000;
+        // Voucher serial (سند قبض / سند صرف) is year-prefixed and resets each year, per transaction type:
+        // year × 10,000,000 + sequence (e.g. 2026 + 0000001 = 20260000001).
+        var yearBase = occurredAt.Year * VoucherSerials.YearMultiplier;
         var maxThisYear = await _db.SafeTransactions
-            .Where(t => t.Type == type && t.Serial >= yearBase && t.Serial < yearBase + 100000)
-            .MaxAsync(t => (int?)t.Serial, ct) ?? yearBase;
+            .Where(t => t.Type == type && t.Serial >= yearBase && t.Serial < yearBase + VoucherSerials.YearMultiplier)
+            .MaxAsync(t => (long?)t.Serial, ct) ?? yearBase;
         var serial = maxThisYear + 1;
         var txn = new SafeTransaction
         {

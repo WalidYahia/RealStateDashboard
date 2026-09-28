@@ -42,6 +42,7 @@
             </div>
             <div class="filter-actions">
                 <button type="submit" class="btn-primary">بحث</button>
+                <a class="btn-sm" asp-action="Print" asp-route-accountId="@Model.AccountId" asp-route-from="@F(Model.From)" asp-route-to="@F(Model.To)" target="_blank">🖨 طباعة (PDF)</a>
             </div>
         </div>
     </form>
@@ -77,6 +78,7 @@
                         <td style="white-space:nowrap;font-weight:600;">@N(r.Value)</td>
                         <td style="white-space:nowrap;">
                             <button type="button" class="btn-sm" title="تفاصيل القيد" onclick="appOpenModal('@Url.Action("Entry", new { id = r.EntryId })', 'تفاصيل القيد')">📄</button>
+                            <a class="btn-sm" title="طباعة القيد" href="@Url.Action("PrintEntry", new { id = r.EntryId })" target="_blank">🖨</a>
                             @if (r.IsManual && Model.CanManage)
                             {
                                 <button type="button" class="btn-sm" title="تعديل القيد" onclick="appOpenModal('@Url.Action("EntryForm", new { id = r.EntryId })', 'تعديل القيد اليدوي')">✏️</button>
@@ -135,6 +137,7 @@
                         @if (showBal) { <td style="white-space:nowrap;font-weight:600;">@N(r.Balance)</td> }
                         <td style="white-space:nowrap;">
                             <button type="button" class="btn-sm" title="تفاصيل القيد" onclick="appOpenModal('@Url.Action("Entry", new { id = r.EntryId })', 'تفاصيل القيد')">📄</button>
+                            <a class="btn-sm" title="طباعة القيد" href="@Url.Action("PrintEntry", new { id = r.EntryId })" target="_blank">🖨</a>
                             @if (r.IsManual && Model.CanManage && firstOfEntry)
                             {
                                 <button type="button" class="btn-sm" title="تعديل القيد" onclick="appOpenModal('@Url.Action("EntryForm", new { id = r.EntryId })', 'تعديل القيد اليدوي')">✏️</button>
@@ -253,7 +256,7 @@
                     })
                     .then(function (res) {
                         if (res.json) {
-                            if (res.json.ok) { window.location.reload(); return; }
+                            if (res.json.ok) { if (window.appLoader) appLoader.show(); window.location.reload(); return; }
                             if (btn) btn.disabled = false;
                             if (window.appAlertError) window.appAlertError(res.json.error || 'تعذّر الحفظ.');
                             return;

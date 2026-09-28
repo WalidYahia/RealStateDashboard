@@ -101,6 +101,7 @@ public class EntryVm
     public string? SourceType { get; set; }
     public bool IsManual { get; set; }
     public List<EntryLineVm> Lines { get; set; } = new();
+    public string? CreatedBy { get; set; }
     public decimal TotalDebit => Lines.Sum(l => l.Debit);
     public decimal TotalCredit => Lines.Sum(l => l.Credit);
 }

@@ -119,7 +119,7 @@ public abstract class TxnControllerBase : Controller
         }
 
         var label = TxnType == TxnType.Expense ? "مصروف" : "إيراد";
-        int serial;
+        long serial;
         if (model.Id == Guid.Empty)
         {
             var txn = await _accounting.AddTransactionAsync(model.SafeId!.Value, TxnType, TxnSource.Manual,
