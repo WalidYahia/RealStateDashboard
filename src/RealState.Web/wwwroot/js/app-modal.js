@@ -134,25 +134,32 @@ window.appToast = function (msg, icon) {
             var o = select.options[select.selectedIndex];
             return (o && o.value) ? o.textContent : '';
         }
+        function addItem(opt, isAll) {
+            var it = document.createElement('div');
+            it.className = 'ss-opt' + (isAll ? ' ss-all' : '');
+            it.textContent = isAll ? (opt.textContent.trim() || 'الكل') : opt.textContent;
+            if (opt.value === select.value) it.classList.add('ss-active');
+            it.addEventListener('mousedown', function (e) {
+                e.preventDefault();   // select before the input loses focus
+                select.value = opt.value;
+                input.value = isAll ? '' : opt.textContent;   // empty value → the placeholder (e.g. «🔍 الكل») shows
+                select.dispatchEvent(new Event('change', { bubbles: true }));
+                closeMenu();
+            });
+            menu.appendChild(it);
+        }
         function buildMenu(filter) {
             menu.innerHTML = '';
             var nf = window.appSearchNormalize(filter || '');
+            // The empty option («الكل» in filters, «— بدون … —» in forms) is always offered first — even while
+            // typing — so a chosen value can be cleared back to "all" from the list itself.
+            var empty = Array.prototype.find.call(select.options, function (o) { return o.value === ''; });
+            if (empty) addItem(empty, true);
             var count = 0;
             Array.prototype.forEach.call(select.options, function (opt) {
-                if (opt.value === '') return;   // skip the placeholder option
+                if (opt.value === '') return;   // already pinned above
                 if (nf && window.appSearchNormalize(opt.textContent).indexOf(nf) < 0) return;
-                var it = document.createElement('div');
-                it.className = 'ss-opt';
-                it.textContent = opt.textContent;
-                if (opt.value === select.value) it.classList.add('ss-active');
-                it.addEventListener('mousedown', function (e) {
-                    e.preventDefault();   // select before the input loses focus
-                    select.value = opt.value;
-                    input.value = opt.textContent;
-                    select.dispatchEvent(new Event('change', { bubbles: true }));
-                    closeMenu();
-                });
-                menu.appendChild(it);
+                addItem(opt, false);
                 count++;
             });
             if (count === 0) {
@@ -193,7 +200,8 @@ window.appToast = function (msg, icon) {
         input.addEventListener('keydown', function (e) {
             if (e.key === 'Enter') {
                 e.preventDefault();
-                var first = menu.querySelector('.ss-opt');
+                // While typing, Enter picks the first match — not the pinned «الكل» item.
+                var first = (input.value.trim() && menu.querySelector('.ss-opt:not(.ss-all)')) || menu.querySelector('.ss-opt');
                 if (first) { first.dispatchEvent(new MouseEvent('mousedown')); }
             } else if (e.key === 'Escape') { closeMenu(); }
         });
@@ -378,36 +386,7 @@ window.appToast = function (msg, icon) {
         lsRefreshAggregates();
     }, true);
 
-    // Date-range presets (اليوم / آخر أسبوع / آخر شهر): clicking one only fills the from/to inputs of
-    // its form and highlights itself — it does NOT submit. Only the بحث button submits.
-    function dpSetInput(input, dateStr, isEnd) {
-        if (!input || !dateStr) return;
-        input.value = (input.type === 'datetime-local') ? dateStr + (isEnd ? 'T23:59' : 'T00:00') : dateStr;
-    }
-    function dpSyncActive(form) {
-        var from = form.querySelector('[name="from"]'), to = form.querySelector('[name="to"]');
-        var fv = from ? (from.value || '').slice(0, 10) : '', tv = to ? (to.value || '').slice(0, 10) : '';
-        form.querySelectorAll('.date-preset').forEach(function (b) {
-            var on = fv && tv && b.getAttribute('data-from') === fv && b.getAttribute('data-to') === tv;
-            b.classList.toggle('active', !!on);
-        });
-    }
-    document.addEventListener('click', function (e) {
-        var btn = e.target.closest ? e.target.closest('.date-preset') : null;
-        if (!btn) return;
-        var form = btn.closest('form'); if (!form) return;
-        e.preventDefault();
-        dpSetInput(form.querySelector('[name="from"]'), btn.getAttribute('data-from'), false);
-        dpSetInput(form.querySelector('[name="to"]'), btn.getAttribute('data-to'), true);
-        dpSyncActive(form);
-    }, false);
-    document.addEventListener('DOMContentLoaded', function () {
-        var seen = [];
-        document.querySelectorAll('.date-preset').forEach(function (b) {
-            var f = b.closest('form');
-            if (f && seen.indexOf(f) < 0) { seen.push(f); dpSyncActive(f); }
-        });
-    });
+    // (Date-range presets moved to the shared filter bar — wwwroot/js/filter-bar.js.)
 })();
 
 // Keep the side menu where it was when navigating. Every page is a full load, so the sidebar would

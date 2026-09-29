@@ -33,73 +33,22 @@
 
 @if (TempData["StatusMessage"] is string status) { <div class="status-message">@status</div> }
 
-<div class="card-tile" style="margin-bottom:12px;">
-    <form asp-action="Index" method="get" class="filter-form">
-        <div class="filter-row">
-            <div class="fld"><label class="form-label">من</label><input type="date" name="from" value="@F(Model.From)" class="form-control" dir="ltr" /></div>
-            <div class="fld"><label class="form-label">إلى</label><input type="date" name="to" value="@F(Model.To)" class="form-control" dir="ltr" /></div>
-            <div class="filter-presets">
-                <button type="button" class="btn-sm date-preset" data-from="@F(DateTime.Today)" data-to="@F(DateTime.Today)">اليوم</button>
-                <button type="button" class="btn-sm date-preset" data-from="@F(DateTime.Today.AddDays(-7))" data-to="@F(DateTime.Today)">آخر أسبوع</button>
-                <button type="button" class="btn-sm date-preset" data-from="@F(DateTime.Today.AddMonths(-1))" data-to="@F(DateTime.Today)">آخر شهر</button>
-            </div>
-        </div>
-        <div class="filter-row">
-            <div class="fld">
-                <label class="form-label">المندوب</label>
-                <select name="salespersonId" class="form-control">
-                    <option value="">الكل</option>
-                    @foreach (var s in Model.Salespersons)
-                    { <option value="@s.Value" selected="@(Model.SalespersonId?.ToString() == s.Value)">@s.Text</option> }
-                </select>
-            </div>
-            <div class="fld">
-                <label class="form-label">المصدر</label>
-                <select name="source" class="form-control">
-                    <option value="">الكل</option>
-                    @foreach (var s in Model.Sources)
-                    { <option value="@s.Value" selected="@(Model.Source == s.Value)">@s.Text</option> }
-                </select>
-            </div>
-            <div class="fld">
-                <label class="form-label">الحملة</label>
-                <select name="campaign" class="form-control">
-                    <option value="">الكل</option>
-                    @foreach (var s in Model.Campaigns)
-                    { <option value="@s.Value" selected="@(Model.Campaign == s.Value)">@s.Text</option> }
-                </select>
-            </div>
-            <div class="fld">
-                <label class="form-label">المنصة</label>
-                <select name="platform" class="form-control">
-                    <option value="">الكل</option>
-                    @foreach (var s in Model.Platforms)
-                    { <option value="@s.Value" selected="@(Model.Platform == s.Value)">@s.Text</option> }
-                </select>
-            </div>
-            <div class="fld">
-                <label class="form-label">نوع الوحدة</label>
-                <select name="unitType" class="form-control">
-                    <option value="">الكل</option>
-                    @foreach (var s in Model.UnitTypes)
-                    { <option value="@s.Value" selected="@(Model.UnitType == s.Value)">@s.Text</option> }
-                </select>
-            </div>
-            <div class="fld">
-                <label class="form-label">خطة السداد</label>
-                <select name="paymentPlan" class="form-control">
-                    <option value="">الكل</option>
-                    @foreach (var s in Model.PaymentPlans)
-                    { <option value="@s.Value" selected="@(Model.PaymentPlan == s.Value)">@s.Text</option> }
-                </select>
-            </div>
-            <div class="filter-actions">
-                <button type="submit" class="btn-primary">بحث</button>
-                <a class="btn-sm" asp-action="Print" asp-route-from="@F(Model.From)" asp-route-to="@F(Model.To)" asp-route-salespersonId="@Model.SalespersonId" asp-route-source="@Model.Source" asp-route-campaign="@Model.Campaign" asp-route-platform="@Model.Platform" asp-route-unitType="@Model.UnitType" asp-route-paymentPlan="@Model.PaymentPlan" target="_blank">🖨 طباعة</a>
-            </div>
-        </div>
-    </form>
-</div>
+@{
+    var filter = FilterBarVm.For(Url.Action("Index"))
+        .DateRange(F(Model.From), F(Model.To))
+        .Select("salespersonId", "المندوب", Model.Salespersons, Model.SalespersonId)
+        .Select("source", "المصدر", Model.Sources, Model.Source)
+        .Select("campaign", "الحملة", Model.Campaigns, Model.Campaign)
+        .Select("platform", "المنصة", Model.Platforms, Model.Platform)
+        .Select("unitType", "نوع الوحدة", Model.UnitTypes, Model.UnitType)
+        .Select("paymentPlan", "خطة السداد", Model.PaymentPlans, Model.PaymentPlan)
+        .Print(Url.Action("Print", new
+        {
+            from = F(Model.From), to = F(Model.To), salespersonId = Model.SalespersonId, source = Model.Source,
+            campaign = Model.Campaign, platform = Model.Platform, unitType = Model.UnitType, paymentPlan = Model.PaymentPlan
+        }), "طباعة");
+}
+<partial name="_FilterBar" model="filter" />
 
 @if (canAssign)
 {

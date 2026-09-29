@@ -29,51 +29,22 @@
     <div class="status-message">@status</div>
 }
 
-<div class="card-tile" style="margin-bottom:12px;">
-    <form asp-action="Index" method="get" class="filter-form">
-        @{
-            var supId = (ViewBag.SupplierId as Guid?)?.ToString();
-            var projId = (ViewBag.ProjectId as Guid?)?.ToString();
-            var ordId = (ViewBag.OrderId as Guid?)?.ToString();
-            var supList = ViewBag.Suppliers as List<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem> ?? new();
-            var projList = ViewBag.Projects as List<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem> ?? new();
-            var ordList = ViewBag.Orders as List<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem> ?? new();
-        }
-        <div class="filter-row">
-            <div class="fld"><label class="form-label">من (تاريخ الفاتورة)</label><input type="date" name="from" value="@F((DateTime?)ViewBag.From)" class="form-control" dir="ltr" /></div>
-            <div class="fld"><label class="form-label">إلى</label><input type="date" name="to" value="@F((DateTime?)ViewBag.To)" class="form-control" dir="ltr" /></div>
-            <div class="filter-presets">
-                <button type="button" class="btn-sm date-preset" data-from="@F(DateTime.Today)" data-to="@F(DateTime.Today)">اليوم</button>
-                <button type="button" class="btn-sm date-preset" data-from="@F(DateTime.Today.AddDays(-7))" data-to="@F(DateTime.Today)">آخر أسبوع</button>
-                <button type="button" class="btn-sm date-preset" data-from="@F(DateTime.Today.AddMonths(-1))" data-to="@F(DateTime.Today)">آخر شهر</button>
-            </div>
-        </div>
-        <div class="filter-row">
-            <div class="fld">
-                <label class="form-label">المورد</label>
-                <select name="supplierId" class="form-control" data-searchable><option value="">الكل</option>
-                    @foreach (var s in supList) { <option value="@s.Value" selected="@(supId == s.Value)">@s.Text</option> }
-                </select>
-            </div>
-            <div class="fld">
-                <label class="form-label">المشروع</label>
-                <select name="projectId" class="form-control" data-searchable><option value="">الكل</option>
-                    @foreach (var p in projList) { <option value="@p.Value" selected="@(projId == p.Value)">@p.Text</option> }
-                </select>
-            </div>
-            <div class="fld">
-                <label class="form-label">أمر التوريد</label>
-                <select name="orderId" class="form-control" data-searchable><option value="">الكل</option>
-                    @foreach (var o in ordList) { <option value="@o.Value" selected="@(ordId == o.Value)">@o.Text</option> }
-                </select>
-            </div>
-            <div class="filter-actions">
-                <button type="submit" class="btn-primary">بحث</button>
-                <a class="btn-sm" asp-action="PrintList" asp-route-from="@F((DateTime?)ViewBag.From)" asp-route-to="@F((DateTime?)ViewBag.To)" asp-route-supplierId="@supId" asp-route-projectId="@projId" asp-route-orderId="@ordId" target="_blank">🖨 طباعة (PDF)</a>
-            </div>
-        </div>
-    </form>
-</div>
+@{
+    var supId = (ViewBag.SupplierId as Guid?)?.ToString();
+    var projId = (ViewBag.ProjectId as Guid?)?.ToString();
+    var ordId = (ViewBag.OrderId as Guid?)?.ToString();
+    var supList = ViewBag.Suppliers as List<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem> ?? new();
+    var projList = ViewBag.Projects as List<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem> ?? new();
+    var ordList = ViewBag.Orders as List<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem> ?? new();
+    var fFrom = F((DateTime?)ViewBag.From); var fTo = F((DateTime?)ViewBag.To);
+    var filter = FilterBarVm.For(Url.Action("Index"))
+        .DateRange(fFrom, fTo, "تاريخ الفاتورة")
+        .Select("supplierId", "المورد", supList, supId)
+        .Select("projectId", "المشروع", projList, projId)
+        .Select("orderId", "أمر التوريد", ordList, ordId)
+        .Print(Url.Action("PrintList", new { from = fFrom, to = fTo, supplierId = supId, projectId = projId, orderId = ordId }));
+}
+<partial name="_FilterBar" model="filter" />
 
 <div class="card-tile">
     <div class="card-head">

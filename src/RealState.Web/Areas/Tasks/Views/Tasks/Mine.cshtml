@@ -3,6 +3,23 @@
     ViewData["Title"] = "مهامي";
     var canCreate = ViewData["CanCreate"] as bool? ?? false;
     string? F(DateTime? d) => d?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+    string? SInt(WorkTaskStatus? s) => s.HasValue ? ((int)s.Value).ToString() : null;
+    string? VInt(TaskSeverity? v) => v.HasValue ? ((int)v.Value).ToString() : null;
+    var statusItems = Enum.GetValues<WorkTaskStatus>().Select(st => new SelectListItem(st.Ar(), ((int)st).ToString())).ToList();
+    var severityItems = Enum.GetValues<TaskSeverity>().Select(sv => new SelectListItem(sv.Ar(), ((int)sv).ToString())).ToList();
+    // One shared filter bar per tab (the hidden «tab» keeps the user on the same tab after searching / resetting).
+    FilterBarVm TabFilter(string tab) => FilterBarVm.For(Url.Action("Mine")).Hide("tab", tab).DateRange(F(Model.From), F(Model.To));
+    var assignedFilter = TabFilter("assigned")
+        .Select("assignedBy", "أسندها", Model.Assigners, Model.AssignedBy)
+        .Select("status", "الحالة", statusItems, SInt(Model.Status))
+        .Select("severity", "الأهمية", severityItems, VInt(Model.Severity));
+    var delegatedFilter = TabFilter("delegated")
+        .Select("assignedToId", "المُكلَّف", Model.Assignees, Model.AssignedToId)
+        .Select("status", "الحالة", statusItems, SInt(Model.Status))
+        .Select("severity", "الأهمية", severityItems, VInt(Model.Severity));
+    var selfFilter = TabFilter("self")
+        .Select("status", "الحالة", statusItems, SInt(Model.Status))
+        .Select("severity", "الأهمية", severityItems, VInt(Model.Severity));
 }
 <div class="page-head">
     <h1>مهامي</h1>
@@ -19,137 +36,19 @@
 
 <!-- Tab: assigned to me -->
 <div id="mine-assigned" class="mine-tab">
-    <div class="card-tile" style="margin-bottom:12px;">
-        <form asp-action="Mine" method="get" class="filter-form">
-            <input type="hidden" name="tab" value="assigned" />
-            <div class="filter-row">
-                <div class="fld"><label class="form-label">من</label><input type="date" name="from" value="@F(Model.From)" class="form-control" dir="ltr" /></div>
-                <div class="fld"><label class="form-label">إلى</label><input type="date" name="to" value="@F(Model.To)" class="form-control" dir="ltr" /></div>
-                <div class="filter-presets">
-                    <button type="button" class="btn-sm date-preset" data-from="@F(DateTime.Today)" data-to="@F(DateTime.Today)">اليوم</button>
-                    <button type="button" class="btn-sm date-preset" data-from="@F(DateTime.Today.AddDays(-7))" data-to="@F(DateTime.Today)">آخر أسبوع</button>
-                    <button type="button" class="btn-sm date-preset" data-from="@F(DateTime.Today.AddMonths(-1))" data-to="@F(DateTime.Today)">آخر شهر</button>
-                </div>
-            </div>
-            <div class="filter-row">
-                <div class="fld">
-                    <label class="form-label">أسندها</label>
-                    <select name="assignedBy" class="form-control">
-                        <option value="">الكل</option>
-                        @foreach (var a in Model.Assigners)
-                        { <option value="@a.Value" selected="@(Model.AssignedBy == a.Value)">@a.Text</option> }
-                    </select>
-                </div>
-                <div class="fld">
-                    <label class="form-label">الحالة</label>
-                    <select name="status" class="form-control">
-                        <option value="">الكل</option>
-                        @foreach (var st in Enum.GetValues<WorkTaskStatus>())
-                        { <option value="@((int)st)" selected="@(Model.Status == st)">@st.Ar()</option> }
-                    </select>
-                </div>
-                <div class="fld">
-                    <label class="form-label">الأهمية</label>
-                    <select name="severity" class="form-control">
-                        <option value="">الكل</option>
-                        @foreach (var sv in Enum.GetValues<TaskSeverity>())
-                        { <option value="@((int)sv)" selected="@(Model.Severity == sv)">@sv.Ar()</option> }
-                    </select>
-                </div>
-                <div class="filter-actions">
-                    <button type="submit" class="btn-primary">بحث</button>
-                </div>
-            </div>
-        </form>
-    </div>
+    <partial name="_FilterBar" model="assignedFilter" />
     <div class="card-tile"><partial name="_MineTable" model="Model.Assigned" /></div>
 </div>
 
 <!-- Tab: assigned by me -->
 <div id="mine-delegated" class="mine-tab" style="display:none;">
-    <div class="card-tile" style="margin-bottom:12px;">
-        <form asp-action="Mine" method="get" class="filter-form">
-            <input type="hidden" name="tab" value="delegated" />
-            <div class="filter-row">
-                <div class="fld"><label class="form-label">من</label><input type="date" name="from" value="@F(Model.From)" class="form-control" dir="ltr" /></div>
-                <div class="fld"><label class="form-label">إلى</label><input type="date" name="to" value="@F(Model.To)" class="form-control" dir="ltr" /></div>
-                <div class="filter-presets">
-                    <button type="button" class="btn-sm date-preset" data-from="@F(DateTime.Today)" data-to="@F(DateTime.Today)">اليوم</button>
-                    <button type="button" class="btn-sm date-preset" data-from="@F(DateTime.Today.AddDays(-7))" data-to="@F(DateTime.Today)">آخر أسبوع</button>
-                    <button type="button" class="btn-sm date-preset" data-from="@F(DateTime.Today.AddMonths(-1))" data-to="@F(DateTime.Today)">آخر شهر</button>
-                </div>
-            </div>
-            <div class="filter-row">
-                <div class="fld">
-                    <label class="form-label">المُكلَّف</label>
-                    <select name="assignedToId" class="form-control">
-                        <option value="">الكل</option>
-                        @foreach (var e in Model.Assignees)
-                        { <option value="@e.Value" selected="@(Model.AssignedToId?.ToString() == e.Value)">@e.Text</option> }
-                    </select>
-                </div>
-                <div class="fld">
-                    <label class="form-label">الحالة</label>
-                    <select name="status" class="form-control">
-                        <option value="">الكل</option>
-                        @foreach (var st in Enum.GetValues<WorkTaskStatus>())
-                        { <option value="@((int)st)" selected="@(Model.Status == st)">@st.Ar()</option> }
-                    </select>
-                </div>
-                <div class="fld">
-                    <label class="form-label">الأهمية</label>
-                    <select name="severity" class="form-control">
-                        <option value="">الكل</option>
-                        @foreach (var sv in Enum.GetValues<TaskSeverity>())
-                        { <option value="@((int)sv)" selected="@(Model.Severity == sv)">@sv.Ar()</option> }
-                    </select>
-                </div>
-                <div class="filter-actions">
-                    <button type="submit" class="btn-primary">بحث</button>
-                </div>
-            </div>
-        </form>
-    </div>
+    <partial name="_FilterBar" model="delegatedFilter" />
     <div class="card-tile"><partial name="_MineTable" model="Model.Delegated" /></div>
 </div>
 
 <!-- Tab: assigned by me, to myself -->
 <div id="mine-self" class="mine-tab" style="display:none;">
-    <div class="card-tile" style="margin-bottom:12px;">
-        <form asp-action="Mine" method="get" class="filter-form">
-            <input type="hidden" name="tab" value="self" />
-            <div class="filter-row">
-                <div class="fld"><label class="form-label">من</label><input type="date" name="from" value="@F(Model.From)" class="form-control" dir="ltr" /></div>
-                <div class="fld"><label class="form-label">إلى</label><input type="date" name="to" value="@F(Model.To)" class="form-control" dir="ltr" /></div>
-                <div class="filter-presets">
-                    <button type="button" class="btn-sm date-preset" data-from="@F(DateTime.Today)" data-to="@F(DateTime.Today)">اليوم</button>
-                    <button type="button" class="btn-sm date-preset" data-from="@F(DateTime.Today.AddDays(-7))" data-to="@F(DateTime.Today)">آخر أسبوع</button>
-                    <button type="button" class="btn-sm date-preset" data-from="@F(DateTime.Today.AddMonths(-1))" data-to="@F(DateTime.Today)">آخر شهر</button>
-                </div>
-            </div>
-            <div class="filter-row">
-                <div class="fld">
-                    <label class="form-label">الحالة</label>
-                    <select name="status" class="form-control">
-                        <option value="">الكل</option>
-                        @foreach (var st in Enum.GetValues<WorkTaskStatus>())
-                        { <option value="@((int)st)" selected="@(Model.Status == st)">@st.Ar()</option> }
-                    </select>
-                </div>
-                <div class="fld">
-                    <label class="form-label">الأهمية</label>
-                    <select name="severity" class="form-control">
-                        <option value="">الكل</option>
-                        @foreach (var sv in Enum.GetValues<TaskSeverity>())
-                        { <option value="@((int)sv)" selected="@(Model.Severity == sv)">@sv.Ar()</option> }
-                    </select>
-                </div>
-                <div class="filter-actions">
-                    <button type="submit" class="btn-primary">بحث</button>
-                </div>
-            </div>
-        </form>
-    </div>
+    <partial name="_FilterBar" model="selfFilter" />
     <div class="card-tile"><partial name="_MineTable" model="Model.SelfAssigned" /></div>
 </div>
 

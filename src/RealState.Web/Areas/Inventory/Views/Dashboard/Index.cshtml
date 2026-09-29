@@ -12,18 +12,13 @@
     <span style="color:var(--muted);font-size:13px;">الأرصدة كما في @Model.AsOf.ToString("yyyy/MM/dd")</span>
 </div>
 
-<div class="card-tile" style="margin-bottom:12px;">
-    <form asp-action="Index" method="get" class="filter-form">
-        <div class="filter-row">
-            <div class="fld"><label class="form-label">حتى تاريخ</label><input type="date" name="asOf" value="@D(Model.AsOf)" class="form-control" dir="ltr" /></div>
-            <div class="fld" style="min-width:220px;">
-                <label class="form-label">التصنيف</label>
-                <select name="categoryId" class="form-control" data-searchable asp-items="Model.Categories"><option value="">— كل التصنيفات —</option></select>
-            </div>
-            <div class="filter-actions"><button type="submit" class="btn-primary">عرض</button></div>
-        </div>
-    </form>
-</div>
+@{
+    var filter = FilterBarVm.For(Url.Action("Index"))
+        .SubmitLabel("عرض")
+        .Date("asOf", "حتى تاريخ", D(Model.AsOf))
+        .Select("categoryId", "التصنيف", Model.Categories, Model.Categories.FirstOrDefault(i => i.Selected)?.Value, "— كل التصنيفات —");
+}
+<partial name="_FilterBar" model="filter" />
 
 @* ---------------- KPI tiles ---------------- *@
 <div class="kpi-grid">

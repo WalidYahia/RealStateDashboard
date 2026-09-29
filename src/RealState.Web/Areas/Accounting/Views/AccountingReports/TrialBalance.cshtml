@@ -10,26 +10,20 @@
 }
 <div class="page-head">
     <h1>ميزان المراجعة</h1>
-    <span style="display:flex;gap:8px;">
-        <a class="btn-sm" asp-action="TrialBalancePrint" asp-route-from="@from" asp-route-to="@to" target="_blank">🖨 طباعة (PDF)</a>
-        <a class="btn-sm" asp-action="TrialBalanceExcel" asp-route-from="@from" asp-route-to="@to">⬇ Excel</a>
-    </span>
 </div>
 
-<div class="card-tile" style="margin-bottom:12px;">
-    <form asp-action="TrialBalance" method="get" class="filter-form" id="tbForm">
-        <div class="filter-row">
-            <div class="fld"><label class="form-label">من تاريخ</label><input type="date" name="from" value="@from" class="form-control" dir="ltr" /></div>
-            <div class="fld"><label class="form-label">إلى تاريخ</label><input type="date" name="to" value="@to" class="form-control" dir="ltr" /></div>
-            <div class="filter-presets">
-                <button type="button" class="btn-sm" onclick="tbPreset('','@D(today)')">الكل</button>
-                <button type="button" class="btn-sm" onclick="tbPreset('@(today.Year)-01-01','@D(today)')">هذا العام</button>
-                <button type="button" class="btn-sm" onclick="tbPreset('@(today.Year-1)-01-01','@(today.Year-1)-12-31')">العام السابق</button>
-            </div>
-            <div class="filter-actions"><button type="submit" class="btn-primary">عرض</button></div>
-        </div>
-    </form>
-</div>
+@{
+    // Presets apply immediately (as before); «الكل» = from the beginning up to today.
+    var filter = FilterBarVm.For(Url.Action("TrialBalance"))
+        .Id("tbForm")
+        .WithTitle("فترة الميزان")
+        .SubmitLabel("عرض")
+        .DateRange(from, to, presets: new[] { new FilterPreset("الكل", "", D(today)), FilterPresets.ThisYear(), FilterPresets.PreviousYear() },
+            autoSubmitPresets: true, fromLabel: "من تاريخ", toLabel: "إلى تاريخ")
+        .Print(Url.Action("TrialBalancePrint", new { from, to }))
+        .Excel(Url.Action("TrialBalanceExcel", new { from, to }));
+}
+<partial name="_FilterBar" model="filter" />
 
 <div class="card-tile">
     <div class="card-head">
@@ -111,12 +105,3 @@
     .tb-report tfoot th { background: rgba(57,135,229,.10); font-weight: 800; }
     .tb-report tfoot .tb-net th { background: rgba(127,127,127,.06); }
 </style>
-
-<script>
-    function tbPreset(f, t) {
-        var form = document.getElementById('tbForm');
-        form.querySelector('[name=from]').value = f;
-        form.querySelector('[name=to]').value = t;
-        form.submit();
-    }
-</script>

@@ -46,41 +46,17 @@
     <div class="status-message">@status</div>
 }
 
-<div class="card-tile" style="margin-bottom:12px;">
-    <form asp-action="Index" method="get" class="filter-form">
-        <div class="filter-row">
-            <div class="fld">
-                <label class="form-label">من</label>
-                <input type="datetime-local" name="from" value="@DTLn(Model.From)" class="form-control" dir="ltr" />
-            </div>
-            <div class="fld">
-                <label class="form-label">إلى</label>
-                <input type="datetime-local" name="to" value="@DTLn(Model.To)" class="form-control" dir="ltr" />
-            </div>
-            <div class="filter-presets">
-                <button type="button" class="btn-sm date-preset" data-from="@DateTime.Today.ToString("yyyy-MM-dd", inv)" data-to="@DateTime.Today.ToString("yyyy-MM-dd", inv)">اليوم</button>
-                <button type="button" class="btn-sm date-preset" data-from="@DateTime.Today.AddDays(-7).ToString("yyyy-MM-dd", inv)" data-to="@DateTime.Today.ToString("yyyy-MM-dd", inv)">آخر أسبوع</button>
-                <button type="button" class="btn-sm date-preset" data-from="@DateTime.Today.AddMonths(-1).ToString("yyyy-MM-dd", inv)" data-to="@DateTime.Today.ToString("yyyy-MM-dd", inv)">آخر شهر</button>
-            </div>
-        </div>
-        <div class="filter-row">
-            <div class="fld">
-                <label class="form-label">المصدر</label>
-                <select name="source" class="form-control" asp-items="Model.SourceOptions">
-                    <option value="">الكل</option>
-                </select>
-            </div>
-            <div class="filter-actions">
-                <button type="submit" class="btn-primary">بحث</button>
-                <a class="btn-sm" asp-action="PrintList" asp-route-from="@DTLn(Model.From)" asp-route-to="@DTLn(Model.To)" asp-route-source="@Model.Source" asp-route-q="@Model.Q" target="_blank">🖨 طباعة القائمة</a>
-                <a class="btn-sm" asp-action="Csv" asp-route-from="@DTLn(Model.From)" asp-route-to="@DTLn(Model.To)" asp-route-source="@Model.Source" asp-route-q="@Model.Q">⬇ Excel</a>
-            </div>
-        </div>
-        <div style="color:var(--muted);font-size:13px;">
-            الإجمالي: <strong data-live-sum="#txnTable:5">@N(Model.Total)</strong> ج.م
-        </div>
-    </form>
-</div>
+@{
+    var filter = FilterBarVm.For(Url.Action("Index"))
+        .DateRange(DTLn(Model.From), DTLn(Model.To), withTime: true)
+        .Select("source", "المصدر", Model.SourceOptions, Model.Source)
+        .Print(Url.Action("PrintList", new { from = DTLn(Model.From), to = DTLn(Model.To), source = Model.Source, q = Model.Q }), "طباعة القائمة")
+        .Excel(Url.Action("Csv", new { from = DTLn(Model.From), to = DTLn(Model.To), source = Model.Source, q = Model.Q }))
+        // Live total of the (searched) rows below — kept from the previous filter layout.
+        .WithSummary(new Microsoft.AspNetCore.Html.HtmlString(
+            $"الإجمالي: <strong data-live-sum=\"#txnTable:5\">{N(Model.Total)}</strong> ج.م"));
+}
+<partial name="_FilterBar" model="filter" />
 
 <div class="card-tile">
     <div class="list-search-bar"><input class="form-control list-search" data-target="#txnTable" placeholder="🔍 بحث في القائمة..." /></div>

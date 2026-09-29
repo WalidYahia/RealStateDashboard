@@ -1,0 +1,119 @@
+@model RealState.Web.Models.FilterBarVm
+@using RealState.Web.Models
+@*
+    Shared filter bar — the one filter component used by every list / report page.
+    Pages describe their filters with FilterBarVm (Models/FilterBar.cs); behaviour lives in wwwroot/js/filter-bar.js
+    (preset chips, active highlighting). It submits a plain GET with the page's own parameter names.
+*@
+@{
+    var r = Model.Range;
+    bool Same(string? a, string? b) => string.Equals(a ?? "", b ?? "", StringComparison.OrdinalIgnoreCase);
+    // Date part only (a date-time range value is "yyyy-MM-ddTHH:mm").
+    string D10(string? s) => string.IsNullOrEmpty(s) ? "" : (s.Length >= 10 ? s[..10] : s);
+    var hasBody = r is not null || Model.Fields.Count > 0;
+    // Active states are rendered server-side (no flash on load); filter-bar.js keeps them live afterwards.
+    var rangeOn = r is not null && (!string.IsNullOrEmpty(r.From) || !string.IsNullOrEmpty(r.To));
+}
+<div class="card-tile fb">
+    <form action="@Model.Action" method="get" class="fb-form" id="@Model.FormId">
+        @foreach (var h in Model.Hidden)
+        {
+            <input type="hidden" name="@h.Key" value="@h.Value" />
+        }
+
+        <div class="fb-head">
+            <div class="fb-title">
+                <span class="fb-title-ico" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h18l-7 8v6l-4 2v-8z" /></svg>
+                </span>
+                <span>@Model.Title</span>
+                @if (Model.ActiveCount > 0)
+                {
+                    <span class="fb-count" title="فلاتر مُطبَّقة">@Model.ActiveCount</span>
+                }
+            </div>
+            @if (Model.ResetUrl is string reset)
+            {
+                <a class="fb-reset" href="@reset" title="إعادة الفلاتر للوضع الافتراضي">↺ مسح الفلاتر</a>
+            }
+        </div>
+
+        @if (hasBody)
+        {
+            <div class="fb-body">
+                @if (r is not null)
+                {
+                    <div class="fb-range @(rangeOn ? "fb-on" : "")" data-fb-range data-from-name="@r.FromName" data-to-name="@r.ToName" data-input-type="@r.InputType">
+                        <span class="fb-label">@r.Label</span>
+                        <div class="fb-range-box">
+                            <label class="fb-range-part">
+                                <span class="fb-range-tag">@r.FromLabel</span>
+                                <input type="@r.InputType" name="@r.FromName" value="@r.From" class="fb-input" dir="ltr" />
+                            </label>
+                            <span class="fb-range-sep" aria-hidden="true">←</span>
+                            <label class="fb-range-part">
+                                <span class="fb-range-tag">@r.ToLabel</span>
+                                <input type="@r.InputType" name="@r.ToName" value="@r.To" class="fb-input" dir="ltr" />
+                            </label>
+                        </div>
+                        @if (r.Presets.Count > 0)
+                        {
+                            <div class="fb-presets" role="group" aria-label="فترات سريعة">
+                                @foreach (var p in r.Presets)
+                                {
+                                    <button type="button" class="fb-chip @(Same(p.From, D10(r.From)) && Same(p.To, D10(r.To)) ? "active" : "")" data-from="@p.From" data-to="@p.To" data-autosubmit="@(r.AutoSubmitPresets ? "1" : null)">@p.Label</button>
+                                }
+                            </div>
+                        }
+                    </div>
+                }
+
+                @foreach (var f in Model.Fields)
+                {
+                    <div class="fb-field @(f.Wide ? "fb-wide" : "") @(f.IsActive ? "fb-on" : "")">
+                        <span class="fb-label">@f.Label</span>
+                        @switch (f.Type)
+                        {
+                            case FilterFieldType.Select:
+                                <select name="@f.Name" class="form-control fb-input" data-searchable="@(f.Searchable ? "" : null)"
+                                        data-search-placeholder="🔍 @(f.AllText ?? "ابحث…")">
+                                    @if (f.AllText is not null)
+                                    {
+                                        <option value="">@f.AllText</option>
+                                    }
+                                    @foreach (var o in f.Options)
+                                    {
+                                        <option value="@o.Value" selected="@(Same(o.Value, f.Value))">@o.Text</option>
+                                    }
+                                </select>
+                                break;
+                            case FilterFieldType.Date:
+                                <input type="date" name="@f.Name" value="@f.Value" class="form-control fb-input" dir="ltr" />
+                                break;
+                            default:
+                                <div class="fb-text">
+                                    <span class="fb-text-ico" aria-hidden="true">🔍</span>
+                                    <input type="text" name="@f.Name" value="@f.Value" class="form-control fb-input" placeholder="@f.Placeholder" />
+                                </div>
+                                break;
+                        }
+                    </div>
+                }
+            </div>
+        }
+
+        <div class="fb-foot">
+            <div class="fb-summary">@Model.Summary</div>
+            <div class="fb-actions">
+                @foreach (var a in Model.Actions)
+                {
+                    <a class="fb-btn" href="@a.Url" target="@(a.NewTab ? "_blank" : null)"><span aria-hidden="true">@a.Icon</span> @a.Text</a>
+                }
+                <button type="submit" class="fb-submit">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
+                    @Model.SubmitText
+                </button>
+            </div>
+        </div>
+    </form>
+</div>

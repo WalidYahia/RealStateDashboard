@@ -93,6 +93,107 @@ html.theme-fading, html.theme-fading *, html.theme-fading *::before, html.theme-
 :root[data-theme="light"] .theme-toggle .ico-moon { display: inline; }
 .auth-theme-toggle { position: fixed; top: 16px; inset-inline-end: 16px; z-index: 10; }
 
+/* ---------- Shared filter bar (_FilterBar.cshtml + filter-bar.js) ---------- */
+/* Header (title, active count, reset) · body (date range + presets, then an auto-fit grid of fields) ·
+   footer (summary, print/Excel, search). Tokens only, so it follows the dark / day theme. */
+.card-tile.fb { padding: 0; margin-bottom: 14px; }
+.fb-form { display: flex; flex-direction: column; }
+.fb-head {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 12px 18px; border-bottom: 1px solid var(--border);
+}
+.fb-title { display: flex; align-items: center; gap: 9px; font-weight: 700; font-size: 14px; color: var(--text-primary); }
+.fb-title-ico {
+    width: 28px; height: 28px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center;
+    background: rgba(57,135,229,.14); background: color-mix(in srgb, var(--series-1) 15%, transparent); color: var(--series-1);
+}
+.fb-count {
+    min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px; background: var(--series-1); color: #fff;
+    font-size: 11px; font-weight: 800; display: inline-flex; align-items: center; justify-content: center;
+}
+.fb-reset { font-size: 12.5px; font-weight: 600; color: var(--muted); text-decoration: none; padding: 5px 10px; border-radius: 8px; transition: color .15s, background .15s; }
+.fb-reset:hover { color: var(--critical); background: rgba(208,59,59,.10); }
+
+.fb-body {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+    gap: 16px 16px; padding: 16px 18px 18px; align-items: start;
+}
+.fb-range { grid-column: span 2; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.fb-field { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.fb-wide { grid-column: span 2; }
+.fb-label { font-size: 12.5px; color: var(--text-secondary); font-weight: 600; line-height: 1.2; }
+.fb-on > .fb-label::after {
+    content: ""; display: inline-block; width: 6px; height: 6px; border-radius: 50%;
+    background: var(--series-1); margin-inline-start: 6px; vertical-align: middle;
+}
+
+/* date range: one box, two parts */
+.fb-range-box {
+    display: flex; align-items: stretch; min-height: 42px; background: var(--surface-2);
+    border: 1px solid var(--border); border-radius: 10px; overflow: hidden; transition: border-color .15s, box-shadow .15s;
+}
+.fb-range-box:focus-within { border-color: var(--series-1); box-shadow: 0 0 0 3px rgba(57,135,229,.18); }
+.fb-range-part { flex: 1; display: flex; align-items: center; gap: 8px; padding: 0 10px; margin: 0; min-width: 0; cursor: text; }
+.fb-range-tag { font-size: 11.5px; color: var(--muted); font-weight: 700; white-space: nowrap; }
+.fb-range-part input {
+    flex: 1; min-width: 0; border: 0; background: transparent; color: var(--text-primary);
+    padding: 9px 0; font-size: 14px; outline: none; font-family: inherit;
+}
+.fb-range-sep {
+    display: flex; align-items: center; padding: 0 8px; color: var(--muted); font-size: 13px;
+    border-inline: 1px solid var(--border); background: var(--surface-1);
+}
+.fb-presets { display: flex; flex-wrap: wrap; gap: 6px; }
+.fb-chip {
+    border: 1px solid var(--border); background: transparent; color: var(--text-secondary); border-radius: 999px;
+    padding: 4px 13px; font-size: 12px; font-weight: 600; cursor: pointer; transition: color .15s, border-color .15s, background .15s;
+}
+.fb-chip:hover { color: var(--text-strong); border-color: var(--series-1); }
+.fb-chip.active { background: var(--series-1); border-color: var(--series-1); color: #fff; }
+
+/* inputs */
+.fb .form-control.fb-input, .fb .ss-input { margin: 0; min-height: 42px; padding: 8px 12px; }
+.fb .form-control:focus, .fb .ss-input:focus { border-color: var(--series-1); box-shadow: 0 0 0 3px rgba(57,135,229,.18); }
+.fb-on .form-control, .fb-on .ss-input { border-color: rgba(57,135,229,.55); }
+.fb-text { position: relative; }
+.fb-text-ico { position: absolute; inset-inline-start: 11px; top: 50%; transform: translateY(-50%); font-size: 12px; opacity: .55; pointer-events: none; }
+.fb-text .fb-input { padding-inline-start: 32px; }
+
+/* footer */
+.fb-foot {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+    padding: 12px 18px; border-top: 1px solid var(--border); background: var(--surface-2);
+    border-radius: 0 0 var(--radius) var(--radius);
+}
+.fb-summary { color: var(--muted); font-size: 13px; }
+.fb-summary:empty { display: none; }
+.fb-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-inline-start: auto; }
+.fb-btn {
+    display: inline-flex; align-items: center; gap: 6px; min-height: 38px; padding: 0 14px; border-radius: 10px;
+    border: 1px solid var(--border); background: var(--surface-1); color: var(--text-primary);
+    text-decoration: none; font-size: 13px; font-weight: 600; transition: border-color .15s, color .15s;
+}
+.fb-btn:hover { border-color: var(--series-1); color: var(--text-strong); }
+.fb-submit {
+    display: inline-flex; align-items: center; gap: 8px; min-height: 38px; padding: 0 28px; border-radius: 10px;
+    border: none; background: var(--series-1); color: #fff; font-weight: 700; font-size: 14px; cursor: pointer;
+    box-shadow: 0 4px 14px rgba(57,135,229,.28); transition: filter .15s, transform .15s;
+}
+.fb-submit:hover { filter: brightness(1.08); }
+.fb-submit:active { transform: translateY(1px); }
+
+@media (max-width: 720px) {
+    .fb-range, .fb-wide { grid-column: 1 / -1; }
+    .fb-actions { width: 100%; }
+    .fb-submit { flex: 1; justify-content: center; }
+}
+/* Phones: stack «من» over «إلى» so full date-time values are never clipped. */
+@media (max-width: 560px) {
+    .fb-range-box { flex-direction: column; }
+    .fb-range-sep { display: none; }
+    .fb-range-part + .fb-range-part { border-top: 1px solid var(--border); }
+}
+
 /* ---------- System-wide preloader (loader.js) ---------- */
 /* Blocks the page while a submit / save / delete runs. It fades in after a short delay, so instant
    operations don't flash it; hidden it doesn't intercept clicks. */
@@ -430,17 +531,11 @@ select.form-control { appearance: auto; }
 .ss-opt { padding: 9px 12px; cursor: pointer; color: var(--text-primary); font-size: 14px; }
 .ss-opt:hover, .ss-opt.ss-active { background: var(--overlay-hover); }
 .ss-empty { padding: 9px 12px; color: var(--muted); font-size: 13px; }
+/* The pinned «الكل» / clear item — always first, set apart from the real options. */
+.ss-opt.ss-all { font-weight: 600; color: var(--muted); border-bottom: 1px solid var(--border); }
+.ss-opt.ss-all.ss-active { color: var(--text-primary); }
 
-/* Two-row filter form: row 1 = time range (+ presets), row 2 = other filters (+ actions). */
-.filter-form { display: flex; flex-direction: column; gap: 12px; }
-.filter-row { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
-.filter-row .fld { display: flex; flex-direction: column; }
-.filter-row .form-control { margin: 0; }
-.filter-presets { display: flex; gap: 8px; align-items: flex-end; }
-.filter-actions { display: flex; gap: 8px; align-items: flex-end; margin-inline-start: auto; }
-.filter-actions .btn-primary { width: auto; padding: 10px 34px; }
-/* Preset buttons only set the range (no submit); the chosen one is highlighted. */
-.date-preset.active { background: var(--series-1); border-color: var(--series-1); color: #fff; }
+/* (Filter forms: see «Shared filter bar» — .fb-* — used by every list / report page.) */
 .btn-primary {
     width: 100%; background: var(--series-1); border: none; color: #fff; font-weight: 700;
     padding: 12px; border-radius: 10px; cursor: pointer; font-size: 15px;

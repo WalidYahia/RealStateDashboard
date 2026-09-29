@@ -173,6 +173,31 @@ Purchasing runs in two stages — **purchase order → purchase invoice**.
 
 ---
 
+## 2.12 Shared filter bar
+
+Every list / report page uses one filter component — `Views/Shared/_FilterBar.cshtml` (+ `Models/FilterBar.cs`,
+`wwwroot/js/filter-bar.js`, `.fb-*` styles). A page declares only its own filters with the builder:
+
+```cshtml
+var filter = FilterBarVm.For(Url.Action("Index"))
+    .DateRange(F(Model.From), F(Model.To), "تاريخ الأمر")      // من ← إلى + quick presets
+    .Select("projectId", "المشروع", projects, projId)          // searchable list
+    .Text("q", "بحث", Model.Q)                                  // free text
+    .Print(Url.Action("PrintList", new { ... }))                 // footer actions
+    .Excel(Url.Action("Excel", new { ... }));
+<partial name="_FilterBar" model="filter" />
+```
+
+Layout: header (title, active-filter count, «↺ مسح الفلاتر» = fresh open), body (date-range box + preset
+chips, then a responsive grid of fields), footer (summary, print/Excel, بحث). It posts the same GET parameter
+names the pages always used — controller filter logic is untouched. Options: date-time ranges, custom /
+auto-submitting presets (reports), «الكل» presets that clear dates, single date fields, hidden route values,
+live summaries. Used by 29 views (34 pages, incl. the 5 inventory document lists).
+
+Searchable dropdowns (system-wide, `appEnhanceSearchSelect`): the select's empty option is pinned as the first
+menu item — «الكل» in filters, the form's own «— بدون … —» / «— اختر —» text in forms — and stays visible while
+typing, so a chosen value can always be cleared from the list. Enter while typing picks the first real match.
+
 ## 2.11 Document numbering (year rule)
 
 Every document number is **year‑prefixed and restarts at 1 each year**, using the document's own date:

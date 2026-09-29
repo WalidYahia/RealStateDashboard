@@ -23,24 +23,12 @@
     <div class="status-message">@status</div>
 }
 
-<div class="card-tile" style="margin-bottom:12px;">
-    <form asp-action="Index" method="get" class="filter-form">
-        <div class="filter-row">
-            <div class="fld">
-                <label class="form-label">نوع الخزنة</label>
-                <select name="type" class="form-control" data-searchable><option value="">الكل</option>
-                    @foreach (var t in Enum.GetValues<SafeType>())
-                    {
-                        <option value="@t" selected="@(t == type)">@t.Ar()</option>
-                    }
-                </select>
-            </div>
-            <div class="filter-actions">
-                <button type="submit" class="btn-primary">بحث</button>
-            </div>
-        </div>
-    </form>
-</div>
+@{
+    var filter = FilterBarVm.For(Url.Action("Index"))
+        .Select("type", "نوع الخزنة",
+            Enum.GetValues<SafeType>().Select(t => new Microsoft.AspNetCore.Mvc.Rendering.SelectListItem(t.Ar(), t.ToString())), type?.ToString());
+}
+<partial name="_FilterBar" model="filter" />
 
 <div class="card-tile">
     <div class="list-search-bar"><input class="form-control list-search" data-target="#safesTable" placeholder="🔍 بحث في القائمة..." /></div>

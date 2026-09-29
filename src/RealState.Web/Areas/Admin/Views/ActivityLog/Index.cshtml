@@ -18,33 +18,15 @@
     <h1>سجل نشاط المستخدمين</h1>
 </div>
 
-<div class="card-tile" style="margin-bottom:12px;">
-    <form asp-action="Index" method="get" class="filter-form">
-        <div class="filter-row">
-            <div class="fld"><label class="form-label">من</label><input type="date" name="from" value="@F(Model.From)" class="form-control" dir="ltr" /></div>
-            <div class="fld"><label class="form-label">إلى</label><input type="date" name="to" value="@F(Model.To)" class="form-control" dir="ltr" /></div>
-            <div class="filter-presets">
-                <button type="button" class="btn-sm date-preset" data-from="@F(DateTime.Today)" data-to="@F(DateTime.Today)">اليوم</button>
-                <button type="button" class="btn-sm date-preset" data-from="@F(DateTime.Today.AddDays(-7))" data-to="@F(DateTime.Today)">آخر أسبوع</button>
-                <button type="button" class="btn-sm date-preset" data-from="@F(DateTime.Today.AddMonths(-1))" data-to="@F(DateTime.Today)">آخر شهر</button>
-            </div>
-        </div>
-        <div class="filter-row">
-            <div class="fld" style="min-width:180px;">
-                <label class="form-label">المستخدم</label>
-                <select name="userId" class="form-control" asp-items="Model.Users"><option value="">— الكل —</option></select>
-            </div>
-            <div class="fld" style="min-width:150px;">
-                <label class="form-label">نوع الإجراء</label>
-                <select name="actionType" class="form-control" asp-items="Model.ActionTypes"><option value="">— الكل —</option></select>
-            </div>
-            <div class="filter-actions">
-                <button type="submit" class="btn-primary">تصفية</button>
-                <span style="color:var(--muted);font-size:13px;align-self:center;">النتائج: <strong>@Model.Rows.Count</strong></span>
-            </div>
-        </div>
-    </form>
-</div>
+@{
+    var filter = FilterBarVm.For(Url.Action("Index"))
+        .SubmitLabel("تصفية")
+        .DateRange(F(Model.From), F(Model.To))
+        .Select("userId", "المستخدم", Model.Users, Model.Users.FirstOrDefault(i => i.Selected)?.Value)
+        .Select("actionType", "نوع الإجراء", Model.ActionTypes, Model.ActionTypes.FirstOrDefault(i => i.Selected)?.Value)
+        .WithSummary(new Microsoft.AspNetCore.Html.HtmlString($"النتائج: <strong>{Model.Rows.Count}</strong>"));
+}
+<partial name="_FilterBar" model="filter" />
 
 <div class="card-tile">
     <table class="rs-table">

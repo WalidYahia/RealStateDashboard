@@ -8,17 +8,14 @@
     <h1>التقرير اليومي</h1>
 </div>
 
-<div class="card-tile" style="margin-bottom:12px;">
-    <form asp-action="Daily" method="get" class="filter-form">
-        <div class="filter-row">
-            <div class="fld"><label class="form-label">اليوم</label><input type="date" name="date" value="@DI(Model.Date)" class="form-control" dir="ltr" /></div>
-            <div class="filter-actions">
-                <button type="submit" class="btn-primary">عرض</button>
-                <a class="btn-sm" asp-action="DailyPrint" asp-route-date="@DI(Model.Date)" target="_blank">🖨 طباعة (PDF)</a>
-            </div>
-        </div>
-    </form>
-</div>
+@{
+    var filter = FilterBarVm.For(Url.Action("Daily"))
+        .WithTitle("يوم التقرير")
+        .SubmitLabel("عرض")
+        .Date("date", "اليوم", DI(Model.Date))
+        .Print(Url.Action("DailyPrint", new { date = DI(Model.Date) }));
+}
+<partial name="_FilterBar" model="filter" />
 
 <div class="kpi-grid" style="grid-template-columns: repeat(5, 1fr);">
     <div class="kpi k-sales"><div class="kpi-label">عقود البيع</div><div class="kpi-value">@N(Model.ContractsTotal) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">@Model.Contracts.Count عقد</div></div>

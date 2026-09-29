@@ -7,28 +7,22 @@
 }
 <div class="page-head">
     <h1>بطاقة الصنف</h1>
-    @if (ready)
-    {
-        <span style="display:flex;gap:8px;">
-            <a class="btn-sm" asp-action="StockCardPrint" asp-route-productId="@Model.ProductId" asp-route-warehouseId="@Model.WarehouseId" asp-route-from="@F(Model.From)" asp-route-to="@F(Model.To)" target="_blank">🖨 طباعة (PDF)</a>
-            <a class="btn-sm" asp-action="StockCardExcel" asp-route-productId="@Model.ProductId" asp-route-warehouseId="@Model.WarehouseId" asp-route-from="@F(Model.From)" asp-route-to="@F(Model.To)">⬇ Excel</a>
-        </span>
-    }
 </div>
 
 <partial name="_ReportTabs" />
 
-<div class="card-tile" style="margin-bottom:12px;">
-    <form asp-action="StockCard" method="get" class="filter-form">
-        <div class="filter-row">
-            <div class="fld" style="min-width:220px;"><label class="form-label">الصنف</label><select name="productId" class="form-control" data-searchable asp-items="Model.Products"><option value="">— اختر —</option></select></div>
-            <div class="fld" style="min-width:180px;"><label class="form-label">المخزن</label><select name="warehouseId" class="form-control" data-searchable asp-items="Model.Warehouses"><option value="">— اختر —</option></select></div>
-            <div class="fld"><label class="form-label">من</label><input type="date" name="from" value="@F(Model.From)" class="form-control" dir="ltr" /></div>
-            <div class="fld"><label class="form-label">إلى</label><input type="date" name="to" value="@F(Model.To)" class="form-control" dir="ltr" /></div>
-            <div class="filter-actions"><button type="submit" class="btn-primary">عرض</button></div>
-        </div>
-    </form>
-</div>
+@{
+    // Product + warehouse are required for the card; print / Excel appear once both are chosen (as before).
+    var filter = FilterBarVm.For(Url.Action("StockCard"))
+        .SubmitLabel("عرض")
+        .Select("productId", "الصنف", Model.Products, Model.ProductId, "— اختر —")
+        .Select("warehouseId", "المخزن", Model.Warehouses, Model.WarehouseId, "— اختر —")
+        .DateRange(F(Model.From), F(Model.To), presets: Array.Empty<FilterPreset>());
+    if (ready)
+        filter.Print(Url.Action("StockCardPrint", new { productId = Model.ProductId, warehouseId = Model.WarehouseId, from = F(Model.From), to = F(Model.To) }))
+              .Excel(Url.Action("StockCardExcel", new { productId = Model.ProductId, warehouseId = Model.WarehouseId, from = F(Model.From), to = F(Model.To) }));
+}
+<partial name="_FilterBar" model="filter" />
 
 @if (!ready)
 {
