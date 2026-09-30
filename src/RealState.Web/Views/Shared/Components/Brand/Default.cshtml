@@ -7,5 +7,7 @@
     else
     {
         <span class="brand-fallback">@Model.Name</span>
+        @* Shown instead of the name while the side menu is collapsed to an icon rail. *@
+        <span class="brand-mini" aria-hidden="true">@(string.IsNullOrWhiteSpace(Model.Name) ? "" : Model.Name.Trim()[..1])</span>
     }
 </div>

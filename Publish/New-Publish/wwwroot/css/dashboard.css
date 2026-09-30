@@ -1,5 +1,7 @@
-/* Executive dashboard — Arabic RTL dark theme.
-   Colors use the validated dark-mode data-viz palette (surface #1a1a19). */
+/* Executive dashboard — Arabic RTL, dark (default) + day (light) themes.
+   The theme is <html data-theme="dark|light">, set before first paint by the inline script in _Layout
+   (saved per browser). Every color below is a token — components never hard-code theme colors.
+   Dark colors use the validated dark-mode data-viz palette (surface #1a1a19). */
 :root {
     --page: #0d0d0d;
     --surface-1: #1a1a19;
@@ -11,6 +13,14 @@
     --baseline: #383835;
     --border: rgba(255,255,255,0.10);
 
+    /* Interaction tokens (formerly hard-coded for dark). */
+    --text-strong: #ffffff;                    /* hover / active text */
+    --hover-bg: #2b2c2a;                       /* hovered neutral button */
+    --overlay-hover: rgba(255,255,255,.08);    /* hovered option in a list */
+    --placeholder: #ffffff;                    /* list-search placeholder at rest */
+    --shadow-pop: 0 10px 30px rgba(0,0,0,.45); /* floating menus */
+    --chart-grid: rgba(255,255,255,.06);       /* chart grid lines */
+
     --series-1: #3987e5; /* blue  */
     --aqua: #199e70;     /* green */
     --good: #0ca30c;
@@ -21,8 +31,203 @@
 
     --radius: 14px;
     --gap: 16px;
+    color-scheme: dark;   /* native controls (date pickers, scrollbars) follow the theme */
     font-family: system-ui, -apple-system, "Segoe UI", "Tahoma", sans-serif;
 }
+
+/* ---------- Day theme (نهاري) ---------- */
+:root[data-theme="light"] {
+    --page: #f3f4f6;
+    --surface-1: #ffffff;
+    --surface-2: #f0f1f3;
+    --text-primary: #16181b;
+    --text-secondary: #474b52;
+    --muted: #6b7078;
+    --grid: #e4e6e9;
+    --baseline: #d3d7dc;
+    --border: rgba(17,24,39,0.12);
+
+    --text-strong: #0b0d10;
+    --hover-bg: #e6e8eb;
+    --overlay-hover: rgba(17,24,39,.06);
+    --placeholder: #474b52;
+    --shadow-pop: 0 10px 30px rgba(17,24,39,.16);
+    --chart-grid: rgba(17,24,39,.08);
+
+    /* Same hues, deepened where they carry text on a white surface (contrast). */
+    --series-1: #2f78d6;
+    --aqua: #13855e;
+    --good: #0a8a0a;
+    --warning: #b97c00;
+    --critical: #c62f2f;
+    --violet: #6e62d4;
+    --gold: #a86f00;
+
+    color-scheme: light;
+}
+/* Cards read as raised panels on the light page. */
+:root[data-theme="light"] .card-tile,
+:root[data-theme="light"] .kpi,
+:root[data-theme="light"] .auth-card { box-shadow: 0 1px 2px rgba(17,24,39,.06); }
+
+/* ---------- Soft theme switch ---------- */
+/* Fallback (no View Transitions API): colors ease while html.theme-fading is set by theme.js. */
+html.theme-fading, html.theme-fading *, html.theme-fading *::before, html.theme-fading *::after {
+    transition: background-color .45s ease, color .45s ease, border-color .45s ease, box-shadow .45s ease, fill .45s ease !important;
+}
+/* View Transitions: the new theme is revealed as a circle growing from the toggle (see theme.js). */
+::view-transition-old(root), ::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
+@media (prefers-reduced-motion: reduce) {
+    html.theme-fading, html.theme-fading * { transition: none !important; }
+}
+
+/* Theme toggle button (top bar + login page) */
+.theme-toggle {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 40px; height: 40px; border-radius: 10px; cursor: pointer; font-size: 18px; line-height: 1;
+    background: var(--surface-2); border: 1px solid var(--border); color: var(--text-secondary);
+}
+.theme-toggle:hover { background: var(--hover-bg); color: var(--text-strong); }
+/* The icon shows the theme a click switches TO: ☀️ while dark, 🌙 while day. */
+.theme-toggle .ico-moon, :root[data-theme="light"] .theme-toggle .ico-sun { display: none; }
+:root[data-theme="light"] .theme-toggle .ico-moon { display: inline; }
+.auth-theme-toggle { position: fixed; top: 16px; inset-inline-end: 16px; z-index: 10; }
+
+/* ---------- Shared filter bar (_FilterBar.cshtml + filter-bar.js) ---------- */
+/* Header (title, active count, reset) · body (date range + presets, then an auto-fit grid of fields) ·
+   footer (summary, print/Excel, search). Tokens only, so it follows the dark / day theme. */
+.card-tile.fb { padding: 0; margin-bottom: 14px; }
+.fb-form { display: flex; flex-direction: column; }
+.fb-head {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 12px 18px; border-bottom: 1px solid var(--border);
+}
+.fb-title { display: flex; align-items: center; gap: 9px; font-weight: 700; font-size: 14px; color: var(--text-primary); }
+.fb-title-ico {
+    width: 28px; height: 28px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center;
+    background: rgba(57,135,229,.14); background: color-mix(in srgb, var(--series-1) 15%, transparent); color: var(--series-1);
+}
+.fb-count {
+    min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px; background: var(--series-1); color: #fff;
+    font-size: 11px; font-weight: 800; display: inline-flex; align-items: center; justify-content: center;
+}
+.fb-reset { font-size: 12.5px; font-weight: 600; color: var(--muted); text-decoration: none; padding: 5px 10px; border-radius: 8px; transition: color .15s, background .15s; }
+.fb-reset:hover { color: var(--critical); background: rgba(208,59,59,.10); }
+
+.fb-body {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+    gap: 16px 16px; padding: 16px 18px 18px; align-items: start;
+}
+.fb-range { grid-column: span 2; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.fb-field { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.fb-wide { grid-column: span 2; }
+.fb-label { font-size: 12.5px; color: var(--text-secondary); font-weight: 600; line-height: 1.2; }
+.fb-on > .fb-label::after {
+    content: ""; display: inline-block; width: 6px; height: 6px; border-radius: 50%;
+    background: var(--series-1); margin-inline-start: 6px; vertical-align: middle;
+}
+
+/* date range: one box, two parts */
+.fb-range-box {
+    display: flex; align-items: stretch; min-height: 42px; background: var(--surface-2);
+    border: 1px solid var(--border); border-radius: 10px; overflow: hidden; transition: border-color .15s, box-shadow .15s;
+}
+.fb-range-box:focus-within { border-color: var(--series-1); box-shadow: 0 0 0 3px rgba(57,135,229,.18); }
+.fb-range-part { flex: 1; display: flex; align-items: center; gap: 8px; padding: 0 10px; margin: 0; min-width: 0; cursor: text; }
+.fb-range-tag { font-size: 11.5px; color: var(--muted); font-weight: 700; white-space: nowrap; }
+.fb-range-part input {
+    flex: 1; min-width: 0; border: 0; background: transparent; color: var(--text-primary);
+    padding: 9px 0; font-size: 14px; outline: none; font-family: inherit;
+}
+.fb-range-sep {
+    display: flex; align-items: center; padding: 0 8px; color: var(--muted); font-size: 13px;
+    border-inline: 1px solid var(--border); background: var(--surface-1);
+}
+.fb-presets { display: flex; flex-wrap: wrap; gap: 6px; }
+.fb-chip {
+    border: 1px solid var(--border); background: transparent; color: var(--text-secondary); border-radius: 999px;
+    padding: 4px 13px; font-size: 12px; font-weight: 600; cursor: pointer; transition: color .15s, border-color .15s, background .15s;
+}
+.fb-chip:hover { color: var(--text-strong); border-color: var(--series-1); }
+.fb-chip.active { background: var(--series-1); border-color: var(--series-1); color: #fff; }
+
+/* inputs */
+.fb .form-control.fb-input, .fb .ss-input { margin: 0; min-height: 42px; padding: 8px 12px; }
+.fb .form-control:focus, .fb .ss-input:focus { border-color: var(--series-1); box-shadow: 0 0 0 3px rgba(57,135,229,.18); }
+.fb-on .form-control, .fb-on .ss-input { border-color: rgba(57,135,229,.55); }
+.fb-text { position: relative; }
+.fb-text-ico { position: absolute; inset-inline-start: 11px; top: 50%; transform: translateY(-50%); font-size: 12px; opacity: .55; pointer-events: none; }
+.fb-text .fb-input { padding-inline-start: 32px; }
+
+/* footer */
+.fb-foot {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+    padding: 12px 18px; border-top: 1px solid var(--border); background: var(--surface-2);
+    border-radius: 0 0 var(--radius) var(--radius);
+}
+.fb-summary { color: var(--muted); font-size: 13px; }
+.fb-summary:empty { display: none; }
+.fb-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-inline-start: auto; }
+.fb-btn {
+    display: inline-flex; align-items: center; gap: 6px; min-height: 38px; padding: 0 14px; border-radius: 10px;
+    border: 1px solid var(--border); background: var(--surface-1); color: var(--text-primary);
+    text-decoration: none; font-size: 13px; font-weight: 600; transition: border-color .15s, color .15s;
+}
+.fb-btn:hover { border-color: var(--series-1); color: var(--text-strong); }
+.fb-submit {
+    display: inline-flex; align-items: center; gap: 8px; min-height: 38px; padding: 0 28px; border-radius: 10px;
+    border: none; background: var(--series-1); color: #fff; font-weight: 700; font-size: 14px; cursor: pointer;
+    box-shadow: 0 4px 14px rgba(57,135,229,.28); transition: filter .15s, transform .15s;
+}
+.fb-submit:hover { filter: brightness(1.08); }
+.fb-submit:active { transform: translateY(1px); }
+
+@media (max-width: 720px) {
+    .fb-range, .fb-wide { grid-column: 1 / -1; }
+    .fb-actions { width: 100%; }
+    .fb-submit { flex: 1; justify-content: center; }
+}
+/* Phones: stack «من» over «إلى» so full date-time values are never clipped. */
+@media (max-width: 560px) {
+    .fb-range-box { flex-direction: column; }
+    .fb-range-sep { display: none; }
+    .fb-range-part + .fb-range-part { border-top: 1px solid var(--border); }
+}
+
+/* ---------- System-wide preloader (loader.js) ---------- */
+/* Blocks the page while a submit / save / delete runs. It fades in after a short delay, so instant
+   operations don't flash it; hidden it doesn't intercept clicks. */
+.app-loader {
+    position: fixed; inset: 0; z-index: 2000;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(0,0,0,.35);                                   /* fallback */
+    background: color-mix(in srgb, var(--page) 55%, transparent);
+    backdrop-filter: blur(2px);
+    opacity: 0; visibility: hidden; pointer-events: none;
+    transition: opacity .2s ease, visibility 0s linear .2s;
+}
+.app-loader.show {
+    opacity: 1; visibility: visible; pointer-events: all; cursor: progress;
+    transition: opacity .2s ease .15s, visibility 0s linear 0s;
+}
+.app-loader-box {
+    display: flex; flex-direction: column; align-items: center; gap: 14px;
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 16px;
+    padding: 22px 30px; box-shadow: var(--shadow-pop); min-width: 180px;
+}
+.app-loader-spinner {
+    width: 42px; height: 42px; border-radius: 50%;
+    border: 4px solid var(--grid); border-top-color: var(--series-1);
+    animation: app-loader-spin .8s linear infinite;
+}
+.app-loader-text { color: var(--text-primary); font-weight: 700; font-size: 14px; }
+@keyframes app-loader-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .app-loader-spinner { animation-duration: 2.4s; } }
+
+/* SweetAlert2 dialogs / toasts follow the theme too. */
+.swal2-popup { background: var(--surface-1) !important; color: var(--text-primary) !important; border: 1px solid var(--border); }
+.swal2-title, .swal2-html-container { color: var(--text-primary) !important; }
+.swal2-timer-progress-bar { background: var(--series-1) !important; }
 
 * { box-sizing: border-box; }
 
@@ -37,18 +242,96 @@ body {
 }
 
 /* ---------- App shell ---------- */
-.app-shell { display: grid; grid-template-columns: 248px 1fr; min-height: 100vh; }
+.app-shell { display: grid; grid-template-columns: 248px 1fr; min-height: 100vh; transition: grid-template-columns .22s ease; }
 
 .sidebar {
     background: var(--surface-1);
     border-inline-start: 1px solid var(--border);
     padding: 20px 14px;
-    position: sticky; top: 0; align-self: start; height: 100vh; overflow-y: auto;
+    position: sticky; top: 0; align-self: start; height: 100vh; overflow-y: auto; overflow-x: hidden;
+    width: 100%; z-index: 40;
+    transition: width .22s ease, padding .22s ease, box-shadow .22s ease;
 }
 
 .brand { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 6px 8px 22px; min-height: 40px; }
-.brand-logo { max-height: 66px; max-width: 210px; object-fit: contain; }
+.brand-logo { max-height: 66px; max-width: 210px; object-fit: contain; transition: max-width .22s ease, max-height .22s ease; }
 .brand-fallback { font-weight: 700; letter-spacing: .5px; line-height: 1.2; font-size: 17px; }
+.brand-mini { display: none; }
+
+/* ---------- Side menu collapse (wwwroot/js/sidebar.js) ---------- */
+/* Header: the logo is centred on the full sidebar width, in a fixed-height band (same centre line in both states). */
+.sb-head {
+    display: flex; align-items: center; justify-content: center;
+    min-height: 64px; padding-bottom: 16px; margin-bottom: 10px; border-bottom: 1px solid var(--border);
+}
+.sb-head .brand { flex: 1; min-width: 0; padding: 0; min-height: 0; }
+.sb-head .brand-logo { max-width: 100%; max-height: 60px; }
+/* Rounded-square toggle on the sidebar's inner edge, level with the logo (20px sidebar padding + half the 64px band). */
+.sb-collapse {
+    --sb-w: 248px;
+    position: fixed; top: 35px; inset-inline-start: calc(var(--sb-w) - 17px); z-index: 45;
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 34px; height: 34px; border-radius: 10px; cursor: pointer; padding: 0;
+    background: var(--surface-1); border: 1px solid var(--border); color: var(--text-secondary);
+    box-shadow: 0 2px 8px rgba(0,0,0,.25);
+    transition: inset-inline-start .22s ease, background .15s, color .15s, border-color .15s;
+}
+.sb-collapse:hover { background: var(--series-1); border-color: var(--series-1); color: #fff; }
+/* Scrollbar only while the pointer is on the menu — keeps the edge (and the toggle) clean. */
+.sidebar { scrollbar-width: none; }
+.sidebar:hover { scrollbar-width: thin; }
+.sb-collapse svg { transition: transform .22s ease; }
+[dir="ltr"] .sb-collapse svg { transform: scaleX(-1); }
+/* Phones only: opens the drawer from the top bar. */
+.sb-toggle {
+    display: none; align-items: center; justify-content: center; flex: none;
+    width: 38px; height: 38px; border-radius: 10px; cursor: pointer;
+    background: var(--surface-2); border: 1px solid var(--border); color: var(--text-secondary);
+}
+.sb-toggle:hover { background: var(--hover-bg); color: var(--text-strong); }
+.sb-backdrop { display: none; }
+
+/* Collapsed rail: hover label (plain links) / pop-out sub-menu (groups) — one floating element, sidebar.js. */
+.sb-fly { position: fixed; z-index: 1060; display: none; }
+.sb-fly.show { display: block; animation: sbFlyIn .12s ease-out; }
+@keyframes sbFlyIn { from { opacity: 0; } to { opacity: 1; } }
+.sb-fly.tip {
+    background: var(--text-strong); color: var(--surface-1); font-size: 12.5px; font-weight: 600;
+    padding: 6px 10px; border-radius: 7px; white-space: nowrap; box-shadow: 0 6px 18px rgba(0,0,0,.25); pointer-events: none;
+}
+.sb-fly.menu {
+    min-width: 190px; max-height: 70vh; overflow-y: auto; padding: 6px;
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 12px 32px rgba(0,0,0,.35);
+}
+.sb-fly-title { font-size: 12px; font-weight: 700; color: var(--muted); padding: 6px 10px 8px; border-bottom: 1px solid var(--border); margin-bottom: 4px; }
+.sb-fly .subnav-link { font-size: 13px; padding: 8px 10px; }
+
+@media (min-width: 721px) {
+    /* Icon rail — icons only; the name shows on hover (.sb-fly). */
+    :root.sb-collapsed .app-shell { grid-template-columns: 76px 1fr; }
+    :root.sb-collapsed .sidebar { width: 76px; padding-inline: 12px; }
+    :root.sb-collapsed .sb-collapse { --sb-w: 76px; }
+    :root.sb-collapsed .sb-collapse svg { transform: rotate(180deg); }
+    :root.sb-collapsed .side-nav { align-items: center; }
+    :root.sb-collapsed .side-nav .nav-link { font-size: 0; gap: 0; justify-content: center; padding: 0; width: 44px; height: 44px; flex: none; }
+    :root.sb-collapsed .side-nav .nav-link span { font-size: 18px; width: auto; }
+    :root.sb-collapsed .side-nav .nav-link.active { background: rgba(57,135,229,.18); }
+    :root.sb-collapsed .side-nav .nav-link.active::before { inset-inline-start: -12px; }
+    :root.sb-collapsed .nav-parent { justify-content: center; }
+    :root.sb-collapsed .nav-caret,
+    :root.sb-collapsed .nav-group .subnav { display: none; }
+    /* A wide logo can't shrink to 44px legibly — show its mark (left end) instead. */
+    :root.sb-collapsed .brand-logo { width: 40px; height: 44px; max-width: none; max-height: none; object-fit: cover; object-position: left center; }
+    :root.sb-collapsed .brand-fallback { display: none; }
+    :root.sb-collapsed .brand-mini {
+        display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px;
+        border-radius: 12px; background: var(--surface-2); border: 1px solid var(--border); font-weight: 800; font-size: 18px;
+    }
+    .side-nav .nav-link, .subnav-link { white-space: nowrap; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .app-shell, .sidebar, .brand-logo, .sb-backdrop { transition: none !important; }
+}
 
 /* New-tenant quick action in the top bar */
 .btn-new-tenant {
@@ -70,7 +353,7 @@ body {
 .state-on { background: rgba(12,163,12,.15); color: var(--good); }
 .state-off { background: rgba(208,59,59,.15); color: var(--critical); }
 .btn-sm { padding: 6px 12px; border-radius: 8px; font-size: 12px; font-weight: 600; text-decoration: none; border: 1px solid var(--border); background: var(--surface-2); color: var(--text-primary); cursor: pointer; }
-.btn-sm:hover { background: #2b2c2a; color: #fff; }
+.btn-sm:hover { background: var(--hover-bg); color: var(--text-strong); }
 .btn-danger { border-color: rgba(208,59,59,.4); color: var(--critical); background: rgba(208,59,59,.08); }
 
 /* Unified action controls — identical height & vertical alignment for every action button, whether
@@ -99,14 +382,14 @@ select.form-control { appearance: auto; }
 .mk-modal .modal-header h5 { margin: 0; font-size: 16px; font-weight: 700; }
 .mk-modal .modal-body { padding: 18px; }
 .mk-close { background: var(--surface-2); border: 1px solid var(--border); color: var(--text-secondary); width: 30px; height: 30px; border-radius: 8px; cursor: pointer; margin-inline-start: auto; }
-.mk-close:hover { color: #fff; }
+.mk-close:hover { color: var(--text-strong); }
 .modal-backdrop.show { opacity: .6; }
 
 /* Sub-tabs (e.g. العملاء: المناديب / العملاء) */
 .subtabs { display: flex; gap: 6px; border-bottom: 1px solid var(--border); margin-bottom: 18px; }
 .subtab { padding: 10px 18px; color: var(--text-secondary); text-decoration: none; font-weight: 600; font-size: 14px; border-bottom: 2px solid transparent; }
 .subtab:hover { color: var(--text-primary); }
-.subtab.active { color: #fff; border-bottom-color: var(--series-1); }
+.subtab.active { color: var(--text-strong); border-bottom-color: var(--series-1); }
 
 /* Projects grid / cards */
 .proj-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: var(--gap); }
@@ -133,7 +416,7 @@ select.form-control { appearance: auto; }
 }
 .side-nav .nav-link span { width: 20px; text-align: center; }
 .side-nav .nav-link:hover { background: var(--surface-2); color: var(--text-primary); }
-.side-nav .nav-link.active { background: linear-gradient(90deg, rgba(57,135,229,.18), transparent); color: #fff; }
+.side-nav .nav-link.active { background: linear-gradient(90deg, rgba(57,135,229,.18), transparent); color: var(--text-strong); }
 .side-nav .nav-link.active::before {
     content: ""; position: absolute; inset-inline-start: 0; width: 3px; height: 22px;
     background: var(--series-1); border-radius: 3px;
@@ -149,8 +432,8 @@ select.form-control { appearance: auto; }
 .nav-group .subnav { display: none; flex-direction: column; gap: 2px; margin: 2px 0 4px; max-height: 320px; overflow-y: auto; }
 .nav-group.open .subnav { display: flex; }
 .subnav-link { display: block; color: var(--text-secondary); text-decoration: none; font-size: 12.5px; padding: 7px 14px; border-radius: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.subnav-link:hover { background: var(--surface-2); color: #fff; }
-.subnav-link.active { background: linear-gradient(90deg, rgba(57,135,229,.18), transparent); color: #fff; }
+.subnav-link:hover { background: var(--surface-2); color: var(--text-strong); }
+.subnav-link.active { background: linear-gradient(90deg, rgba(57,135,229,.18), transparent); color: var(--text-strong); }
 .subnav-empty { color: var(--muted); font-size: 12px; padding: 6px 14px; }
 
 /* ---------- Main ---------- */
@@ -166,13 +449,14 @@ select.form-control { appearance: auto; }
     font-weight: 800;
     font-family: system-ui;
 }
+.topbar-title { display: flex; align-items: center; gap: 14px; min-width: 0; }
 .topbar-title p { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
 .topbar-meta { display: flex; align-items: center; gap: 22px; }
 .clock { text-align: center; }
 
 /* Assigned-tasks bell in the top bar */
 .task-bell { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 38px; height: 38px; border-radius: 10px; text-decoration: none; color: var(--text-secondary); background: var(--surface-2); border: 1px solid var(--border); }
-.task-bell:hover { color: #fff; background: #2b2c2a; }
+.task-bell:hover { color: var(--text-strong); background: var(--hover-bg); }
 .task-bell .bell-ico { font-size: 17px; line-height: 1; }
 .task-bell .bell-count { position: absolute; top: -6px; inset-inline-start: -6px; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 9px; background: var(--critical); color: #fff; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
 .clock .time { color: var(--series-1); font-weight: 700; font-size: 18px; }
@@ -309,7 +593,7 @@ select.form-control { appearance: auto; }
 /* Inline list-search header: a full-width search bar at the top of a list card. */
 .list-search-bar { margin-bottom: 12px; }
 .list-search { width: 100%; margin: 0; }
-.list-search::placeholder { color: #fff; opacity: 1; }          /* white when not focused */
+.list-search::placeholder { color: var(--placeholder); opacity: 1; }   /* bright when not focused */
 .list-search:focus::placeholder { color: var(--muted); }         /* dim once focused */
 
 /* Searchable <select> enhancement: a filter input over an options dropdown (task assignee picker). */
@@ -318,25 +602,19 @@ select.form-control { appearance: auto; }
 .ss-menu {
     position: absolute; z-index: 60; top: 100%; inset-inline: 0; margin-top: 4px; max-height: 240px;
     overflow-y: auto; background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px;
-    box-shadow: 0 10px 30px rgba(0,0,0,.45);
+    box-shadow: var(--shadow-pop);
 }
 /* While open the menu is positioned to the viewport so it floats over scrolling ancestors
    (document line tables use overflow-x:auto, which would otherwise clip it). */
 .ss-menu.ss-fixed { position: fixed; inset-inline: auto; margin-top: 0; }
 .ss-opt { padding: 9px 12px; cursor: pointer; color: var(--text-primary); font-size: 14px; }
-.ss-opt:hover, .ss-opt.ss-active { background: rgba(255,255,255,.08); }
+.ss-opt:hover, .ss-opt.ss-active { background: var(--overlay-hover); }
 .ss-empty { padding: 9px 12px; color: var(--muted); font-size: 13px; }
+/* The pinned «الكل» / clear item — always first, set apart from the real options. */
+.ss-opt.ss-all { font-weight: 600; color: var(--muted); border-bottom: 1px solid var(--border); }
+.ss-opt.ss-all.ss-active { color: var(--text-primary); }
 
-/* Two-row filter form: row 1 = time range (+ presets), row 2 = other filters (+ actions). */
-.filter-form { display: flex; flex-direction: column; gap: 12px; }
-.filter-row { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
-.filter-row .fld { display: flex; flex-direction: column; }
-.filter-row .form-control { margin: 0; }
-.filter-presets { display: flex; gap: 8px; align-items: flex-end; }
-.filter-actions { display: flex; gap: 8px; align-items: flex-end; margin-inline-start: auto; }
-.filter-actions .btn-primary { width: auto; padding: 10px 34px; }
-/* Preset buttons only set the range (no submit); the chosen one is highlighted. */
-.date-preset.active { background: var(--series-1); border-color: var(--series-1); color: #fff; }
+/* (Filter forms: see «Shared filter bar» — .fb-* — used by every list / report page.) */
 .btn-primary {
     width: 100%; background: var(--series-1); border: none; color: #fff; font-weight: 700;
     padding: 12px; border-radius: 10px; cursor: pointer; font-size: 15px;
@@ -353,6 +631,19 @@ select.form-control { appearance: auto; }
 }
 @media (max-width: 720px) {
     .app-shell { grid-template-columns: 1fr; }
-    .sidebar { position: static; height: auto; }
+    /* Phones: the side menu is an off-canvas drawer opened by the ☰ button (sidebar.js). */
+    .sidebar {
+        position: fixed; top: 0; bottom: 0; inset-inline-start: 0; height: 100vh; width: min(280px, 85vw);
+        z-index: 1045; transform: translateX(100%); transition: transform .25s ease; box-shadow: none;
+    }
+    [dir="ltr"] .sidebar { transform: translateX(-100%); }
+    :root.sb-open .sidebar { transform: none; box-shadow: 0 0 40px rgba(0,0,0,.45); }
+    .sb-toggle { display: inline-flex; }
+    .sb-collapse { display: none; }
+    .sb-backdrop {
+        display: block; position: fixed; inset: 0; z-index: 1044; background: rgba(0,0,0,.5);
+        opacity: 0; pointer-events: none; transition: opacity .25s ease;
+    }
+    :root.sb-open .sb-backdrop { opacity: 1; pointer-events: auto; }
     .kpi-grid { grid-template-columns: repeat(2, 1fr); }
 }

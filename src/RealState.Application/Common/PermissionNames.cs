@@ -21,6 +21,7 @@ public static class PermissionNames
     public const string UsersCreate = "Users.Create";
     public const string UsersEdit = "Users.Edit";
     public const string UsersDelete = "Users.Delete";
+    public const string UsersResetPassword = "Users.ResetPassword";   // set another user's password (own password: always)
 
     public const string ActivityLogView = "ActivityLog.View";
 
@@ -274,6 +275,7 @@ public static class PermissionNames
         new PermissionInfo(UsersCreate, "إضافة مستخدم",             GUsers),
         new PermissionInfo(UsersEdit,   "تعديل المستخدمين وصلاحياتهم", GUsers),
         new PermissionInfo(UsersDelete, "حذف / تعطيل المستخدمين",   GUsers),
+        new PermissionInfo(UsersResetPassword, "تغيير كلمة مرور المستخدمين الآخرين", GUsers),
 
         new PermissionInfo(ActivityLogView, "عرض سجل نشاط المستخدمين", GAdmin),
         new PermissionInfo(SettingsManage,  "إدارة الإعدادات وبيانات المؤسسة", GAdmin),

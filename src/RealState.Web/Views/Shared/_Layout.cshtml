@@ -18,6 +18,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     @* Apply the saved theme (dark = default) before first paint so pages never flash the wrong one. *@
     <script>(function () { var t = 'dark'; try { t = localStorage.getItem('appTheme') === 'light' ? 'light' : 'dark'; } catch (e) { } document.documentElement.setAttribute('data-theme', t); })();</script>
+    @* Same for the collapsed side menu (wwwroot/js/sidebar.js). *@
+    <script>try { if (localStorage.getItem('appSidebar') === 'collapsed') document.documentElement.classList.add('sb-collapsed'); } catch (e) { }</script>
     <title>@ViewData["Title"] — لوحة القيادة التنفيذية</title>
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.rtl.min.css" />
     <link rel="stylesheet" href="~/css/dashboard.css" asp-append-version="true" />
@@ -33,7 +35,13 @@
     @if (isAuth)
     {
         <aside class="sidebar">
-            @await Component.InvokeAsync("Brand")
+            <div class="sb-head">
+                @await Component.InvokeAsync("Brand")
+            </div>
+            @* Sits on the sidebar's inner edge (position: fixed), so the logo keeps the full header width. *@
+            <button type="button" class="sb-collapse" onclick="appToggleSidebar()" title="طي / فتح القائمة الجانبية" aria-label="طي / فتح القائمة الجانبية" aria-expanded="true">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6" /></svg>
+            </button>
             <nav class="side-nav">
                 @if (Can(PermissionNames.DashboardView))
                 {
@@ -350,9 +358,14 @@
                 </div>
             </nav>
         </aside>
+        <div class="sb-backdrop" aria-hidden="true"></div>
         <div class="main">
             <header class="topbar">
                 <div class="topbar-title">
+                    @* Phones only — opens the side menu drawer (on desktop the collapse button lives in the sidebar header). *@
+                    <button type="button" class="sb-toggle" onclick="appToggleSidebar()" title="القائمة" aria-label="فتح القائمة الجانبية" aria-expanded="false">
+                        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
+                    </button>
                     <h1>@ViewData["Title"]</h1>
                 </div>
                 <div class="topbar-meta">
@@ -419,6 +432,7 @@
     <script src="~/lib/jquery/dist/jquery.min.js"></script>
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
     <script src="~/js/theme.js" asp-append-version="true"></script>
+    <script src="~/js/sidebar.js" asp-append-version="true"></script>
     <script src="~/js/loader.js" asp-append-version="true"></script>
     <script src="~/lib/chartjs/chart.umd.min.js"></script>
     <script src="~/lib/sweetalert2/sweetalert2.all.min.js"></script>

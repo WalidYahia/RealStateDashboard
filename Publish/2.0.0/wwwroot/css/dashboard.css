@@ -320,6 +320,9 @@ select.form-control { appearance: auto; }
     overflow-y: auto; background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px;
     box-shadow: 0 10px 30px rgba(0,0,0,.45);
 }
+/* While open the menu is positioned to the viewport so it floats over scrolling ancestors
+   (document line tables use overflow-x:auto, which would otherwise clip it). */
+.ss-menu.ss-fixed { position: fixed; inset-inline: auto; margin-top: 0; }
 .ss-opt { padding: 9px 12px; cursor: pointer; color: var(--text-primary); font-size: 14px; }
 .ss-opt:hover, .ss-opt.ss-active { background: rgba(255,255,255,.08); }
 .ss-empty { padding: 9px 12px; color: var(--muted); font-size: 13px; }

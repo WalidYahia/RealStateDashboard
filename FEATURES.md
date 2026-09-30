@@ -169,6 +169,11 @@ Purchasing runs in two stages — **purchase order → purchase invoice**.
   from the toggle (View Transitions), else a short color fade; reduced-motion users get an instant switch.
   All colors are CSS tokens in `dashboard.css` (`:root` = dark, `:root[data-theme="light"]` = day); charts
   and SweetAlert dialogs follow the theme.
+- **Collapsible side menu** (`wwwroot/js/sidebar.js`): the chevron in the sidebar header folds the menu into
+  an icon rail. On the rail, hovering / focusing an icon shows its name as a tooltip; a group icon
+  (المشتريات، المالية…) pops out its title + sub-pages instead (click also opens it, for touch). Saved per
+  browser, applied before first paint, synced across tabs. On phones (≤ 720px) the menu is an off-canvas
+  drawer opened by ☰ in the top bar (backdrop / Esc closes it).
 - **Account**: login, logout, change password.
 
 ---
@@ -234,7 +239,7 @@ Grouped, each is an authorization policy + assignable privilege:
 | المشتريات | Suppliers.View / Create / Edit / Delete / Pay (suppliers, purchase orders, payments); PurchaseInvoices.View / Create / Edit / Delete |
 | التقارير | Reports.View |
 | التسويق | Campaigns.View / Create / Edit / Delete |
-| المستخدمون والصلاحيات | Users.View / Create / Edit / Delete |
+| المستخدمون والصلاحيات | Users.View / Create / Edit / Delete / ResetPassword (set another user's password; own password is always via «تغيير كلمة المرور» with the current one) |
 | إدارة النظام | ActivityLog.View, Settings.Manage, Tenants.Manage |
 
 ---

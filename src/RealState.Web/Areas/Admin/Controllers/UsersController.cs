@@ -40,9 +40,14 @@ public class UsersController : Controller
     {
         var tenantNames = await _db.Tenants.ToDictionaryAsync(t => t.Id, t => t.Name, ct);
 
-        var query = _userManager.Users.AsQueryable();
-        if (!IsSuper) query = query.Where(u => u.TenantId == _currentUser.TenantId);
-        var users = await query.OrderBy(u => u.UserName).ToListAsync(ct);
+        // Always the current tenant's users only — for the Syncro host that is the tenant it selected
+        // (tenant_id in its cookie), so switching tenant switches the list.
+        var tenantId = _currentUser.TenantId;
+        var users = await _userManager.Users
+            .Where(u => u.TenantId == tenantId)
+            .OrderBy(u => u.UserName)
+            .ToListAsync(ct);
+        ViewData["TenantName"] = tenantNames.TryGetValue(tenantId, out var tn) ? tn : null;
 
         var items = new List<UserListItem>();
         foreach (var u in users)
@@ -259,22 +264,27 @@ public class UsersController : Controller
         return RedirectToAction(nameof(Index));
     }
 
+    // Setting ANOTHER user's password needs its own permission (Users.ResetPassword). Everyone changes their own
+    // password only from Account/ChangePassword, which asks for the current one — so this screen never
+    // applies to the signed-in user, and a scoped admin can't reset a SuperAdmin's password.
     [HttpGet]
-    [Authorize(Policy = PermissionNames.UsersEdit)]
+    [Authorize(Policy = PermissionNames.UsersResetPassword)]
     public async Task<IActionResult> ResetPassword(Guid id, CancellationToken ct)
     {
         var user = await _userManager.FindByIdAsync(id.ToString());
         if (user is null || !CanManage(user)) return NotFound();
+        if (await ResetBlockedAsync(user) is IActionResult blocked) return blocked;
         return View(new ResetPasswordViewModel { Id = user.Id, UserName = user.UserName ?? "" });
     }
 
     [HttpPost]
-    [Authorize(Policy = PermissionNames.UsersEdit)]
+    [Authorize(Policy = PermissionNames.UsersResetPassword)]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> ResetPassword(ResetPasswordViewModel model, CancellationToken ct)
     {
         var user = await _userManager.FindByIdAsync(model.Id.ToString());
         if (user is null || !CanManage(user)) return NotFound();
+        if (await ResetBlockedAsync(user) is IActionResult blocked) return blocked;
         if (!ModelState.IsValid) return View(model);
 
         var token = await _userManager.GeneratePasswordResetTokenAsync(user);
@@ -290,6 +300,19 @@ public class UsersController : Controller
     }
 
     private bool CanManage(ApplicationUser user) => IsSuper || user.TenantId == _currentUser.TenantId;
+
+    /// <summary>Why the admin password reset can't target this user (null = allowed).</summary>
+    private async Task<IActionResult?> ResetBlockedAsync(ApplicationUser user)
+    {
+        if (_currentUser.UserId == user.Id)
+            return RedirectToAction("ChangePassword", "Account", new { area = "" });   // own password: current one required
+        if (!IsSuper && await _userManager.IsInRoleAsync(user, AppConstants.SuperAdminRole))
+        {
+            TempData["ErrorMessage"] = "لا يمكن تغيير كلمة مرور مدير عام.";
+            return RedirectToAction(nameof(Index));
+        }
+        return null;
+    }
 
     // ---------- permissions ----------
 
