@@ -346,12 +346,20 @@ public abstract class TxnControllerBase : Controller
                 ViewBag.About = $"تحصيل {ArabicLabels.InstPhrase(inst.Number)}";
             }
         }
+        else if (t.Source == TxnSource.SalesInvoiceCollection
+                 && await _db.SalesInvoiceCollections.FirstOrDefaultAsync(c => c.SafeTransactionId == t.Id, ct) is { } sic)
+        {
+            ViewBag.PartyLabel = "العميل";
+            ViewBag.Party = await _db.Customers.IgnoreQueryFilters().Where(c => c.Id == sic.CustomerId).Select(c => c.FullName).FirstOrDefaultAsync(ct);
+            var invNo = await _db.ProductSalesInvoices.IgnoreQueryFilters().Where(i => i.Id == sic.SalesInvoiceId).Select(i => (int?)i.Number).FirstOrDefaultAsync(ct);
+            ViewBag.About = invNo.HasValue ? $"تحصيل فاتورة مبيعات SI-{invNo}" : "تحصيل فاتورة مبيعات";
+        }
         return View("PrintOne", t);
     }
 
     // System (non-manual) sources per direction — shown in «المصدر» alongside the predefined categories.
     // Manual entries are represented by their category (بند) instead, so Manual is intentionally omitted.
-    private static readonly TxnSource[] IncomeSources = { TxnSource.Collection, TxnSource.AdvanceRepayment };
+    private static readonly TxnSource[] IncomeSources = { TxnSource.Collection, TxnSource.SalesInvoiceCollection, TxnSource.AdvanceRepayment };
     private static readonly TxnSource[] ExpenseSources = { TxnSource.ProjectExpense, TxnSource.SupplierPayment, TxnSource.ContractorPayment, TxnSource.AdvanceDisbursement, TxnSource.RewardPayment };
 
     private async Task<TxnListVm> BuildListAsync(DateTime? from, DateTime? to, string? q, string? source, CancellationToken ct)

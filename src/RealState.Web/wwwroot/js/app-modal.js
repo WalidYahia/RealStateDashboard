@@ -29,7 +29,33 @@ window.appToast = function (msg, icon) {
 (function () {
     let modal;
     function ensureModal() {
-        return modal || (modal = new bootstrap.Modal(document.getElementById('appModal')));
+        if (modal) return modal;
+        var el = document.getElementById('appModal');
+        modal = new bootstrap.Modal(el);
+
+        // A popup holding a form (invoices, orders, collections, … — any add/edit) closes ONLY from its ✕ button:
+        // a click outside it or Esc would silently throw away what was typed. Read-only popups (help, details)
+        // still close either way.
+        // Bootstrap runs the ✕ (data-bs-dismiss) click in the document's capture phase — before any listener here —
+        // so the intent is recorded on pointer-down / Enter / Space, and trusted for a moment only.
+        var closeRequestedAt = 0;
+        function markClose(e) {
+            if (e.type === 'keydown' && e.key !== 'Enter' && e.key !== ' ') return;
+            if (e.target.closest && e.target.closest('[data-bs-dismiss="modal"]')) closeRequestedAt = Date.now();
+        }
+        el.addEventListener('pointerdown', markClose, true);
+        el.addEventListener('keydown', markClose, true);
+        el.addEventListener('hide.bs.modal', function (e) {
+            var locked = !!document.querySelector('#appModalBody form');
+            var viaClose = Date.now() - closeRequestedAt < 1500;
+            closeRequestedAt = 0;
+            if (viaClose || !locked) return;
+            e.preventDefault();
+            // Bootstrap's static-backdrop nudge, so the user sees the popup is intentionally staying open.
+            el.classList.add('modal-static');
+            setTimeout(function () { el.classList.remove('modal-static'); }, 300);
+        });
+        return modal;
     }
 
     // Optional size: 'xl' for wide forms (e.g. documents with line tables); default is the large dialog.

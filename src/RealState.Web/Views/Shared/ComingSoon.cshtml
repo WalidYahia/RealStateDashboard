@@ -1,0 +1,23 @@
+@*
+    Placeholder for a menu item whose feature isn't built yet. The action sets ViewData Title / Message and,
+    optionally, BackText + BackUrl (a link to the closest working page).
+*@
+@{
+    var title = ViewData["Title"] as string ?? "قريبًا";
+    var message = ViewData["Message"] as string ?? "هذه الخاصية قيد التطوير وستتوفر قريبًا.";
+    var backText = ViewData["BackText"] as string;
+    var backUrl = ViewData["BackUrl"] as string;
+}
+<div class="page-head">
+    <h1>@title</h1>
+</div>
+
+<div class="card-tile" style="text-align:center;padding:56px 24px;">
+    <div style="font-size:52px;line-height:1;margin-bottom:14px;" aria-hidden="true">🚧</div>
+    <h2 style="font-size:22px;font-weight:800;margin:0 0 8px;">قريبًا</h2>
+    <p style="color:var(--text-secondary);max-width:520px;margin:0 auto 20px;line-height:1.9;">@message</p>
+    @if (!string.IsNullOrEmpty(backUrl))
+    {
+        <a class="btn-sm" href="@backUrl">↩ الذهاب إلى @backText</a>
+    }
+</div>

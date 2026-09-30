@@ -15,6 +15,7 @@ public static class AccountingSources
 {
     public const string PurchaseInvoice = "PurchaseInvoice";
     public const string SafeTransfer = "SafeTransfer";
+    public const string SalesInvoice = "ProductSalesInvoice";
 }
 
 public interface IAccountingService
@@ -59,6 +60,11 @@ public interface IAccountingService
     /// <summary>Purchase invoice → Dr بضاعة واردة لم تُفوتر (stock products) / Dr المشتريات (non-stock products),
     /// Cr الموردون (the supplier's payable). Re-posts (removes old first) so edits stay in sync.</summary>
     Task SyncPurchaseInvoiceAsync(PurchaseInvoice invoice, IReadOnlyList<PurchaseInvoiceItem> items, CancellationToken ct = default);
+
+    /// <summary>Product sales invoice → Dr العملاء (the customer's receivable) / Cr the inventory posting profile's
+    /// sales-revenue account (إيرادات مبيعات البضائع by default). Re-posts (removes old first) so edits stay in sync.
+    /// The cost side (Dr تكلفة المبيعات / Cr المخزون) is posted by the invoice's automatic goods issue.</summary>
+    Task SyncSalesInvoiceAsync(ProductSalesInvoice invoice, IReadOnlyList<ProductSalesInvoiceItem> items, CancellationToken ct = default);
 
     /// <summary>Work order → Dr أعمال المقاولات / Cr المقاولون at its current الإجمالي الفعلي. Re-posts on progress/edit.</summary>
     Task SyncWorkOrderAsync(WorkOrder order, CancellationToken ct = default);

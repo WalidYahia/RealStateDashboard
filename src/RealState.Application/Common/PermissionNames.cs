@@ -42,6 +42,13 @@ public static class PermissionNames
     public const string SalesEdit = "Sales.Edit";
     public const string SalesDelete = "Sales.Delete";
 
+    // ----- Product sales invoices (فواتير المبيعات) — products sold to customers, separate from real-estate contracts -----
+    public const string SalesInvoicesView = "SalesInvoices.View";
+    public const string SalesInvoicesCreate = "SalesInvoices.Create";
+    public const string SalesInvoicesEdit = "SalesInvoices.Edit";
+    public const string SalesInvoicesDelete = "SalesInvoices.Delete";
+    public const string SalesInvoicesCollect = "SalesInvoices.Collect";   // record collections (تحصيل) against an invoice
+
     // ----- Collections -----
     public const string CollectionsView = "Collections.View";
     public const string CollectionsCollect = "Collections.Collect";
@@ -153,6 +160,7 @@ public static class PermissionNames
     private const string GProjects = "المشاريع";
     private const string GSales = "المبيعات (العقود)";
     private const string GCollections = "التحصيلات";
+    private const string GSalesInvoices = "فواتير المبيعات (الأصناف)";
     private const string GSafes = "الخزائن";
     private const string GExpenses = "المصروفات";
     private const string GIncomes = "الإيرادات";
@@ -188,6 +196,12 @@ public static class PermissionNames
         new PermissionInfo(SalesCreate, "إنشاء عقد بيع",  GSales),
         new PermissionInfo(SalesEdit,   "تعديل عقود البيع", GSales),
         new PermissionInfo(SalesDelete, "حذف عقود البيع", GSales),
+
+        new PermissionInfo(SalesInvoicesView,    "عرض فواتير المبيعات",            GSalesInvoices),
+        new PermissionInfo(SalesInvoicesCreate,  "إضافة فاتورة مبيعات",            GSalesInvoices),
+        new PermissionInfo(SalesInvoicesEdit,    "تعديل فواتير المبيعات",          GSalesInvoices),
+        new PermissionInfo(SalesInvoicesDelete,  "حذف فواتير المبيعات",            GSalesInvoices),
+        new PermissionInfo(SalesInvoicesCollect, "تحصيل مبالغ فواتير المبيعات من العملاء", GSalesInvoices),
 
         new PermissionInfo(CollectionsView,    "عرض التحصيلات", GCollections),
         new PermissionInfo(CollectionsCollect, "تحصيل الأقساط", GCollections),

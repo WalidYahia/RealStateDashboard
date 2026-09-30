@@ -63,11 +63,19 @@
                     var canSalesContracts = Can(PermissionNames.SalesView);
                     var canCollections = Can(PermissionNames.CollectionsView);
                     var canCampaigns = Can(PermissionNames.CampaignsView);
-                    // Sales group now also hosts Salespersons (المناديب) and Customers (العملاء) from the CRM area.
-                    var salesOpen = curCtrl is "Sales" or "Collections" or "Salespersons" or "Customers";
-                    // Parent "المبيعات" points to the sales summary — highlight it only on the summary itself.
+                    var canSalesInvoices = Can(PermissionNames.SalesInvoicesView);
+                    var canReports = Can(PermissionNames.ReportsView);
+                    var repAct = curArea == "Reports" && curCtrl == "Reports" ? curAction : null;
+                    // «التعاقدات» — real-estate contracts + their collections. Parent points to the contracts summary.
+                    var contractsOpen = curCtrl is "Sales" or "Collections";
                     var salesSummaryActive = curCtrl == "Sales" && (curAction == "Summary" || curAction == "SummaryPrint");
                     var salesContractsActive = curCtrl == "Sales" && !salesSummaryActive;
+                    // «العملاء» — salespersons, customers and the customers report.
+                    var customersOpen = curCtrl is "Salespersons" or "Customers" || repAct == "Customers";
+                    // «المبيعات» — product sales invoices (+ returns, planned). Parent points to the sales-invoices summary.
+                    var invSalesOpen = curCtrl == "SalesInvoices";
+                    var invSummaryActive = invSalesOpen && (curAction == "Summary" || curAction == "SummaryPrint");
+                    var invReturnsActive = invSalesOpen && curAction == "Returns";
                     // Marketing group hosts Campaigns (الحملات) and "إدارة علاقات العملاء" (the Leads page).
                     var mktOpen = curArea == "Marketing" || curCtrl == "Leads";
                 }
@@ -90,29 +98,40 @@
                         </div>
                     </div>
                 }
-                @if (canSalesContracts || canCollections || canSalespersons || canCustomers)
+                @if (canSalesContracts || canCollections)
                 {
-                    <div class="nav-group @(salesOpen ? "open" : "")">
+                    <div class="nav-group @(contractsOpen ? "open" : "")">
                         <div class="nav-parent">
                             @if (canSalesContracts)
                             {
-                                <a class="nav-link @(salesSummaryActive ? "active" : "")" asp-area="Sales" asp-controller="Sales" asp-action="Summary"><span>🛒</span> المبيعات</a>
+                                <a class="nav-link @(salesSummaryActive ? "active" : "")" asp-area="Sales" asp-controller="Sales" asp-action="Summary"><span>📝</span> التعاقدات</a>
                             }
                             else
                             {
-                                <a class="nav-link" href="javascript:" onclick="toggleNavGroup(this)"><span>🛒</span> المبيعات</a>
+                                <a class="nav-link" href="javascript:" onclick="toggleNavGroup(this)"><span>📝</span> التعاقدات</a>
                             }
                             <button type="button" class="nav-caret" onclick="toggleNavGroup(this)">▾</button>
                         </div>
                         <div class="subnav">
                             @if (canSalesContracts)
                             {
-                                <a class="subnav-link @(salesContractsActive ? "active" : "")" asp-area="Sales" asp-controller="Sales" asp-action="Index">المبيعات (عقود البيع)</a>
+                                <a class="subnav-link @(salesContractsActive ? "active" : "")" asp-area="Sales" asp-controller="Sales" asp-action="Index">العقود</a>
                             }
                             @if (canCollections)
                             {
-                                <a class="subnav-link @NavActive("Collections")" asp-area="Sales" asp-controller="Collections" asp-action="Index">تحصيلات المبيعات</a>
+                                <a class="subnav-link @NavActive("Collections")" asp-area="Sales" asp-controller="Collections" asp-action="Index">التحصيلات</a>
                             }
+                        </div>
+                    </div>
+                }
+                @if (canSalespersons || canCustomers || canReports)
+                {
+                    <div class="nav-group @(customersOpen ? "open" : "")">
+                        <div class="nav-parent">
+                            <a class="nav-link @(customersOpen ? "active" : "")" href="javascript:" onclick="toggleNavGroup(this)"><span>👥</span> العملاء</a>
+                            <button type="button" class="nav-caret" onclick="toggleNavGroup(this)">▾</button>
+                        </div>
+                        <div class="subnav">
                             @if (canSalespersons)
                             {
                                 <a class="subnav-link @NavActive("Salespersons")" asp-area="CRM" asp-controller="Salespersons" asp-action="Index">المناديب</a>
@@ -121,6 +140,23 @@
                             {
                                 <a class="subnav-link @NavActive("Customers")" asp-area="CRM" asp-controller="Customers" asp-action="Index">العملاء</a>
                             }
+                            @if (canReports)
+                            {
+                                <a class="subnav-link @(repAct == "Customers" ? "active" : "")" asp-area="Reports" asp-controller="Reports" asp-action="Customers">تقرير العملاء</a>
+                            }
+                        </div>
+                    </div>
+                }
+                @if (canSalesInvoices)
+                {
+                    <div class="nav-group @(invSalesOpen ? "open" : "")">
+                        <div class="nav-parent">
+                            <a class="nav-link @(invSummaryActive ? "active" : "")" asp-area="Sales" asp-controller="SalesInvoices" asp-action="Summary"><span>🛒</span> المبيعات</a>
+                            <button type="button" class="nav-caret" onclick="toggleNavGroup(this)">▾</button>
+                        </div>
+                        <div class="subnav">
+                            <a class="subnav-link @(invSalesOpen && !invSummaryActive && !invReturnsActive ? "active" : "")" asp-area="Sales" asp-controller="SalesInvoices" asp-action="Index">فواتير المبيعات</a>
+                            <a class="subnav-link @(invReturnsActive ? "active" : "")" asp-area="Sales" asp-controller="SalesInvoices" asp-action="Returns">مرتجعات المبيعات <span class="nav-soon">قريبًا</span></a>
                         </div>
                     </div>
                 }
@@ -131,9 +167,32 @@
                 @{
                     var supArea = ViewContext.RouteData.Values["area"]?.ToString();
                     var supCtrl = ViewContext.RouteData.Values["controller"]?.ToString();
-                    var supOpen = supArea == "Suppliers";
                     var canSuppliers = Can(PermissionNames.SuppliersView);
                     var canPurchaseInvoices = Can(PermissionNames.PurchaseInvoicesView);
+                    // «الموردين» — the suppliers list/statements + the suppliers report.
+                    var suppliersOpen = (supArea == "Suppliers" && supCtrl == "Suppliers") || repAct == "Suppliers";
+                    // «المشتريات» — purchase orders, invoices (+ returns, planned).
+                    var supOpen = supArea == "Suppliers" && supCtrl != "Suppliers";
+                    var purReturnsActive = supOpen && supCtrl == "PurchaseInvoices" && curAction == "Returns";
+                }
+                @if (canSuppliers || canReports)
+                {
+                    <div class="nav-group @(suppliersOpen ? "open" : "")">
+                        <div class="nav-parent">
+                            <a class="nav-link @(suppliersOpen ? "active" : "")" href="javascript:" onclick="toggleNavGroup(this)"><span>🏭</span> الموردين</a>
+                            <button type="button" class="nav-caret" onclick="toggleNavGroup(this)">▾</button>
+                        </div>
+                        <div class="subnav">
+                            @if (canSuppliers)
+                            {
+                                <a class="subnav-link @(supArea == "Suppliers" && supCtrl == "Suppliers" ? "active" : "")" asp-area="Suppliers" asp-controller="Suppliers" asp-action="Index">الموردين</a>
+                            }
+                            @if (canReports)
+                            {
+                                <a class="subnav-link @(repAct == "Suppliers" ? "active" : "")" asp-area="Reports" asp-controller="Reports" asp-action="Suppliers">تقرير الموردين</a>
+                            }
+                        </div>
+                    </div>
                 }
                 @if (canSuppliers || canPurchaseInvoices)
                 {
@@ -145,12 +204,12 @@
                         <div class="subnav">
                             @if (canSuppliers)
                             {
-                                <a class="subnav-link @(supOpen && supCtrl == "Suppliers" ? "active" : "")" asp-area="Suppliers" asp-controller="Suppliers" asp-action="Index">قائمة الموردين</a>
                                 <a class="subnav-link @(supOpen && supCtrl == "Orders" ? "active" : "")" asp-area="Suppliers" asp-controller="Orders" asp-action="Index">أوامر التوريد</a>
                             }
                             @if (canPurchaseInvoices)
                             {
-                                <a class="subnav-link @(supOpen && supCtrl == "PurchaseInvoices" ? "active" : "")" asp-area="Suppliers" asp-controller="PurchaseInvoices" asp-action="Index">فواتير المشتريات</a>
+                                <a class="subnav-link @(supOpen && supCtrl == "PurchaseInvoices" && !purReturnsActive ? "active" : "")" asp-area="Suppliers" asp-controller="PurchaseInvoices" asp-action="Index">فواتير المشتريات</a>
+                                <a class="subnav-link @(purReturnsActive ? "active" : "")" asp-area="Suppliers" asp-controller="PurchaseInvoices" asp-action="Returns">مرتجعات المشتريات <span class="nav-soon">قريبًا</span></a>
                             }
                         </div>
                     </div>
@@ -285,7 +344,8 @@
                 {
                     var repArea = ViewContext.RouteData.Values["area"]?.ToString();
                     var repAction = ViewContext.RouteData.Values["action"]?.ToString();
-                    var repOpen = repArea == "Reports";
+                    // The customers / suppliers reports live under «العملاء» / «الموردين».
+                    var repOpen = repArea == "Reports" && repAction is not ("Customers" or "Suppliers");
                     <div class="nav-group @(repOpen ? "open" : "")">
                         <div class="nav-parent">
                             <a class="nav-link @(repOpen ? "active" : "")" href="javascript:" onclick="toggleNavGroup(this)"><span>📑</span> التقارير</a>
@@ -295,8 +355,6 @@
                             @if (Can(PermissionNames.ReportsView))
                             {
                                 <a class="subnav-link @(repOpen && repAction == "Daily" ? "active" : "")" asp-area="Reports" asp-controller="Reports" asp-action="Daily">التقرير اليومي</a>
-                                <a class="subnav-link @(repOpen && repAction == "Customers" ? "active" : "")" asp-area="Reports" asp-controller="Reports" asp-action="Customers">تقرير العملاء</a>
-                                <a class="subnav-link @(repOpen && repAction == "Suppliers" ? "active" : "")" asp-area="Reports" asp-controller="Reports" asp-action="Suppliers">تقرير الموردين</a>
                             }
                             @if (Can(PermissionNames.ReportsProjects))
                             {

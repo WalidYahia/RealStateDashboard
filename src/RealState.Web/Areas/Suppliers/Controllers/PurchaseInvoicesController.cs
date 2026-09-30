@@ -354,6 +354,17 @@ public class PurchaseInvoicesController : Controller
     [HttpGet]
     public IActionResult Help() => PartialView("_Help");
 
+    /// <summary>مرتجعات المشتريات — planned; shows a "coming soon" page for now.</summary>
+    [HttpGet]
+    public IActionResult Returns()
+    {
+        ViewData["Title"] = "مرتجعات المشتريات";
+        ViewData["Message"] = "إدارة مرتجعات المشتريات (إرجاع الأصناف للمورد وتسوية حسابه والمخزون) قيد التطوير وستتوفر قريبًا.";
+        ViewData["BackText"] = "فواتير المشتريات";
+        ViewData["BackUrl"] = Url.Action(nameof(Index));
+        return View("~/Views/Shared/ComingSoon.cshtml");
+    }
+
     // ---------- Single invoice (view + print) ----------
     public async Task<IActionResult> Details(Guid id, CancellationToken ct)
     {

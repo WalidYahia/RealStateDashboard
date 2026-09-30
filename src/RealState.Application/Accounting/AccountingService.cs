@@ -111,6 +111,11 @@ public class AccountingService : IAccountingService
                 return new LedgerLine(LedgerAccounts.AccountsReceivable, 0, 0,
                     SubKind: "Customer", SubRefId: cust, SubName: await NameAsync("Customer", cust), CustomerId: cust);
 
+            case TxnSource.SalesInvoiceCollection when customerId is Guid invCust:
+                // Collection on a product sales invoice settles the same customer receivable.
+                return new LedgerLine(LedgerAccounts.AccountsReceivable, 0, 0,
+                    SubKind: "Customer", SubRefId: invCust, SubName: await NameAsync("Customer", invCust), CustomerId: invCust);
+
             case TxnSource.SupplierPayment when supplierId is Guid sup:
                 return new LedgerLine(LedgerAccounts.AccountsPayable, 0, 0,
                     SubKind: "Supplier", SubRefId: sup, SubName: await NameAsync("Supplier", sup), SupplierId: sup);
@@ -253,6 +258,25 @@ public class AccountingService : IAccountingService
             SubKind: "Supplier", SubRefId: inv.SupplierId, SubName: supName, SupplierId: inv.SupplierId, ProjectId: inv.ProjectId));
 
         await _engine.PostAsync(inv.InvoiceDate, desc, AccountingSources.PurchaseInvoice, inv.Id, lines, ct);
+    }
+
+    public async Task SyncSalesInvoiceAsync(ProductSalesInvoice inv, IReadOnlyList<ProductSalesInvoiceItem> items, CancellationToken ct = default)
+    {
+        await _engine.RemoveBySourceAsync(AccountingSources.SalesInvoice, inv.Id, ct);
+        var total = items.Sum(i => i.LineTotal);
+        if (total <= 0) return;
+
+        var revenueCode = await _db.InventoryPostingProfiles.Select(p => p.SalesRevenueCode).FirstOrDefaultAsync(ct);
+        if (string.IsNullOrWhiteSpace(revenueCode)) revenueCode = LedgerAccounts.GoodsSalesRevenue;
+        var custName = await _db.Customers.IgnoreQueryFilters().Where(c => c.Id == inv.CustomerId).Select(c => c.FullName).FirstOrDefaultAsync(ct);
+        var desc = $"فاتورة مبيعات SI-{inv.Number}";
+
+        await _engine.PostAsync(inv.InvoiceDate, desc, AccountingSources.SalesInvoice, inv.Id, new[]
+        {
+            new LedgerLine(LedgerAccounts.AccountsReceivable, total, 0, desc,
+                SubKind: "Customer", SubRefId: inv.CustomerId, SubName: custName, CustomerId: inv.CustomerId),
+            new LedgerLine(revenueCode, 0, total, desc, CustomerId: inv.CustomerId),
+        }, ct);
     }
 
     public async Task PostSafeTransferAsync(SafeTransfer transfer, SafeTransaction outTxn, SafeTransaction inTxn, CancellationToken ct = default)

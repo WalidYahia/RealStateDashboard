@@ -1,7 +1,8 @@
 @model DocItemsVm
 @*
     Product-lines (الأصناف) editor shared by the purchase order and invoice forms. Behaviour lives in
-    wwwroot/js/purchase-doc.js (picking a product shows المخزون الحالي; تكلفة الوحدة is entered manually; totals recalc).
+    wwwroot/js/purchase-doc.js (picking a product shows المخزون الحالي; تكلفة الوحدة / سعر البيع is entered manually; totals recalc).
+    Sales invoices pass per-warehouse stock (data-wh-stock) so the stock column follows the form's WarehouseId select.
     ShowCost=false (purchase orders) → product + quantity only, no unit cost / totals.
 *@
 @{
@@ -10,6 +11,9 @@
     string N(decimal v) => v.ToString("N2", RealState.Web.AppCulture.Ar);
     // A zero cost (e.g. lines copied from a quantity-only order) renders empty so the user types it.
     string C(decimal v) => v == 0 ? "" : Q(v);
+    // Sales invoices: per-warehouse availability as {"warehouseId": qty} — purchase-doc.js shows the chosen warehouse's figure.
+    string? Wh(ProductOption p) => p.StockByWarehouse is null ? null
+        : System.Text.Json.JsonSerializer.Serialize(p.StockByWarehouse.ToDictionary(k => k.Key.ToString(), k => k.Value));
 }
 <style>
     /* Lines list: pinned header, scrolls after a few rows. The product picker menu is position:fixed, so it isn't clipped. */
@@ -31,8 +35,8 @@
             <tr>
                 <th style="min-width:240px;">الصنف</th>
                 <th style="width:90px;">الوحدة</th>
-                @if (Model.ShowCost) { <th style="width:130px;">تكلفة الوحدة</th> }
-                @if (Model.ShowStock) { <th style="width:110px;">المخزون الحالي</th> }
+                @if (Model.ShowCost) { <th style="width:130px;">@Model.PriceLabel</th> }
+                @if (Model.ShowStock) { <th style="width:110px;">@Model.StockLabel</th> }
                 <th style="width:110px;">الكمية</th>
                 @if (Model.ShowCost) { <th style="width:120px;">الإجمالي</th> }
                 <th style="width:40px;"></th>
@@ -57,7 +61,7 @@
                             <option value="">— اختر الصنف —</option>
                             @foreach (var p in Model.Products)
                             {
-                                <option value="@p.Id" data-stock="@(p.Tracked ? Q(p.Stock) : "")" data-unit="@p.Unit" selected="@(p.Id == it.ProductId)">@p.Label</option>
+                                <option value="@p.Id" data-stock="@(p.Tracked ? Q(p.Stock) : "")" data-unit="@p.Unit" data-wh-stock="@Wh(p)" selected="@(p.Id == it.ProductId)">@p.Label</option>
                             }
                         </select>
                     }
@@ -81,7 +85,7 @@
                 <option value="">— اختر الصنف —</option>
                 @foreach (var p in Model.Products)
                 {
-                    <option value="@p.Id" data-stock="@(p.Tracked ? Q(p.Stock) : "")" data-unit="@p.Unit">@p.Label</option>
+                    <option value="@p.Id" data-stock="@(p.Tracked ? Q(p.Stock) : "")" data-unit="@p.Unit" data-wh-stock="@Wh(p)">@p.Label</option>
                 }
             </select>
         </td>

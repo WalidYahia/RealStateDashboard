@@ -31,7 +31,8 @@ public static class LedgerAccounts
     public const string GoodsInventory = "1410";        // control account; per-warehouse subsidiaries hang under it
     public const string OwnerCapital = "3100";
     public const string OpeningBalanceEquity = "3200";
-    public const string SalesRevenue = "4100";
+    public const string SalesRevenue = "4100";         // real-estate sales (عقود البيع)
+    public const string GoodsSalesRevenue = "4200";    // product sales invoices (فواتير المبيعات)
     public const string OtherRevenue = "4900";
     public const string CostOfSales = "5100";
     public const string ProjectCosts = "5200";
@@ -69,6 +70,7 @@ public static class LedgerAccounts
         // Revenue
         new("4000", "الإيرادات", AccountType.Revenue, null, false),
         new(SalesRevenue, "إيرادات المبيعات", AccountType.Revenue, "4000", true),
+        new(GoodsSalesRevenue, "إيرادات مبيعات البضائع", AccountType.Revenue, "4000", true),
         new(OtherRevenue, "إيرادات أخرى", AccountType.Revenue, "4000", true),
 
         // Expenses

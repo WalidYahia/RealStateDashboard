@@ -122,8 +122,9 @@ public class ProductsController : Controller
         if (await _db.InventoryMovements.IgnoreQueryFilters().AnyAsync(m => m.ProductId == id, ct))
             TempData["ErrorMessage"] = "لا يمكن حذف صنف له حركات مخزون — يمكن إيقافه بدلًا من حذفه.";
         else if (await _db.PurchaseInvoiceItems.AnyAsync(i => i.ProductId == id, ct) ||
-                 await _db.SupplierOrderItems.AnyAsync(i => i.ProductId == id, ct))
-            TempData["ErrorMessage"] = "لا يمكن حذف صنف مستخدم في أوامر توريد أو فواتير مشتريات — يمكن إيقافه بدلًا من حذفه.";
+                 await _db.SupplierOrderItems.AnyAsync(i => i.ProductId == id, ct) ||
+                 await _db.ProductSalesInvoiceItems.AnyAsync(i => i.ProductId == id, ct))
+            TempData["ErrorMessage"] = "لا يمكن حذف صنف مستخدم في أوامر توريد أو فواتير مشتريات أو مبيعات — يمكن إيقافه بدلًا من حذفه.";
         else
         {
             _db.Products.Remove(p);

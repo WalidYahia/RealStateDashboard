@@ -89,6 +89,9 @@ public interface IApplicationDbContext
     DbSet<SalesInvoice> SalesInvoices { get; }
     DbSet<PurchaseInvoice> PurchaseInvoices { get; }
     DbSet<PurchaseInvoiceItem> PurchaseInvoiceItems { get; }
+    DbSet<ProductSalesInvoice> ProductSalesInvoices { get; }
+    DbSet<ProductSalesInvoiceItem> ProductSalesInvoiceItems { get; }
+    DbSet<SalesInvoiceCollection> SalesInvoiceCollections { get; }
     DbSet<Income> Incomes { get; }
     DbSet<Expense> Expenses { get; }
     DbSet<TaskItem> Tasks { get; }
@@ -100,4 +103,7 @@ public interface IApplicationDbContext
     DbSet<WorkTaskAttachment> WorkTaskAttachments { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>Entities of <typeparamref name="TEntity"/> added to this unit of work but not saved yet.</summary>
+    IEnumerable<TEntity> PendingAdds<TEntity>() where TEntity : class;
 }

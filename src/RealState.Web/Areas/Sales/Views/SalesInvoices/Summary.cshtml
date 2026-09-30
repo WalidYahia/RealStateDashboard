@@ -1,0 +1,182 @@
+@model SalesInvoiceSummaryVm
+@using System.Globalization
+@using System.Text.Json
+@using Microsoft.AspNetCore.Html
+@{
+    ViewData["Title"] = "ملخص المبيعات";
+    string N(decimal v) => v.ToString("N0", RealState.Web.AppCulture.Ar);
+    string C(decimal v) => v >= 1_000_000 ? (v / 1_000_000m).ToString("0.##") + "M"
+        : v >= 1000 ? (v / 1000m).ToString("0.#") + "K" : v.ToString("N0");
+    string D(DateTime d) => d.ToString("yyyy/MM/dd", CultureInfo.InvariantCulture);
+    var palette = new[] { "#3987e5", "#199e70", "#9085e9", "#c98500", "#d03b3b", "#2bb8a3" };
+    var canCustomers = User.Can(PermissionNames.CustomersView);
+
+    // A month-over-month delta badge for a KPI card foot.
+    Func<decimal, decimal, IHtmlContent> delta = (cur, prev) =>
+    {
+        var d = SalesSummaryVm.DeltaPct(cur, prev);
+        var cls = d >= 0 ? "delta-up" : "delta-down";
+        var arrow = d >= 0 ? "▲" : "▼";
+        return new HtmlString($"<span class=\"{cls}\">{arrow} {Math.Abs(d):0.#}%</span> <span style=\"color:var(--muted)\">عن الشهر الماضي</span>");
+    };
+
+    var monthLabels = Model.ByMonth.Select(m => m.Label).ToList();
+    var monthValues = Model.ByMonth.Select(m => m.Value).ToList();
+    var custLabels = Model.TopCustomers.Select(c => c.Customer).ToList();
+    var custValues = Model.TopCustomers.Select(c => c.Value).ToList();
+    var custColors = Model.TopCustomers.Select((c, i) => palette[i % palette.Length]).ToList();
+}
+
+<div class="page-head">
+    <h1>ملخص المبيعات <span style="color:var(--muted);font-size:.55em;font-weight:500;">فواتير الأصناف والعملاء</span></h1>
+    <div style="display:flex;gap:8px;">
+        <a class="btn-sm" asp-action="Index">🧾 فواتير المبيعات</a>
+        @if (User.Can(PermissionNames.SalesInvoicesCreate))
+        {
+            <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("Form")', 'فاتورة مبيعات جديدة', 'xl')">➕ فاتورة مبيعات</button>
+        }
+        <a class="btn-new-tenant" asp-action="SummaryPrint" target="_blank">🖨 طباعة الملخص (PDF)</a>
+    </div>
+</div>
+
+<!-- KPI cards -->
+<div class="kpi-grid">
+    <div class="kpi k-sales">
+        <div class="kpi-label">إجمالي المبيعات</div>
+        <div class="kpi-value">@C(Model.TotalSales) <span class="kpi-unit">ج.م</span></div>
+        <div class="kpi-foot">@delta(Model.SalesThisMonth, Model.SalesPrevMonth)</div>
+    </div>
+    <div class="kpi k-collect">
+        <div class="kpi-label">إجمالي التحصيل</div>
+        <div class="kpi-value">@C(Model.TotalCollected) <span class="kpi-unit">ج.م</span></div>
+        <div class="kpi-foot">@delta(Model.CollectedThisMonth, Model.CollectedPrevMonth)</div>
+    </div>
+    <div class="kpi k-reserve">
+        <div class="kpi-label">عدد الفواتير</div>
+        <div class="kpi-value">@Model.InvoicesCount</div>
+        <div class="kpi-foot">@delta(Model.InvoicesThisMonth, Model.InvoicesPrevMonth)</div>
+    </div>
+    <div class="kpi k-leads">
+        <div class="kpi-label">عملاء جدد (هذا الشهر)</div>
+        <div class="kpi-value">@Model.NewBuyersThisMonth</div>
+        <div class="kpi-foot">@delta(Model.NewBuyersThisMonth, Model.NewBuyersPrevMonth)</div>
+    </div>
+    <div class="kpi k-tasks">
+        <div class="kpi-label">مجمل الربح</div>
+        <div class="kpi-value">@C(Model.GrossProfit) <span class="kpi-unit">ج.م</span></div>
+        <div class="kpi-foot">هامش @Model.MarginPct.ToString("0.#")٪ · تكلفة المبيعات @C(Model.CostOfSales)</div>
+    </div>
+    <div class="kpi k-alerts">
+        <div class="kpi-label">المتبقي للتحصيل</div>
+        <div class="kpi-value">@C(Model.TotalRemaining) <span class="kpi-unit">ج.م</span></div>
+        <div class="kpi-foot">على @Model.CustomersWithBalance عميل من @Model.BuyingCustomers</div>
+    </div>
+</div>
+
+<!-- monthly line + top customers bar -->
+<div class="grid-row" style="grid-template-columns: 1fr 1fr; align-items:start;">
+    <div class="card-tile">
+        <div class="card-head"><h3>المبيعات الشهرية</h3><span class="pill">آخر 6 أشهر</span></div>
+        <div style="height:260px;"><canvas id="mChart"></canvas></div>
+    </div>
+    <div class="card-tile">
+        <div class="card-head"><h3>أكبر العملاء شراءً</h3><span class="pill">القيمة</span></div>
+        <div style="height:260px;">
+            @if (Model.TopCustomers.Count == 0)
+            {
+                <div style="color:var(--muted);padding:24px;text-align:center;">لا توجد مبيعات بعد.</div>
+            }
+            <canvas id="cChart"></canvas>
+        </div>
+    </div>
+</div>
+
+<!-- latest invoices + outstanding balances -->
+<div class="grid-row" style="grid-template-columns: 3fr 2fr; align-items:start;">
+    <div class="card-tile">
+        <div class="card-head"><h3>آخر الفواتير</h3><a class="btn-sm" asp-action="Index">عرض الكل</a></div>
+        <table class="rs-table">
+            <thead><tr><th>الرقم</th><th>العميل</th><th>الإجمالي</th><th>المتبقي</th><th>التاريخ</th></tr></thead>
+            <tbody>
+            @foreach (var i in Model.Latest)
+            {
+                <tr>
+                    <td><a asp-action="Details" asp-route-id="@i.Id" dir="ltr" style="color:var(--series-1);font-weight:600;text-decoration:none;">SI-@i.Number</a></td>
+                    <td>@i.Customer</td>
+                    <td class="tag-up">@N(i.Total)</td>
+                    <td>@N(i.Remaining)</td>
+                    <td dir="ltr" style="text-align:right;">@D(i.Date)</td>
+                </tr>
+            }
+            @if (Model.Latest.Count == 0)
+            {
+                <tr><td colspan="5" style="color:var(--muted)">لا توجد فواتير مبيعات بعد.</td></tr>
+            }
+            </tbody>
+        </table>
+    </div>
+    <div class="card-tile">
+        <div class="card-head"><h3>أرصدة العملاء المستحقة</h3><span class="pill">الأعلى</span></div>
+        <table class="rs-table">
+            <thead><tr><th>العميل</th><th>الفواتير</th><th>المتبقي</th></tr></thead>
+            <tbody>
+            @foreach (var c in Model.TopDebtors)
+            {
+                <tr>
+                    <td>
+                        @if (canCustomers)
+                        {
+                            <a asp-area="CRM" asp-controller="Customers" asp-action="Details" asp-route-id="@c.CustomerId" asp-fragment="sinv" style="color:var(--series-1);text-decoration:none;">@c.Customer</a>
+                        }
+                        else { @c.Customer }
+                    </td>
+                    <td>@c.Invoices</td>
+                    <td style="color:var(--critical);font-weight:600;">@N(c.Value)</td>
+                </tr>
+            }
+            @if (Model.TopDebtors.Count == 0)
+            {
+                <tr><td colspan="3" style="color:var(--muted)">لا توجد أرصدة مستحقة.</td></tr>
+            }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="~/js/purchase-doc.js" asp-append-version="true"></script>
+    <script>
+        (function () {
+            if (!window.Chart) return;
+            Chart.defaults.color = appThemeColor('--text-secondary');
+            Chart.defaults.font.family = 'system-ui, "Segoe UI", Tahoma, sans-serif';
+            var moneyTick = function (v) { return v >= 1000000 ? (v / 1000000) + 'M' : v >= 1000 ? (v / 1000) + 'k' : v; };
+
+            new Chart(document.getElementById('mChart'), {
+                type: 'line',
+                data: {
+                    labels: @Html.Raw(JsonSerializer.Serialize(monthLabels)),
+                    datasets: [{ label: 'المبيعات', data: @Html.Raw(JsonSerializer.Serialize(monthValues)), borderColor: '#3987e5', backgroundColor: 'rgba(57,135,229,.15)', fill: true, tension: .35, pointRadius: 3, borderWidth: 2 }]
+                },
+                options: {
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { y: { beginAtZero: true, ticks: { callback: moneyTick }, grid: { color: appThemeColor('--chart-grid') } }, x: { grid: { display: false } } }
+                }
+            });
+
+            var cv = @Html.Raw(JsonSerializer.Serialize(custValues));
+            if (cv.length) {
+                new Chart(document.getElementById('cChart'), {
+                    type: 'bar',
+                    data: { labels: @Html.Raw(JsonSerializer.Serialize(custLabels)), datasets: [{ data: cv, backgroundColor: @Html.Raw(JsonSerializer.Serialize(custColors)), borderRadius: 4 }] },
+                    options: {
+                        maintainAspectRatio: false,
+                        plugins: { legend: { display: false } },
+                        scales: { y: { beginAtZero: true, ticks: { callback: moneyTick }, grid: { color: appThemeColor('--chart-grid') } }, x: { grid: { display: false } } }
+                    }
+                });
+            }
+        })();
+    </script>
+}

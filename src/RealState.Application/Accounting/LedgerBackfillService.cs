@@ -71,6 +71,7 @@ public class LedgerBackfillService : ILedgerBackfillService
         var advByExpTxn = (await _db.Advances.Where(a => a.ExpenseTxnId != null).ToListAsync(ct)).ToDictionary(a => a.ExpenseTxnId!.Value, a => a);
         var advEmp = await _db.Advances.ToDictionaryAsync(a => a.Id, a => a.EmployeeId, ct);
         var repByIncTxn = (await _db.AdvanceRepayments.Where(r => r.IncomeTxnId != null).ToListAsync(ct)).ToDictionary(r => r.IncomeTxnId!.Value, r => r);
+        var sicByTxn = (await _db.SalesInvoiceCollections.Where(c => c.SafeTransactionId != null).ToListAsync(ct)).ToDictionary(c => c.SafeTransactionId!.Value, c => c);
         var rewByExpTxn = (await _db.Rewards.Where(r => r.ExpenseTxnId != null).ToListAsync(ct)).ToDictionary(r => r.ExpenseTxnId!.Value, r => r);
 
         foreach (var t in await _db.SafeTransactions.OrderBy(t => t.OccurredAt).ThenBy(t => t.Serial).ToListAsync(ct))
@@ -96,6 +97,9 @@ public class LedgerBackfillService : ILedgerBackfillService
                     break;
                 case TxnSource.AdvanceRepayment:
                     if (repByIncTxn.TryGetValue(t.Id, out var rep) && advEmp.TryGetValue(rep.AdvanceId, out var eid)) employeeId = eid;
+                    break;
+                case TxnSource.SalesInvoiceCollection:
+                    if (sicByTxn.TryGetValue(t.Id, out var sic)) customerId = sic.CustomerId;
                     break;
                 case TxnSource.RewardPayment:
                     if (rewByExpTxn.TryGetValue(t.Id, out var rw)) employeeId = rw.EmployeeId;

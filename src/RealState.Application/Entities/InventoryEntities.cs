@@ -129,6 +129,11 @@ public class GoodsIssue : AuditableEntity, ITenantEntity
     public Guid WarehouseId { get; set; }
     public Warehouse? Warehouse { get; set; }
     public IssueReason Reason { get; set; } = IssueReason.Sale;
+    /// <summary>Set when the issue was created automatically by a product sales invoice; it is then managed
+    /// (re-built / reversed) only through that invoice.</summary>
+    public Guid? SalesInvoiceId { get; set; }
+    /// <summary>The customer of the sales invoice that generated this issue (display only).</summary>
+    public Guid? CustomerId { get; set; }
     public InventoryDocStatus Status { get; set; } = InventoryDocStatus.Draft;
     public string? Notes { get; set; }
     public List<GoodsIssueLine> Lines { get; set; } = new();

@@ -1,0 +1,80 @@
+@model List<SalesInvoiceListItem>
+@{
+    ViewData["Title"] = "فواتير المبيعات";
+    var canCreate = ViewData["CanCreate"] as bool? ?? false;
+    var canEdit = ViewData["CanEdit"] as bool? ?? false;
+    string N(decimal v) => v.ToString("N2", RealState.Web.AppCulture.Ar);
+    string D(DateTime d) => d.ToString("yyyy/MM/dd", System.Globalization.CultureInfo.InvariantCulture);
+    string? F(DateTime? d) => d?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+    var total = Model.Sum(r => r.Total);
+    var collected = Model.Sum(r => r.Collected);
+}
+<div class="page-head">
+    <h1>فواتير المبيعات
+        <button type="button" title="شرح فاتورة المبيعات" onclick="appOpenModal('@Url.Action("Help")', 'شرح فاتورة المبيعات')" style="border:none;background:none;cursor:pointer;font-size:18px;vertical-align:middle;">❓</button>
+    </h1>
+    <div style="display:flex;gap:8px;">
+        @if (canCreate)
+        {
+            <button type="button" class="btn-new-tenant" onclick="appOpenModal('@Url.Action("Form")', 'فاتورة مبيعات جديدة', 'xl')">➕ فاتورة مبيعات جديدة</button>
+        }
+    </div>
+</div>
+
+@if (TempData["StatusMessage"] is string status)
+{
+    <div class="status-message">@status</div>
+}
+
+@{
+    var custId = (ViewBag.CustomerId as Guid?)?.ToString();
+    var custList = ViewBag.Customers as List<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem> ?? new();
+    var fFrom = F((DateTime?)ViewBag.From); var fTo = F((DateTime?)ViewBag.To);
+    var filter = FilterBarVm.For(Url.Action("Index"))
+        .DateRange(fFrom, fTo, "تاريخ الفاتورة")
+        .Select("customerId", "العميل", custList, custId)
+        .Print(Url.Action("PrintList", new { from = fFrom, to = fTo, customerId = custId }));
+}
+<partial name="_FilterBar" model="filter" />
+
+<div class="card-tile">
+    <div class="card-head">
+        <h3>الفواتير</h3>
+        <span class="pill">الفواتير: <span data-live-count="#sinvTable">@Model.Count</span> · الإجمالي: <span data-live-sum="#sinvTable:3">@N(total)</span> ج.م · المتبقي: <span data-live-sum="#sinvTable:5">@N(total - collected)</span> ج.م</span>
+    </div>
+    <div class="list-search-bar"><input class="form-control list-search" data-target="#sinvTable" placeholder="🔍 بحث في القائمة..." /></div>
+    <table class="rs-table" id="sinvTable">
+        <thead>
+            <tr><th>الرقم</th><th>التاريخ</th><th>العميل</th><th>الإجمالي</th><th>المحصَّل</th><th>المتبقي</th><th></th></tr>
+        </thead>
+        <tbody>
+        @foreach (var i in Model)
+        {
+            <tr>
+                <td style="white-space:nowrap;"><a asp-action="Details" asp-route-id="@i.Id" dir="ltr" style="color:var(--series-1);text-decoration:none;font-weight:600;">SI-@i.Number</a></td>
+                <td dir="ltr" style="text-align:right;">@D(i.InvoiceDate)</td>
+                <td>@i.Customer</td>
+                <td>@N(i.Total)</td>
+                <td class="tag-up">@N(i.Collected)</td>
+                <td>@N(i.Remaining)</td>
+                <td style="white-space:nowrap;">
+                    <a class="btn-sm" asp-action="Details" asp-route-id="@i.Id">التفاصيل</a>
+                    @if (canEdit)
+                    {
+                        <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("Form", new { id = i.Id })', 'تعديل فاتورة المبيعات', 'xl')">✏️ تعديل</button>
+                    }
+                </td>
+            </tr>
+        }
+        @if (Model.Count == 0)
+        {
+            <tr data-skip-search><td colspan="7" style="color:var(--muted)">لا توجد فواتير مبيعات.</td></tr>
+        }
+        <tr data-no-results data-skip-search style="display:none;"><td colspan="7" style="color:var(--muted)">لا توجد نتائج مطابقة للبحث.</td></tr>
+        </tbody>
+    </table>
+</div>
+
+@section Scripts {
+    <script src="~/js/purchase-doc.js" asp-append-version="true"></script>
+}

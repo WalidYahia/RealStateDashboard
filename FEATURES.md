@@ -80,6 +80,46 @@ role/permission‑based administration.
   **إيصال سداد/تحصيل** (receipt no. `C‑#####`). **Cancel** a collection reverses the income.
 - Batch “print all” collections report.
 
+### 2.4.1 Product sales invoices — فواتير المبيعات (`Sales` area)
+Selling inventory **products** to a customer — separate from real‑estate contracts, but billed to the same
+**Customers** (leads excluded). Mirrors purchase invoices. Menu: المبيعات ← فواتير المبيعات (الأصناف).
+- Number `SI‑YYYY######` (shown on the form before saving); date (not future); searchable customer
+  (required), warehouse (no project); product lines (searchable by code/name) with unit, **selling
+  price entered manually**, quantity, total. The stock column («المتاح بالمخزن») shows the product's
+  balance **in the chosen warehouse** and flags ⚠ a quantity above it (the save is refused too).
+- **Journal entries** (القيود المحاسبية):
+  | Entry | Debit | Credit |
+  |---|---|---|
+  | Invoice (selling price) | العملاء — customer subsidiary | إيرادات مبيعات البضائع (4200) |
+  | Automatic goods issue (cost) | تكلفة المبيعات | مخزون — warehouse subsidiary |
+  | Collection | الخزنة | العملاء — customer subsidiary |
+  The revenue account is the inventory posting profile's «حساب إيرادات المبيعات» — now **4200 إيرادات
+  مبيعات البضائع** (created per tenant; profiles still on the reserved, never‑used 4100 were repointed by
+  migration `ProductSalesInvoices`), so product sales stay apart from real‑estate sales (4100).
+- **Stock**: stock‑tracked lines leave the warehouse through an automatic, posted **goods issue (reason:
+  sale)** costed by the costing method; non‑stock products are revenue only. Edits that change
+  lines/quantities/warehouse/date reverse the issue (kept as معكوس, stock returns) and post a new one;
+  price/customer/notes edits only re‑post the invoice entry. Auto issues are managed only from their
+  invoice (the goods‑issues page shows «من الفاتورة SI‑…»). The inventory engine's stock check now also
+  counts movements pending in the same save, so reverse‑then‑reissue is one atomic save.
+- **Details page**: total / collected / remaining / **gross profit** (total − cost of sales, with
+  margin), lines, the goods issue(s), collections. Prints: invoice PDF, filtered list PDF.
+- **Collections (تحصيل)** per invoice into a safe → income movement (source «تحصيل فاتورة مبيعات»),
+  printable **إيصال استلام نقدية**; **cancel** a collection (overdraft rule applies).
+- Guards: can't delete an invoice with collections; total can't drop below collected; customer can't
+  change once collected; a customer / product used by sales invoices can't be deleted.
+- Customer page: new **فواتير المبيعات** tab (totals + list + «➕ فاتورة مبيعات»). Startup‑page option.
+- **Sales summary** (the «المبيعات» menu parent, `SalesInvoices/Summary`): KPIs with month‑over‑month
+  deltas (sales, collected, invoices, new buying customers), gross profit + margin, outstanding balance
+  (customers with a balance), monthly sales chart (last 6 months), top buyers chart, latest invoices,
+  top customer balances — plus a branded print. «مرتجعات المبيعات» is a «قريبًا» placeholder.
+
+**Side menu (sales & purchasing):** التعاقدات (parent → contracts summary; العقود، التحصيلات) · العملاء
+(المناديب، العملاء، تقرير العملاء) · المبيعات (parent → sales summary; فواتير المبيعات، مرتجعات المبيعات
+«قريبًا») · الموردين (الموردين، تقرير الموردين) · المشتريات (أوامر التوريد، فواتير المشتريات، مرتجعات
+المشتريات «قريبًا»). The customers / suppliers reports moved out of التقارير into their groups.
+Placeholders use the shared `Views/Shared/ComingSoon.cshtml`.
+
 ### 2.5 CRM (`CRM` area)
 - **Customers**: CRUD, unique phone, source, assigned salesperson; **statement (كشف حساب)** of all
   contracts with paid/remaining, printable statement, receipts, and due‑payment notices.
@@ -211,7 +251,7 @@ Every document number is **year‑prefixed and restarts at 1 each year**, using 
 | Series | Digits | Example (2026 → 2027) |
 |---|---|---|
 | سند قبض / سند صرف (income / expense vouchers) + supplier/contractor payment receipts | 7 | 20260000001 → 20270000001 |
-| Purchase invoice PI‑, safe transfer SF‑, inventory documents | 6 | 2026000001 → 2027000001 |
+| Purchase invoice PI‑, sales invoice SI‑, safe transfer SF‑, inventory documents | 6 | 2026000001 → 2027000001 |
 | Work order WO‑, journal entry, collection receipt C‑ | 5 | 202600001 → 202700001 |
 | Purchase order PO‑, advance ADV‑, reward RWD‑, task T‑, sale contract S‑ | 4 | 20260001 → 20270001 |
 
@@ -230,6 +270,7 @@ Grouped, each is an authorization policy + assignable privilege:
 | الرئيسية | Dashboard.View |
 | المشاريع | Projects.View / Create / Edit / Delete |
 | المبيعات (العقود) | Sales.View / Create / Delete |
+| فواتير المبيعات (الأصناف) | SalesInvoices.View / Create / Edit / Delete / Collect |
 | التحصيلات | Collections.View / Collect / Cancel |
 | الخزائن | Safes.View / Create / Edit / Delete / Transfer / Overdraft |
 | المصروفات | Expenses.View / Create / Edit / Delete |

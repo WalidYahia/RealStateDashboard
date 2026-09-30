@@ -60,6 +60,18 @@ public class CustomersController : Controller
         // Campaign-import details attached to this lead/customer (most recent first).
         ViewBag.CampaignLeads = await _db.CampaignLeads.Where(c => c.CustomerId == id)
             .OrderByDescending(c => c.CreatedTime).ToListAsync(ct);
+        // Product sales invoices (separate from the real-estate contracts statement above).
+        if (!customer.IsLead && Can(PermissionNames.SalesInvoicesView))
+        {
+            var invs = await _db.ProductSalesInvoices.Where(i => i.CustomerId == id).OrderByDescending(i => i.InvoiceDate).ThenByDescending(i => i.Number)
+                .Select(i => new { i.Id, i.Number, i.InvoiceDate }).ToListAsync(ct);
+            var invIds = invs.Select(i => i.Id).ToList();
+            var totals = await _db.ProductSalesInvoiceItems.Where(x => invIds.Contains(x.SalesInvoiceId)).GroupBy(x => x.SalesInvoiceId)
+                .Select(g => new { g.Key, Sum = g.Sum(x => x.LineTotal) }).ToDictionaryAsync(x => x.Key, x => x.Sum, ct);
+            var collected = await _db.SalesInvoiceCollections.Where(x => invIds.Contains(x.SalesInvoiceId)).GroupBy(x => x.SalesInvoiceId)
+                .Select(g => new { g.Key, Sum = g.Sum(x => x.Amount) }).ToDictionaryAsync(x => x.Key, x => x.Sum, ct);
+            ViewBag.SalesInvoices = invs.Select(i => (i.Id, i.Number, i.InvoiceDate, Total: totals.GetValueOrDefault(i.Id), Collected: collected.GetValueOrDefault(i.Id))).ToList();
+        }
         return View(vm);
     }
 
@@ -260,6 +272,13 @@ public class CustomersController : Controller
         var c = await _db.Customers.FirstOrDefaultAsync(x => x.Id == id, ct);
         if (c is null) return NotFound();
         if (!CanDeleteEntity(c.IsLead)) return Forbid();
+        // A customer billed by product sales invoices keeps its receivable history — delete the invoices first.
+        if (await _db.ProductSalesInvoices.AnyAsync(i => i.CustomerId == id, ct))
+        {
+            TempData["ErrorMessage"] = $"لا يمكن حذف العميل «{c.FullName}» لوجود فواتير مبيعات عليه — احذف الفواتير أولًا.";
+            if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl)) return LocalRedirect(returnUrl);
+            return RedirectToAction(nameof(Details), new { id });
+        }
         var wasLead = c.IsLead;
         var name = c.FullName;
         if (wasLead)

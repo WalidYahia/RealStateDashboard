@@ -58,6 +58,10 @@
     {
         <a class="subtab" data-cs="statement" href="javascript:" onclick="csTab(event,'statement')">كشف الحساب</a>
     }
+    @if (ViewBag.SalesInvoices is not null)
+    {
+        <a class="subtab" data-cs="sinv" href="javascript:" onclick="csTab(event,'sinv')">فواتير المبيعات</a>
+    }
 </div>
 
 <!-- info -->
@@ -155,6 +159,48 @@
     }
 </div>
 
+<!-- product sales invoices -->
+@if (ViewBag.SalesInvoices is List<(Guid Id, int Number, DateTime InvoiceDate, decimal Total, decimal Collected)> sinv)
+{
+    var sTotal = sinv.Sum(x => x.Total); var sCollected = sinv.Sum(x => x.Collected);
+    string N2(decimal v) => v.ToString("N2", RealState.Web.AppCulture.Ar);
+    <div id="cs-sinv" class="cstab" style="display:none;">
+        <div class="kpi-grid" style="grid-template-columns: repeat(3, 1fr);">
+            <div class="kpi k-tasks"><div class="kpi-label">إجمالي الفواتير</div><div class="kpi-value">@N2(sTotal) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">@sinv.Count فاتورة</div></div>
+            <div class="kpi k-sales"><div class="kpi-label">المحصَّل</div><div class="kpi-value">@N2(sCollected) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">من فواتير المبيعات</div></div>
+            <div class="kpi k-alerts"><div class="kpi-label">المتبقي</div><div class="kpi-value">@N2(sTotal - sCollected) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">مستحق على العميل</div></div>
+        </div>
+        <div class="card-tile">
+            <div class="card-head">
+                <h3>فواتير المبيعات (الأصناف)</h3>
+                @if (User.Can(PermissionNames.SalesInvoicesCreate))
+                {
+                    <button type="button" class="btn-new-tenant" onclick="appOpenModal('@Url.Action("Form", "SalesInvoices", new { area = "Sales", customerId = c.Id })', 'فاتورة مبيعات جديدة', 'xl')">➕ فاتورة مبيعات</button>
+                }
+            </div>
+            <table class="rs-table">
+                <thead><tr><th>الرقم</th><th>التاريخ</th><th>الإجمالي</th><th>المحصَّل</th><th>المتبقي</th></tr></thead>
+                <tbody>
+                @foreach (var x in sinv)
+                {
+                    <tr>
+                        <td><a asp-area="Sales" asp-controller="SalesInvoices" asp-action="Details" asp-route-id="@x.Id" dir="ltr" style="color:var(--series-1);font-weight:600;text-decoration:none;">SI-@x.Number</a></td>
+                        <td dir="ltr" style="text-align:right;">@D(x.InvoiceDate)</td>
+                        <td>@N2(x.Total)</td>
+                        <td class="tag-up">@N2(x.Collected)</td>
+                        <td>@N2(x.Total - x.Collected)</td>
+                    </tr>
+                }
+                @if (sinv.Count == 0)
+                {
+                    <tr><td colspan="5" style="color:var(--muted)">لا توجد فواتير مبيعات لهذا العميل.</td></tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+
 <!-- communications + action log -->
 <div id="cs-comm" class="cstab" style="display:none;">
     <div class="card-tile">
@@ -210,6 +256,8 @@
 </div>
 
 @section Scripts {
+    @* Product-lines editor of the «➕ فاتورة مبيعات» modal (sales invoices tab). *@
+    <script src="~/js/purchase-doc.js" asp-append-version="true"></script>
     <script>
         // Profiles open on the data (info) tab; the active tab is kept in the URL hash so a reload
         // after adding a log / updating status stays on the same tab.

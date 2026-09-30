@@ -435,6 +435,9 @@ select.form-control { appearance: auto; }
 .subnav-link:hover { background: var(--surface-2); color: var(--text-strong); }
 .subnav-link.active { background: linear-gradient(90deg, rgba(57,135,229,.18), transparent); color: var(--text-strong); }
 .subnav-empty { color: var(--muted); font-size: 12px; padding: 6px 14px; }
+/* «قريبًا» tag on menu items whose page isn't built yet (ComingSoon placeholder). */
+.nav-soon { display: inline-block; margin-inline-start: 6px; padding: 0 7px; border-radius: 999px; font-size: 10.5px; line-height: 17px;
+    font-weight: 700; color: var(--warning); background: rgba(250,178,25,.14); border: 1px solid rgba(250,178,25,.35); vertical-align: 1px; }
 
 /* ---------- Main ---------- */
 .main { display: flex; flex-direction: column; min-width: 0; }

@@ -38,7 +38,7 @@ public static class ActivityActionType
         if (a is "logout") return Logout;
         if (a is "login") return Login;
         if (a.Contains("delete") || a is "cancelpayment") return Delete;
-        if (a.Contains("create") || a is "pay") return Create;
+        if (a.Contains("create") || a is "pay" or "collect") return Create;
         if (a.Contains("edit") || a.Contains("update") || a.Contains("toggle")
             || a.Contains("reset") || a.Contains("branding") || a.Contains("upload")
             || a.Contains("selecttenant") || a.Contains("form")) return Update;
@@ -91,6 +91,7 @@ public static class ActivityActionType
         "Suppliers" => "مورد",
         "Orders" => "أمر توريد",
         "PurchaseInvoices" => "فاتورة مشتريات",
+        "SalesInvoices" => "فاتورة مبيعات",
         "Payments" => "دفعة لمورد",
         "Settings" => "الإعدادات",
         "Host" => "المؤسسة الحالية",

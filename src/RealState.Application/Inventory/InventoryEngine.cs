@@ -50,6 +50,18 @@ public class InventoryEngine : IInventoryEngine
             changed = true;
         }
 
+        // Revenue of product sales invoices, kept apart from real-estate sales (4100).
+        if (!await _db.Accounts.AnyAsync(a => a.Code == LedgerAccounts.GoodsSalesRevenue, ct))
+        {
+            var rev = await _db.Accounts.FirstOrDefaultAsync(a => a.Code == LedgerAccounts.RevenueGroup, ct);
+            _db.Accounts.Add(new Account
+            {
+                Code = LedgerAccounts.GoodsSalesRevenue, Name = "إيرادات مبيعات البضائع", Type = AccountType.Revenue,
+                ParentId = rev?.Id, IsPostable = true, IsActive = true, SortOrder = 15
+            });
+            changed = true;
+        }
+
         var profile = await _db.InventoryPostingProfiles.FirstOrDefaultAsync(ct);
         if (profile is null)
         {
@@ -61,7 +73,7 @@ public class InventoryEngine : IInventoryEngine
                 PurchaseGrniCode = LedgerAccounts.GoodsReceivedNotInvoiced,    // 2300 (liability, not an expense)
                 AdjustmentGainCode = LedgerAccounts.OtherRevenue,              // 4900
                 AdjustmentLossCode = LedgerAccounts.GeneralExpenses,           // 5900
-                SalesRevenueCode = LedgerAccounts.SalesRevenue,                // reserved for sales integration
+                SalesRevenueCode = LedgerAccounts.GoodsSalesRevenue,           // 4200 — product sales invoices
                 ConsumptionExpenseCode = LedgerAccounts.GeneralExpenses
             });
             changed = true;
@@ -127,6 +139,18 @@ public class InventoryEngine : IInventoryEngine
         // and any future movement type sign correctly with no extra rules.
         var qty = await q.SumAsync(m => (decimal?)(m.QuantityIn - m.QuantityOut), ct) ?? 0m;
         var value = await q.SumAsync(m => (decimal?)(m.QuantityOut > 0 ? -m.TotalCost : m.TotalCost), ct) ?? 0m;
+
+        // Plus movements added earlier in this same unit of work (not saved yet) — e.g. a sales invoice edit
+        // reverses its old goods issue and posts the new one in one save, so the stock the reversal puts back
+        // must count. A pending reversal counts whatever its (today) date: it undoes a document as of that
+        // document's own date.
+        foreach (var m in _db.PendingAdds<InventoryMovement>())
+        {
+            if (m.ProductId != productId || m.WarehouseId != warehouseId) continue;
+            if (asOf is DateTime d2 && m.Date >= d2.Date.AddDays(1) && !m.IsReversal) continue;
+            qty += m.QuantityIn - m.QuantityOut;
+            value += m.QuantityOut > 0 ? -m.TotalCost : m.TotalCost;
+        }
         var avg = qty > 0 ? Math.Round(value / qty, 4) : 0m;
         return new StockLevel(qty, value, avg);
     }

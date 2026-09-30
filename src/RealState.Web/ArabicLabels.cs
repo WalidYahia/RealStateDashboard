@@ -241,6 +241,7 @@ public static class ArabicLabels
         TxnSource.AdvanceRepayment => "سداد سلفة",
         TxnSource.ContractorPayment => "سداد مقاول",
         TxnSource.SafeTransfer => "تحويل بين الخزائن",
+        TxnSource.SalesInvoiceCollection => "تحصيل فاتورة مبيعات",
         _ => s.ToString()
     };
 

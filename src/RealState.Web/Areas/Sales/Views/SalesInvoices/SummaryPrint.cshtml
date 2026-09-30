@@ -1,0 +1,103 @@
+@model SalesInvoiceSummaryVm
+@using System.Text.Json
+@{
+    Layout = null;
+    string N(decimal v) => v.ToString("N0", RealState.Web.AppCulture.Ar);
+    var palette = new[] { "#3987e5", "#199e70", "#9085e9", "#c98500", "#d03b3b", "#2bb8a3" };
+    var custLabels = Model.TopCustomers.Select(c => c.Customer).ToList();
+    var custValues = Model.TopCustomers.Select(c => c.Value).ToList();
+    var custColors = Model.TopCustomers.Select((c, i) => palette[i % palette.Length]).ToList();
+    var monthLabels = Model.ByMonth.Select(m => m.Label).ToList();
+    var monthValues = Model.ByMonth.Select(m => m.Value).ToList();
+}
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="utf-8" />
+    <title>ملخص المبيعات</title>
+    <style>
+        @@page { size: A4 portrait; margin: 12mm; }
+        * { box-sizing: border-box; }
+        body { font-family: "Segoe UI", Tahoma, sans-serif; color: #111; margin: 0; padding: 16px; }
+        h1 { font-size: 19px; text-align: center; margin: 4px 0; }
+        .sub { text-align: center; color: #666; font-size: 12px; margin-bottom: 14px; }
+        .cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 16px; }
+        .card { border: 1px solid #ddd; border-radius: 8px; padding: 8px 10px; }
+        .card .lbl { color: #777; font-size: 11px; }
+        .card .val { font-size: 16px; font-weight: 800; margin-top: 2px; }
+        .charts { display: flex; gap: 14px; align-items: flex-start; justify-content: center; }
+        .chart-box { border: 1px solid #eee; border-radius: 8px; padding: 10px; }
+        .chart-box canvas { display: block; margin: 0 auto; max-width: 100%; }
+        h3 { font-size: 13px; margin: 0 0 8px; color: #333; text-align: center; }
+        table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 14px; }
+        th, td { border: 1px solid #ccc; padding: 5px 7px; text-align: start; unicode-bidi: plaintext; }
+        th { background: #f2f2f2; }
+        .no-print { margin-bottom: 12px; } @@media print { .no-print { display: none; } }
+    </style>
+</head>
+<body>
+    @await Component.InvokeAsync("ReportBackground", new { part = "open" })
+    <div class="no-print"><button onclick="window.print()">🖨 طباعة / حفظ PDF</button></div>
+    <h1>ملخص المبيعات — فواتير الأصناف</h1>
+    <div class="sub">@DateTime.Now.ToString("yyyy/MM/dd HH:mm")</div>
+
+    <div class="cards">
+        <div class="card"><div class="lbl">عدد الفواتير</div><div class="val">@Model.InvoicesCount</div></div>
+        <div class="card"><div class="lbl">إجمالي المبيعات</div><div class="val">@N(Model.TotalSales) ج.م</div></div>
+        <div class="card"><div class="lbl">إجمالي المحصّل</div><div class="val">@N(Model.TotalCollected) ج.م</div></div>
+        <div class="card"><div class="lbl">المتبقي للتحصيل</div><div class="val">@N(Model.TotalRemaining) ج.م</div></div>
+        <div class="card"><div class="lbl">متوسط قيمة الفاتورة</div><div class="val">@N(Model.AvgInvoice) ج.م</div></div>
+        <div class="card"><div class="lbl">تكلفة المبيعات</div><div class="val">@N(Model.CostOfSales) ج.م</div></div>
+        <div class="card"><div class="lbl">مجمل الربح (@Model.MarginPct.ToString("0.#")٪)</div><div class="val">@N(Model.GrossProfit) ج.م</div></div>
+        <div class="card"><div class="lbl">العملاء (عليهم رصيد)</div><div class="val">@Model.BuyingCustomers (@Model.CustomersWithBalance)</div></div>
+    </div>
+
+    <div class="charts">
+        <div class="chart-box"><h3>المحصّل مقابل المتبقي</h3><canvas id="chCollect" width="230" height="230"></canvas></div>
+        <div class="chart-box"><h3>أكبر العملاء شراءً</h3><canvas id="chCust" width="430" height="230"></canvas></div>
+    </div>
+    <div class="chart-box" style="margin-top:14px;"><h3>المبيعات شهريًا (آخر 6 أشهر)</h3><canvas id="chMonth" width="690" height="220"></canvas></div>
+
+    @if (Model.TopDebtors.Count > 0)
+    {
+        <table>
+            <thead><tr><th>العميل</th><th>عدد الفواتير</th><th>الرصيد المستحق (ج.م)</th></tr></thead>
+            <tbody>
+            @foreach (var c in Model.TopDebtors)
+            {
+                <tr><td>@c.Customer</td><td>@c.Invoices</td><td>@N(c.Value)</td></tr>
+            }
+            </tbody>
+        </table>
+    }
+
+    <script src="/lib/chartjs/chart.umd.min.js"></script>
+    <script>
+        window.addEventListener('load', function () {
+            if (!window.Chart) { window.print(); return; }
+            Chart.defaults.color = '#333';
+            Chart.defaults.font.size = 11;
+            var moneyTick = function (v) { return v >= 1000000 ? (v / 1000000) + 'M' : v >= 1000 ? (v / 1000) + 'k' : v; };
+            var moneyScale = { y: { beginAtZero: true, ticks: { callback: moneyTick } }, x: { grid: { display: false } } };
+
+            new Chart(document.getElementById('chCollect'), {
+                type: 'doughnut',
+                data: { labels: ['المحصّل', 'المتبقي'], datasets: [{ data: @Html.Raw(JsonSerializer.Serialize(new[] { Model.TotalCollected, Model.TotalRemaining })), backgroundColor: ['#2bb8a3', '#e0803a'], borderWidth: 0 }] },
+                options: { responsive: false, animation: false, cutout: '62%', plugins: { legend: { position: 'bottom' } } }
+            });
+            new Chart(document.getElementById('chCust'), {
+                type: 'bar',
+                data: { labels: @Html.Raw(JsonSerializer.Serialize(custLabels)), datasets: [{ data: @Html.Raw(JsonSerializer.Serialize(custValues)), backgroundColor: @Html.Raw(JsonSerializer.Serialize(custColors)), borderRadius: 4 }] },
+                options: { responsive: false, animation: false, plugins: { legend: { display: false } }, scales: moneyScale }
+            });
+            new Chart(document.getElementById('chMonth'), {
+                type: 'line',
+                data: { labels: @Html.Raw(JsonSerializer.Serialize(monthLabels)), datasets: [{ data: @Html.Raw(JsonSerializer.Serialize(monthValues)), borderColor: '#3987e5', backgroundColor: 'rgba(57,135,229,.15)', fill: true, tension: .3, pointRadius: 3 }] },
+                options: { responsive: false, animation: false, plugins: { legend: { display: false } }, scales: moneyScale }
+            });
+            setTimeout(function () { window.print(); }, 700);
+        });
+    </script>
+    @await Component.InvokeAsync("ReportBackground", new { part = "close" })
+</body>
+</html>

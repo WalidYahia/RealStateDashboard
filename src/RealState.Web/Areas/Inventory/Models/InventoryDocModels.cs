@@ -85,6 +85,8 @@ public class DocListRow
     public decimal TotalCost { get; set; }
     /// <summary>Goods receipts only: the purchase invoice that generated it (then it's managed from the invoice).</summary>
     public Guid? PurchaseInvoiceId { get; set; }
+    /// <summary>Goods issues only: the sales invoice that generated it (then it's managed from the invoice).</summary>
+    public Guid? SalesInvoiceId { get; set; }
     public string? SourceLabel { get; set; }
 }
 

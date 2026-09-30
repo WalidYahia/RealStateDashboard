@@ -107,6 +107,9 @@ public class ApplicationDbContext
     public DbSet<SalesInvoice> SalesInvoices => Set<SalesInvoice>();
     public DbSet<PurchaseInvoice> PurchaseInvoices => Set<PurchaseInvoice>();
     public DbSet<PurchaseInvoiceItem> PurchaseInvoiceItems => Set<PurchaseInvoiceItem>();
+    public DbSet<ProductSalesInvoice> ProductSalesInvoices => Set<ProductSalesInvoice>();
+    public DbSet<ProductSalesInvoiceItem> ProductSalesInvoiceItems => Set<ProductSalesInvoiceItem>();
+    public DbSet<SalesInvoiceCollection> SalesInvoiceCollections => Set<SalesInvoiceCollection>();
     public DbSet<Income> Incomes => Set<Income>();
     public DbSet<Expense> Expenses => Set<Expense>();
     public DbSet<TaskItem> Tasks => Set<TaskItem>();
@@ -247,6 +250,21 @@ public class ApplicationDbContext
         builder.Entity<PurchaseInvoiceItem>().Property(i => i.Quantity).HasPrecision(18, 4);
         builder.Entity<PurchaseInvoiceItem>().Property(i => i.Cost).HasPrecision(18, 4);
 
+        // Product sales invoices mirror purchase invoices: customer / warehouse restricted (deletes
+        // handled in code); items cascade with their invoice; collections restrict.
+        builder.Entity<ProductSalesInvoice>().HasIndex(i => new { i.TenantId, i.Number }).IsUnique().HasFilter("[IsDeleted] = 0");
+        builder.Entity<ProductSalesInvoice>().HasOne(i => i.Customer).WithMany().HasForeignKey(i => i.CustomerId).OnDelete(DeleteBehavior.Restrict);
+        builder.Entity<ProductSalesInvoice>().HasOne(i => i.Warehouse).WithMany().HasForeignKey(i => i.WarehouseId).OnDelete(DeleteBehavior.Restrict);
+        // An invoice's automatic goods issues point back at it (SET NULL so a hard tenant purge of invoices can't be blocked).
+        builder.Entity<GoodsIssue>().HasOne<ProductSalesInvoice>().WithMany().HasForeignKey(r => r.SalesInvoiceId).OnDelete(DeleteBehavior.SetNull);
+        builder.Entity<ProductSalesInvoiceItem>().HasOne(i => i.Invoice).WithMany(v => v.Items).HasForeignKey(i => i.SalesInvoiceId).OnDelete(DeleteBehavior.Cascade);
+        builder.Entity<ProductSalesInvoiceItem>().HasOne(i => i.Product).WithMany().HasForeignKey(i => i.ProductId).OnDelete(DeleteBehavior.Restrict);
+        builder.Entity<ProductSalesInvoiceItem>().Property(i => i.Quantity).HasPrecision(18, 4);
+        builder.Entity<ProductSalesInvoiceItem>().Property(i => i.Price).HasPrecision(18, 4);
+        builder.Entity<SalesInvoiceCollection>().HasOne(c => c.Customer).WithMany().HasForeignKey(c => c.CustomerId).OnDelete(DeleteBehavior.Restrict);
+        builder.Entity<SalesInvoiceCollection>().HasOne(c => c.Invoice).WithMany(i => i.Collections).HasForeignKey(c => c.SalesInvoiceId).OnDelete(DeleteBehavior.Restrict);
+        builder.Entity<SalesInvoiceCollection>().HasOne<Safe>().WithMany().HasForeignKey(c => c.SafeId).OnDelete(DeleteBehavior.Restrict);
+
         // Contracting: work orders reference a contractor + project (restrict); logs cascade with their order;
         // payments restrict (deletes handled in code).
         builder.Entity<WorkOrder>().HasOne(o => o.Contractor).WithMany().HasForeignKey(o => o.ContractorId).OnDelete(DeleteBehavior.Restrict);
@@ -312,6 +330,9 @@ public class ApplicationDbContext
 
     /// <summary>Read by the compiled query filter; re-evaluated per query so tenant switches are honored.</summary>
     public Guid CurrentTenantId => _currentUser.TenantId;
+
+    public IEnumerable<TEntity> PendingAdds<TEntity>() where TEntity : class
+        => ChangeTracker.Entries<TEntity>().Where(e => e.State == EntityState.Added).Select(e => e.Entity);
 
     public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {

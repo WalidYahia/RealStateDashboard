@@ -1,0 +1,135 @@
+@model SalesInvoiceDetailsVm
+@{
+    var inv = Model.Invoice;
+    ViewData["Title"] = $"فاتورة مبيعات SI-{inv.Number}";
+    var canCollect = User.Can(PermissionNames.SalesInvoicesCollect);
+    var canViewCustomers = User.Can(PermissionNames.CustomersView);
+    var canViewInventory = User.Can(PermissionNames.InventoryView);
+    string N(decimal v) => v.ToString("N2", RealState.Web.AppCulture.Ar);
+    string Q(decimal v) => v.ToString("0.####", System.Globalization.CultureInfo.InvariantCulture);
+    string D(DateTime d) => d.ToString("yyyy/MM/dd", System.Globalization.CultureInfo.InvariantCulture);
+    string St(InventoryDocStatus s) => s switch { InventoryDocStatus.Posted => "مُرحَّل", InventoryDocStatus.Reversed => "معكوس", _ => "مسودة" };
+    var margin = Model.Total > 0 ? Model.GrossProfit / Model.Total * 100 : 0;
+}
+<div class="page-head">
+    <div>
+        <h1>فاتورة مبيعات <span class="proj-code" dir="ltr">SI-@inv.Number</span>
+            <button type="button" title="شرح فاتورة المبيعات" onclick="appOpenModal('@Url.Action("Help")', 'شرح فاتورة المبيعات')" style="border:none;background:none;cursor:pointer;font-size:18px;vertical-align:middle;">❓</button>
+        </h1>
+        <p style="color:var(--muted);margin:2px 0 0;">
+            @Model.Customer · @D(inv.InvoiceDate)
+            @if (Model.Warehouse is not null) { <text> · المخزن: @Model.Warehouse</text> }
+        </p>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <a class="btn-sm" asp-action="Index" onclick="if (history.length > 1) { history.back(); return false; }">رجوع</a>
+        @if (canViewCustomers)
+        {
+            <a class="btn-sm" asp-area="CRM" asp-controller="Customers" asp-action="Details" asp-route-id="@inv.CustomerId">ملف العميل</a>
+        }
+        @if (canCollect && Model.Remaining > 0)
+        {
+            <button type="button" class="btn-new-tenant" onclick="appOpenModal('@Url.Action("Collect", new { id = inv.Id })', 'تحصيل على الفاتورة')">💵 تحصيل</button>
+        }
+        <a class="btn-new-tenant" asp-action="PrintInvoice" asp-route-id="@inv.Id" target="_blank">🖨 طباعة الفاتورة (PDF)</a>
+        @if (User.Can(PermissionNames.SalesInvoicesEdit))
+        {
+            <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("Form", new { id = inv.Id })', 'تعديل فاتورة المبيعات', 'xl')">✏️ تعديل</button>
+        }
+        @if (User.Can(PermissionNames.SalesInvoicesDelete))
+        {
+            <form asp-action="Delete" asp-route-id="@inv.Id" method="post" style="display:inline;" data-confirm="حذف فاتورة المبيعات SI-@inv.Number؟ سيتم عكس قيدها المحاسبي وعكس إذن الصرف (إرجاع الأصناف للمخزن)." data-danger>@Html.AntiForgeryToken()<button type="submit" class="btn-sm btn-danger">🗑 حذف الفاتورة</button></form>
+        }
+    </div>
+</div>
+
+@if (TempData["StatusMessage"] is string status)
+{
+    <div class="status-message">@status</div>
+}
+
+<div class="kpi-grid" style="grid-template-columns: repeat(4, 1fr);">
+    <div class="kpi k-reserve"><div class="kpi-label">إجمالي الفاتورة</div><div class="kpi-value">@N(Model.Total) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">@inv.Items.Count صنف</div></div>
+    <div class="kpi k-collect"><div class="kpi-label">المحصَّل</div><div class="kpi-value">@N(Model.Collected) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">@inv.Collections.Count تحصيل</div></div>
+    <div class="kpi k-alerts"><div class="kpi-label">المتبقي</div><div class="kpi-value">@N(Model.Remaining) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">مستحق على العميل</div></div>
+    <div class="kpi k-sales"><div class="kpi-label">مجمل الربح</div><div class="kpi-value">@N(Model.GrossProfit) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">تكلفة المبيعات @N(Model.CostOfSales) · هامش @margin.ToString("0.#")٪</div></div>
+</div>
+
+<div class="card-tile" style="margin-bottom:14px;">
+    <div class="card-head"><h3>الأصناف</h3></div>
+    <table class="rs-table">
+        <thead><tr><th>الصنف</th><th>الوحدة</th><th>سعر البيع</th><th>الكمية</th><th>الإجمالي</th></tr></thead>
+        <tbody>
+        @foreach (var it in inv.Items)
+        {
+            <tr><td>@it.Name</td><td>@(it.Unit ?? "—")</td><td>@N(it.Price)</td><td dir="ltr" style="text-align:right;">@Q(it.Quantity)</td><td>@N(it.LineTotal)</td></tr>
+        }
+        </tbody>
+        <tfoot><tr><th colspan="4">الإجمالي</th><th>@N(Model.Total) ج.م</th></tr></tfoot>
+    </table>
+    @if (!string.IsNullOrWhiteSpace(inv.Notes))
+    {
+        <p style="color:var(--muted);margin-top:10px;">ملاحظات: @inv.Notes</p>
+    }
+</div>
+
+<div class="card-tile" style="margin-bottom:14px;">
+    <div class="card-head"><h3>صرف المخزون (إذن صرف تلقائي)</h3></div>
+    <table class="rs-table">
+        <thead><tr><th>رقم الإذن</th><th>التاريخ</th><th>تكلفة المبيعات</th><th>الحالة</th><th></th></tr></thead>
+        <tbody>
+        @foreach (var r in Model.Issues)
+        {
+            <tr>
+                <td dir="ltr" style="text-align:right;">@r.Number</td>
+                <td dir="ltr" style="text-align:right;">@D(r.Date)</td>
+                <td>@N(r.Cost)</td>
+                <td><span style="color:@(r.Status == InventoryDocStatus.Posted ? "var(--good)" : "var(--muted)");">@St(r.Status)</span></td>
+                <td>
+                    @if (canViewInventory)
+                    {
+                        <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("Details", "GoodsIssues", new { area = "Inventory", id = r.Id })', 'تفاصيل إذن الصرف')">📄 التفاصيل</button>
+                    }
+                </td>
+            </tr>
+        }
+        @if (Model.Issues.Count == 0)
+        {
+            <tr><td colspan="5" style="color:var(--muted)">لا توجد أصناف مخزنية في هذه الفاتورة — لم يُنشأ إذن صرف.</td></tr>
+        }
+        </tbody>
+    </table>
+</div>
+
+<div class="card-tile">
+    <div class="card-head"><h3>التحصيلات</h3></div>
+    <table class="rs-table">
+        <thead><tr><th>رقم الإيصال</th><th>التاريخ</th><th>المبلغ</th><th>ملاحظات</th><th></th></tr></thead>
+        <tbody>
+        @foreach (var c in inv.Collections)
+        {
+            <tr>
+                <td dir="ltr" style="text-align:right;">@c.ReceiptNo</td>
+                <td dir="ltr" style="text-align:right;">@D(c.CollectedDate)</td>
+                <td class="tag-up">@N(c.Amount)</td>
+                <td>@(c.Description ?? "—")</td>
+                <td style="white-space:nowrap;">
+                    <a class="btn-sm" asp-action="CollectionReceipt" asp-route-id="@c.Id" target="_blank">🖨 إيصال استلام نقدية</a>
+                    @if (canCollect)
+                    {
+                        <form asp-action="CancelCollection" asp-route-id="@c.Id" method="post" style="display:inline;" data-confirm="إلغاء التحصيل رقم @c.ReceiptNo (@N(c.Amount) ج.م)؟ سيُحذف الإيراد من الخزنة ويعود المبلغ متبقيًا على الفاتورة." data-danger>@Html.AntiForgeryToken()<button type="submit" class="btn-sm btn-danger">إلغاء</button></form>
+                    }
+                </td>
+            </tr>
+        }
+        @if (inv.Collections.Count == 0)
+        {
+            <tr><td colspan="5" style="color:var(--muted)">لا توجد تحصيلات بعد.</td></tr>
+        }
+        </tbody>
+    </table>
+</div>
+
+@section Scripts {
+    <script src="~/js/purchase-doc.js" asp-append-version="true"></script>
+}

@@ -28,8 +28,9 @@ public class SupplierFormModel
 }
 
 // ---------- Product picker shared by order + invoice lines ----------
-/// <summary>A product offered in a line's searchable picker: total on-hand stock (<see cref="Tracked"/> = stock-tracked) and unit of measure.</summary>
-public record ProductOption(Guid Id, string Label, decimal Stock, bool Tracked, string? Unit);
+/// <summary>A product offered in a line's searchable picker: total on-hand stock (<see cref="Tracked"/> = stock-tracked) and unit of
+/// measure. <see cref="StockByWarehouse"/> (sales invoices) lets the picker show what's available in the chosen warehouse.</summary>
+public record ProductOption(Guid Id, string Label, decimal Stock, bool Tracked, string? Unit, IReadOnlyDictionary<Guid, decimal>? StockByWarehouse = null);
 
 /// <summary>One product line (صنف) on an order or invoice form.</summary>
 public class DocItemInput
@@ -56,7 +57,10 @@ public class DocItemInput
 }
 
 /// <summary>Input for the shared product-lines editor partial (_DocItems).</summary>
-public record DocItemsVm(List<DocItemInput> Items, List<ProductOption> Products, bool ShowStock, bool ShowCost = true);
+/// <param name="PriceLabel">Header of the unit-price column («تكلفة الوحدة» on purchases, «سعر البيع» on sales invoices).</param>
+/// <param name="StockLabel">Header of the stock column (per-warehouse availability on sales invoices).</param>
+public record DocItemsVm(List<DocItemInput> Items, List<ProductOption> Products, bool ShowStock, bool ShowCost = true,
+    string PriceLabel = "تكلفة الوحدة", string StockLabel = "المخزون الحالي");
 
 // ---------- Order CRUD ----------
 public class OrderFormModel

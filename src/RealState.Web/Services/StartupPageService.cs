@@ -50,14 +50,16 @@ public sealed class StartupPageService : IStartupPageService
 
         new StartupPage("projects", "المشاريع", "المشاريع", "Projects", "Projects", "Index", Perm(PermissionNames.ProjectsView)),
 
-        new StartupPage("sales", "عقود البيع", "المبيعات", "Sales", "Sales", "Index", Perm(PermissionNames.SalesView)),
-        new StartupPage("collections", "التحصيلات", "المبيعات", "Sales", "Collections", "Index", Perm(PermissionNames.CollectionsView)),
-        new StartupPage("customers", "العملاء", "المبيعات", "CRM", "Customers", "Index", Perm(PermissionNames.CustomersView)),
-        new StartupPage("leads", "العملاء المحتملون", "المبيعات", "CRM", "Leads", "Index",
+        new StartupPage("sales", "العقود", "التعاقدات", "Sales", "Sales", "Index", Perm(PermissionNames.SalesView)),
+        new StartupPage("collections", "التحصيلات", "التعاقدات", "Sales", "Collections", "Index", Perm(PermissionNames.CollectionsView)),
+        new StartupPage("sales-summary", "ملخص المبيعات", "المبيعات", "Sales", "SalesInvoices", "Summary", Perm(PermissionNames.SalesInvoicesView)),
+        new StartupPage("sales-invoices", "فواتير المبيعات", "المبيعات", "Sales", "SalesInvoices", "Index", Perm(PermissionNames.SalesInvoicesView)),
+        new StartupPage("customers", "العملاء", "العملاء", "CRM", "Customers", "Index", Perm(PermissionNames.CustomersView)),
+        new StartupPage("leads", "العملاء المحتملون", "التسويق", "CRM", "Leads", "Index",
             Perm(PermissionNames.CustomersView, PermissionNames.LeadsControl, PermissionNames.LeadsConvert)),
         new StartupPage("campaigns", "الحملات التسويقية", "التسويق", "Marketing", "Campaigns", "Index", Perm(PermissionNames.CampaignsView)),
 
-        new StartupPage("suppliers", "قائمة الموردين", "المشتريات", "Suppliers", "Suppliers", "Index", Perm(PermissionNames.SuppliersView)),
+        new StartupPage("suppliers", "الموردين", "الموردين", "Suppliers", "Suppliers", "Index", Perm(PermissionNames.SuppliersView)),
         new StartupPage("purchase-orders", "أوامر التوريد", "المشتريات", "Suppliers", "Orders", "Index", Perm(PermissionNames.SuppliersView)),
         new StartupPage("purchase-invoices", "فواتير المشتريات", "المشتريات", "Suppliers", "PurchaseInvoices", "Index", Perm(PermissionNames.PurchaseInvoicesView)),
         new StartupPage("work-orders", "أوامر الشغل", "المقاولات", "Contracting", "WorkOrders", "Index", Perm(PermissionNames.ContractingView)),
