@@ -16,7 +16,7 @@
         <h3>العملاء</h3>
         @if (User.Can(PermissionNames.CustomersCreate))
         {
-            <button type="button" class="btn-new-tenant" onclick="appOpenModal('@Url.Action("Form")', 'عميل جديد')">➕ عميل جديد</button>
+            <button type="button" class="btn-new-tenant" data-quick-new onclick="appOpenModal('@Url.Action("Form")', 'عميل جديد')">➕ عميل جديد</button>
         }
     </div>
     <div class="list-search-bar"><input class="form-control list-search" data-target="#custTable" placeholder="🔍 بحث في القائمة..." /></div>

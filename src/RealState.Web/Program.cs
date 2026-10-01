@@ -68,6 +68,9 @@ builder.Services.AddMemoryCache();
 builder.Services.AddScoped<RealState.Web.Services.Reports.IReportTemplateService, RealState.Web.Services.Reports.ReportTemplateService>();
 builder.Services.AddScoped<RealState.Web.Services.ITxnCategoryService, RealState.Web.Services.TxnCategoryService>();
 builder.Services.AddScoped<RealState.Web.Services.IStartupPageService, RealState.Web.Services.StartupPageService>();
+// Role-oriented workspace navigation (permission-driven modules/pages/actions, KPIs on module workspaces).
+builder.Services.AddScoped<RealState.Web.Navigation.INavigationService, RealState.Web.Navigation.NavigationService>();
+builder.Services.AddScoped<RealState.Web.Navigation.IWorkspaceKpiService, RealState.Web.Navigation.WorkspaceKpiService>();
 
 // One authorization policy per permission; matched by the "permission" claim.
 builder.Services.AddAuthorization(options =>

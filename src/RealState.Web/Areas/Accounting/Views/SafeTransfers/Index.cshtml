@@ -13,7 +13,7 @@
         <a class="btn-sm" asp-controller="Safes" asp-action="Index">🏦 الخزائن</a>
         @if (canTransfer)
         {
-            <button type="button" class="btn-new-tenant" onclick="appOpenModal('@Url.Action("Form")', 'تحويل جديد بين الخزائن')">➕ تحويل جديد</button>
+            <button type="button" class="btn-new-tenant" data-quick-new onclick="appOpenModal('@Url.Action("Form")', 'تحويل جديد بين الخزائن')">➕ تحويل جديد</button>
         }
     </div>
 </div>

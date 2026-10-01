@@ -21,6 +21,7 @@ public sealed class ActivityLogFilter : IAsyncActionFilter
         if (!HttpMethods.IsPost(req.Method)) return;             // only state changes
         if (executed.Exception != null) return;                  // action failed — not a real "action"
         if (http.User?.Identity?.IsAuthenticated != true) return;
+        if (context.ActionDescriptor.EndpointMetadata.OfType<SkipActivityLogAttribute>().Any()) return;   // navigation bookkeeping
 
         var rd = context.RouteData.Values;
         var controller = rd.TryGetValue("controller", out var c) ? c?.ToString() ?? "" : "";

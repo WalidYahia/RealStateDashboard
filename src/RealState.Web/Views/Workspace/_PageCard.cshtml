@@ -1,0 +1,23 @@
+@model (NavPageVm Page, NavKpi? Kpi, bool Favorite)
+@*
+    A page card in a module workspace: icon, title, short description, optional KPI (state-colored, never decorative),
+    and a favorite star. The star is a sibling of the link (no button inside the anchor).
+*@
+@{
+    var p = Model.Page;
+}
+<div class="ws-card @(p.Soon ? "ws-soon" : "")">
+    <a class="ws-card-link" href="@p.Url">
+        <span class="ws-card-icon">@NavIcons.Svg(p.Icon, 22)</span>
+        <span class="ws-card-body">
+            <span class="ws-card-title">@p.Title @if (p.Soon) { <span class="nav-soon">قريبًا</span> }</span>
+            @if (!p.Soon) { <span class="ws-card-desc">@p.Description</span> }
+            @if (Model.Kpi is { } k) { <span class="ws-kpi @(k.State.Length > 0 ? "ws-kpi-" + k.State : "")">@k.Text</span> }
+        </span>
+    </a>
+    @if (!p.Soon)
+    {
+        <button type="button" class="ws-star @(Model.Favorite ? "on" : "")" data-fav-key="@p.Key" aria-pressed="@(Model.Favorite ? "true" : "false")"
+                title="@(Model.Favorite ? "إزالة من المفضلة" : "إضافة إلى المفضلة")" aria-label="المفضلة: @p.Title">@NavIcons.Svg("star", 16)</button>
+    }
+</div>

@@ -15,7 +15,7 @@
 <div class="page-head">
     <h1>قائمة المهام</h1>
     <div style="display:flex;gap:8px;flex-wrap:wrap;">
-        @if (canCreate) { <button type="button" class="btn-new-tenant" onclick="appOpenModal('@Url.Action("Form")', 'إسناد مهمة')">➕ إسناد مهمة</button> }
+        @if (canCreate) { <button type="button" class="btn-new-tenant" data-quick-new onclick="appOpenModal('@Url.Action("Form")', 'إسناد مهمة')">➕ إسناد مهمة</button> }
     </div>
 </div>
 

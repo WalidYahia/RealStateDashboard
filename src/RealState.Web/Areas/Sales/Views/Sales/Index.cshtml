@@ -15,7 +15,7 @@
     <div style="display:flex;gap:8px;">
         @if (User.Can(PermissionNames.SalesCreate))
         {
-            <button type="button" class="btn-new-tenant" onclick="appOpenModal('@Url.Action("Form")', 'عقد بيع جديد')">➕ عقد بيع جديد</button>
+            <button type="button" class="btn-new-tenant" data-quick-new onclick="appOpenModal('@Url.Action("Form")', 'عقد بيع جديد')">➕ عقد بيع جديد</button>
         }
     </div>
 </div>

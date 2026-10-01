@@ -10,7 +10,7 @@
         <a class="btn-sm" asp-action="Excel">⬇ Excel</a>
         @if (canManage)
         {
-            <button type="button" class="btn-new-tenant" onclick="appOpenModal('@Url.Action("Form")', 'صنف جديد')">➕ صنف جديد</button>
+            <button type="button" class="btn-new-tenant" data-quick-new onclick="appOpenModal('@Url.Action("Form")', 'صنف جديد')">➕ صنف جديد</button>
         }
     </span>
 </div>

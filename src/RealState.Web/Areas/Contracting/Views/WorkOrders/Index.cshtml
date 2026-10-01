@@ -28,7 +28,7 @@
     <div style="display:flex;gap:8px;">
         @if (canCreate)
         {
-            <button type="button" class="btn-new-tenant" onclick="appOpenModal('@Url.Action("Form")', 'أمر شغل جديد')">➕ أمر شغل</button>
+            <button type="button" class="btn-new-tenant" data-quick-new onclick="appOpenModal('@Url.Action("Form")', 'أمر شغل جديد')">➕ أمر شغل</button>
         }
     </div>
 </div>

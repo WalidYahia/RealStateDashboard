@@ -110,6 +110,7 @@ public class ApplicationDbContext
     public DbSet<ProductSalesInvoice> ProductSalesInvoices => Set<ProductSalesInvoice>();
     public DbSet<ProductSalesInvoiceItem> ProductSalesInvoiceItems => Set<ProductSalesInvoiceItem>();
     public DbSet<SalesInvoiceCollection> SalesInvoiceCollections => Set<SalesInvoiceCollection>();
+    public DbSet<UserNavItem> UserNavItems => Set<UserNavItem>();
     public DbSet<Income> Incomes => Set<Income>();
     public DbSet<Expense> Expenses => Set<Expense>();
     public DbSet<TaskItem> Tasks => Set<TaskItem>();
@@ -281,6 +282,12 @@ public class ApplicationDbContext
         builder.Entity<ProductSalesInvoiceItem>().Property(i => i.Price).HasPrecision(18, 4);
         builder.Entity<SalesInvoiceCollection>().HasOne(c => c.Customer).WithMany().HasForeignKey(c => c.CustomerId).OnDelete(DeleteBehavior.Restrict);
         builder.Entity<SalesInvoiceCollection>().HasOne(c => c.Invoice).WithMany(i => i.Collections).HasForeignKey(c => c.SalesInvoiceId).OnDelete(DeleteBehavior.Restrict);
+        // Navigation shortcuts (favorites / recent pages) per user.
+        builder.Entity<UserNavItem>().HasIndex(x => new { x.TenantId, x.UserKey, x.Kind });
+        builder.Entity<UserNavItem>().Property(x => x.UserKey).HasMaxLength(100);
+        builder.Entity<UserNavItem>().Property(x => x.Key).HasMaxLength(400);
+        builder.Entity<UserNavItem>().Property(x => x.Title).HasMaxLength(200);
+        builder.Entity<UserNavItem>().Property(x => x.Url).HasMaxLength(400);
         builder.Entity<SalesInvoiceCollection>().HasOne<Safe>().WithMany().HasForeignKey(c => c.SafeId).OnDelete(DeleteBehavior.Restrict);
 
         // Contracting: work orders reference a contractor + project (restrict); logs cascade with their order;

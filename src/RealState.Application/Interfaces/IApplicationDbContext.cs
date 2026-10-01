@@ -92,6 +92,7 @@ public interface IApplicationDbContext
     DbSet<ProductSalesInvoice> ProductSalesInvoices { get; }
     DbSet<ProductSalesInvoiceItem> ProductSalesInvoiceItems { get; }
     DbSet<SalesInvoiceCollection> SalesInvoiceCollections { get; }
+    DbSet<UserNavItem> UserNavItems { get; }
     DbSet<Income> Incomes { get; }
     DbSet<Expense> Expenses { get; }
     DbSet<TaskItem> Tasks { get; }

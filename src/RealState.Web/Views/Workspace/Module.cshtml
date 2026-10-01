@@ -1,0 +1,34 @@
+@model WorkspaceModuleVm
+@*
+    Module workspace: the module's authorized pages as cards (with small KPIs from IWorkspaceKpiService) and its primary
+    create actions — each present only with its permission. Rendered from the navigation model.
+*@
+@{
+    var m = Model.Module;
+    ViewData["Title"] = m.Title;
+}
+<div class="ws-head">
+    <div class="ws-mod-head">
+        <span class="ws-card-icon ws-module-icon">@NavIcons.Svg(m.Icon, 26)</span>
+        <div>
+            <h1 class="ws-title">@m.Title</h1>
+            <p class="ws-sub">@m.Description</p>
+        </div>
+    </div>
+    @if (m.Actions.Count > 0)
+    {
+        <div class="ws-actions">
+            @foreach (var a in m.Actions)
+            {
+                <a class="ws-action ws-action-primary" href="@a.Url">@NavIcons.Svg("plus", 14) @a.Title</a>
+            }
+        </div>
+    }
+</div>
+
+<div class="ws-grid ws-pages">
+    @foreach (var p in m.Pages)
+    {
+        <partial name="_PageCard" model="(p, Model.Kpis.GetValueOrDefault(p.Key), Model.FavoriteKeys.Contains(p.Key))" />
+    }
+</div>

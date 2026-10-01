@@ -243,6 +243,35 @@ Searchable dropdowns (system-wide, `appEnhanceSearchSelect`): the select's empty
 menu item — «الكل» in filters, the form's own «— بدون … —» / «— اختر —» text in forms — and stays visible while
 typing, so a chosen value can always be cleared from the list. Enter while typing picks the first real match.
 
+## 2.14 Role-oriented workspace navigation
+
+Replaces the long sidebar as the normal navigation (per *ERP Role-Oriented Workspace Navigation — Implementation Rules*).
+- **One definition** — `Navigation/NavigationCatalog.cs`: 10 modules, 60 pages, 18 quick actions, each with its
+  icon, description and the permissions that unlock it (any-of, from `PermissionNames` — no roles, no second
+  permission model). `INavigationService` turns it into the user's authorized navigation once per request
+  (claims only); a module appears when the user can see at least one of its pages. Hiding is never the security:
+  every page keeps its own `[Authorize]`. Every old-sidebar link is covered; a reflection test checks every
+  catalog route exists.
+- **Home workspace** (`/Workspace`): greeting + search, authorized **module cards**, **⭐ المفضلة**, **آخر ما استخدمته**,
+  **إجراء جديد** chips. **Module workspace** (`/Workspace/Module/{key}`): its authorized page cards with small
+  state-colored KPIs (`IWorkspaceKpiService` — a few aggregate counts, only for the opened module: open tasks,
+  overdue installments, uncollected / unpaid invoices, stock alerts, unposted drafts, record counts) and the
+  module's primary create actions. The dashboard stays the operational overview.
+- **Top bar** (`Views/Shared/_TopNav.cshtml`): workspace button, **breadcrumb** generated from the catalog (module /
+  page / record — e.g. العملاء والمبيعات / فواتير المبيعات / فاتورة مبيعات SI-…), the current page's favorite star,
+  **global search** (Ctrl+K palette: modules / pages / actions filtered in the browser + customers, suppliers,
+  products, projects, contracts, sales & purchase invoices, purchase orders from `/Workspace/Search`, per
+  permission), **＋ إجراء جديد** (authorized operations; list-page actions open the create form via `#new` →
+  `[data-quick-new]`), favorites menu, and — temporarily — **القائمة الكاملة** (the old sidebar, hidden by default,
+  remembered per browser; a drawer on phones).
+- **Favorites & recent pages** are stored per user (`UserNavItems`, migration `UserNavigationShortcuts`; user id, or
+  «host» for the host account; per tenant). Favorites show only while the page is still visible to the user;
+  recents are shortcuts only (the destination authorizes). Visits/stars are excluded from the activity log
+  (`[SkipActivityLog]`).
+- Startup page: «مساحة العمل» added as an option; it's also the fallback after the dashboard (open to everyone).
+- SVG line icons (`Navigation/NavIcons.cs`), theme tokens only (color = state), RTL, responsive (cards → 2/1
+  columns on phones), dark + day themes. Script: `wwwroot/js/workspace-nav.js`.
+
 ## 2.13 Product units (وحدات الصنف) & selling prices
 
 - A product has up to **3 units**: the **smallest** (الصغرى — e.g. سم), a **bigger** one = N × the smallest (متر = 100

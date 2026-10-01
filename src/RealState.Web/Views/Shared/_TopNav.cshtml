@@ -1,0 +1,88 @@
+@inject INavigationService NavService
+@*
+    Workspace navigation in the top bar: home (workspace), breadcrumb generated from the navigation definitions, the
+    current page's favorite star, global search (Ctrl+K), «＋ إجراء جديد» (authorized operations only), favorites, and —
+    temporarily — the old full menu. Behaviour: wwwroot/js/workspace-nav.js. Everything comes from the user's
+    authorized navigation; hiding an entry is never the security (each page keeps its own [Authorize]).
+*@
+@{
+    var nav = NavService.For(User, Url);
+    var loc = NavService.Locate(nav, ViewContext.RouteData, Context.Request.Query);
+    var title = ViewData["Title"] as string ?? "";
+    var isHome = string.Equals(ViewContext.RouteData.Values["controller"]?.ToString(), "Workspace", StringComparison.OrdinalIgnoreCase)
+                 && string.Equals(ViewContext.RouteData.Values["action"]?.ToString(), "Index", StringComparison.OrdinalIgnoreCase);
+    // Breadcrumb trail after «الرئيسية»: module → page → record (when the page is a record / operation inside it).
+    var crumbs = new List<(string Text, string? Url)>();
+    if (loc is not null)
+    {
+        crumbs.Add((loc.Module.Title, loc.Module.Url));
+        if (loc.Page is not null)
+        {
+            crumbs.Add((loc.Page.Title, loc.IsPageItself ? null : loc.Page.Url));
+            if (!loc.IsPageItself && title.Length > 0 && title != loc.Page.Title) crumbs.Add((title, null));
+        }
+        else crumbs[^1] = (loc.Module.Title, null);
+    }
+    else if (!isHome && title.Length > 0) crumbs.Add((title, null));
+    var starKey = loc?.Page is { } sp && loc.IsPageItself && !sp.Soon ? sp.Key : null;
+
+    // Pages + actions for the command palette (searched in the browser) — the user's authorized ones only.
+    var paletteData = System.Text.Json.JsonSerializer.Serialize(new
+    {
+        modules = nav.Modules.Select(m => new { t = m.Title, u = m.Url, i = NavIcons.Svg(m.Icon, 18).Value }),
+        pages = nav.Pages.Where(p => !p.Soon).Select(p => new { t = p.Title, m = p.ModuleTitle, d = p.Description, u = p.Url, i = NavIcons.Svg(p.Icon, 18).Value }),
+        actions = nav.Actions.Select(a => new { t = a.Title, u = a.Url, i = NavIcons.Svg("plus", 18).Value }),
+        searchUrl = Url.Action("Search", "Workspace", new { area = "" }),
+        favoritesUrl = Url.Action("Favorites", "Workspace", new { area = "" }),
+        toggleUrl = Url.Action("ToggleFavorite", "Workspace", new { area = "" }),
+        visitUrl = Url.Action("Visit", "Workspace", new { area = "" }),
+    });
+}
+<div class="topbar-title">
+    <a class="tb-home @(isHome ? "active" : "")" href="@nav.WorkspaceUrl" title="مساحة العمل (الرئيسية)" aria-label="مساحة العمل">@NavIcons.Svg("grid", 20)</a>
+    <div class="tb-titles">
+        <nav class="crumbs" aria-label="مسار الصفحة">
+            <a href="@nav.WorkspaceUrl">الرئيسية</a>
+            @foreach (var (text, url) in crumbs)
+            {
+                <span class="crumb-sep" aria-hidden="true">/</span>
+                if (url is not null) { <a href="@url">@text</a> } else { <span aria-current="page">@text</span> }
+            }
+        </nav>
+        <div class="tb-h1row">
+            <h1>@title</h1>
+            @if (starKey is not null)
+            {
+                <button type="button" class="ws-star tb-star" data-fav-key="@starKey" aria-pressed="false" title="إضافة إلى المفضلة" aria-label="المفضلة: @title">@NavIcons.Svg("star", 18)</button>
+            }
+        </div>
+    </div>
+</div>
+<div class="topbar-tools">
+    <button type="button" class="tb-search" data-open-palette title="ابحث في النظام (Ctrl + K)">
+        @NavIcons.Svg("search", 17)<span>ابحث في النظام…</span><kbd>Ctrl K</kbd>
+    </button>
+    @if (nav.Actions.Count > 0)
+    {
+        <div class="tb-menu">
+            <button type="button" class="tb-btn tb-primary" data-menu-toggle aria-haspopup="true" aria-expanded="false">@NavIcons.Svg("plus", 16)<span>إجراء جديد</span></button>
+            <div class="tb-pop" role="menu" hidden>
+                <div class="tb-pop-head">＋ إجراء جديد</div>
+                @foreach (var a in nav.Actions)
+                {
+                    <a role="menuitem" href="@a.Url">@NavIcons.Svg(a.Icon, 16)<span>@a.Title</span></a>
+                }
+            </div>
+        </div>
+    }
+    <div class="tb-menu">
+        <button type="button" class="tb-btn" data-menu-toggle aria-haspopup="true" aria-expanded="false" title="المفضلة" aria-label="المفضلة">@NavIcons.Svg("star", 18)</button>
+        <div class="tb-pop" role="menu" data-fav-menu hidden>
+            <div class="tb-pop-head">⭐ المفضلة</div>
+            <div data-fav-list><span class="tb-pop-empty">جارٍ التحميل…</span></div>
+        </div>
+    </div>
+    @* Temporary (migration phase): the old full menu, opened on demand. *@
+    <button type="button" class="tb-btn sb-toggle" onclick="appToggleLegacyNav()" title="القائمة الكاملة (القديمة)" aria-label="القائمة الكاملة" aria-expanded="false">@NavIcons.Svg("menu", 18)</button>
+</div>
+<script type="application/json" id="navData">@Html.Raw(paletteData)</script>

@@ -33,7 +33,7 @@
         @if (canCreate)
         {
             <button type="button"
-                    class="btn-new-tenant"
+                    class="btn-new-tenant" data-quick-new
                     onclick="appOpenModal('@Url.Action("Form")', '@(isIncome ? "إيراد جديد" : "مصروف جديد")')">
                 ➕ @(isIncome ? "إيراد جديد" : "مصروف جديد")
             </button>

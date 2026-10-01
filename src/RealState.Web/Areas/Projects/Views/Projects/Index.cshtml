@@ -13,7 +13,7 @@
         <a class="btn-sm" asp-action="PrintAll" target="_blank">🖨 ملخص المشاريع (PDF)</a>
         @if (User.Can(PermissionNames.ProjectsCreate))
         {
-            <button type="button" class="btn-new-tenant" onclick="appOpenModal('@Url.Action("Form")', 'مشروع جديد')">➕ مشروع جديد</button>
+            <button type="button" class="btn-new-tenant" data-quick-new onclick="appOpenModal('@Url.Action("Form")', 'مشروع جديد')">➕ مشروع جديد</button>
         }
     </div>
 </div>

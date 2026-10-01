@@ -254,6 +254,7 @@ public class TenantsController : Controller
             await _db.Settings.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
             await _db.AuditLogs.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
             await _db.ActivityLogs.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
+            await _db.UserNavItems.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
 
             // Users (cascades to their roles/claims/logins/tokens via the Identity schema).
             await _db.Users.Where(u => u.TenantId == id).ExecuteDeleteAsync(ct);

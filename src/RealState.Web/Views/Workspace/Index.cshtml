@@ -1,0 +1,90 @@
+@model WorkspaceHomeVm
+@*
+    Home workspace: what THIS user can work with — authorized module cards, their favorites and recent pages, and the
+    quick actions their permissions allow. Rendered from the navigation model (no per-card permission checks here).
+    The operational overview stays on the dashboard (لوحة التحكم).
+*@
+@{
+    ViewData["Title"] = "مساحة العمل";
+    var name = User.FindFirst("full_name")?.Value ?? User.Identity?.Name;
+}
+<div class="ws-head">
+    <div>
+        <h1 class="ws-title">مرحبًا، @name</h1>
+        <p class="ws-sub">الوحدات والإجراءات المتاحة لك حسب صلاحياتك</p>
+    </div>
+    <button type="button" class="ws-search" data-open-palette>
+        @NavIcons.Svg("search", 18)
+        <span>ابحث في النظام عن صفحة أو عميل أو صنف أو فاتورة…</span>
+        <kbd>Ctrl K</kbd>
+    </button>
+</div>
+
+<section class="ws-section" aria-labelledby="wsModules">
+    <h2 class="ws-h2" id="wsModules">الوحدات</h2>
+    <div class="ws-grid ws-modules">
+        @foreach (var m in Model.Nav.Modules)
+        {
+            <a class="ws-module" href="@m.Url">
+                <span class="ws-card-icon ws-module-icon">@NavIcons.Svg(m.Icon, 24)</span>
+                <span class="ws-card-body">
+                    <span class="ws-card-title">@m.Title</span>
+                    <span class="ws-card-desc">@m.Description</span>
+                    <span class="ws-meta">@m.Pages.Count صفحة@(m.Actions.Count > 0 ? $" · {m.Actions.Count} إجراء" : "")</span>
+                </span>
+            </a>
+        }
+    </div>
+    @if (Model.Nav.Modules.Count == 0)
+    {
+        <div class="card-tile" style="color:var(--muted)">لا توجد وحدات متاحة لحسابك بعد — تواصل مع مسؤول النظام لمنحك الصلاحيات.</div>
+    }
+</section>
+
+<div class="ws-cols">
+    <section class="card-tile ws-panel" aria-labelledby="wsFav">
+        <div class="card-head"><h3 id="wsFav">@NavIcons.Svg("star", 16, "ws-h-ico") المفضلة</h3></div>
+        @if (Model.Favorites.Count == 0)
+        {
+            <p class="ws-empty">لا توجد صفحات مفضلة بعد. اضغط النجمة على أي صفحة داخل الوحدات لإضافتها هنا.</p>
+        }
+        else
+        {
+            <ul class="ws-list">
+                @foreach (var f in Model.Favorites)
+                {
+                    <li><a href="@f.Url">@NavIcons.Svg(f.Icon, 16)<span>@f.Title</span><small>@f.ModuleTitle</small></a></li>
+                }
+            </ul>
+        }
+    </section>
+    <section class="card-tile ws-panel" aria-labelledby="wsRecent">
+        <div class="card-head"><h3 id="wsRecent">@NavIcons.Svg("history", 16, "ws-h-ico") آخر ما استخدمته</h3></div>
+        @if (Model.Recent.Count == 0)
+        {
+            <p class="ws-empty">ستظهر هنا الصفحات والسجلات التي تفتحها.</p>
+        }
+        else
+        {
+            <ul class="ws-list">
+                @foreach (var r in Model.Recent)
+                {
+                    <li><a href="@r.Url">@NavIcons.Svg(r.Icon, 16)<span>@r.Title</span>@if (r.Module is not null) { <small>@r.Module</small> }</a></li>
+                }
+            </ul>
+        }
+    </section>
+</div>
+
+@if (Model.Nav.Actions.Count > 0)
+{
+    <section class="ws-section" aria-labelledby="wsActions">
+        <h2 class="ws-h2" id="wsActions">إجراء جديد</h2>
+        <div class="ws-actions">
+            @foreach (var a in Model.Nav.Actions)
+            {
+                <a class="ws-action" href="@a.Url">@NavIcons.Svg("plus", 14) @a.Title</a>
+            }
+        </div>
+    </section>
+}

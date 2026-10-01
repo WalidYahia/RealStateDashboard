@@ -18,13 +18,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     @* Apply the saved theme (dark = default) before first paint so pages never flash the wrong one. *@
     <script>(function () { var t = 'dark'; try { t = localStorage.getItem('appTheme') === 'light' ? 'light' : 'dark'; } catch (e) { } document.documentElement.setAttribute('data-theme', t); })();</script>
-    @* Same for the collapsed side menu (wwwroot/js/sidebar.js). *@
-    <script>try { if (localStorage.getItem('appSidebar') === 'collapsed') document.documentElement.classList.add('sb-collapsed'); } catch (e) { }</script>
+    @* Same for the side menu (wwwroot/js/sidebar.js). Navigation is the workspace (top bar + module workspaces); the
+       old full side menu is hidden unless the user opened it (temporary, during the migration). *@
+    <script>(function () { var r = document.documentElement, legacy = false; try { legacy = localStorage.getItem('appLegacyNav') === '1'; if (localStorage.getItem('appSidebar') === 'collapsed') r.classList.add('sb-collapsed'); } catch (e) { } if (!legacy) r.classList.add('sb-hidden'); })();</script>
     <title>@ViewData["Title"] — لوحة القيادة التنفيذية</title>
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.rtl.min.css" />
     <link rel="stylesheet" href="~/css/dashboard.css" asp-append-version="true" />
 </head>
-<body class="@(isAuth ? "app-shell" : "auth-shell")">
+<body class="@(isAuth ? "app-shell" : "auth-shell")" data-visit-title="@ViewData["Title"]">
     @* System-wide preloader — driven by wwwroot/js/loader.js (every submit / save / delete). *@
     <div id="appLoader" class="app-loader" role="status" aria-live="polite" aria-hidden="true">
         <div class="app-loader-box">
@@ -419,13 +420,7 @@
         <div class="sb-backdrop" aria-hidden="true"></div>
         <div class="main">
             <header class="topbar">
-                <div class="topbar-title">
-                    @* Phones only — opens the side menu drawer (on desktop the collapse button lives in the sidebar header). *@
-                    <button type="button" class="sb-toggle" onclick="appToggleSidebar()" title="القائمة" aria-label="فتح القائمة الجانبية" aria-expanded="false">
-                        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
-                    </button>
-                    <h1>@ViewData["Title"]</h1>
-                </div>
+                <partial name="_TopNav" />
                 <div class="topbar-meta">
                     @if (User.IsHost())
                     {
@@ -497,6 +492,10 @@
     <script src="~/js/app-modal.js" asp-append-version="true"></script>
     <script src="~/js/grid.js" asp-append-version="true"></script>
     <script src="~/js/filter-bar.js" asp-append-version="true"></script>
+    @if (isAuth)
+    {
+        <script src="~/js/workspace-nav.js" asp-append-version="true"></script>
+    }
     @if (TempData["ErrorMessage"] is string appErr)
     {
         <script>window.__appError = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(appErr));</script>

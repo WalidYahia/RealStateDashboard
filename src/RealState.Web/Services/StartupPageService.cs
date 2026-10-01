@@ -13,7 +13,8 @@ public sealed record StartupPage(string Key, string Label, string Group, string?
 /// <summary>
 /// Per-tenant default/startup page (الصفحة الافتتاحية): where users land after signing in and on the site root.
 /// Stored in the tenant's <see cref="Setting"/> rows under <see cref="SettingKey"/>. A user who can't open the
-/// chosen page falls back to the dashboard, then to the first catalog page they can open, then to «مهامي».
+/// chosen page falls back to the dashboard, then to the first catalog page they can open (the workspace, open to all),
+/// then to «مهامي».
 /// </summary>
 public interface IStartupPageService
 {
@@ -47,6 +48,8 @@ public sealed class StartupPageService : IStartupPageService
     private static readonly IReadOnlyList<StartupPage> Pages = new[]
     {
         new StartupPage(DefaultKey, "الرئيسية (لوحة القيادة)", "الرئيسية", "", "Dashboard", "Index", Perm(PermissionNames.DashboardView)),
+        // The workspace (authorized module cards) is open to every signed-in user — the natural fallback after the dashboard.
+        new StartupPage("workspace", "مساحة العمل (الوحدات المتاحة)", "الرئيسية", "", "Workspace", "Index", _ => true),
 
         new StartupPage("projects", "المشاريع", "المشاريع", "Projects", "Projects", "Index", Perm(PermissionNames.ProjectsView)),
 

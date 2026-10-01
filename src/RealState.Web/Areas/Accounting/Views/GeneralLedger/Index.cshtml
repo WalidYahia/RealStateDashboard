@@ -15,7 +15,7 @@
     <h1>دفتر الأستاذ</h1>
     @if (Model.CanManage)
     {
-        <button type="button" class="btn-new-tenant" onclick="appOpenModal('@Url.Action("EntryForm")', 'قيد يدوي جديد')">➕ قيد يدوي</button>
+        <button type="button" class="btn-new-tenant" data-quick-new onclick="appOpenModal('@Url.Action("EntryForm")', 'قيد يدوي جديد')">➕ قيد يدوي</button>
     }
 </div>
 

@@ -16,7 +16,10 @@
     function isRail() { return !mq.matches && root.classList.contains('sb-collapsed'); }
     function sync() {
         var open = mq.matches ? root.classList.contains('sb-open') : !root.classList.contains('sb-collapsed');
-        document.querySelectorAll('.sb-toggle, .sb-collapse').forEach(function (b) { b.setAttribute('aria-expanded', open ? 'true' : 'false'); });
+        document.querySelectorAll('.sb-collapse').forEach(function (b) { b.setAttribute('aria-expanded', open ? 'true' : 'false'); });
+        // The top bar's «القائمة الكاملة» button: the old menu is open (drawer on phones, sidebar on desktop).
+        var legacyOpen = mq.matches ? root.classList.contains('sb-open') : !root.classList.contains('sb-hidden');
+        document.querySelectorAll('.sb-toggle').forEach(function (b) { b.setAttribute('aria-expanded', legacyOpen ? 'true' : 'false'); b.classList.toggle('active', legacyOpen); });
         if (!isRail()) hide(true);
     }
     function closeDrawer() { root.classList.remove('sb-open'); sync(); }
@@ -98,6 +101,16 @@
     });
 
     // ---- drawer / shared ----
+    // Workspace navigation is the default; the old full side menu is shown on demand (temporary, during the migration).
+    // Desktop: show / hide it (remembered per browser, 'appLegacyNav'); phones: open it as the drawer.
+    window.appToggleLegacyNav = function () {
+        if (mq.matches) { root.classList.toggle('sb-open'); sync(); return; }
+        var show = root.classList.contains('sb-hidden');
+        root.classList.toggle('sb-hidden', !show);
+        try { localStorage.setItem('appLegacyNav', show ? '1' : '0'); } catch (e) { }
+        sync();
+    };
+
     var backdrop = document.querySelector('.sb-backdrop');
     if (backdrop) backdrop.addEventListener('click', closeDrawer);
     document.addEventListener('keydown', function (e) {
@@ -109,6 +122,7 @@
 
     // Keep other open tabs in step.
     window.addEventListener('storage', function (e) {
+        if (e.key === 'appLegacyNav') { root.classList.toggle('sb-hidden', e.newValue !== '1'); sync(); return; }
         if (e.key !== KEY) return;
         root.classList.toggle('sb-collapsed', e.newValue === 'collapsed');
         sync();
