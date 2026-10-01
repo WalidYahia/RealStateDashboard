@@ -93,7 +93,15 @@ public class AdjustmentsController : Controller
         var model = new AdjustmentFormModel { Id = d.Id, Number = d.Number, Date = d.Date, WarehouseId = d.WarehouseId, Reason = d.Reason, Notes = d.Notes, Status = d.Status };
         await FillAsync(model, ct);
         var names = await ProductNamesAsync(d.Lines.Select(l => l.ProductId), ct);
-        model.ExistingLines = d.Lines.Select(l => new DocLineVm { ProductId = l.ProductId, ProductLabel = names.GetValueOrDefault(l.ProductId, ""), QuantityDelta = l.QuantityDelta, UnitCost = l.UnitCost }).ToList();
+        model.ExistingLines = d.Lines.Select(l =>
+        {
+            var q = InvDocUnits.Entered(l.QuantityDelta, l.UnitFactor);
+            return new DocLineVm
+            {
+                ProductId = l.ProductId, UnitLevel = l.UnitLevel, ProductLabel = names.GetValueOrDefault(l.ProductId, ""), QuantityDelta = q,
+                UnitCost = q > 0 && l.TotalCost > 0 ? Math.Round(l.TotalCost / q, 4) : InvDocUnits.EnteredCost(l.UnitCost, l.UnitFactor)
+            };
+        }).ToList();
         return View("Form", model);
     }
 
@@ -108,10 +116,11 @@ public class AdjustmentsController : Controller
         if (!ModelState.IsValid)
         {
             await FillAsync(model, ct);
-            model.ExistingLines = lines.Select(l => new DocLineVm { ProductId = l.ProductId, QuantityDelta = l.QuantityDelta, UnitCost = l.UnitCost }).ToList();
+            model.ExistingLines = lines.Select(l => new DocLineVm { ProductId = l.ProductId, UnitLevel = l.UnitLevel, QuantityDelta = l.QuantityDelta, UnitCost = l.UnitCost }).ToList();
             return View("Form", model);
         }
 
+        var units = await ProductUnits.LoadAsync(_db, lines.Select(l => l.ProductId), ct);   // each line's unit → smallest unit
         InventoryAdjustment d;
         if (model.Id == Guid.Empty)
         {
@@ -127,13 +136,18 @@ public class AdjustmentsController : Controller
         }
         d.Date = model.Date; d.WarehouseId = model.WarehouseId; d.Reason = model.Reason; d.Notes = model.Notes; d.Status = InventoryDocStatus.Draft;
         foreach (var l in lines)
+        {
+            var u = InvDocUnits.Resolve(units, l.ProductId, l.UnitLevel);
             _db.InventoryAdjustmentLines.Add(new InventoryAdjustmentLine
             {
-                InventoryAdjustmentId = d.Id, ProductId = l.ProductId, QuantityDelta = l.QuantityDelta, UnitCost = l.UnitCost,
-                // Increases carry a known cost, so value the draft now (decreases are valued at the
-                // weighted average when the document is posted).
+                // Stored in the smallest unit (cost per smallest unit); the unit it was entered in is kept on the line.
+                InventoryAdjustmentId = d.Id, ProductId = l.ProductId, QuantityDelta = l.QuantityDelta * u.Factor, UnitCost = Math.Round(l.UnitCost / u.Factor, 6),
+                UnitLevel = u.Level, UnitFactor = u.Factor, UnitName = u.Name,
+                // Increases carry a known cost, so value the draft now — entered quantity × entered cost, exact
+                // (decreases are valued at the weighted average when the document is posted).
                 TotalCost = l.QuantityDelta > 0 ? Math.Round(l.QuantityDelta * l.UnitCost, 2) : 0m
             });
+        }
         try { await _db.SaveChangesAsync(ct); }
         catch (DbUpdateException) { TempData["ErrorMessage"] = "تعذّر الحفظ — قد يكون رقم المستند مستخدمًا بالفعل. أعد المحاولة."; return RedirectToAction(nameof(Index)); }
         TempData["StatusMessage"] = $"تم حفظ التسوية {d.Number} كمسودة.";
@@ -200,7 +214,7 @@ public class AdjustmentsController : Controller
         return PartialView("_Details", new DocDetailsVm
         {
             Title = "تسوية مخزون", Number = d.Number, Date = d.Date, Warehouse = w ?? "", Status = StatusAr(d.Status), Notes = d.Notes,
-            Lines = d.Lines.Select(l => new DocDetailLine { Product = names.GetValueOrDefault(l.ProductId, ""), Quantity = l.QuantityDelta, UnitCost = l.UnitCost, TotalCost = l.TotalCost }).ToList()
+            Lines = d.Lines.Select(l => new DocDetailLine { Product = names.GetValueOrDefault(l.ProductId, ""), Unit = l.UnitName, Quantity = InvDocUnits.Entered(l.QuantityDelta, l.UnitFactor), UnitCost = InvDocUnits.EnteredCost(l.UnitCost, l.UnitFactor), TotalCost = l.TotalCost }).ToList()
         });
     }
 
@@ -213,7 +227,7 @@ public class AdjustmentsController : Controller
     private async Task FillAsync(AdjustmentFormModel model, CancellationToken ct)
     {
         model.Warehouses = await _db.Warehouses.Where(w => w.IsActive).OrderBy(w => w.Name).Select(w => new SelectListItem { Value = w.Id.ToString(), Text = w.Name }).ToListAsync(ct);
-        model.Products = await _db.Products.Where(p => p.IsActive && p.TrackInventory).OrderBy(p => p.Sku).Select(p => new SelectListItem { Value = p.Id.ToString(), Text = p.Sku + " — " + p.Name }).ToListAsync(ct);
+        model.Products = await InvDocUnits.PicksAsync(_db, ct);
     }
     private async Task<Dictionary<Guid, string>> ProductNamesAsync(IEnumerable<Guid> ids, CancellationToken ct)
     {

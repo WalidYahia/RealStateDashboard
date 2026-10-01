@@ -129,7 +129,7 @@ public class SettingsController : Controller
 
         foreach (var u in existing.Where(u => !keep.Contains(u.Id)))
         {
-            if (await _db.Products.AnyAsync(p => p.UnitOfMeasureId == u.Id, ct))
+            if (await _db.Products.AnyAsync(p => p.UnitOfMeasureId == u.Id || p.Unit2Id == u.Id || p.Unit3Id == u.Id, ct))
                 errors.Add($"لا يمكن حذف الوحدة «{u.Name}» لارتباطها بأصناف.");
         }
         if (errors.Count > 0)

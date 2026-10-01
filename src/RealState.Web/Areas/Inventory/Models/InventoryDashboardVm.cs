@@ -17,6 +17,9 @@ public class StockAlertRow
     public string Product { get; set; } = string.Empty;
     public decimal Quantity { get; set; }
     public decimal ReorderLevel { get; set; }
+    /// <summary>Quantity / reorder level spelled out in the product's units (both are kept in its smallest unit).</summary>
+    public string QuantityText { get; set; } = string.Empty;
+    public string ReorderText { get; set; } = string.Empty;
     public string State { get; set; } = string.Empty;   // نفد / منخفض / سالب
 }
 

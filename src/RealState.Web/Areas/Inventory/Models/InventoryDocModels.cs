@@ -4,17 +4,30 @@ using RealState.Application.Enums;
 
 namespace RealState.Web.Areas.Inventory.Models;
 
-// Line inputs parsed from the form's JSON payload (robust against indexed model binding).
-public class ReceiptLineInput { public Guid ProductId { get; set; } public decimal Quantity { get; set; } public decimal UnitCost { get; set; } }
-public class IssueLineInput { public Guid ProductId { get; set; } public decimal Quantity { get; set; } }
-public class TransferLineInput { public Guid ProductId { get; set; } public decimal Quantity { get; set; } }
-public class AdjustmentLineInput { public Guid ProductId { get; set; } public decimal QuantityDelta { get; set; } public decimal UnitCost { get; set; } }
-public class CountLineInput { public Guid ProductId { get; set; } public decimal CountedQty { get; set; } }
+// Line inputs parsed from the form's JSON payload (robust against indexed model binding). Quantities and costs are in
+// the line's chosen unit (UnitLevel 1/2/3; 0 = the product's default) — controllers convert them to the smallest unit.
+public class ReceiptLineInput { public Guid ProductId { get; set; } public byte UnitLevel { get; set; } public decimal Quantity { get; set; } public decimal UnitCost { get; set; } }
+public class IssueLineInput { public Guid ProductId { get; set; } public byte UnitLevel { get; set; } public decimal Quantity { get; set; } }
+public class TransferLineInput { public Guid ProductId { get; set; } public byte UnitLevel { get; set; } public decimal Quantity { get; set; } }
+public class AdjustmentLineInput { public Guid ProductId { get; set; } public byte UnitLevel { get; set; } public decimal QuantityDelta { get; set; } public decimal UnitCost { get; set; } }
+public class CountLineInput { public Guid ProductId { get; set; } public byte UnitLevel { get; set; } public decimal CountedQty { get; set; } }
 
-/// <summary>A prefilled line for the editor (edit mode) — product label + values.</summary>
+/// <summary>A product in a document line's picker, with its units (the line's unit picker is filled from <see cref="UnitsJson"/>).</summary>
+public class ProductPick : SelectListItem
+{
+    public Guid ProductId { get; set; }
+    public RealState.Application.Inventory.ProductUnitSet? Units { get; set; }
+    public string? UnitsJson { get; set; }
+}
+
+/// <summary>The unit picker of one document line (server-rendered rows).</summary>
+public record UnitSelectVm(RealState.Application.Inventory.ProductUnitSet? Units, byte Level);
+
+/// <summary>A prefilled line for the editor (edit mode) — product label + values in the line's unit (<see cref="UnitLevel"/>).</summary>
 public class DocLineVm
 {
     public Guid ProductId { get; set; }
+    public byte UnitLevel { get; set; }
     public string ProductLabel { get; set; } = string.Empty;
     public decimal Quantity { get; set; }
     public decimal UnitCost { get; set; }
@@ -32,7 +45,10 @@ public abstract class DocFormBase
     [Display(Name = "ملاحظات")] public string? Notes { get; set; }
     public List<DocLineVm> ExistingLines { get; set; } = new();
     public List<SelectListItem> Warehouses { get; set; } = new();
-    public List<SelectListItem> Products { get; set; } = new();
+    public List<ProductPick> Products { get; set; } = new();
+
+    /// <summary>The unit picker for a prefilled line.</summary>
+    public UnitSelectVm UnitSelect(DocLineVm l) => new(Products.FirstOrDefault(p => p.ProductId == l.ProductId)?.Units, l.UnitLevel);
 }
 
 public class ReceiptFormModel : DocFormBase
@@ -106,9 +122,11 @@ public class DocDetailsVm
     public string? PrintUrl { get; set; }
 }
 
+/// <summary>A document line as shown: quantity / unit cost in the unit it was entered in (<see cref="Unit"/>).</summary>
 public class DocDetailLine
 {
     public string Product { get; set; } = string.Empty;
+    public string? Unit { get; set; }
     public decimal Quantity { get; set; }
     public decimal UnitCost { get; set; }
     public decimal TotalCost { get; set; }

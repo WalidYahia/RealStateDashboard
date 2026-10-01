@@ -18,6 +18,43 @@ public class InventoryReportsController : Controller
     private readonly IInventoryEngine _engine;
     public InventoryReportsController(IApplicationDbContext db, IInventoryEngine engine) { _db = db; _engine = engine; }
 
+    // ---------------- Tabbed reports page ----------------
+    // «تقارير المخزون» is one page with tabs (Views/InventoryReports/Index + wwwroot/js/inv-reports.js). Each tab's
+    // content comes from its own action below, fetched by the page (X-Requested-With) and returned as a partial; opening
+    // one of those actions directly (old links / bookmarks) redirects to the page with that tab — and its filters — open.
+    public static readonly IReadOnlyList<(string Key, string Action, string Title)> Tabs = new[]
+    {
+        ("balance", nameof(StockBalance), "أرصدة المخزون"),
+        ("valuation", nameof(Valuation), "تقييم المخزون"),
+        ("movements", nameof(Movements), "حركة المخزون"),
+        ("card", nameof(StockCard), "بطاقة الصنف"),
+        ("reconciliation", nameof(Reconciliation), "مطابقة الأستاذ"),
+    };
+
+    public IActionResult Index(string? tab)
+    {
+        var active = Tabs.Any(t => t.Key == tab) ? tab! : Tabs[0].Key;
+        // The active tab's first load carries the page's own query (minus «tab»), so a redirected link keeps its filters.
+        var query = string.Join("&", Request.Query.Where(q => q.Key != "tab")
+            .SelectMany(q => q.Value.Select(v => Uri.EscapeDataString(q.Key) + "=" + Uri.EscapeDataString(v ?? ""))));
+        return View("Index", new ReportsTabsVm
+        {
+            Active = active,
+            Tabs = Tabs.Select(t => new ReportTab(t.Key, t.Title,
+                Url.Action(t.Action)! + (t.Key == active && query.Length > 0 ? "?" + query : ""))).ToList()
+        });
+    }
+
+    private bool IsTabRequest => Request.Headers.XRequestedWith == "XMLHttpRequest";
+
+    /// <summary>The tab's partial for the tabs page, or — opened directly — a redirect to the page with this tab active.</summary>
+    private IActionResult Tab(string key, string partial, object model)
+    {
+        if (IsTabRequest) return PartialView(partial, model);
+        var qs = Request.QueryString.HasValue ? "&" + Request.QueryString.Value!.TrimStart('?') : "";
+        return Redirect(Url.Action(nameof(Index))! + "?tab=" + key + qs);
+    }
+
     // signed value of a movement for weighted-average valuation (client-side use only — EF queries
     // must inline this condition so it is translatable to SQL).
     private static bool IsOut(InventoryMovementType t) =>
@@ -25,18 +62,18 @@ public class InventoryReportsController : Controller
 
     // ---------------- Stock Balance ----------------
     public async Task<IActionResult> StockBalance(DateTime? asOf, CancellationToken ct)
-        => View(await BuildBalanceAsync(asOf, byProductOnly: false, ct));
+        => IsTabRequest ? Tab("balance", "_StockBalance", await BuildBalanceAsync(asOf, byProductOnly: false, ct)) : Tab("balance", "", new());
 
     public async Task<IActionResult> Valuation(DateTime? asOf, CancellationToken ct)
-        => View("StockBalance", await BuildBalanceAsync(asOf, byProductOnly: true, ct));
+        => IsTabRequest ? Tab("valuation", "_StockBalance", await BuildBalanceAsync(asOf, byProductOnly: true, ct)) : Tab("valuation", "", new());
 
     [HttpGet]
     public async Task<IActionResult> StockBalanceExcel(DateTime? asOf, CancellationToken ct)
     {
         var vm = await BuildBalanceAsync(asOf, byProductOnly: false, ct);
-        var headers = new[] { "الكود", "الصنف", "المخزن", "الكمية", "متوسط التكلفة", "القيمة" };
-        var rows = vm.Rows.Select(r => (IReadOnlyList<object?>)new object?[] { r.Sku, r.Product, r.Warehouse, r.Quantity, r.AvgCost, r.Value });
-        var totals = new object?[] { "الإجمالي", null, null, null, null, vm.TotalValue };
+        var headers = new[] { "الكود", "الصنف", "المخزن", "الكمية (الوحدة الصغرى)", "الوحدة", "بالوحدات", "متوسط التكلفة للوحدة الصغرى", "القيمة" };
+        var rows = vm.Rows.Select(r => (IReadOnlyList<object?>)new object?[] { r.Sku, r.Product, r.Warehouse, r.Quantity, r.Unit, r.Breakdown, r.AvgCost, r.Value });
+        var totals = new object?[] { "الإجمالي", null, null, null, null, null, null, vm.TotalValue };
         return RealState.Web.Common.Xlsx.File($"أرصدة المخزون {DateTime.Now:yyyy-MM-dd}.xlsx", "أرصدة المخزون", headers, rows, totals);
     }
 
@@ -64,9 +101,9 @@ public class InventoryReportsController : Controller
 
     private static (List<string>, List<object?[]>, object?[]) BalanceExport(StockBalanceVm vm)
     {
-        var h = new List<string> { "الكود", "الصنف", "المخزن", "الكمية", "متوسط التكلفة", "القيمة" };
-        var rows = vm.Rows.Select(r => new object?[] { r.Sku, r.Product, r.Warehouse, r.Quantity, r.AvgCost, r.Value }).ToList();
-        var totals = new object?[] { "الإجمالي", null, null, null, null, vm.TotalValue };
+        var h = new List<string> { "الكود", "الصنف", "المخزن", "الكمية", "بالوحدات", "متوسط التكلفة (للوحدة الصغرى)", "القيمة" };
+        var rows = vm.Rows.Select(r => new object?[] { r.Sku, r.Product, r.Warehouse, $"{r.Quantity:0.####} {r.Unit}", r.Breakdown, r.AvgCost, r.Value }).ToList();
+        var totals = new object?[] { "الإجمالي", null, null, null, null, null, vm.TotalValue };
         return (h, rows, totals);
     }
 
@@ -85,6 +122,7 @@ public class InventoryReportsController : Controller
 
         var products = await _db.Products.Select(p => new { p.Id, p.Sku, p.Name }).ToDictionaryAsync(p => p.Id, ct);
         var warehouses = await _db.Warehouses.Select(w => new { w.Id, w.Name }).ToDictionaryAsync(w => w.Id, ct);
+        var units = await ProductUnits.LoadAsync(_db, null, ct);
 
         var vm = new StockBalanceVm { ByProductOnly = byProductOnly };
         IEnumerable<StockBalanceRow> rows;
@@ -94,7 +132,8 @@ public class InventoryReportsController : Controller
             {
                 var qty = g.Sum(x => x.Qty); var val = g.Sum(x => x.Value);
                 products.TryGetValue(g.Key, out var p);
-                return new StockBalanceRow { Sku = p?.Sku ?? "", Product = p?.Name ?? "", Warehouse = "— الكل —", Quantity = qty, Value = val, AvgCost = qty != 0 ? Math.Round(val / qty, 2) : 0m };
+                var u = units.Of(g.Key);
+                return new StockBalanceRow { Sku = p?.Sku ?? "", Product = p?.Name ?? "", Warehouse = "— الكل —", Quantity = qty, Unit = u.Base.Name, Breakdown = u.Breakdown(qty), Value = val, AvgCost = qty != 0 ? Math.Round(val / qty, 4) : 0m };
             });
         }
         else
@@ -102,7 +141,8 @@ public class InventoryReportsController : Controller
             rows = moves.Select(m =>
             {
                 products.TryGetValue(m.ProductId, out var p); warehouses.TryGetValue(m.WarehouseId, out var w);
-                return new StockBalanceRow { Sku = p?.Sku ?? "", Product = p?.Name ?? "", Warehouse = w?.Name ?? "", Quantity = m.Qty, Value = m.Value, AvgCost = m.Qty != 0 ? Math.Round(m.Value / m.Qty, 2) : 0m };
+                var u = units.Of(m.ProductId);
+                return new StockBalanceRow { Sku = p?.Sku ?? "", Product = p?.Name ?? "", Warehouse = w?.Name ?? "", Quantity = m.Qty, Unit = u.Base.Name, Breakdown = u.Breakdown(m.Qty), Value = m.Value, AvgCost = m.Qty != 0 ? Math.Round(m.Value / m.Qty, 4) : 0m };
             });
         }
         vm.Rows = rows.Where(r => r.Quantity != 0 || r.Value != 0).OrderBy(r => r.Sku).ThenBy(r => r.Warehouse).ToList();
@@ -112,35 +152,38 @@ public class InventoryReportsController : Controller
     // ---------------- Inventory Movement ----------------
     public async Task<IActionResult> Movements(Guid? productId, Guid? warehouseId, DateTime? from, DateTime? to, CancellationToken ct)
     {
+        if (!IsTabRequest) return Tab("movements", "", new());
         (from, to) = DateFilterDefaults.TodayIfFresh(Request, from, to);
         var vm = await BuildMovementsAsync(productId, warehouseId, from, to, stockCard: false, ct);
-        return View(vm);
+        return Tab("movements", "_Movements", vm);
     }
 
     [HttpGet]
     public async Task<IActionResult> MovementsExcel(Guid? productId, Guid? warehouseId, DateTime? from, DateTime? to, CancellationToken ct)
     {
         var vm = await BuildMovementsAsync(productId, warehouseId, from, to, stockCard: false, ct);
-        var headers = new[] { "التاريخ", "النوع", "المرجع", "الصنف", "المخزن", "وارد", "منصرف" };
-        var rows = vm.Rows.Select(r => (IReadOnlyList<object?>)new object?[] { r.Date.ToString("yyyy-MM-dd"), r.TypeAr, r.Reference, r.Product, r.Warehouse, r.In, r.Out });
-        var totals = new object?[] { "الإجمالي", null, null, null, null, vm.TotalIn, vm.TotalOut };
+        var headers = new[] { "التاريخ", "النوع", "المرجع", "الصنف", "المخزن", "الوحدة", "وارد", "منصرف" };
+        var rows = vm.Rows.Select(r => (IReadOnlyList<object?>)new object?[] { r.Date.ToString("yyyy-MM-dd"), r.TypeAr, r.Reference, r.Product, r.Warehouse, r.Unit, r.In, r.Out });
+        var totals = new object?[] { "الإجمالي", null, null, null, null, null, null, null };
         return RealState.Web.Common.Xlsx.File($"حركة المخزون {DateTime.Now:yyyy-MM-dd}.xlsx", "حركة المخزون", headers, rows, totals);
     }
 
     // ---------------- Stock Card ----------------
     public async Task<IActionResult> StockCard(Guid? productId, Guid? warehouseId, DateTime? from, DateTime? to, CancellationToken ct)
     {
+        if (!IsTabRequest) return Tab("card", "", new());
+        (from, to) = DateFilterDefaults.TodayIfFresh(Request, from, to);   // fresh open = today (اليوم), like حركة المخزون
         var vm = await BuildMovementsAsync(productId, warehouseId, from, to, stockCard: true, ct);
-        return View(vm);
+        return Tab("card", "_StockCard", vm);
     }
 
     [HttpGet]
     public async Task<IActionResult> MovementsPrint(Guid? productId, Guid? warehouseId, DateTime? from, DateTime? to, CancellationToken ct)
     {
         var vm = await BuildMovementsAsync(productId, warehouseId, from, to, stockCard: false, ct);
-        var h = new List<string> { "التاريخ", "النوع", "المرجع", "الصنف", "المخزن", "وارد", "منصرف" };
-        var rows = vm.Rows.Select(r => new object?[] { r.Date.ToString("yyyy/MM/dd"), r.TypeAr, r.Reference, r.Product, r.Warehouse, r.In, r.Out }).ToList();
-        var totals = new object?[] { "الإجمالي", null, null, null, null, vm.TotalIn, vm.TotalOut };
+        var h = new List<string> { "التاريخ", "النوع", "المرجع", "الصنف", "المخزن", "الوحدة", "وارد", "منصرف" };
+        var rows = vm.Rows.Select(r => new object?[] { r.Date.ToString("yyyy/MM/dd"), r.TypeAr, r.Reference, r.Product, r.Warehouse, r.Unit, r.In, r.Out }).ToList();
+        object?[]? totals = null;   // products in different units — a grand total of quantities isn't meaningful
         return View("ListPrint", InventoryExport.ToPrint("حركة المخزون", h, rows, totals: totals));
     }
 
@@ -158,12 +201,13 @@ public class InventoryReportsController : Controller
         return View("ListPrint", InventoryExport.ToPrint("بطاقة الصنف", h, rows, totals: totals));
     }
 
-    private async Task<(List<string>, List<object?[]>, object?[])> StockCardExportAsync(Guid? productId, Guid? warehouseId, DateTime? from, DateTime? to, CancellationToken ct)
+    private async Task<(List<string>, List<object?[]>, object?[]?)> StockCardExportAsync(Guid? productId, Guid? warehouseId, DateTime? from, DateTime? to, CancellationToken ct)
     {
         var vm = await BuildMovementsAsync(productId, warehouseId, from, to, stockCard: true, ct);
-        var h = new List<string> { "التاريخ", "النوع", "المرجع", "وارد", "منصرف", "الرصيد" };
-        var rows = vm.Rows.Select(r => new object?[] { r.Date.ToString("yyyy/MM/dd"), r.TypeAr, r.Reference, r.In, r.Out, r.Balance }).ToList();
-        var totals = new object?[] { "الإجمالي", null, null, vm.TotalIn, vm.TotalOut, null };
+        var unit = vm.Rows.FirstOrDefault()?.Unit ?? "";
+        var h = new List<string> { "التاريخ", "النوع", "المرجع", $"وارد ({unit})", $"منصرف ({unit})", $"الرصيد ({unit})", "الرصيد بالوحدات" };
+        var rows = vm.Rows.Select(r => new object?[] { r.Date.ToString("yyyy/MM/dd"), r.TypeAr, r.Reference, r.In, r.Out, r.Balance, r.BalanceBreakdown }).ToList();
+        var totals = new object?[] { "الإجمالي", null, null, vm.TotalIn, vm.TotalOut, null, null };
         return (h, rows, totals);
     }
 
@@ -188,6 +232,7 @@ public class InventoryReportsController : Controller
             .Select(m => new { m.Date, m.MovementType, m.ReferenceType, m.ReferenceNumber, m.IsReversal, m.ProductId, m.WarehouseId, m.QuantityIn, m.QuantityOut }).ToListAsync(ct);
         var products = await _db.Products.Select(p => new { p.Id, p.Sku, p.Name }).ToDictionaryAsync(p => p.Id, ct);
         var warehouses = await _db.Warehouses.Select(w => new { w.Id, w.Name }).ToDictionaryAsync(w => w.Id, ct);
+        var units = await ProductUnits.LoadAsync(_db, list.Select(m => m.ProductId), ct);
 
         // Stock card running balance starts from the opening (movements before "from").
         decimal running = 0m;
@@ -205,7 +250,9 @@ public class InventoryReportsController : Controller
                 TypeAr = MovementTypeAr(m.MovementType) + (m.IsReversal ? " (عكس)" : ""),
                 Reference = $"{RefTypeAr(m.ReferenceType)} {m.ReferenceNumber}".Trim(),
                 Product = p != null ? p.Sku + " — " + p.Name : "", Warehouse = w?.Name ?? "",
-                In = m.QuantityIn, Out = m.QuantityOut, Balance = stockCard ? running : 0m
+                In = m.QuantityIn, Out = m.QuantityOut, Balance = stockCard ? running : 0m,
+                Unit = units.Of(m.ProductId).Base.Name,
+                BalanceBreakdown = stockCard ? units.Of(m.ProductId).Breakdown(running) : ""
             });
         }
         return vm;
@@ -214,6 +261,7 @@ public class InventoryReportsController : Controller
     // ---------------- Inventory / GL Reconciliation ----------------
     public async Task<IActionResult> Reconciliation(DateTime? asOf, CancellationToken ct)
     {
+        if (!IsTabRequest) return Tab("reconciliation", "", new());
         await _engine.EnsureDefaultsAsync(ct);
         var cutoff = (asOf ?? DateTime.Today).Date;
         var profile = await _db.InventoryPostingProfiles.FirstAsync(ct);
@@ -239,7 +287,7 @@ public class InventoryReportsController : Controller
                         select (decimal?)(l.Debit - l.Credit)).SumAsync(ct) ?? 0m;
         }
 
-        return View(new ReconciliationVm
+        return Tab("reconciliation", "_Reconciliation", new ReconciliationVm
         {
             InventoryAccountCode = profile.InventoryCode,
             InventoryAccountName = acc?.Name ?? "",

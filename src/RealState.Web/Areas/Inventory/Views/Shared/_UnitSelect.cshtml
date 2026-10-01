@@ -1,0 +1,18 @@
+@model UnitSelectVm
+@*
+    A document line's unit picker (الوحدة). Template rows render it empty and inv-doc.js fills it from the picked
+    product's data-units; prefilled rows render the product's units here. Options carry data-f = smallest units per unit.
+*@
+@{
+    string Q(decimal v) => v.ToString("0.######", System.Globalization.CultureInfo.InvariantCulture);
+    var level = Model.Units is null ? (byte)1 : (Model.Level == 0 ? Model.Units.DefaultLevel : Model.Units.Get(Model.Level).Level);
+}
+<select class="form-control" data-field="unitLevel" data-inv-unit style="width:110px;">
+    @if (Model.Units is not null)
+    {
+        foreach (var l in Model.Units.Levels)
+        {
+            <option value="@l.Level" data-f="@Q(l.Factor)" selected="@(l.Level == level)">@l.Name</option>
+        }
+    }
+</select>

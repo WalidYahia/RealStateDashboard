@@ -100,7 +100,7 @@ public class GoodsIssuesController : Controller
         var model = new IssueFormModel { Id = d.Id, Number = d.Number, Date = d.Date, WarehouseId = d.WarehouseId, Reason = d.Reason, Notes = d.Notes, Status = d.Status };
         await FillAsync(model, ct);
         var names = await ProductNamesAsync(d.Lines.Select(l => l.ProductId), ct);
-        model.ExistingLines = d.Lines.Select(l => new DocLineVm { ProductId = l.ProductId, ProductLabel = names.GetValueOrDefault(l.ProductId, ""), Quantity = l.Quantity }).ToList();
+        model.ExistingLines = d.Lines.Select(l => new DocLineVm { ProductId = l.ProductId, UnitLevel = l.UnitLevel, ProductLabel = names.GetValueOrDefault(l.ProductId, ""), Quantity = InvDocUnits.Entered(l.Quantity, l.UnitFactor) }).ToList();
         return View("Form", model);
     }
 
@@ -115,10 +115,11 @@ public class GoodsIssuesController : Controller
         if (!ModelState.IsValid)
         {
             await FillAsync(model, ct);
-            model.ExistingLines = lines.Select(l => new DocLineVm { ProductId = l.ProductId, Quantity = l.Quantity }).ToList();
+            model.ExistingLines = lines.Select(l => new DocLineVm { ProductId = l.ProductId, UnitLevel = l.UnitLevel, Quantity = l.Quantity }).ToList();
             return View("Form", model);
         }
 
+        var units = await ProductUnits.LoadAsync(_db, lines.Select(l => l.ProductId), ct);   // each line's unit → smallest unit
         GoodsIssue d;
         if (model.Id == Guid.Empty)
         {
@@ -135,7 +136,10 @@ public class GoodsIssuesController : Controller
         }
         d.Date = model.Date; d.WarehouseId = model.WarehouseId; d.Reason = model.Reason; d.Notes = model.Notes; d.Status = InventoryDocStatus.Draft;
         foreach (var l in lines)
-            _db.GoodsIssueLines.Add(new GoodsIssueLine { GoodsIssueId = d.Id, ProductId = l.ProductId, Quantity = l.Quantity });
+        {
+            var u = InvDocUnits.Resolve(units, l.ProductId, l.UnitLevel);
+            _db.GoodsIssueLines.Add(new GoodsIssueLine { GoodsIssueId = d.Id, ProductId = l.ProductId, Quantity = l.Quantity * u.Factor, UnitLevel = u.Level, UnitFactor = u.Factor, UnitName = u.Name });
+        }
         try { await _db.SaveChangesAsync(ct); }
         catch (DbUpdateException) { TempData["ErrorMessage"] = "تعذّر الحفظ — قد يكون رقم المستند مستخدمًا بالفعل. أعد المحاولة."; return RedirectToAction(nameof(Index)); }
         TempData["StatusMessage"] = $"تم حفظ إذن الصرف {d.Number} كمسودة.";
@@ -205,7 +209,7 @@ public class GoodsIssuesController : Controller
         var vm = new DocDetailsVm
         {
             Title = "إذن صرف", Number = d.Number, Date = d.Date, Warehouse = w ?? "", Status = StatusAr(d.Status), Notes = d.Notes,
-            Lines = d.Lines.Select(l => new DocDetailLine { Product = names.GetValueOrDefault(l.ProductId, ""), Quantity = l.Quantity, UnitCost = l.UnitCost, TotalCost = l.TotalCost }).ToList()
+            Lines = d.Lines.Select(l => new DocDetailLine { Product = names.GetValueOrDefault(l.ProductId, ""), Unit = l.UnitName, Quantity = InvDocUnits.Entered(l.Quantity, l.UnitFactor), UnitCost = InvDocUnits.EnteredCost(l.UnitCost, l.UnitFactor), TotalCost = l.TotalCost }).ToList()
         };
         if (d.CustomerId is Guid custId && await _db.Customers.IgnoreQueryFilters().Where(c => c.Id == custId).Select(c => c.FullName).FirstOrDefaultAsync(ct) is string cust)
             vm.Extra.Add(("العميل", cust));
@@ -233,7 +237,7 @@ public class GoodsIssuesController : Controller
     private async Task FillAsync(IssueFormModel model, CancellationToken ct)
     {
         model.Warehouses = await _db.Warehouses.Where(w => w.IsActive).OrderBy(w => w.Name).Select(w => new SelectListItem { Value = w.Id.ToString(), Text = w.Name }).ToListAsync(ct);
-        model.Products = await _db.Products.Where(p => p.IsActive && p.TrackInventory).OrderBy(p => p.Sku).Select(p => new SelectListItem { Value = p.Id.ToString(), Text = p.Sku + " — " + p.Name }).ToListAsync(ct);
+        model.Products = await InvDocUnits.PicksAsync(_db, ct);
     }
     private async Task<Dictionary<Guid, string>> ProductNamesAsync(IEnumerable<Guid> ids, CancellationToken ct)
     {

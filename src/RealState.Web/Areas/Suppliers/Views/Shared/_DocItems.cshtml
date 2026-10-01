@@ -1,7 +1,11 @@
 @model DocItemsVm
 @*
     Product-lines (الأصناف) editor shared by the purchase order and invoice forms. Behaviour lives in
-    wwwroot/js/purchase-doc.js (picking a product shows المخزون الحالي; تكلفة الوحدة / سعر البيع is entered manually; totals recalc).
+    wwwroot/js/purchase-doc.js (picking a product fills its units and shows the stock; تكلفة الوحدة / سعر البيع is entered
+    manually per the chosen unit; totals recalc).
+    Units: each option carries data-units = {"d": default level, "u": [{l, n, f}]} (f = smallest units per that unit); the
+    row's unit picker posts Items[i].UnitLevel. Stock figures (data-stock / data-wh-stock) are in the smallest unit and are
+    shown divided by the chosen unit's factor.
     Sales invoices pass per-warehouse stock (data-wh-stock) so the stock column follows the form's WarehouseId select.
     ShowCost=false (purchase orders) → product + quantity only, no unit cost / totals.
 *@
@@ -14,6 +18,7 @@
     // Sales invoices: per-warehouse availability as {"warehouseId": qty} — purchase-doc.js shows the chosen warehouse's figure.
     string? Wh(ProductOption p) => p.StockByWarehouse is null ? null
         : System.Text.Json.JsonSerializer.Serialize(p.StockByWarehouse.ToDictionary(k => k.Key.ToString(), k => k.Value));
+    var byId = Model.Products.ToDictionary(p => p.Id);
 }
 <style>
     /* Lines list: pinned header, scrolls after a few rows. The product picker menu is position:fixed, so it isn't clipped. */
@@ -21,6 +26,7 @@
     .pd-scroll table { margin-bottom: 0; }
     .pd-scroll thead th { position: sticky; top: 0; z-index: 1; background: var(--surface-2); }
     .pd-scroll td { vertical-align: middle; }
+    .pd-scroll select[data-pd-unit] { margin: 0; min-width: 96px; padding-inline: 8px; }
 </style>
 <h4 style="font-size:14px;margin:14px 0 6px;">الأصناف</h4>
 @if (Model.Products.Count == 0)
@@ -34,7 +40,7 @@
         <thead>
             <tr>
                 <th style="min-width:240px;">الصنف</th>
-                <th style="width:90px;">الوحدة</th>
+                <th style="width:110px;">الوحدة</th>
                 @if (Model.ShowCost) { <th style="width:130px;">@Model.PriceLabel</th> }
                 @if (Model.ShowStock) { <th style="width:110px;">@Model.StockLabel</th> }
                 <th style="width:110px;">الكمية</th>
@@ -42,10 +48,13 @@
                 <th style="width:40px;"></th>
             </tr>
         </thead>
-        <tbody id="pdBody">
+        @* data-pd-sale: sales invoices pre-fill the price from the product's selling price for the chosen unit. *@
+        <tbody id="pdBody" data-pd-sale="@(Model.UseSalePrice ? "1" : null)">
         @for (var i = 0; i < Model.Items.Count; i++)
         {
             var it = Model.Items[i];
+            var prod = it.ProductId is Guid pid && byId.TryGetValue(pid, out var po) ? po : null;
+            var level = prod?.Units is { } us ? (it.UnitLevel == 0 ? us.DefaultLevel : us.Get(it.UnitLevel).Level) : (byte)1;
             <tr>
                 <td>
                     <input type="hidden" name="Items.Index" value="@i" />
@@ -61,12 +70,29 @@
                             <option value="">— اختر الصنف —</option>
                             @foreach (var p in Model.Products)
                             {
-                                <option value="@p.Id" data-stock="@(p.Tracked ? Q(p.Stock) : "")" data-unit="@p.Unit" data-wh-stock="@Wh(p)" selected="@(p.Id == it.ProductId)">@p.Label</option>
+                                <option value="@p.Id" data-stock="@(p.Tracked ? Q(p.Stock) : "")" data-unit="@p.Unit" data-units="@p.Units?.ToJson()" data-wh-stock="@Wh(p)" selected="@(p.Id == it.ProductId)">@p.Label</option>
                             }
                         </select>
                     }
                 </td>
-                <td class="pd-unit" style="color:var(--text-secondary);">@(Model.Products.FirstOrDefault(p => p.Id == it.ProductId)?.Unit ?? "—")</td>
+                <td class="pd-unit">
+                    @if (it.ProductId is null && !string.IsNullOrWhiteSpace(it.LegacyName))
+                    {
+                        <span style="color:var(--muted);">—</span>
+                    }
+                    else
+                    {
+                        <select class="form-control" name="Items[@i].UnitLevel" data-pd-unit>
+                            @if (prod?.Units is { } set)
+                            {
+                                foreach (var l in set.Levels)
+                                {
+                                    <option value="@l.Level" data-f="@Q(l.Factor)" selected="@(l.Level == level)">@l.Name</option>
+                                }
+                            }
+                        </select>
+                    }
+                </td>
                 @if (Model.ShowCost) { <td><input class="form-control" style="margin:0" type="number" step="0.0001" min="0" dir="ltr" name="Items[@i].Cost" value="@C(it.Cost)" data-pd-cost /></td> }
                 @if (Model.ShowStock) { <td class="pd-stock" dir="ltr" style="text-align:right;">—</td> }
                 <td><input class="form-control" style="margin:0" type="number" step="0.0001" min="0" dir="ltr" name="Items[@i].Quantity" value="@Q(it.Quantity)" data-pd-qty /></td>
@@ -85,11 +111,11 @@
                 <option value="">— اختر الصنف —</option>
                 @foreach (var p in Model.Products)
                 {
-                    <option value="@p.Id" data-stock="@(p.Tracked ? Q(p.Stock) : "")" data-unit="@p.Unit" data-wh-stock="@Wh(p)">@p.Label</option>
+                    <option value="@p.Id" data-stock="@(p.Tracked ? Q(p.Stock) : "")" data-unit="@p.Unit" data-units="@p.Units?.ToJson()" data-wh-stock="@Wh(p)">@p.Label</option>
                 }
             </select>
         </td>
-        <td class="pd-unit" style="color:var(--text-secondary);">—</td>
+        <td class="pd-unit"><select class="form-control" name="Items[__k__].UnitLevel" data-pd-unit></select></td>
         @if (Model.ShowCost) { <td><input class="form-control" style="margin:0" type="number" step="0.0001" min="0" dir="ltr" name="Items[__k__].Cost" data-pd-cost /></td> }
         @if (Model.ShowStock) { <td class="pd-stock" dir="ltr" style="text-align:right;">—</td> }
         <td><input class="form-control" style="margin:0" type="number" step="0.0001" min="0" dir="ltr" name="Items[__k__].Quantity" value="1" data-pd-qty /></td>
@@ -108,3 +134,7 @@
         <div style="font-weight:700;">إجمالي الكميات: <span id="pdQtyTotal">@Q(Model.Items.Sum(i => i.Quantity))</span></div>
     }
 </div>
+@if (Model.ShowCost)
+{
+    <p style="color:var(--muted);font-size:12px;margin:6px 0 0;">@Model.PriceLabel لكل «الوحدة» المختارة في السطر — عند تغيير الوحدة يُحوَّل السعر تلقائيًا. التكلفة في المخزون تُحسب دائمًا بالوحدة الصغرى.</p>
+}

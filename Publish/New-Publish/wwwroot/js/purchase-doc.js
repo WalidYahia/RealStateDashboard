@@ -2,7 +2,9 @@
 // scripts inside modal-injected HTML don't run, so everything here is global or delegated).
 // Markup contract (see Areas/Suppliers/Views/Shared/_DocItems.cshtml):
 //   #pdBody            the <tbody> of line rows          #pdRowTpl  <template> of one row, keyed "__k__"
-//   [data-pd-product]  product <select>; options carry data-stock ("" = non-stock product) and data-unit
+//   [data-pd-product]  product <select>; options carry data-stock ("" = non-stock product) and data-unit, and on
+//                      sales invoices data-wh-stock = {"warehouseId": qty} (the stock column then follows the form's
+//                      WarehouseId select, and a quantity above what's available there is flagged)
 //   .pd-unit           unit-of-measure cell (الوحدة), filled from the picked product
 //   [data-pd-cost]     unit cost input                   [data-pd-qty]  quantity input
 //   .pd-stock          current-stock cell (optional)     .pd-line   line-total cell     #pdTotal  grand total
@@ -15,17 +17,47 @@
 
     function selectedOption(sel) { return sel && sel.value ? sel.options[sel.selectedIndex] : null; }
 
+    // Stock shown for a picked product: its total on-hand, or — with data-wh-stock — what's available in the
+    // warehouse chosen on the form. Returns { nonStock } / { noWarehouse } / { qty, perWarehouse }.
+    function stockOf(opt, tr) {
+        var raw = opt.getAttribute('data-stock');
+        if (raw === '') return { nonStock: true };   // non-stock product (not held in a warehouse)
+        var wh = opt.getAttribute('data-wh-stock');
+        if (wh) {
+            var form = tr.closest('form');
+            var whSel = form ? form.querySelector('select[name="WarehouseId"]') : null;
+            if (!whSel || !whSel.value) return { noWarehouse: true };
+            // GUIDs are compared case-insensitively: option values rendered from SQL (CONVERT) are upper-case,
+            // while the stock map's keys come from .NET (lower-case).
+            var map = {}; try { map = JSON.parse(wh) || {}; } catch (e) { }
+            var key = whSel.value.toLowerCase(), qty = 0;
+            Object.keys(map).forEach(function (k) { if (k.toLowerCase() === key) qty = parseFloat(map[k]) || 0; });
+            return { qty: qty, perWarehouse: true };
+        }
+        return { qty: raw ? parseFloat(raw) : NaN };
+    }
+
     function showStock(tr) {
         var opt0 = selectedOption(tr.querySelector('[data-pd-product]'));
         var unitCell = tr.querySelector('.pd-unit');
         if (unitCell && tr.querySelector('[data-pd-product]')) unitCell.textContent = (opt0 && opt0.getAttribute('data-unit')) || '—';
         var cell = tr.querySelector('.pd-stock'); if (!cell) return;
-        var opt = opt0;
-        var raw = opt ? opt.getAttribute('data-stock') : null;
-        var stock = raw ? parseFloat(raw) : NaN;
-        // An empty data-stock marks a non-stock product (not received into a warehouse).
-        cell.textContent = opt && raw === '' ? 'غير مخزني' : (isNaN(stock) ? '—' : fmt(stock));
-        cell.style.color = !isNaN(stock) && stock <= 0 ? 'var(--critical)' : (opt && raw === '' ? 'var(--muted)' : '');
+        cell.removeAttribute('title');
+        if (!opt0) { cell.textContent = '—'; cell.style.color = ''; return; }
+        var st = stockOf(opt0, tr);
+        if (st.nonStock) { cell.textContent = 'غير مخزني'; cell.style.color = 'var(--muted)'; return; }
+        if (st.noWarehouse) { cell.textContent = 'اختر المخزن'; cell.style.color = 'var(--muted)'; return; }
+        var stock = st.qty;
+        cell.textContent = isNaN(stock) ? '—' : fmt(stock);
+        var short = false;
+        if (st.perWarehouse) {
+            // Sales: flag a quantity above what the warehouse holds (the save is refused otherwise).
+            var qEl = tr.querySelector('[data-pd-qty]');
+            var q = qEl ? parseFloat(qEl.value) : NaN; if (isNaN(q)) q = 1;
+            short = q > stock;
+            if (short) { cell.textContent = fmt(stock) + ' ⚠'; cell.title = 'الكمية المطلوبة أكبر من المتاح في المخزن المختار'; }
+        }
+        cell.style.color = short || (!isNaN(stock) && stock <= 0) ? 'var(--critical)' : '';
     }
 
     window.pdRecalc = function () {
@@ -129,6 +161,10 @@
     // Picking a product shows its current stock. The unit cost (تكلفة الوحدة) is entered by the user.
     document.addEventListener('change', function (e) {
         var sel = e.target;
+        if (sel && sel.matches && sel.matches('select[name="WarehouseId"]')) {
+            var tb0 = body(); if (tb0) tb0.querySelectorAll('tr').forEach(showStock);   // per-warehouse stock follows the choice
+            return;
+        }
         if (!sel || !sel.matches || !sel.matches('[data-pd-product]')) return;
         var tr = sel.closest('tr'); if (!tr) return;
         showStock(tr);
@@ -140,5 +176,6 @@
     document.addEventListener('input', function (e) {
         var el = e.target;
         if (el && el.matches && el.matches('[data-pd-cost], [data-pd-qty]')) pdRecalc();
+        if (el && el.matches && el.matches('[data-pd-qty]')) { var row = el.closest('tr'); if (row) showStock(row); }
     });
 })();

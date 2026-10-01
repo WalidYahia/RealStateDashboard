@@ -54,19 +54,21 @@
     <div class="card-head"><h3>الأصناف</h3></div>
     <table class="rs-table">
         @* Orders are quantity-only; a legacy order (which still owns a supplier payable) also shows its costs. *@
-        @* المُفوتَر / المتبقي are per product (an order may list a product on more than one line). *@
+        @* المُفوتَر / المتبقي are per product (an order may list a product on more than one line), counted in the product's
+           smallest unit and shown in each line's own unit. *@
         <thead><tr><th>#</th><th>الصنف</th><th>الوحدة</th><th>الكمية</th><th>المُفوتَر</th><th>المتبقي</th>@if (Model.IsLegacy) {<th>تكلفة الوحدة</th><th>الإجمالي</th>}</tr></thead>
         <tbody>
         @{
             var n = 0;
             var invoicedQty = ViewBag.InvoicedQty as Dictionary<Guid, decimal> ?? new();
-            var orderedQty = Model.Items.Where(i => i.ProductId.HasValue).GroupBy(i => i.ProductId!.Value).ToDictionary(g => g.Key, g => g.Sum(i => i.Quantity));
+            var orderedQty = Model.Items.Where(i => i.ProductId.HasValue).GroupBy(i => i.ProductId!.Value).ToDictionary(g => g.Key, g => g.Sum(i => i.Quantity * i.UnitFactor));
         }
         @foreach (var it in Model.Items)
         {
             n++;
-            var billed = it.ProductId is Guid pid ? invoicedQty.GetValueOrDefault(pid) : 0m;
-            var left = it.ProductId is Guid pid2 ? orderedQty[pid2] - billed : 0m;
+            var f = it.UnitFactor > 0 ? it.UnitFactor : 1m;
+            var billed = it.ProductId is Guid pid ? invoicedQty.GetValueOrDefault(pid) / f : 0m;
+            var left = it.ProductId is Guid pid2 ? orderedQty[pid2] / f - billed : 0m;
             <tr>
                 <td>@n</td><td>@it.Name</td><td>@(it.Unit ?? "—")</td>
                 <td dir="ltr" style="text-align:right;">@Q(it.Quantity)</td>
@@ -76,7 +78,7 @@
             </tr>
         }
         </tbody>
-        <tfoot><tr><th colspan="3">الإجمالي</th><th dir="ltr" style="text-align:right;">@Q(totalQty)</th><th dir="ltr" style="text-align:right;">@Q(invoicedQty.Values.Sum())</th><th></th>@if (Model.IsLegacy) {<th></th><th>@N(total) ج.م</th>}</tr></tfoot>
+        <tfoot><tr><th colspan="3">الإجمالي</th><th dir="ltr" style="text-align:right;">@Q(totalQty)</th><th></th><th></th>@if (Model.IsLegacy) {<th></th><th>@N(total) ج.م</th>}</tr></tfoot>
     </table>
     @if (!string.IsNullOrWhiteSpace(Model.Notes))
     {

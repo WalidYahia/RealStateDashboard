@@ -45,8 +45,28 @@ public class Product : AuditableEntity, ITenantEntity
 
     public Guid? CategoryId { get; set; }
     public ProductCategory? Category { get; set; }
+    /// <summary>The smallest unit (الوحدة الصغرى, level 1). Stock, movements and the product's cost are always kept in it.</summary>
     public Guid? UnitOfMeasureId { get; set; }
     public UnitOfMeasure? UnitOfMeasure { get; set; }
+
+    /// <summary>Optional bigger unit (level 2) = <see cref="Unit2Factor"/> × the smallest unit (e.g. متر = 100 سم).</summary>
+    public Guid? Unit2Id { get; set; }
+    public UnitOfMeasure? Unit2 { get; set; }
+    public decimal Unit2Factor { get; set; }
+
+    /// <summary>Optional biggest unit (level 3) = <see cref="Unit3Factor"/> × the level-2 unit (e.g. كيلو = 1000 متر).</summary>
+    public Guid? Unit3Id { get; set; }
+    public UnitOfMeasure? Unit3 { get; set; }
+    public decimal Unit3Factor { get; set; }
+
+    /// <summary>Unit level (1/2/3) pre-selected on invoice / order / inventory document lines.</summary>
+    public byte DefaultUnitLevel { get; set; } = 1;
+
+    /// <summary>Selling price per smallest unit / per level-2 unit / per level-3 unit (0 = none). Pre-filled on sales
+    /// invoice lines for the chosen unit, editable there.</summary>
+    public decimal SalePrice { get; set; }
+    public decimal SalePrice2 { get; set; }
+    public decimal SalePrice3 { get; set; }
 
     public bool TrackInventory { get; set; } = true;
     public bool TrackCost { get; set; } = true;
@@ -115,6 +135,11 @@ public class GoodsReceiptLine : AuditableEntity, ITenantEntity
     public Guid GoodsReceiptId { get; set; }
     public Guid ProductId { get; set; }
     public Product? Product { get; set; }
+    /// <summary>The unit the line was entered in (level 1/2/3), its size in smallest units and its name. The
+    /// quantities on this line are always in the smallest unit (entered quantity × UnitFactor).</summary>
+    public byte UnitLevel { get; set; } = 1;
+    public decimal UnitFactor { get; set; } = 1m;
+    public string? UnitName { get; set; }
     public decimal Quantity { get; set; }
     public decimal UnitCost { get; set; }
     public decimal TotalCost { get; set; }
@@ -145,6 +170,11 @@ public class GoodsIssueLine : AuditableEntity, ITenantEntity
     public Guid GoodsIssueId { get; set; }
     public Guid ProductId { get; set; }
     public Product? Product { get; set; }
+    /// <summary>The unit the line was entered in (level 1/2/3), its size in smallest units and its name. The
+    /// quantities on this line are always in the smallest unit (entered quantity × UnitFactor).</summary>
+    public byte UnitLevel { get; set; } = 1;
+    public decimal UnitFactor { get; set; } = 1m;
+    public string? UnitName { get; set; }
     public decimal Quantity { get; set; }
     /// <summary>Unit cost is resolved from the costing method at post time.</summary>
     public decimal UnitCost { get; set; }
@@ -170,6 +200,11 @@ public class StockTransferLine : AuditableEntity, ITenantEntity
     public Guid StockTransferId { get; set; }
     public Guid ProductId { get; set; }
     public Product? Product { get; set; }
+    /// <summary>The unit the line was entered in (level 1/2/3), its size in smallest units and its name. The
+    /// quantities on this line are always in the smallest unit (entered quantity × UnitFactor).</summary>
+    public byte UnitLevel { get; set; } = 1;
+    public decimal UnitFactor { get; set; } = 1m;
+    public string? UnitName { get; set; }
     public decimal Quantity { get; set; }
     public decimal UnitCost { get; set; }
     public decimal TotalCost { get; set; }
@@ -195,6 +230,11 @@ public class InventoryAdjustmentLine : AuditableEntity, ITenantEntity
     public Guid InventoryAdjustmentId { get; set; }
     public Guid ProductId { get; set; }
     public Product? Product { get; set; }
+    /// <summary>The unit the line was entered in (level 1/2/3), its size in smallest units and its name. The
+    /// quantities on this line are always in the smallest unit (entered quantity × UnitFactor).</summary>
+    public byte UnitLevel { get; set; } = 1;
+    public decimal UnitFactor { get; set; } = 1m;
+    public string? UnitName { get; set; }
     /// <summary>Signed quantity change: positive increases stock, negative decreases it.</summary>
     public decimal QuantityDelta { get; set; }
     /// <summary>Unit cost used for increases (decreases use the current weighted-average cost).</summary>
@@ -221,6 +261,11 @@ public class StockCountLine : AuditableEntity, ITenantEntity
     public Guid StockCountId { get; set; }
     public Guid ProductId { get; set; }
     public Product? Product { get; set; }
+    /// <summary>The unit the line was entered in (level 1/2/3), its size in smallest units and its name. The
+    /// quantities on this line are always in the smallest unit (entered quantity × UnitFactor).</summary>
+    public byte UnitLevel { get; set; } = 1;
+    public decimal UnitFactor { get; set; } = 1m;
+    public string? UnitName { get; set; }
     /// <summary>Quantity the system expected at count time (snapshot).</summary>
     public decimal SystemQty { get; set; }
     public decimal CountedQty { get; set; }

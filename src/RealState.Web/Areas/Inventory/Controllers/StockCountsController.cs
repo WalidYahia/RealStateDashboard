@@ -92,7 +92,7 @@ public class StockCountsController : Controller
         var model = new CountFormModel { Id = d.Id, Number = d.Number, Date = d.Date, WarehouseId = d.WarehouseId, Notes = d.Notes, Status = d.Status };
         await FillAsync(model, ct);
         var names = await ProductNamesAsync(d.Lines.Select(l => l.ProductId), ct);
-        model.ExistingLines = d.Lines.Select(l => new DocLineVm { ProductId = l.ProductId, ProductLabel = names.GetValueOrDefault(l.ProductId, ""), SystemQty = l.SystemQty, CountedQty = l.CountedQty }).ToList();
+        model.ExistingLines = d.Lines.Select(l => new DocLineVm { ProductId = l.ProductId, UnitLevel = l.UnitLevel, ProductLabel = names.GetValueOrDefault(l.ProductId, ""), SystemQty = InvDocUnits.Entered(l.SystemQty, l.UnitFactor), CountedQty = InvDocUnits.Entered(l.CountedQty, l.UnitFactor) }).ToList();
         return View("Form", model);
     }
 
@@ -107,10 +107,11 @@ public class StockCountsController : Controller
         if (!ModelState.IsValid)
         {
             await FillAsync(model, ct);
-            model.ExistingLines = lines.Select(l => new DocLineVm { ProductId = l.ProductId, CountedQty = l.CountedQty }).ToList();
+            model.ExistingLines = lines.Select(l => new DocLineVm { ProductId = l.ProductId, UnitLevel = l.UnitLevel, CountedQty = l.CountedQty }).ToList();
             return View("Form", model);
         }
 
+        var units = await ProductUnits.LoadAsync(_db, lines.Select(l => l.ProductId), ct);   // each line's unit → smallest unit
         StockCount d;
         if (model.Id == Guid.Empty)
         {
@@ -129,7 +130,12 @@ public class StockCountsController : Controller
         foreach (var l in lines)
         {
             var stock = await _engine.GetStockAsync(l.ProductId, model.WarehouseId, model.Date, ct);
-            _db.StockCountLines.Add(new StockCountLine { StockCountId = d.Id, ProductId = l.ProductId, SystemQty = stock.Quantity, CountedQty = l.CountedQty });
+            var u = InvDocUnits.Resolve(units, l.ProductId, l.UnitLevel);   // counted in the chosen unit, stored in the smallest
+            _db.StockCountLines.Add(new StockCountLine
+            {
+                StockCountId = d.Id, ProductId = l.ProductId, SystemQty = stock.Quantity, CountedQty = l.CountedQty * u.Factor,
+                UnitLevel = u.Level, UnitFactor = u.Factor, UnitName = u.Name
+            });
         }
         try { await _db.SaveChangesAsync(ct); }
         catch (DbUpdateException) { TempData["ErrorMessage"] = "تعذّر الحفظ — قد يكون رقم المستند مستخدمًا بالفعل. أعد المحاولة."; return RedirectToAction(nameof(Index)); }
@@ -198,7 +204,7 @@ public class StockCountsController : Controller
         {
             Title = "جرد مخزون", Number = d.Number, Date = d.Date, Warehouse = w ?? "", Status = StatusAr(d.Status), Notes = d.Notes,
             // Quantity = counted, UnitCost column repurposed to show the system qty, Total = difference.
-            Lines = d.Lines.Select(l => new DocDetailLine { Product = names.GetValueOrDefault(l.ProductId, ""), Quantity = l.CountedQty, UnitCost = l.SystemQty, TotalCost = l.CountedQty - l.SystemQty }).ToList()
+            Lines = d.Lines.Select(l => new DocDetailLine { Product = names.GetValueOrDefault(l.ProductId, ""), Unit = l.UnitName, Quantity = InvDocUnits.Entered(l.CountedQty, l.UnitFactor), UnitCost = InvDocUnits.Entered(l.SystemQty, l.UnitFactor), TotalCost = InvDocUnits.Entered(l.CountedQty - l.SystemQty, l.UnitFactor) }).ToList()
         });
     }
 
@@ -211,7 +217,7 @@ public class StockCountsController : Controller
     private async Task FillAsync(CountFormModel model, CancellationToken ct)
     {
         model.Warehouses = await _db.Warehouses.Where(w => w.IsActive).OrderBy(w => w.Name).Select(w => new SelectListItem { Value = w.Id.ToString(), Text = w.Name }).ToListAsync(ct);
-        model.Products = await _db.Products.Where(p => p.IsActive && p.TrackInventory).OrderBy(p => p.Sku).Select(p => new SelectListItem { Value = p.Id.ToString(), Text = p.Sku + " — " + p.Name }).ToListAsync(ct);
+        model.Products = await InvDocUnits.PicksAsync(_db, ct);
     }
     private async Task<Dictionary<Guid, string>> ProductNamesAsync(IEnumerable<Guid> ids, CancellationToken ct)
     {

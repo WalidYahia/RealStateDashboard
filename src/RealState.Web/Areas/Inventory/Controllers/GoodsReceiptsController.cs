@@ -100,7 +100,12 @@ public class GoodsReceiptsController : Controller
         if (d.Status != InventoryDocStatus.Draft) { TempData["ErrorMessage"] = "لا يمكن تعديل مستند مُرحَّل."; return RedirectToAction(nameof(Index)); }
         var model = new ReceiptFormModel { Id = d.Id, Number = d.Number, Date = d.Date, WarehouseId = d.WarehouseId, SupplierId = d.SupplierId, Notes = d.Notes, Status = d.Status };
         await FillAsync(model, ct);
-        model.ExistingLines = await LinesVmAsync(d.Lines.Select(l => (l.ProductId, l.Quantity, l.UnitCost)).ToList(), ct);
+        // Shown in the unit each line was entered in; the unit cost comes back exact from the line total.
+        model.ExistingLines = await LinesVmAsync(d.Lines.Select(l =>
+        {
+            var q = InvDocUnits.Entered(l.Quantity, l.UnitFactor);
+            return (l.ProductId, l.UnitLevel, q, q > 0 && l.TotalCost > 0 ? Math.Round(l.TotalCost / q, 4) : InvDocUnits.EnteredCost(l.UnitCost, l.UnitFactor));
+        }).ToList(), ct);
         return View("Form", model);
     }
 
@@ -112,8 +117,9 @@ public class GoodsReceiptsController : Controller
         var lines = Parse(linesJson).Where(l => l.ProductId != Guid.Empty && l.Quantity > 0).ToList();
         if (model.WarehouseId == Guid.Empty) ModelState.AddModelError(string.Empty, "اختر المخزن.");
         if (lines.Count == 0) ModelState.AddModelError(string.Empty, "أضف سطرًا واحدًا على الأقل بكمية موجبة.");
-        if (!ModelState.IsValid) { await FillAsync(model, ct); model.ExistingLines = await LinesVmAsync(lines.Select(l => (l.ProductId, l.Quantity, l.UnitCost)).ToList(), ct); return View("Form", model); }
+        if (!ModelState.IsValid) { await FillAsync(model, ct); model.ExistingLines = await LinesVmAsync(lines.Select(l => (l.ProductId, l.UnitLevel, l.Quantity, l.UnitCost)).ToList(), ct); return View("Form", model); }
 
+        var units = await ProductUnits.LoadAsync(_db, lines.Select(l => l.ProductId), ct);   // each line's unit → smallest unit
         GoodsReceipt d;
         if (model.Id == Guid.Empty)
         {
@@ -130,7 +136,15 @@ public class GoodsReceiptsController : Controller
         }
         d.Date = model.Date; d.WarehouseId = model.WarehouseId; d.SupplierId = model.SupplierId; d.Notes = model.Notes; d.Status = InventoryDocStatus.Draft;
         foreach (var l in lines)
-            _db.GoodsReceiptLines.Add(new GoodsReceiptLine { GoodsReceiptId = d.Id, ProductId = l.ProductId, Quantity = l.Quantity, UnitCost = l.UnitCost, TotalCost = Math.Round(l.Quantity * l.UnitCost, 2) });
+        {
+            // Stored in the smallest unit at the per-smallest-unit cost; the total stays entered quantity × entered cost.
+            var u = InvDocUnits.Resolve(units, l.ProductId, l.UnitLevel);
+            _db.GoodsReceiptLines.Add(new GoodsReceiptLine
+            {
+                GoodsReceiptId = d.Id, ProductId = l.ProductId, Quantity = l.Quantity * u.Factor, UnitCost = Math.Round(l.UnitCost / u.Factor, 6),
+                TotalCost = Math.Round(l.Quantity * l.UnitCost, 2), UnitLevel = u.Level, UnitFactor = u.Factor, UnitName = u.Name
+            });
+        }
         try { await _db.SaveChangesAsync(ct); }
         catch (DbUpdateException) { TempData["ErrorMessage"] = "تعذّر الحفظ — قد يكون رقم المستند مستخدمًا بالفعل. أعد المحاولة."; return RedirectToAction(nameof(Index)); }
         TempData["StatusMessage"] = $"تم حفظ إذن الاستلام {d.Number} كمسودة.";
@@ -217,7 +231,7 @@ public class GoodsReceiptsController : Controller
         var vm = new DocDetailsVm
         {
             Title = "إذن استلام", Number = d.Number, Date = d.Date, Warehouse = w ?? "", Status = StatusAr(d.Status), Notes = d.Notes,
-            Lines = d.Lines.Select(l => new DocDetailLine { Product = names.GetValueOrDefault(l.ProductId, ""), Quantity = l.Quantity, UnitCost = l.UnitCost, TotalCost = l.TotalCost }).ToList()
+            Lines = d.Lines.Select(l => new DocDetailLine { Product = names.GetValueOrDefault(l.ProductId, ""), Unit = l.UnitName, Quantity = InvDocUnits.Entered(l.Quantity, l.UnitFactor), UnitCost = InvDocUnits.EnteredCost(l.UnitCost, l.UnitFactor), TotalCost = l.TotalCost }).ToList()
         };
         if (d.SupplierId is Guid supId && await _db.Suppliers.Where(s => s.Id == supId).Select(s => s.Name).FirstOrDefaultAsync(ct) is string sup)
             vm.Extra.Add(("المورد", sup));
@@ -249,16 +263,12 @@ public class GoodsReceiptsController : Controller
     private async Task FillAsync(ReceiptFormModel model, CancellationToken ct)
     {
         model.Warehouses = await WarehouseItemsAsync(ct);
-        model.Products = await ProductItemsAsync(ct);
+        model.Products = await InvDocUnits.PicksAsync(_db, ct);
         model.Suppliers = await _db.Suppliers.OrderBy(s => s.Name).Select(s => new SelectListItem { Value = s.Id.ToString(), Text = s.Name }).ToListAsync(ct);
     }
 
     private async Task<List<SelectListItem>> WarehouseItemsAsync(CancellationToken ct)
         => await _db.Warehouses.Where(w => w.IsActive).OrderBy(w => w.Name).Select(w => new SelectListItem { Value = w.Id.ToString(), Text = w.Name }).ToListAsync(ct);
-
-    private async Task<List<SelectListItem>> ProductItemsAsync(CancellationToken ct)
-        => await _db.Products.Where(p => p.IsActive && p.TrackInventory).OrderBy(p => p.Sku)
-            .Select(p => new SelectListItem { Value = p.Id.ToString(), Text = p.Sku + " — " + p.Name }).ToListAsync(ct);
 
     private async Task<Dictionary<Guid, string>> ProductNamesAsync(IEnumerable<Guid> ids, CancellationToken ct)
     {
@@ -266,10 +276,10 @@ public class GoodsReceiptsController : Controller
         return await _db.Products.Where(p => set.Contains(p.Id)).ToDictionaryAsync(p => p.Id, p => p.Sku + " — " + p.Name, ct);
     }
 
-    private async Task<List<DocLineVm>> LinesVmAsync(List<(Guid ProductId, decimal Quantity, decimal UnitCost)> lines, CancellationToken ct)
+    private async Task<List<DocLineVm>> LinesVmAsync(List<(Guid ProductId, byte UnitLevel, decimal Quantity, decimal UnitCost)> lines, CancellationToken ct)
     {
         var names = await ProductNamesAsync(lines.Select(l => l.ProductId), ct);
-        return lines.Select(l => new DocLineVm { ProductId = l.ProductId, ProductLabel = names.GetValueOrDefault(l.ProductId, ""), Quantity = l.Quantity, UnitCost = l.UnitCost }).ToList();
+        return lines.Select(l => new DocLineVm { ProductId = l.ProductId, UnitLevel = l.UnitLevel, ProductLabel = names.GetValueOrDefault(l.ProductId, ""), Quantity = l.Quantity, UnitCost = l.UnitCost }).ToList();
     }
 
     private static string StatusAr(InventoryDocStatus s) => s switch

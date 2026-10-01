@@ -5,6 +5,7 @@ using RealState.Application.Accounting;
 using RealState.Application.Common;
 using RealState.Application.Entities;
 using RealState.Application.Interfaces;
+using RealState.Application.Inventory;
 using RealState.Web.Areas.Suppliers.Models;
 using static RealState.Web.Areas.Suppliers.Controllers.PurchasingLookups;
 
@@ -108,7 +109,8 @@ public class OrdersController : Controller
                 ProductId = i.ProductId,
                 LegacyName = i.ProductId is null ? i.Name : null,
                 Cost = i.Cost,
-                Quantity = i.Quantity
+                Quantity = i.Quantity,
+                UnitLevel = i.UnitLevel
             }).ToList()
         }, ct));
     }
@@ -128,23 +130,25 @@ public class OrdersController : Controller
         if (model.ProjectId.HasValue && !await _db.Projects.AnyAsync(p => p.Id == model.ProjectId, ct))
             ModelState.AddModelError(nameof(model.ProjectId), "المشروع غير موجود.");
 
-        // An order can't be cut below what its purchase invoices have already billed, product by product.
+        var units = await ProductUnits.LoadAsync(_db, productIds, ct);   // each line's unit + its factor to the smallest unit
+
+        // An order can't be cut below what its purchase invoices have already billed, product by product (smallest unit).
         if (model.Id != Guid.Empty)
         {
             var invoiced = await InvoicedQtyAsync(_db, model.Id, null, ct);
             if (invoiced.Count > 0)
             {
-                var newQty = items.Where(i => i.ProductId.HasValue).GroupBy(i => i.ProductId!.Value).ToDictionary(g => g.Key, g => g.Sum(i => i.Quantity));
+                var newQty = items.Where(i => i.ProductId.HasValue).GroupBy(i => i.ProductId!.Value)
+                    .ToDictionary(g => g.Key, g => g.Sum(i => i.Quantity * ResolveUnit(units, g.Key, i.UnitLevel).Factor));
                 var labels = await _db.Products.Where(p => invoiced.Keys.Contains(p.Id)).ToDictionaryAsync(p => p.Id, p => ProductLabel(p.Sku, p.Name), ct);
                 foreach (var (pid, billed) in invoiced.Where(x => x.Value > 0))
                     if (newQty.GetValueOrDefault(pid) < billed)
                         ModelState.AddModelError(string.Empty,
-                            $"لا يمكن أن تقل كمية الصنف «{labels.GetValueOrDefault(pid, "—")}» في الأمر ({newQty.GetValueOrDefault(pid):0.####}) عن الكمية المُفوتَرة منه ({billed:0.####}).");
+                            $"لا يمكن أن تقل كمية الصنف «{labels.GetValueOrDefault(pid, "—")}» في الأمر ({units.Of(pid).Breakdown(newQty.GetValueOrDefault(pid))}) عن الكمية المُفوتَرة منه ({units.Of(pid).Breakdown(billed)}).");
             }
         }
 
         if (!ModelState.IsValid) return PartialView("_OrderForm", await FillAsync(model, ct));
-        var units = await UnitsAsync(_db, productIds, ct);   // snapshot each line's unit of measure
 
         SupplierOrder order;
         if (model.Id == Guid.Empty)
@@ -176,11 +180,12 @@ public class OrdersController : Controller
         foreach (var it in items)
         {
             var name = it.ProductId is Guid pid ? ProductLabel(products[pid].Sku, products[pid].Name) : it.LegacyName!.Trim();
+            var unit = it.ProductId is Guid up ? ResolveUnit(units, up, it.UnitLevel) : null;
             _db.SupplierOrderItems.Add(new SupplierOrderItem
             {
                 // Orders are quantity-only; only a legacy order (which owns a payable) keeps its unit costs.
                 SupplierOrderId = order.Id, ProductId = it.ProductId, Name = name, Cost = order.IsLegacy ? it.Cost : 0m, Quantity = it.Quantity,
-                Unit = it.ProductId is Guid up ? units.GetValueOrDefault(up) : null
+                Unit = unit?.Name, UnitLevel = unit?.Level ?? 1, UnitFactor = unit?.Factor ?? 1m
             });
         }
         // New orders post nothing. A legacy order (one with a supplier) keeps its payable in sync with its lines.

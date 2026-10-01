@@ -83,7 +83,7 @@ public class UnitsController : Controller
         if (!CanManage()) return Forbid();
         var u = await _db.UnitsOfMeasure.FirstOrDefaultAsync(x => x.Id == id, ct);
         if (u is null) return NotFound();
-        if (await _db.Products.AnyAsync(p => p.UnitOfMeasureId == id, ct))
+        if (await _db.Products.AnyAsync(p => p.UnitOfMeasureId == id || p.Unit2Id == id || p.Unit3Id == id, ct))
             TempData["ErrorMessage"] = "لا يمكن حذف وحدة مرتبطة بأصناف.";
         else
         {

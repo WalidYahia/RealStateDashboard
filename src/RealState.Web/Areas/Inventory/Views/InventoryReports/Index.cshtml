@@ -1,0 +1,29 @@
+@model ReportsTabsVm
+@*
+    «تقارير المخزون» — one page, one tab per report. Each tab loads its content (the report's partial) the first time
+    it's opened and keeps it; its filters refresh only that tab. Behaviour: wwwroot/js/inv-reports.js.
+*@
+@{
+    ViewData["Title"] = "تقارير المخزون";
+}
+<div class="page-head">
+    <h1>تقارير المخزون</h1>
+</div>
+
+<div id="repTabs" data-index-url="@Url.Action("Index")">
+    <div class="subtabs rep-tabs" role="tablist">
+        @foreach (var t in Model.Tabs)
+        {
+            <button type="button" class="subtab @(t.Key == Model.Active ? "active" : "")" role="tab" data-rep-tab="@t.Key"
+                    aria-selected="@(t.Key == Model.Active ? "true" : "false")" aria-controls="rep-@t.Key">@t.Title</button>
+        }
+    </div>
+    @foreach (var t in Model.Tabs)
+    {
+        <section class="rep-panel" id="rep-@t.Key" role="tabpanel" data-rep-panel="@t.Key" data-src="@t.Url" hidden="@(t.Key != Model.Active)"></section>
+    }
+</div>
+
+@section Scripts {
+    <script src="~/js/inv-reports.js" asp-append-version="true"></script>
+}

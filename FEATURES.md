@@ -243,6 +243,32 @@ Searchable dropdowns (system-wide, `appEnhanceSearchSelect`): the select's empty
 menu item — «الكل» in filters, the form's own «— بدون … —» / «— اختر —» text in forms — and stays visible while
 typing, so a chosen value can always be cleared from the list. Enter while typing picks the first real match.
 
+## 2.13 Product units (وحدات الصنف) & selling prices
+
+- A product has up to **3 units**: the **smallest** (الصغرى — e.g. سم), a **bigger** one = N × the smallest (متر = 100
+  سم) and the **biggest** = M × the bigger one (كيلو = 1000 متر). A **default unit** is pre-selected on lines, and an
+  optional **selling price per unit** (pre-filled on sales invoice lines, editable there). Rules: each bigger unit
+  needs the one below it and a factor > 1, no unit repeated; the smallest unit can't change once the product has
+  stock movements. Shared helper: `RealState.Application.Inventory.ProductUnits` / `ProductUnitSet`.
+- **Stock, movements, average cost and valuation are always in the smallest unit.** Every document line — purchase
+  orders, purchase & sales invoices, goods receipts / issues, transfers, adjustments, stock counts — picks a unit
+  (`UnitLevel`) and snapshots its factor (`UnitFactor`) + name; quantity × factor = smallest-unit quantity, price ÷
+  factor = smallest-unit cost. Receipt/adjustment line totals stay exact (entered qty × entered price), so the GRNI
+  of a purchase invoice still nets to zero. The engine now costs outflows with the exact average (value ÷ qty),
+  not the 4-decimal one, and smallest-unit costs are stored with 6 decimals.
+- Line editors: changing a line's unit converts its typed price (5/متر → 0.05/سم); on sales invoices an automatic
+  price switches to the new unit's selling price. Stock columns show the stock in the line's unit; sales
+  availability and PO-vs-invoice limits are compared in the smallest unit.
+- Reports: stock balance / valuation show the quantity in the smallest unit + a breakdown («2 كيلو، 300 متر، 50 سم»);
+  movements show each product's unit; the stock card adds the running balance in units; the inventory dashboard
+  alerts show quantities and reorder levels in units (reorder level is set in the smallest unit). Document
+  details / prints show each line in the unit it was entered in. Migration `ProductMultiUnits`.
+- **Inventory reports page** (`InventoryReports/Index`, «تقارير المخزون»): one page with tabs — أرصدة المخزون، تقييم
+  المخزون، حركة المخزون، بطاقة الصنف، مطابقة الأستاذ. A tab loads its report (the action's partial, fetched with
+  X-Requested-With) the first time it's opened and keeps it; its filters / «مسح الفلاتر» refresh only that tab; the
+  address bar follows (`?tab=…&filters`), so refresh / shared links reopen the same tab and filters. Opening an old
+  report URL directly redirects to the page with that tab. Script: `wwwroot/js/inv-reports.js`.
+
 ## 2.11 Document numbering (year rule)
 
 Every document number is **year‑prefixed and restarts at 1 each year**, using the document's own date:

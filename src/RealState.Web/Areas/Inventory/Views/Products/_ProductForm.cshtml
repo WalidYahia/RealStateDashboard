@@ -20,11 +20,57 @@
                 <option value="">— بدون —</option>
             </select>
         </div>
-        <div>
-            <label asp-for="UnitOfMeasureId" class="form-label"></label>
-            <select asp-for="UnitOfMeasureId" class="form-control" data-searchable asp-items="Model.Units">
-                <option value="">— بدون —</option>
-            </select>
+        <div class="full">
+            @* Up to 3 units. Stock and cost are always counted in the smallest one; documents may use any. *@
+            <label class="form-label">الوحدات</label>
+            <table class="rs-table" data-no-grid style="margin:0;">
+                <thead><tr><th style="width:90px;">المستوى</th><th>الوحدة</th><th>تساوي</th><th style="width:130px;">سعر البيع</th><th style="width:86px;text-align:center;">الافتراضية</th></tr></thead>
+                <tbody>
+                    <tr>
+                        <td>الصغرى</td>
+                        <td>
+                            <select asp-for="UnitOfMeasureId" class="form-control" style="margin:0" data-searchable asp-items="Model.Units"><option value="">— بدون —</option></select>
+                            <span asp-validation-for="UnitOfMeasureId" class="field-validation-error"></span>
+                        </td>
+                        <td style="color:var(--muted);font-size:12.5px;">الوحدة الأساسية — بها يُحسب المخزون والتكلفة</td>
+                        <td><input asp-for="SalePrice" class="form-control" style="margin:0;" type="number" step="any" min="0" dir="ltr" placeholder="—" /></td>
+                        <td style="text-align:center;"><input type="radio" name="DefaultUnitLevel" value="1" checked="@(Model.DefaultUnitLevel != 2 && Model.DefaultUnitLevel != 3)" /></td>
+                    </tr>
+                    <tr>
+                        <td>الأكبر</td>
+                        <td>
+                            <select asp-for="Unit2Id" class="form-control" style="margin:0" data-searchable asp-items="Model.Units"><option value="">— بدون —</option></select>
+                            <span asp-validation-for="Unit2Id" class="field-validation-error"></span>
+                        </td>
+                        <td>
+                            <div style="display:flex;align-items:center;gap:6px;">
+                                <input asp-for="Unit2Factor" class="form-control" style="margin:0;width:120px;" type="number" step="any" min="0" dir="ltr" placeholder="مثال: 100" />
+                                <span style="color:var(--muted);font-size:12.5px;white-space:nowrap;">× الوحدة الصغرى</span>
+                            </div>
+                            <span asp-validation-for="Unit2Factor" class="field-validation-error"></span>
+                        </td>
+                        <td><input asp-for="SalePrice2" class="form-control" style="margin:0;" type="number" step="any" min="0" dir="ltr" placeholder="—" /></td>
+                        <td style="text-align:center;"><input type="radio" name="DefaultUnitLevel" value="2" checked="@(Model.DefaultUnitLevel == 2)" /></td>
+                    </tr>
+                    <tr>
+                        <td>الأكبر منها</td>
+                        <td>
+                            <select asp-for="Unit3Id" class="form-control" style="margin:0" data-searchable asp-items="Model.Units"><option value="">— بدون —</option></select>
+                            <span asp-validation-for="Unit3Id" class="field-validation-error"></span>
+                        </td>
+                        <td>
+                            <div style="display:flex;align-items:center;gap:6px;">
+                                <input asp-for="Unit3Factor" class="form-control" style="margin:0;width:120px;" type="number" step="any" min="0" dir="ltr" placeholder="مثال: 1000" />
+                                <span style="color:var(--muted);font-size:12.5px;white-space:nowrap;">× الوحدة الأكبر</span>
+                            </div>
+                            <span asp-validation-for="Unit3Factor" class="field-validation-error"></span>
+                        </td>
+                        <td><input asp-for="SalePrice3" class="form-control" style="margin:0;" type="number" step="any" min="0" dir="ltr" placeholder="—" /></td>
+                        <td style="text-align:center;"><input type="radio" name="DefaultUnitLevel" value="3" checked="@(Model.DefaultUnitLevel == 3)" /></td>
+                    </tr>
+                </tbody>
+            </table>
+            <span style="color:var(--muted);font-size:12px;">مثال: الصغرى «سم»، الأكبر «متر» = 100، الأكبر منها «كيلو» = 1000 (أي 1000 متر). الافتراضية تُختار تلقائيًا في الفواتير والأوامر وأذون المخزون ويمكن تغييرها في كل سطر. سعر البيع (اختياري) لكل وحدة يظهر تلقائيًا في فاتورة المبيعات عند اختيار الوحدة، ويمكن تعديله في الفاتورة.</span>
         </div>
         <div>
             <label asp-for="ReorderLevel" class="form-label"></label>

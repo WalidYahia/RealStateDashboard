@@ -31,6 +31,7 @@ public class DashboardController : Controller
         if (categoryId is Guid cid) prodQ = prodQ.Where(p => p.CategoryId == cid);
         var products = await prodQ.Select(p => new { p.Id, p.Sku, p.Name, p.ReorderLevel }).ToListAsync(ct);
         var ids = products.Select(p => p.Id).ToList();
+        var units = await ProductUnits.LoadAsync(_db, ids, ct);   // quantities are kept in each product's smallest unit
 
         // Quantity + value per product per warehouse, as of the chosen date.
         // Outflow is decided by quantity direction — same rule the engine and reports use.
@@ -62,7 +63,11 @@ public class DashboardController : Controller
             else if (p.ReorderLevel > 0 && qty <= p.ReorderLevel) { vm.LowStock++; state = "منخفض"; }
 
             if (state is not null)
-                vm.Alerts.Add(new StockAlertRow { Sku = p.Sku, Product = p.Name, Quantity = qty, ReorderLevel = p.ReorderLevel, State = state });
+                vm.Alerts.Add(new StockAlertRow
+                {
+                    Sku = p.Sku, Product = p.Name, Quantity = qty, ReorderLevel = p.ReorderLevel, State = state,
+                    QuantityText = units.Of(p.Id).Breakdown(qty), ReorderText = p.ReorderLevel > 0 ? units.Of(p.Id).Breakdown(p.ReorderLevel) : "—"
+                });
         }
         // Worst first: negative, then out, then low — and smallest quantity first within each.
         vm.Alerts = vm.Alerts

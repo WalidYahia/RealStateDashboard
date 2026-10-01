@@ -21,7 +21,7 @@
 <div class="card-tile">
     <div class="list-search-bar"><input class="form-control list-search" data-target="#prodTable" placeholder="🔍 بحث في القائمة..." /></div>
     <table class="rs-table" id="prodTable">
-        <thead><tr><th>الكود</th><th>الاسم</th><th>التصنيف</th><th>الوحدة</th><th>الحالة</th><th></th></tr></thead>
+        <thead><tr><th>الكود</th><th>الاسم</th><th>التصنيف</th><th>الوحدات</th><th>الافتراضية</th><th>الحالة</th><th></th></tr></thead>
         <tbody>
         @foreach (var p in Model)
         {
@@ -29,7 +29,8 @@
                 <td dir="ltr" style="text-align:right;">@p.Sku</td>
                 <td>@p.Name</td>
                 <td>@p.CategoryName</td>
-                <td>@p.UnitName</td>
+                <td>@p.UnitsChain</td>
+                <td>@p.DefaultUnitName</td>
                 <td>@(p.IsActive ? "مفعّل" : "متوقف")</td>
                 <td style="white-space:nowrap;">
                     @if (canManage)
@@ -43,8 +44,8 @@
                 </td>
             </tr>
         }
-        @if (Model.Count == 0) { <tr data-skip-search><td colspan="6" style="color:var(--muted)">لا توجد أصناف بعد.</td></tr> }
-        <tr data-no-results data-skip-search style="display:none;"><td colspan="6" style="color:var(--muted)">لا توجد نتائج مطابقة.</td></tr>
+        @if (Model.Count == 0) { <tr data-skip-search><td colspan="7" style="color:var(--muted)">لا توجد أصناف بعد.</td></tr> }
+        <tr data-no-results data-skip-search style="display:none;"><td colspan="7" style="color:var(--muted)">لا توجد نتائج مطابقة.</td></tr>
         </tbody>
     </table>
 </div>

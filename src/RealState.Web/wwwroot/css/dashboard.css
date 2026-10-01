@@ -390,6 +390,13 @@ select.form-control { appearance: auto; }
 .subtab { padding: 10px 18px; color: var(--text-secondary); text-decoration: none; font-weight: 600; font-size: 14px; border-bottom: 2px solid transparent; }
 .subtab:hover { color: var(--text-primary); }
 .subtab.active { color: var(--text-strong); border-bottom-color: var(--series-1); }
+/* Tabbed report pages (e.g. تقارير المخزون): tabs are buttons, panels load their content on first open. */
+.rep-tabs { flex-wrap: wrap; position: sticky; top: 0; z-index: 5; background: var(--page); }
+.rep-tabs .subtab { background: none; border: none; border-bottom: 2px solid transparent; cursor: pointer; font-family: inherit; margin-bottom: -1px; }
+.rep-tabs .subtab.active { color: var(--text-strong); border-bottom-color: var(--series-1); }
+.rep-tabs .subtab:focus-visible { outline: 2px solid var(--series-1); outline-offset: -2px; border-radius: 6px 6px 0 0; }
+.rep-toolbar { display: flex; justify-content: flex-end; gap: 8px; margin-bottom: 12px; }
+.rep-loading { color: var(--muted); text-align: center; padding: 36px 16px; }
 
 /* Projects grid / cards */
 .proj-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: var(--gap); }

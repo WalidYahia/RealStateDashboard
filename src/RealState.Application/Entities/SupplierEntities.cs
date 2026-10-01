@@ -62,6 +62,10 @@ public class SupplierOrderItem : AuditableEntity, ITenantEntity
 
     /// <summary>The product's unit of measure name at save time (الوحدة). Null on legacy lines.</summary>
     public string? Unit { get; set; }
+    /// <summary>The unit level (1/2/3) chosen on the line and its size in the product's smallest unit; Quantity and the
+    /// price/cost are per that unit (base quantity = Quantity × UnitFactor).</summary>
+    public byte UnitLevel { get; set; } = 1;
+    public decimal UnitFactor { get; set; } = 1m;
 
     /// <summary>Unit cost (تكلفة الوحدة).</summary>
     public decimal Cost { get; set; }
@@ -129,6 +133,10 @@ public class PurchaseInvoiceItem : AuditableEntity, ITenantEntity
 
     /// <summary>The product's unit of measure name at save time (الوحدة).</summary>
     public string? Unit { get; set; }
+    /// <summary>The unit level (1/2/3) chosen on the line and its size in the product's smallest unit; Quantity and the
+    /// price/cost are per that unit (base quantity = Quantity × UnitFactor).</summary>
+    public byte UnitLevel { get; set; } = 1;
+    public decimal UnitFactor { get; set; } = 1m;
 
     /// <summary>Unit cost (تكلفة الوحدة).</summary>
     public decimal Cost { get; set; }

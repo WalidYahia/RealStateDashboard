@@ -311,7 +311,7 @@
                             <a class="subnav-link @NavActive("StockCounts")" asp-area="Inventory" asp-controller="StockCounts" asp-action="Index">الجرد</a>
                             @if (Can(PermissionNames.InventoryReports))
                             {
-                                <a class="subnav-link @NavActive("InventoryReports")" asp-area="Inventory" asp-controller="InventoryReports" asp-action="StockBalance">التقارير</a>
+                                <a class="subnav-link @NavActive("InventoryReports")" asp-area="Inventory" asp-controller="InventoryReports" asp-action="Index">التقارير</a>
                             }
                             @if (canInvManage)
                             {

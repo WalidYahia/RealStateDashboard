@@ -51,7 +51,7 @@
     @{
         // The purchasing lines editor, with the selling price and per-warehouse availability.
         var linesVm = new RealState.Web.Areas.Suppliers.Models.DocItemsVm(Model.Items, Model.Products, ShowStock: true, ShowCost: true,
-            PriceLabel: "سعر البيع", StockLabel: "المتاح بالمخزن");
+            PriceLabel: "سعر البيع", StockLabel: "المتاح بالمخزن", UseSalePrice: true);
     }
     <partial name="~/Areas/Suppliers/Views/Shared/_DocItems.cshtml" model="linesVm" />
 

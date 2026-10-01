@@ -8,7 +8,11 @@ public class StockBalanceRow
     public string Sku { get; set; } = string.Empty;
     public string Product { get; set; } = string.Empty;
     public string Warehouse { get; set; } = string.Empty;
+    /// <summary>In the product's smallest unit (<see cref="Unit"/>); <see cref="Breakdown"/> spells it out in all its units.</summary>
     public decimal Quantity { get; set; }
+    public string Unit { get; set; } = string.Empty;
+    public string Breakdown { get; set; } = string.Empty;
+    /// <summary>Average cost per smallest unit.</summary>
     public decimal AvgCost { get; set; }
     public decimal Value { get; set; }
 }
@@ -28,9 +32,12 @@ public class MovementRow
     public string Reference { get; set; } = string.Empty;
     public string Product { get; set; } = string.Empty;
     public string Warehouse { get; set; } = string.Empty;
+    /// <summary>In / Out / Balance are in the product's smallest unit (<see cref="Unit"/>).</summary>
     public decimal In { get; set; }
     public decimal Out { get; set; }
     public decimal Balance { get; set; }     // running quantity (stock card only)
+    public string Unit { get; set; } = string.Empty;
+    public string BalanceBreakdown { get; set; } = string.Empty;   // stock card: the balance in all the product's units
 }
 
 public class MovementsVm
@@ -56,4 +63,14 @@ public class ReconciliationVm
     public decimal GlValue { get; set; }           // GL inventory account balance
     public decimal Difference => Math.Round(SubledgerValue - GlValue, 2);
     public bool IsReconciled => Difference == 0m;
+}
+
+// ---------- Tabbed reports page ----------
+/// <summary>One tab of «تقارير المخزون»: its key (?tab=), title and the URL its content is loaded from.</summary>
+public record ReportTab(string Key, string Title, string Url);
+
+public class ReportsTabsVm
+{
+    public string Active { get; set; } = "balance";
+    public List<ReportTab> Tabs { get; set; } = new();
 }

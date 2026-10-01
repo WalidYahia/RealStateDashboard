@@ -30,7 +30,10 @@ public class SupplierFormModel
 // ---------- Product picker shared by order + invoice lines ----------
 /// <summary>A product offered in a line's searchable picker: total on-hand stock (<see cref="Tracked"/> = stock-tracked) and unit of
 /// measure. <see cref="StockByWarehouse"/> (sales invoices) lets the picker show what's available in the chosen warehouse.</summary>
-public record ProductOption(Guid Id, string Label, decimal Stock, bool Tracked, string? Unit, IReadOnlyDictionary<Guid, decimal>? StockByWarehouse = null);
+/// <see cref="Stock"/> / <see cref="StockByWarehouse"/> are in the smallest unit; <see cref="Units"/> are the product's unit levels
+/// (the line's unit picker), <see cref="Unit"/> the smallest unit's name.
+public record ProductOption(Guid Id, string Label, decimal Stock, bool Tracked, string? Unit, IReadOnlyDictionary<Guid, decimal>? StockByWarehouse = null,
+    RealState.Application.Inventory.ProductUnitSet? Units = null);
 
 /// <summary>One product line (صنف) on an order or invoice form.</summary>
 public class DocItemInput
@@ -50,6 +53,10 @@ public class DocItemInput
     [Display(Name = "الكمية")]
     public decimal Quantity { get; set; } = 1m;
 
+    /// <summary>The product unit (1 = smallest, 2, 3) the quantity and price are in; 0 = the product's default unit.</summary>
+    [Display(Name = "الوحدة")]
+    public byte UnitLevel { get; set; }
+
     /// <summary>Line total = unit cost × quantity, rounded to money precision.</summary>
     public decimal LineTotal => Math.Round(Cost * Quantity, 2);
 
@@ -60,7 +67,7 @@ public class DocItemInput
 /// <param name="PriceLabel">Header of the unit-price column («تكلفة الوحدة» on purchases, «سعر البيع» on sales invoices).</param>
 /// <param name="StockLabel">Header of the stock column (per-warehouse availability on sales invoices).</param>
 public record DocItemsVm(List<DocItemInput> Items, List<ProductOption> Products, bool ShowStock, bool ShowCost = true,
-    string PriceLabel = "تكلفة الوحدة", string StockLabel = "المخزون الحالي");
+    string PriceLabel = "تكلفة الوحدة", string StockLabel = "المخزون الحالي", bool UseSalePrice = false);
 
 // ---------- Order CRUD ----------
 public class OrderFormModel

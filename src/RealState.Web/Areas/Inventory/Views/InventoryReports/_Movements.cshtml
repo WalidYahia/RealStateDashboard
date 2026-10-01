@@ -1,0 +1,40 @@
+@model MovementsVm
+@* Tab «حركة المخزون» of the inventory reports page (Index). *@
+@{
+    string N(decimal v) => v.ToString("N2", RealState.Web.AppCulture.Ar);
+    string? F(DateTime? d) => d?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+}
+@{
+    // Standard quick ranges (اليوم / آخر أسبوع / آخر شهر); a fresh open shows today.
+    var filter = FilterBarVm.For(Url.Action("Movements"))
+        .DateRange(F(Model.From), F(Model.To))
+        .Select("productId", "الصنف", Model.Products, Model.ProductId, "— الكل —")
+        .Select("warehouseId", "المخزن", Model.Warehouses, Model.WarehouseId, "— الكل —")
+        .Print(Url.Action("MovementsPrint", new { productId = Model.ProductId, warehouseId = Model.WarehouseId, from = F(Model.From), to = F(Model.To) }))
+        .Excel(Url.Action("MovementsExcel", new { productId = Model.ProductId, warehouseId = Model.WarehouseId, from = F(Model.From), to = F(Model.To) }));
+}
+<partial name="_FilterBar" model="filter" />
+
+@{ string Q(decimal v) => v.ToString("0.####", System.Globalization.CultureInfo.InvariantCulture); }
+<p style="color:var(--muted);font-size:12.5px;margin:0 0 8px;">الكميات بالوحدة الصغرى لكل صنف (عمود «الوحدة»).</p>
+<div class="card-tile">
+    <table class="rs-table" data-no-grid>
+        <thead><tr><th>التاريخ</th><th>النوع</th><th>المرجع</th><th>الصنف</th><th>المخزن</th><th>الوحدة</th><th>وارد</th><th>منصرف</th></tr></thead>
+        <tbody>
+        @foreach (var r in Model.Rows)
+        {
+            <tr>
+                <td dir="ltr" style="text-align:right;">@r.Date.ToString("yyyy/MM/dd")</td>
+                <td>@r.TypeAr</td>
+                <td>@r.Reference</td>
+                <td>@r.Product</td>
+                <td>@r.Warehouse</td>
+                <td style="color:var(--text-secondary);">@r.Unit</td>
+                <td dir="ltr" style="text-align:right;">@(r.In == 0 ? "" : Q(r.In))</td>
+                <td dir="ltr" style="text-align:right;">@(r.Out == 0 ? "" : Q(r.Out))</td>
+            </tr>
+        }
+        @if (Model.Rows.Count == 0) { <tr><td colspan="8" style="color:var(--muted)">لا توجد حركات في هذه الفترة.</td></tr> }
+        </tbody>
+    </table>
+</div>

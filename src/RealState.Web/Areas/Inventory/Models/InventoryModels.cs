@@ -54,8 +54,20 @@ public class ProductFormModel
     [Required(ErrorMessage = "الاسم مطلوب")][Display(Name = "اسم الصنف")]
     public string Name { get; set; } = string.Empty;
     [Display(Name = "التصنيف")] public Guid? CategoryId { get; set; }
-    [Display(Name = "وحدة القياس")] public Guid? UnitOfMeasureId { get; set; }
-    [Display(Name = "حد إعادة الطلب")] public decimal ReorderLevel { get; set; }
+    // Up to 3 units: the smallest (stock + cost unit), a bigger one = Unit2Factor × smallest, and the biggest =
+    // Unit3Factor × the bigger one (e.g. سم ← متر = 100 سم ← كيلو = 1000 متر).
+    [Display(Name = "الوحدة الصغرى")] public Guid? UnitOfMeasureId { get; set; }
+    [Display(Name = "الوحدة الأكبر")] public Guid? Unit2Id { get; set; }
+    [Display(Name = "عدد الوحدات الصغرى فيها")] public decimal? Unit2Factor { get; set; }
+    [Display(Name = "الوحدة الأكبر منها")] public Guid? Unit3Id { get; set; }
+    [Display(Name = "عدد «الوحدة الأكبر» فيها")] public decimal? Unit3Factor { get; set; }
+    /// <summary>Unit (1/2/3) pre-selected on invoices, orders and inventory documents.</summary>
+    [Display(Name = "الوحدة الافتراضية")] public byte DefaultUnitLevel { get; set; } = 1;
+    // Selling price per unit level (pre-filled on sales invoice lines, editable there). Empty = none.
+    [Range(0, 999999999999, ErrorMessage = "سعر غير صالح")][Display(Name = "سعر البيع (الصغرى)")] public decimal? SalePrice { get; set; }
+    [Range(0, 999999999999, ErrorMessage = "سعر غير صالح")][Display(Name = "سعر البيع (الأكبر)")] public decimal? SalePrice2 { get; set; }
+    [Range(0, 999999999999, ErrorMessage = "سعر غير صالح")][Display(Name = "سعر البيع (الأكبر منها)")] public decimal? SalePrice3 { get; set; }
+    [Display(Name = "حد إعادة الطلب (بالوحدة الصغرى)")] public decimal ReorderLevel { get; set; }
     [Display(Name = "تتبّع المخزون")] public bool TrackInventory { get; set; } = true;
     [Display(Name = "تتبّع التكلفة")] public bool TrackCost { get; set; } = true;
     [Display(Name = "مفعّل")] public bool IsActive { get; set; } = true;
@@ -72,6 +84,9 @@ public class ProductRow
     public string Name { get; set; } = string.Empty;
     public string? CategoryName { get; set; }
     public string? UnitName { get; set; }
+    /// <summary>The product's units, e.g. «سم ← متر (100) ← كيلو (1000)».</summary>
+    public string? UnitsChain { get; set; }
+    public string? DefaultUnitName { get; set; }
     public bool IsActive { get; set; }
 }
 

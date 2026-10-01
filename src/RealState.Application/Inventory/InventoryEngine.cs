@@ -182,7 +182,9 @@ public class InventoryEngine : IInventoryEngine
             RequirePositive(l.Quantity);
             if (l.UnitCost <= 0)
                 throw new InvalidOperationException("أدخل تكلفة وحدة أكبر من صفر لكل صنف — بدونها لا يُنشأ قيد.");
-            var cost = Math.Round(l.Quantity * l.UnitCost, 2);
+            // A line total set by the caller (entered quantity × entered unit price, exact) wins over smallest-unit
+            // quantity × the rounded smallest-unit cost — e.g. 3 متر at 10 → 30.00, not 300 سم × 0.0333.
+            var cost = l.TotalCost > 0 ? Math.Round(l.TotalCost, 2) : Math.Round(l.Quantity * l.UnitCost, 2);
             l.TotalCost = cost; total += cost;
             AddMovement(l.ProductId, doc.WarehouseId, doc.Date, InventoryMovementType.Receipt,
                 InventorySources.GoodsReceipt, doc.Id, doc.Number, l.Quantity, 0, l.UnitCost, cost, doc.Notes);
@@ -288,7 +290,7 @@ public class InventoryEngine : IInventoryEngine
             {
                 if (l.UnitCost <= 0)
                     throw new InvalidOperationException("أدخل تكلفة الوحدة للأصناف ذات الزيادة (كمية موجبة) — بدونها لا يُنشأ قيد.");
-                var cost = Math.Round(l.QuantityDelta * l.UnitCost, 2);
+                var cost = l.TotalCost > 0 ? Math.Round(l.TotalCost, 2) : Math.Round(l.QuantityDelta * l.UnitCost, 2);   // see PostReceiptAsync
                 l.TotalCost = cost; inc += cost;
                 AddMovement(l.ProductId, doc.WarehouseId, doc.Date, InventoryMovementType.AdjustmentIn,
                     InventorySources.InventoryAdjustment, doc.Id, doc.Number, l.QuantityDelta, 0, l.UnitCost, cost, doc.Notes);
@@ -338,7 +340,7 @@ public class InventoryEngine : IInventoryEngine
             {
                 if (stock.AverageCost <= 0)
                     throw new InvalidOperationException("لا توجد تكلفة معروفة لتقييم الزيادة في الجرد — استخدم «تسوية مخزون» وحدّد تكلفة الوحدة.");
-                var cost = Math.Round(delta * stock.AverageCost, 2); inc += cost;
+                var cost = Math.Round(delta * stock.Value / stock.Quantity, 2); inc += cost;   // exact average, not the rounded one
                 AddMovement(l.ProductId, doc.WarehouseId, doc.Date, InventoryMovementType.AdjustmentIn,
                     InventorySources.StockCount, doc.Id, doc.Number, delta, 0, stock.AverageCost, cost, doc.Notes);
             }
@@ -439,9 +441,11 @@ public class InventoryEngine : IInventoryEngine
     /// <summary>
     /// Cost of an outflow under weighted average. Taking the whole remaining quantity consumes the whole
     /// remaining value, so rounding residue can never be left behind on a zero-quantity item.
+    /// Uses the exact average (value ÷ quantity), not the 4-decimal AverageCost — with a small smallest unit
+    /// (e.g. سم at 0.00123) rounding the average first would distort the cost by several percent.
     /// </summary>
     private static decimal OutflowCost(StockLevel stock, decimal qty)
-        => qty >= stock.Quantity ? Math.Round(stock.Value, 2) : Math.Round(qty * stock.AverageCost, 2);
+        => qty >= stock.Quantity ? Math.Round(stock.Value, 2) : Math.Round(qty * stock.Value / stock.Quantity, 2);
 
     /// <summary>
     /// Weighted average has no history rewrite: a document dated before existing movements would cost

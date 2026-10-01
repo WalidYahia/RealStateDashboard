@@ -218,7 +218,7 @@ public class SalesInvoicesController : Controller
             WarehouseId = inv.WarehouseId,
             InvoiceDate = inv.InvoiceDate,
             Notes = inv.Notes,
-            Items = items.Select(i => new DocItemInput { ProductId = i.ProductId, Cost = i.Price, Quantity = i.Quantity }).ToList()
+            Items = items.Select(i => new DocItemInput { ProductId = i.ProductId, Cost = i.Price, Quantity = i.Quantity, UnitLevel = i.UnitLevel }).ToList()
         }, ct));
     }
 
@@ -234,6 +234,7 @@ public class SalesInvoicesController : Controller
         var productIds = items.Select(i => i.ProductId!.Value).Distinct().ToList();
         var products = await _db.Products.Where(p => productIds.Contains(p.Id)).ToDictionaryAsync(p => p.Id, ct);
         var total = items.Sum(i => i.LineTotal);
+        var units = await ProductUnits.LoadAsync(_db, productIds, ct);   // each line's unit + its factor to the smallest unit
 
         if (items.Count == 0) ModelState.AddModelError(string.Empty, "أضف صنفًا واحدًا على الأقل.");
         if (items.Any(i => i.Cost <= 0)) ModelState.AddModelError(string.Empty, "أدخل سعر البيع (أكبر من صفر) لكل صنف.");
@@ -255,12 +256,15 @@ public class SalesInvoicesController : Controller
                 var available = await AvailableAsync(model.WarehouseId.Value, isNew ? null : model.Id, ct);
                 foreach (var l in stockLines)
                 {
+                    // Compared in the product's smallest unit (stock is kept in it).
                     var have = available.GetValueOrDefault(l.ProductId!.Value);
-                    if (l.Quantity > have)
+                    var want = l.Quantity * ResolveUnit(units, l.ProductId!.Value, l.UnitLevel).Factor;
+                    if (want > have)
                     {
                         var pr = products[l.ProductId!.Value];
+                        var u = units.Of(pr.Id);
                         ModelState.AddModelError(string.Empty,
-                            $"الكمية المطلوبة من «{ProductLabel(pr.Sku, pr.Name)}» ({l.Quantity:0.####}) أكبر من المتاح في المخزن ({Math.Max(have, 0):0.####}).");
+                            $"الكمية المطلوبة من «{ProductLabel(pr.Sku, pr.Name)}» ({u.Breakdown(want)}) أكبر من المتاح في المخزن ({u.Breakdown(Math.Max(have, 0))}).");
                     }
                 }
             }
@@ -298,13 +302,14 @@ public class SalesInvoicesController : Controller
         inv.CustomerId = model.CustomerId!.Value;
         inv.WarehouseId = model.WarehouseId;
         inv.Notes = model.Notes;
-        var units = await UnitsAsync(_db, products.Keys, ct);   // snapshot each line's unit of measure
         var newItems = items.Select(it =>
         {
             var p = products[it.ProductId!.Value];
+            var unit = ResolveUnit(units, p.Id, it.UnitLevel);   // snapshot the line's unit + factor
             return new ProductSalesInvoiceItem
             {
-                SalesInvoiceId = inv.Id, ProductId = p.Id, Name = ProductLabel(p.Sku, p.Name), Unit = units.GetValueOrDefault(p.Id),
+                SalesInvoiceId = inv.Id, ProductId = p.Id, Name = ProductLabel(p.Sku, p.Name),
+                Unit = unit.Name, UnitLevel = unit.Level, UnitFactor = unit.Factor,
                 Price = it.Cost, Quantity = it.Quantity, LineTotal = it.LineTotal
             };
         }).ToList();
@@ -359,7 +364,7 @@ public class SalesInvoicesController : Controller
         if (current is not null && stockLines.Count > 0
             && current.WarehouseId == inv.WarehouseId && current.Date.Date == inv.InvoiceDate.Date
             && current.Lines.Count == stockLines.Count
-            && stockLines.All(l => current.Lines.Any(x => x.ProductId == l.ProductId && x.Quantity == l.Quantity)))
+            && stockLines.All(l => current.Lines.Any(x => x.ProductId == l.ProductId && x.Quantity == l.Quantity * l.UnitFactor)))
         {
             current.CustomerId = inv.CustomerId;
             return new IssueSync(null, null, current);
@@ -381,7 +386,12 @@ public class SalesInvoicesController : Controller
             SalesInvoiceId = inv.Id,
             CustomerId = inv.CustomerId,
             Notes = $"صرف تلقائي لفاتورة المبيعات {SI(inv.Number)}",
-            Lines = stockLines.Select(l => new GoodsIssueLine { ProductId = l.ProductId, Quantity = l.Quantity }).ToList()
+            // Issued in the smallest unit (cost of sales per the costing method); the line remembers the unit it was sold in.
+            Lines = stockLines.Select(l => new GoodsIssueLine
+            {
+                ProductId = l.ProductId, Quantity = l.Quantity * l.UnitFactor,
+                UnitLevel = l.UnitLevel, UnitFactor = l.UnitFactor, UnitName = l.Unit
+            }).ToList()
         };
         _db.GoodsIssues.Add(issue);
         await _inventory.PostIssueAsync(issue, ct);

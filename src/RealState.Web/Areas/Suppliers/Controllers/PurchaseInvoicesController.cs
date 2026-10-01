@@ -118,7 +118,7 @@ public class PurchaseInvoicesController : Controller
                 model.ProjectId = order.ProjectId;
                 // Only what's still to be invoiced on the order (ordered − already invoiced), per product.
                 model.Items = (await RemainingOrderLinesAsync(order.Id, null, ct))
-                    .Select(l => new DocItemInput { ProductId = l.ProductId, Cost = l.Cost ?? 0, Quantity = l.Remaining }).ToList();
+                    .Select(l => new DocItemInput { ProductId = l.ProductId, Cost = l.Cost ?? 0, Quantity = l.Remaining, UnitLevel = l.UnitLevel }).ToList();
             }
             if (model.Items.Count == 0) model.Items.Add(new DocItemInput());
             return PartialView("_InvoiceForm", await FillAsync(model, ct));
@@ -137,7 +137,7 @@ public class PurchaseInvoicesController : Controller
             WarehouseId = inv.WarehouseId,
             InvoiceDate = inv.InvoiceDate,
             Notes = inv.Notes,
-            Items = items.Select(i => new DocItemInput { ProductId = i.ProductId, Cost = i.Cost, Quantity = i.Quantity }).ToList()
+            Items = items.Select(i => new DocItemInput { ProductId = i.ProductId, Cost = i.Cost, Quantity = i.Quantity, UnitLevel = i.UnitLevel }).ToList()
         }, ct));
     }
 
@@ -153,6 +153,8 @@ public class PurchaseInvoicesController : Controller
         var productIds = items.Select(i => i.ProductId!.Value).Distinct().ToList();
         var products = await _db.Products.Where(p => productIds.Contains(p.Id)).ToDictionaryAsync(p => p.Id, ct);
         var total = items.Sum(i => i.LineTotal);
+        var units = await ProductUnits.LoadAsync(_db, productIds, ct);   // each line's unit + its factor to the smallest unit
+        decimal BaseQty(DocItemInput i) => i.Quantity * ResolveUnit(units, i.ProductId!.Value, i.UnitLevel).Factor;
 
         if (items.Count == 0) ModelState.AddModelError(string.Empty, "أضف صنفًا واحدًا على الأقل.");
         if (items.Any(i => i.Cost <= 0)) ModelState.AddModelError(string.Empty, "أدخل تكلفة الوحدة (أكبر من صفر) لكل صنف.");
@@ -179,7 +181,8 @@ public class PurchaseInvoicesController : Controller
                 foreach (var g in items.GroupBy(i => i.ProductId!.Value))
                 {
                     var label = products.TryGetValue(g.Key, out var pr) ? ProductLabel(pr.Sku, pr.Name) : "—";
-                    var qty = g.Sum(i => i.Quantity);
+                    var qty = g.Sum(BaseQty);   // compared in the product's smallest unit
+                    var u = units.Of(g.Key);
                     if (!ordered.TryGetValue(g.Key, out var orderedQty))
                     {
                         ModelState.AddModelError(string.Empty, $"الصنف «{label}» غير موجود في أمر التوريد {PO(order.Number)}.");
@@ -188,8 +191,8 @@ public class PurchaseInvoicesController : Controller
                     var remaining = orderedQty - invoiced.GetValueOrDefault(g.Key);
                     if (qty > remaining)
                         ModelState.AddModelError(string.Empty,
-                            $"كمية الصنف «{label}» ({qty:0.####}) تتجاوز المتبقي في أمر التوريد {PO(order.Number)} " +
-                            $"({Math.Max(remaining, 0):0.####} من {orderedQty:0.####} — المُفوتَر في فواتير أخرى {invoiced.GetValueOrDefault(g.Key):0.####}).");
+                            $"كمية الصنف «{label}» ({u.Breakdown(qty)}) تتجاوز المتبقي في أمر التوريد {PO(order.Number)} " +
+                            $"({u.Breakdown(Math.Max(remaining, 0))} من {u.Breakdown(orderedQty)} — المُفوتَر في فواتير أخرى {u.Breakdown(invoiced.GetValueOrDefault(g.Key))}).");
                 }
             }
         }
@@ -228,13 +231,14 @@ public class PurchaseInvoicesController : Controller
         inv.PurchaseOrderId = model.PurchaseOrderId;
         inv.WarehouseId = model.WarehouseId;
         inv.Notes = model.Notes;
-        var units = await UnitsAsync(_db, products.Keys, ct);   // snapshot each line's unit of measure
         var newItems = items.Select(it =>
         {
             var p = products[it.ProductId!.Value];
+            var unit = ResolveUnit(units, p.Id, it.UnitLevel);   // snapshot the line's unit + factor
             return new PurchaseInvoiceItem
             {
-                PurchaseInvoiceId = inv.Id, ProductId = p.Id, Name = ProductLabel(p.Sku, p.Name), Unit = units.GetValueOrDefault(p.Id),
+                PurchaseInvoiceId = inv.Id, ProductId = p.Id, Name = ProductLabel(p.Sku, p.Name),
+                Unit = unit.Name, UnitLevel = unit.Level, UnitFactor = unit.Factor,
                 Cost = it.Cost, Quantity = it.Quantity, LineTotal = it.LineTotal
             };
         }).ToList();
@@ -289,7 +293,8 @@ public class PurchaseInvoicesController : Controller
         if (current is not null && stockLines.Count > 0
             && current.WarehouseId == inv.WarehouseId && current.Date.Date == inv.InvoiceDate.Date
             && current.Lines.Count == stockLines.Count
-            && stockLines.All(l => current.Lines.Any(x => x.ProductId == l.ProductId && x.Quantity == l.Quantity && x.UnitCost == l.Cost)))
+            && stockLines.All(l => current.Lines.Any(x => x.ProductId == l.ProductId && x.Quantity == l.Quantity * l.UnitFactor
+                                                          && x.TotalCost == l.LineTotal && x.UnitFactor == l.UnitFactor)))
         {
             current.SupplierId = inv.SupplierId;
             return new ReceiptSync(null, null, current);
@@ -310,7 +315,13 @@ public class PurchaseInvoicesController : Controller
             SupplierId = inv.SupplierId,
             PurchaseInvoiceId = inv.Id,
             Notes = $"استلام تلقائي من فاتورة المشتريات {PI(inv.Number)}",
-            Lines = stockLines.Select(l => new GoodsReceiptLine { ProductId = l.ProductId, Quantity = l.Quantity, UnitCost = l.Cost }).ToList()
+            // Stock is received in the smallest unit at the per-smallest-unit cost; TotalCost keeps the invoice line total
+            // exact (the GRNI the invoice debits nets to zero), and the line remembers the unit it was entered in.
+            Lines = stockLines.Select(l => new GoodsReceiptLine
+            {
+                ProductId = l.ProductId, Quantity = l.Quantity * l.UnitFactor, UnitCost = Math.Round(l.Cost / l.UnitFactor, 6), TotalCost = l.LineTotal,
+                UnitLevel = l.UnitLevel, UnitFactor = l.UnitFactor, UnitName = l.Unit
+            }).ToList()
         };
         _db.GoodsReceipts.Add(receipt);
         await _inventory.PostReceiptAsync(receipt, ct);
@@ -398,7 +409,7 @@ public class PurchaseInvoicesController : Controller
         var order = await _db.SupplierOrders.FirstOrDefaultAsync(o => o.Id == id, ct);
         if (order is null) return NotFound();
         var lines = (await RemainingOrderLinesAsync(id, exceptInvoiceId, ct))
-            .Select(l => new { productId = l.ProductId, cost = l.Cost, quantity = l.Remaining });
+            .Select(l => new { productId = l.ProductId, cost = l.Cost, quantity = l.Remaining, unitLevel = l.UnitLevel });
         return Json(new { projectId = order.ProjectId, lines });
     }
 
@@ -407,19 +418,22 @@ public class PurchaseInvoicesController : Controller
     /// invoices (excluding <paramref name="exceptInvoiceId"/> when editing), in order-line order; fully invoiced
     /// products are left out. Cost is null unless the (legacy) order carried one — orders are quantity-only.
     /// </summary>
-    private async Task<List<(Guid ProductId, decimal? Cost, decimal Remaining)>> RemainingOrderLinesAsync(Guid orderId, Guid? exceptInvoiceId, CancellationToken ct)
+    // Counted in the smallest unit; returned in the product's first order line's unit.
+    private async Task<List<(Guid ProductId, decimal? Cost, decimal Remaining, byte UnitLevel)>> RemainingOrderLinesAsync(Guid orderId, Guid? exceptInvoiceId, CancellationToken ct)
     {
         var lines = await _db.SupplierOrderItems.Where(i => i.SupplierOrderId == orderId && i.ProductId != null)
-            .OrderBy(i => i.CreatedAt).Select(i => new { ProductId = i.ProductId!.Value, i.Cost }).ToListAsync(ct);
+            .OrderBy(i => i.CreatedAt).Select(i => new { ProductId = i.ProductId!.Value, i.Cost, i.UnitLevel, i.UnitFactor }).ToListAsync(ct);
         var ordered = await OrderedQtyAsync(_db, orderId, ct);
         var invoiced = await InvoicedQtyAsync(_db, orderId, exceptInvoiceId, ct);
-        var result = new List<(Guid ProductId, decimal? Cost, decimal Remaining)>();
+        var result = new List<(Guid ProductId, decimal? Cost, decimal Remaining, byte UnitLevel)>();
         foreach (var g in lines.GroupBy(l => l.ProductId))
         {
             var remaining = ordered.GetValueOrDefault(g.Key) - invoiced.GetValueOrDefault(g.Key);
             if (remaining <= 0) continue;
+            var first = g.First();
+            var f = first.UnitFactor > 0 ? first.UnitFactor : 1m;
             var cost = g.Max(x => x.Cost);
-            result.Add((g.Key, cost > 0 ? cost : null, remaining));
+            result.Add((g.Key, cost > 0 ? cost : null, Math.Round(remaining / f, 4), first.UnitLevel));
         }
         return result;
     }
