@@ -51,3 +51,6 @@ appsettings.*.local.json
 
 # Uploaded report templates (runtime business data — back up separately)
 App_Data/
+
+# Publish output (build artifacts — deployed, not versioned)
+/Publish/
