@@ -42,7 +42,7 @@
                 paintStars();
                 var box = document.querySelector('[data-fav-list]');
                 if (box) box.innerHTML = list.length
-                    ? list.map(function (f) { return '<a role="menuitem" href="' + esc(f.url) + '"><span>' + esc(f.title) + '</span><small>' + esc(f.module) + '</small></a>'; }).join('')
+                    ? list.map(function (f) { return '<a role="menuitem" href="' + esc(f.url) + '"><span class="tb-pop-ico">' + (f.icon || '') + '</span><span>' + esc(f.title) + '</span><small>' + esc(f.module) + '</small></a>'; }).join('')
                     : '<span class="tb-pop-empty">لا توجد صفحات مفضلة بعد — اضغط ☆ بجوار عنوان أي صفحة.</span>';
             }).catch(function () { });
     }

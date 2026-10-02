@@ -1,16 +1,19 @@
+@using RealState.Application.Common
 @inject INavigationService NavService
 @*
-    Workspace navigation in the top bar: home (workspace), breadcrumb generated from the navigation definitions, the
-    current page's favorite star, global search (Ctrl+K), «＋ إجراء جديد» (authorized operations only), favorites, and —
-    temporarily — the old full menu. Behaviour: wwwroot/js/workspace-nav.js. Everything comes from the user's
-    authorized navigation; hiding an entry is never the security (each page keeps its own [Authorize]).
+    The app header, two tiers:
+      • bar  — start: workspace home, the host's tenant switcher · centre: global search (Ctrl+K)
+               · end: «＋ إجراء جديد», favorites, assigned-tasks bell, theme, account menu (password, sign out).
+      • page — breadcrumb + the page's favorite star · today's date (the page's own heading is its title).
+    Behaviour: wwwroot/js/workspace-nav.js (menus, palette, favorites). Everything comes from the user's authorized
+    navigation; hiding an entry is never the security (each page keeps its own [Authorize]).
 *@
 @{
     var nav = NavService.For(User, Url);
     var loc = NavService.Locate(nav, ViewContext.RouteData, Context.Request.Query);
     var title = ViewData["Title"] as string ?? "";
-    var isHome = string.Equals(ViewContext.RouteData.Values["controller"]?.ToString(), "Workspace", StringComparison.OrdinalIgnoreCase)
-                 && string.Equals(ViewContext.RouteData.Values["action"]?.ToString(), "Index", StringComparison.OrdinalIgnoreCase);
+    var isWorkspace = string.Equals(ViewContext.RouteData.Values["controller"]?.ToString(), "Workspace", StringComparison.OrdinalIgnoreCase);
+    var isHome = isWorkspace && string.Equals(ViewContext.RouteData.Values["action"]?.ToString(), "Index", StringComparison.OrdinalIgnoreCase);
     // Breadcrumb trail after «الرئيسية»: module → page → record (when the page is a record / operation inside it).
     var crumbs = new List<(string Text, string? Url)>();
     if (loc is not null)
@@ -18,6 +21,8 @@
         crumbs.Add((loc.Module.Title, loc.Module.Url));
         if (loc.Page is not null)
         {
+            // A page named like its module (المشاريع / المشاريع) appears once — as the page.
+            if (loc.Page.Title == loc.Module.Title) crumbs.RemoveAt(0);
             crumbs.Add((loc.Page.Title, loc.IsPageItself ? null : loc.Page.Url));
             if (!loc.IsPageItself && title.Length > 0 && title != loc.Page.Title) crumbs.Add((title, null));
         }
@@ -25,6 +30,13 @@
     }
     else if (!isHome && title.Length > 0) crumbs.Add((title, null));
     var starKey = loc?.Page is { } sp && loc.IsPageItself && !sp.Soon ? sp.Key : null;
+
+    // Account
+    var fullName = User.FindFirst("full_name")?.Value ?? User.Identity?.Name ?? "";
+    var initials = string.Concat(fullName.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(w => w[0]));
+    var isHost = User.IsHost();
+    var canTenants = User.Can(PermissionNames.TenantsManage);
+    var tenantName = User.TenantName();
 
     // Pages + actions for the command palette (searched in the browser) — the user's authorized ones only.
     var paletteData = System.Text.Json.JsonSerializer.Serialize(new
@@ -38,51 +50,122 @@
         visitUrl = Url.Action("Visit", "Workspace", new { area = "" }),
     });
 }
-<div class="topbar-title">
-    <a class="tb-home @(isHome ? "active" : "")" href="@nav.WorkspaceUrl" title="مساحة العمل (الرئيسية)" aria-label="مساحة العمل">@NavIcons.Svg("grid", 20)</a>
-    <div class="tb-titles">
-        <nav class="crumbs" aria-label="مسار الصفحة">
-            <a href="@nav.WorkspaceUrl">الرئيسية</a>
-            @foreach (var (text, url) in crumbs)
-            {
-                <span class="crumb-sep" aria-hidden="true">/</span>
-                if (url is not null) { <a href="@url">@text</a> } else { <span aria-current="page">@text</span> }
-            }
-        </nav>
-        <div class="tb-h1row">
-            <h1>@title</h1>
-            @if (starKey is not null)
-            {
-                <button type="button" class="ws-star tb-star" data-fav-key="@starKey" aria-pressed="false" title="إضافة إلى المفضلة" aria-label="المفضلة: @title">@NavIcons.Svg("star", 18)</button>
-            }
-        </div>
+<header class="topbar tb-bar">
+    <div class="tb-start">
+        @if (NavigationCatalog.LegacySidebar)
+        {
+            @* The old full menu, opened on demand (switched off — see NavigationCatalog.LegacySidebar). *@
+            <button type="button" class="tb-icon sb-toggle" onclick="appToggleLegacyNav()" title="القائمة الكاملة (القديمة)" aria-label="القائمة الكاملة" aria-expanded="false">@NavIcons.Svg("menu", 19)</button>
+        }
+        <a class="tb-icon tb-home @(isHome ? "active" : "")" href="@nav.WorkspaceUrl" title="مساحة العمل (الرئيسية)" aria-label="مساحة العمل">@NavIcons.Svg("grid", 19)</a>
+        @if (isHost || canTenants)
+        {
+            <div class="tb-menu">
+                <button type="button" class="tb-tenant" data-menu-toggle aria-haspopup="true" aria-expanded="false" title="المؤسسة الحالية">
+                    <span class="tb-tenant-ico">@NavIcons.Svg("buildings", 16)</span>
+                    <span class="tb-tenant-text">
+                        @if (isHost) { <small>مشرف عام</small> }
+                        <span>@(tenantName ?? "اختر مؤسسة")</span>
+                    </span>
+                    @NavIcons.Svg("chevron-down", 15, "tb-caret")
+                </button>
+                <div class="tb-pop tb-pop-start" role="menu" hidden>
+                    <div class="tb-pop-head">المؤسسة</div>
+                    @if (isHost)
+                    {
+                        <a role="menuitem" asp-area="" asp-controller="Host" asp-action="SelectTenant"><span class="tb-pop-ico">@NavIcons.Svg("switch", 16)</span><span>تبديل المؤسسة</span></a>
+                    }
+                    @if (canTenants)
+                    {
+                        <a role="menuitem" asp-area="Admin" asp-controller="Tenants" asp-action="Create"><span class="tb-pop-ico">@NavIcons.Svg("plus", 16)</span><span>مؤسسة جديدة</span></a>
+                        <a role="menuitem" asp-area="Admin" asp-controller="Tenants" asp-action="Index"><span class="tb-pop-ico">@NavIcons.Svg("buildings", 16)</span><span>إدارة المؤسسات</span></a>
+                    }
+                </div>
+            </div>
+        }
     </div>
-</div>
-<div class="topbar-tools">
+
     <button type="button" class="tb-search" data-open-palette title="ابحث في النظام (Ctrl + K)">
-        @NavIcons.Svg("search", 17)<span>ابحث في النظام…</span><kbd>Ctrl K</kbd>
+        @NavIcons.Svg("search", 17)<span>ابحث عن صفحة أو عميل أو صنف أو فاتورة…</span><kbd>Ctrl K</kbd>
     </button>
-    @if (nav.Actions.Count > 0)
-    {
-        <div class="tb-menu">
-            <button type="button" class="tb-btn tb-primary" data-menu-toggle aria-haspopup="true" aria-expanded="false">@NavIcons.Svg("plus", 16)<span>إجراء جديد</span></button>
-            <div class="tb-pop" role="menu" hidden>
-                <div class="tb-pop-head">＋ إجراء جديد</div>
-                @foreach (var a in nav.Actions)
-                {
-                    <a role="menuitem" href="@a.Url">@NavIcons.Svg(a.Icon, 16)<span>@a.Title</span></a>
-                }
+
+    <div class="tb-end">
+        @if (nav.Actions.Count > 0)
+        {
+            <div class="tb-menu">
+                <button type="button" class="tb-new" data-menu-toggle aria-haspopup="true" aria-expanded="false">@NavIcons.Svg("plus", 17)<span>إجراء جديد</span></button>
+                <div class="tb-pop tb-pop-grid" role="menu" hidden>
+                    <div class="tb-pop-head">إجراء جديد</div>
+                    @foreach (var a in nav.Actions)
+                    {
+                        <a role="menuitem" href="@a.Url"><span class="tb-pop-ico">@NavIcons.Svg(a.Icon, 16)</span><span>@a.Title</span></a>
+                    }
+                </div>
+            </div>
+        }
+        <div class="tb-menu tb-fav">
+            <button type="button" class="tb-icon" data-menu-toggle aria-haspopup="true" aria-expanded="false" title="المفضلة" aria-label="المفضلة">@NavIcons.Svg("star", 19)</button>
+            <div class="tb-pop" role="menu" data-fav-menu hidden>
+                <div class="tb-pop-head">المفضلة</div>
+                <div data-fav-list><span class="tb-pop-empty">جارٍ التحميل…</span></div>
             </div>
         </div>
-    }
-    <div class="tb-menu">
-        <button type="button" class="tb-btn" data-menu-toggle aria-haspopup="true" aria-expanded="false" title="المفضلة" aria-label="المفضلة">@NavIcons.Svg("star", 18)</button>
-        <div class="tb-pop" role="menu" data-fav-menu hidden>
-            <div class="tb-pop-head">⭐ المفضلة</div>
-            <div data-fav-list><span class="tb-pop-empty">جارٍ التحميل…</span></div>
+        @await Component.InvokeAsync("TaskAlerts")
+        <button type="button" class="tb-icon theme-toggle" onclick="appToggleTheme(this)" title="تبديل المظهر (نهاري / ليلي)" aria-label="تبديل المظهر">
+            <span class="ico-sun">@NavIcons.Svg("sun", 19)</span><span class="ico-moon">@NavIcons.Svg("moon", 18)</span>
+        </button>
+        <div class="tb-menu">
+            <button type="button" class="tb-user" data-menu-toggle aria-haspopup="true" aria-expanded="false" title="الحساب">
+                <span class="tb-avatar" aria-hidden="true">@initials</span>
+                <span class="tb-user-name">@fullName</span>
+                @NavIcons.Svg("chevron-down", 15, "tb-caret")
+            </button>
+            <div class="tb-pop" role="menu" hidden>
+                <div class="tb-pop-user">
+                    <span class="tb-avatar tb-avatar-lg" aria-hidden="true">@initials</span>
+                    <span><strong>@fullName</strong><small>@(isHost ? "مشرف عام" : User.Identity?.Name)</small></span>
+                </div>
+                <a role="menuitem" asp-area="" asp-controller="Account" asp-action="ChangePassword"><span class="tb-pop-ico">@NavIcons.Svg("key", 16)</span><span>تغيير كلمة المرور</span></a>
+                <a role="menuitem" asp-area="Tasks" asp-controller="Tasks" asp-action="Mine"><span class="tb-pop-ico">@NavIcons.Svg("tasks", 16)</span><span>مهامي</span></a>
+                @* Phones: the bar has no room for these two — they move here. *@
+                <a role="menuitem" class="tb-pop-phone" href="@Url.Action("Index", "Workspace", new { area = "" })"><span class="tb-pop-ico">@NavIcons.Svg("star", 16)</span><span>المفضلة</span></a>
+                <button type="button" role="menuitem" class="tb-pop-phone" onclick="appToggleTheme(this)"><span class="tb-pop-ico">@NavIcons.Svg("moon", 16)</span><span>تبديل المظهر</span></button>
+                <div class="tb-pop-sep"></div>
+                <form asp-area="" asp-controller="Account" asp-action="Logout" method="post">
+                    @Html.AntiForgeryToken()
+                    <button type="submit" role="menuitem" class="tb-pop-danger"><span class="tb-pop-ico">@NavIcons.Svg("logout", 16)</span><span>تسجيل الخروج</span></button>
+                </form>
+            </div>
         </div>
     </div>
-    @* Temporary (migration phase): the old full menu, opened on demand. *@
-    <button type="button" class="tb-btn sb-toggle" onclick="appToggleLegacyNav()" title="القائمة الكاملة (القديمة)" aria-label="القائمة الكاملة" aria-expanded="false">@NavIcons.Svg("menu", 18)</button>
-</div>
+</header>
+
+@* The page row: breadcrumb (its last item names the page) + the page's favorite star · today's date. Workspace pages
+   carry their own hero header: the home one needs no page row, a module one keeps only the breadcrumb. *@
+@if (!isHome)
+{
+    <div class="tb-page">
+        <div class="tb-titles">
+            <nav class="crumbs" aria-label="مسار الصفحة">
+                <a href="@nav.WorkspaceUrl">الرئيسية</a>
+                @foreach (var (text, url) in crumbs)
+                {
+                    <span class="crumb-sep" aria-hidden="true">@NavIcons.Svg("chevron", 12)</span>
+                    if (url is not null) { <a href="@url">@text</a> } else { <span aria-current="page">@text</span> }
+                }
+            </nav>
+            @if (starKey is not null)
+            {
+                <button type="button" class="ws-star tb-star" data-fav-key="@starKey" aria-pressed="false" title="إضافة إلى المفضلة" aria-label="المفضلة: @title">@NavIcons.Svg("star", 17)</button>
+            }
+        </div>
+        @if (!isWorkspace)
+        {
+            <div class="tb-date">
+                @NavIcons.Svg("calendar", 15)
+                <span>@DateTime.Now.ToString("dddd d MMMM yyyy", RealState.Web.AppCulture.Ar)</span>
+            </div>
+        }
+    </div>
+}
 <script type="application/json" id="navData">@Html.Raw(paletteData)</script>

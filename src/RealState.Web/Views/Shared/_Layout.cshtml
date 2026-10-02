@@ -1,7 +1,6 @@
 @using System.Security.Claims
 @using RealState.Application.Common
 @{
-    var fullName = User?.FindFirst("full_name")?.Value ?? User?.Identity?.Name;
     var isAuth = User?.Identity?.IsAuthenticated ?? false;
     bool Can(string permission) => User?.HasClaim("permission", permission) ?? false;
     // Pass `area` when a controller name exists in more than one area (e.g. Settings lives both at the
@@ -19,8 +18,8 @@
     @* Apply the saved theme (dark = default) before first paint so pages never flash the wrong one. *@
     <script>(function () { var t = 'dark'; try { t = localStorage.getItem('appTheme') === 'light' ? 'light' : 'dark'; } catch (e) { } document.documentElement.setAttribute('data-theme', t); })();</script>
     @* Same for the side menu (wwwroot/js/sidebar.js). Navigation is the workspace (top bar + module workspaces); the
-       old full side menu is hidden unless the user opened it (temporary, during the migration). *@
-    <script>(function () { var r = document.documentElement, legacy = false; try { legacy = localStorage.getItem('appLegacyNav') === '1'; if (localStorage.getItem('appSidebar') === 'collapsed') r.classList.add('sb-collapsed'); } catch (e) { } if (!legacy) r.classList.add('sb-hidden'); })();</script>
+       old full side menu is hidden — switched off by NavigationCatalog.LegacySidebar (kept implemented). *@
+    <script>(function () { var r = document.documentElement, legacy = false; try { legacy = @(NavigationCatalog.LegacySidebar ? Html.Raw("localStorage.getItem('appLegacyNav') === '1'") : Html.Raw("false")); if (localStorage.getItem('appSidebar') === 'collapsed') r.classList.add('sb-collapsed'); } catch (e) { } if (!legacy) r.classList.add('sb-hidden'); })();</script>
     <title>@ViewData["Title"] — لوحة القيادة التنفيذية</title>
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.rtl.min.css" />
     <link rel="stylesheet" href="~/css/dashboard.css" asp-append-version="true" />
@@ -419,42 +418,8 @@
         </aside>
         <div class="sb-backdrop" aria-hidden="true"></div>
         <div class="main">
-            <header class="topbar">
-                <partial name="_TopNav" />
-                <div class="topbar-meta">
-                    @if (User.IsHost())
-                    {
-                        <div style="display:flex;align-items:center;gap:8px;">
-                            <span class="badge-role">مشرف عام</span>
-                            @if (User.HasTenant())
-                            {
-                                <span style="color:var(--text-secondary);font-size:13px;">المؤسسة: <strong>@User.TenantName()</strong></span>
-                            }
-                            <a class="btn-sm" asp-area="" asp-controller="Host" asp-action="SelectTenant">تبديل المؤسسة</a>
-                        </div>
-                    }
-                    @if (Can(PermissionNames.TenantsManage))
-                    {
-                        <a class="btn-new-tenant" asp-area="Admin" asp-controller="Tenants" asp-action="Create">➕ مؤسسة جديدة</a>
-                    }
-                    <div class="clock">
-                        <div id="topDate">@DateTime.Now.ToString("dddd d MMMM yyyy", RealState.Web.AppCulture.Ar)</div>
-                        <div id="topTime" class="time">@DateTime.Now.ToString("hh:mm tt", RealState.Web.AppCulture.Ar)</div>
-                    </div>
-                    @await Component.InvokeAsync("TaskAlerts")
-                    <div class="user">
-                        <div class="user-name">مرحبًا، @fullName</div>
-                        @* <div class="user-role">رئيس مجلس الإدارة</div> *@
-                    </div>
-                    <button type="button" class="theme-toggle" onclick="appToggleTheme(this)" title="تبديل المظهر (نهاري / ليلي)" aria-label="تبديل المظهر">
-                        <span class="ico-sun">☀️</span><span class="ico-moon">🌙</span>
-                    </button>
-                    <form asp-area="" asp-controller="Account" asp-action="Logout" method="post" class="logout-form">
-                        @Html.AntiForgeryToken()
-                        <button type="submit" title="تسجيل الخروج">⏻</button>
-                    </form>
-                </div>
-            </header>
+            @* Sticky app bar + page header (breadcrumb, title). *@
+            <partial name="_TopNav" />
             <main class="content">
                 @RenderBody()
             </main>

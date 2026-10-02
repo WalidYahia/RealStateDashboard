@@ -28,6 +28,12 @@ public sealed record NavAction(string Key, string Title, string Icon, string Mod
 /// </summary>
 public static class NavigationCatalog
 {
+    /// <summary>
+    /// The old full side menu (_Layout's sidebar + sidebar.js) is kept implemented but switched off: no ☰ button in the
+    /// top bar and always hidden. Set to true to bring it back (opened on demand, remembered per browser).
+    /// </summary>
+    public const bool LegacySidebar = false;
+
     private static string[] P(params string[] anyOf) => anyOf;
     private static readonly string[] Everyone = Array.Empty<string>();
     private static Dictionary<string, string> Q(string key, string value) => new() { [key] = value };

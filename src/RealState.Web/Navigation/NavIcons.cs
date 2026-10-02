@@ -66,6 +66,12 @@ public static class NavIcons
         ["grid"] = "<rect x='3' y='3' width='7' height='7' rx='1.5'/><rect x='14' y='3' width='7' height='7' rx='1.5'/><rect x='3' y='14' width='7' height='7' rx='1.5'/><rect x='14' y='14' width='7' height='7' rx='1.5'/>",
         ["menu"] = "<path d='M4 6h16M4 12h16M4 18h16'/>",
         ["chevron"] = "<path d='m15 6-6 6 6 6'/>",
+        ["chevron-down"] = "<path d='m6 9 6 6 6-6'/>",
+        ["bell"] = "<path d='M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9'/><path d='M10.3 21a1.9 1.9 0 0 0 3.4 0'/>",
+        ["sun"] = "<circle cx='12' cy='12' r='4'/><path d='M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4'/>",
+        ["moon"] = "<path d='M20.5 14.5A8.5 8.5 0 1 1 9.5 3.5a7 7 0 0 0 11 11Z'/>",
+        ["logout"] = "<path d='M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4'/><path d='m16 17 5-5-5-5'/><path d='M21 12H9'/>",
+        ["switch"] = "<path d='M16 3h5v5'/><path d='m21 3-7 7'/><path d='M8 21H3v-5'/><path d='m3 21 7-7'/>",
     };
 
     public static bool Exists(string? name) => name is not null && Paths.ContainsKey(name);

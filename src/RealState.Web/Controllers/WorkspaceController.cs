@@ -62,7 +62,7 @@ public class WorkspaceController : Controller
     /// <summary>The user's favorite pages they can still see (topbar menu + current-page star), as JSON.</summary>
     [HttpGet]
     public async Task<IActionResult> Favorites(CancellationToken ct)
-        => Json((await FavoritePagesAsync(Nav, ct)).Select(p => new { key = p.Key, title = p.Title, url = p.Url, module = p.ModuleTitle }));
+        => Json((await FavoritePagesAsync(Nav, ct)).Select(p => new { key = p.Key, title = p.Title, url = p.Url, module = p.ModuleTitle, icon = NavIcons.Svg(p.Icon, 16).Value }));
 
     [HttpPost]
     [ValidateAntiForgeryToken]

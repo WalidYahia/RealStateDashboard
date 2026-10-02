@@ -14,6 +14,7 @@
             @if (!p.Soon) { <span class="ws-card-desc">@p.Description</span> }
             @if (Model.Kpi is { } k) { <span class="ws-kpi @(k.State.Length > 0 ? "ws-kpi-" + k.State : "")">@k.Text</span> }
         </span>
+        @if (!p.Soon) { <span class="ws-go" aria-hidden="true">@NavIcons.Svg("chevron", 16)</span> }
     </a>
     @if (!p.Soon)
     {

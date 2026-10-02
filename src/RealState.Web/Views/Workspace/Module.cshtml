@@ -7,10 +7,10 @@
     var m = Model.Module;
     ViewData["Title"] = m.Title;
 }
-<div class="ws-head">
+<div class="ws-hero">
     <div class="ws-mod-head">
-        <span class="ws-card-icon ws-module-icon">@NavIcons.Svg(m.Icon, 26)</span>
-        <div>
+        <span class="ws-card-icon ws-module-icon ws-hero-icon">@NavIcons.Svg(m.Icon, 26)</span>
+        <div class="ws-hero-text">
             <h1 class="ws-title">@m.Title</h1>
             <p class="ws-sub">@m.Description</p>
         </div>
@@ -20,12 +20,13 @@
         <div class="ws-actions">
             @foreach (var a in m.Actions)
             {
-                <a class="ws-action ws-action-primary" href="@a.Url">@NavIcons.Svg("plus", 14) @a.Title</a>
+                <a class="ws-action ws-action-primary" href="@a.Url"><span class="ws-action-ico">@NavIcons.Svg("plus", 15)</span>@a.Title</a>
             }
         </div>
     }
 </div>
 
+<h2 class="ws-h2">الصفحات <span class="ws-count">@m.Pages.Count(p => !p.Soon)</span></h2>
 <div class="ws-grid ws-pages">
     @foreach (var p in m.Pages)
     {

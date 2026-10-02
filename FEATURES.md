@@ -253,17 +253,27 @@ Replaces the long sidebar as the normal navigation (per *ERP Role-Oriented Works
   every page keeps its own `[Authorize]`. Every old-sidebar link is covered; a reflection test checks every
   catalog route exists.
 - **Home workspace** (`/Workspace`): greeting + search, authorized **module cards**, **⭐ المفضلة**, **آخر ما استخدمته**,
-  **إجراء جديد** chips. **Module workspace** (`/Workspace/Module/{key}`): its authorized page cards with small
+  (quick actions: the top bar). **Module workspace** (`/Workspace/Module/{key}`): its authorized page cards with small
   state-colored KPIs (`IWorkspaceKpiService` — a few aggregate counts, only for the opened module: open tasks,
   overdue installments, uncollected / unpaid invoices, stock alerts, unposted drafts, record counts) and the
   module's primary create actions. The dashboard stays the operational overview.
-- **Top bar** (`Views/Shared/_TopNav.cshtml`): workspace button, **breadcrumb** generated from the catalog (module /
-  page / record — e.g. العملاء والمبيعات / فواتير المبيعات / فاتورة مبيعات SI-…), the current page's favorite star,
-  **global search** (Ctrl+K palette: modules / pages / actions filtered in the browser + customers, suppliers,
-  products, projects, contracts, sales & purchase invoices, purchase orders from `/Workspace/Search`, per
-  permission), **＋ إجراء جديد** (authorized operations; list-page actions open the create form via `#new` →
-  `[data-quick-new]`), favorites menu, and — temporarily — **القائمة الكاملة** (the old sidebar, hidden by default,
-  remembered per browser; a drawer on phones).
+- **Header** (`Views/Shared/_TopNav.cshtml`), two tiers:
+  - **App bar** (sticky, blurred): start — the workspace button, and the host's **tenant switcher** (current
+    tenant → تبديل المؤسسة / مؤسسة جديدة / إدارة المؤسسات); centre — **global search** (Ctrl+K palette: modules /
+    pages / actions filtered in the browser + customers, suppliers, products, projects, contracts, sales & purchase
+    invoices, purchase orders from `/Workspace/Search`, per permission); end — **＋ إجراء جديد** (two-column menu of
+    authorized operations; list-page actions open the create form via `#new` → `[data-quick-new]`), favorites,
+    assigned-tasks bell, theme, and the **account menu** (avatar: تغيير كلمة المرور، مهامي، تسجيل الخروج). On phones
+    the bar keeps icons only; favorites and the theme switch move into the account menu.
+  - **Page row**: **breadcrumb** generated from the catalog (module / page / record — e.g. العملاء والمبيعات /
+    فواتير المبيعات / فاتورة مبيعات SI-…; a page named like its module appears once) with the page's favorite star
+    beside it, and today's date — no second big title (the page's own heading names it). Workspace pages
+    have their own hero header, so the home workspace shows no page row and a module workspace only the breadcrumb.
+- **Old side menu**: kept implemented but switched off (`NavigationCatalog.LegacySidebar = false`): no ☰ button,
+  always hidden. Setting it to true brings back the on-demand full menu (remembered per browser; a drawer on phones).
+- **Look**: cards with a tinted icon tile, lift + accent edge on hover and a sliding arrow; pill counters; menus,
+  lists and the palette use the same icon tiles (one line-icon set, `NavIcons`; theme tokens `--accent-soft`,
+  `--accent-line`, `--shadow-card`).
 - **Favorites & recent pages** are stored per user (`UserNavItems`, migration `UserNavigationShortcuts`; user id, or
   «host» for the host account; per tenant). Favorites show only while the page is still visible to the user;
   recents are shortcuts only (the destination authorizes). Visits/stars are excluded from the activity log
