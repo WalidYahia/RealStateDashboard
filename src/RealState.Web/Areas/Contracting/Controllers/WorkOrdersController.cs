@@ -189,7 +189,7 @@ public class WorkOrdersController : Controller
         if (o is null) return NotFound();
         if (await _db.WorkOrderPayments.AnyAsync(p => p.WorkOrderId == id, ct))
         {
-            TempData["ErrorMessage"] = "لا يمكن حذف أمر شغل له مدفوعات.";
+            TempData["ErrorMessage"] = "لا يمكن حذف أمر شغل له مدفوعات — احذف سندات الصرف المسجلة عليه أولًا.";
             return RedirectToAction(nameof(Index));
         }
         foreach (var l in await _db.WorkOrderLogs.Where(l => l.WorkOrderId == id).ToListAsync(ct)) _db.WorkOrderLogs.Remove(l);
@@ -207,13 +207,16 @@ public class WorkOrdersController : Controller
         if (o is null) return NotFound();
         ViewData["CanProgress"] = Can(PermissionNames.ContractingEdit);
         ViewData["CanPay"] = Can(PermissionNames.ContractingPay);
+        ViewData["CanDeletePayment"] = Can(PermissionNames.ContractingDeletePayment);
         return View(new WorkOrderDetailsVm
         {
             Order = o,
             ContractorName = await _db.Contractors.Where(c => c.Id == o.ContractorId).Select(c => c.Name).FirstOrDefaultAsync(ct) ?? "—",
             ProjectName = await _db.Projects.Where(p => p.Id == o.ProjectId).Select(p => p.Name).FirstOrDefaultAsync(ct) ?? "—",
             Paid = await _db.WorkOrderPayments.Where(p => p.WorkOrderId == id).SumAsync(p => (decimal?)p.Amount, ct) ?? 0,
-            Logs = await _db.WorkOrderLogs.Where(l => l.WorkOrderId == id).OrderByDescending(l => l.At).ToListAsync(ct)
+            Logs = await _db.WorkOrderLogs.Where(l => l.WorkOrderId == id).OrderByDescending(l => l.At).ToListAsync(ct),
+            Payments = await _db.WorkOrderPayments.Where(p => p.WorkOrderId == id).OrderBy(p => p.PaidDate).ThenBy(p => p.ReceiptNo).ToListAsync(ct),
+            SafeNames = await _db.Safes.ToDictionaryAsync(s => s.Id, s => s.Name, ct)
         });
     }
 
@@ -264,41 +267,8 @@ public class WorkOrdersController : Controller
         return Json(new { ok = true });
     }
 
-    // ---------- Edit / delete a log entry ----------
-    [HttpGet]
-    [Authorize(Policy = PermissionNames.ContractingEdit)]
-    public async Task<IActionResult> LogForm(Guid id, CancellationToken ct)
-    {
-        var l = await _db.WorkOrderLogs.FirstOrDefaultAsync(x => x.Id == id, ct);
-        if (l is null) return NotFound();
-        return PartialView("_LogForm", new WorkOrderLogEditModel
-        {
-            Id = l.Id, WorkOrderId = l.WorkOrderId, Field = l.Field, Value = l.Value, At = l.At
-        });
-    }
-
-    [HttpPost]
-    [Authorize(Policy = PermissionNames.ContractingEdit)]
-    [ValidateAntiForgeryToken]
-    public async Task<IActionResult> LogForm(WorkOrderLogEditModel model, CancellationToken ct)
-    {
-        var l = await _db.WorkOrderLogs.FirstOrDefaultAsync(x => x.Id == model.Id, ct);
-        if (l is null) return NotFound();
-        l.Value = model.Value; l.At = model.At;
-        await _db.SaveChangesAsync(ct);
-        TempData["StatusMessage"] = "تم تحديث السجل.";
-        return Json(new { ok = true });
-    }
-
-    [HttpPost]
-    [Authorize(Policy = PermissionNames.ContractingEdit)]
-    [ValidateAntiForgeryToken]
-    public async Task<IActionResult> LogDelete(Guid id, Guid workOrderId, CancellationToken ct)
-    {
-        var l = await _db.WorkOrderLogs.FirstOrDefaultAsync(x => x.Id == id, ct);
-        if (l is not null) { _db.WorkOrderLogs.Remove(l); await _db.SaveChangesAsync(ct); }
-        return RedirectToAction(nameof(Details), new { id = workOrderId });
-    }
+    // The update log (سجل التحديثات) is a read-only history: entries are only appended by «تحديث» (ProgressForm) and
+    // can't be edited or deleted.
 
     // ---------- Pay a work order (expense on its project) ----------
     [HttpGet]
@@ -362,6 +332,51 @@ public class WorkOrdersController : Controller
         TempData["StatusMessage"] = $"تم سداد {model.Amount:N0} ج.م على أمر الشغل WO-{o.Number} (إيصال رقم {txn.Serial:D5}).";
         return Json(new { ok = true });
     }
+
+    // ---------- Payments (سندات صرف) on the order: receipt + delete ----------
+    /// <summary>The payment's cash-payment voucher (إيصال صرف نقدية) — the linked expense movement.</summary>
+    [HttpGet]
+    public async Task<IActionResult> Receipt(Guid id, CancellationToken ct)
+    {
+        var p = await _db.WorkOrderPayments.FirstOrDefaultAsync(x => x.Id == id, ct);
+        if (p is null) return NotFound();
+        var txn = await PaymentTxnAsync(p, ct) ?? new SafeTransaction
+        {
+            Type = TxnType.Expense, Source = TxnSource.ContractorPayment, Serial = p.ReceiptNo,
+            Amount = p.Amount, OccurredAt = p.PaidDate, SafeId = p.SafeId, Description = p.Description ?? ""
+        };
+        var orderNo = p.WorkOrderId is Guid oid ? await _db.WorkOrders.Where(o => o.Id == oid).Select(o => (int?)o.Number).FirstOrDefaultAsync(ct) : null;
+        ViewBag.PartyLabel = "المقاول";
+        ViewBag.Party = await _db.Contractors.Where(c => c.Id == p.ContractorId).Select(c => c.Name).FirstOrDefaultAsync(ct);
+        ViewBag.About = orderNo.HasValue ? $"سداد أمر الشغل WO-{orderNo}" : "سداد للمقاول";
+        ViewBag.SafeName = await _db.Safes.Where(s => s.Id == p.SafeId).Select(s => s.Name).FirstOrDefaultAsync(ct);
+        ViewBag.TenantId = _currentUser.TenantId;
+        return View("~/Areas/Accounting/Views/Shared/PrintOne.cshtml", txn);
+    }
+
+    /// <summary>
+    /// Deletes a payment (سند صرف) made on a work order: removes its expense movement and journal entry (the money goes
+    /// back to the safe and the amount is owed to the contractor again). Needs «حذف دفعات المقاولين».
+    /// </summary>
+    [HttpPost]
+    [Authorize(Policy = PermissionNames.ContractingDeletePayment)]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> DeletePayment(Guid id, CancellationToken ct)
+    {
+        var p = await _db.WorkOrderPayments.FirstOrDefaultAsync(x => x.Id == id, ct);
+        if (p is null) return NotFound();
+        var txn = await PaymentTxnAsync(p, ct);
+        if (txn is not null) await _accounting.RemoveTransactionAsync(txn, ct);   // movement + its journal entry
+        _db.WorkOrderPayments.Remove(p);
+        await _db.SaveChangesAsync(ct);
+        var safe = await _db.Safes.Where(s => s.Id == p.SafeId).Select(s => s.Name).FirstOrDefaultAsync(ct);
+        TempData["StatusMessage"] = $"تم حذف سند الصرف رقم {p.ReceiptNo} ({p.Amount:N2} ج.م) وإعادة المبلغ إلى الخزنة «{safe}».";
+        return p.WorkOrderId is Guid oid ? RedirectToAction(nameof(Details), new { id = oid }) : RedirectToAction(nameof(Index));
+    }
+
+    /// <summary>The expense movement a payment created (its serial is the payment's receipt number).</summary>
+    private Task<SafeTransaction?> PaymentTxnAsync(WorkOrderPayment p, CancellationToken ct)
+        => _db.SafeTransactions.FirstOrDefaultAsync(t => t.Type == TxnType.Expense && t.Source == TxnSource.ContractorPayment && t.Serial == p.ReceiptNo, ct);
 
     // ---------- helpers ----------
     private async Task<(decimal Total, decimal Paid)> OrderTotalsAsync(WorkOrder o, CancellationToken ct)

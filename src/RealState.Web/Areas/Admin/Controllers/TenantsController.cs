@@ -123,6 +123,7 @@ public class TenantsController : Controller
         }
 
         TempData["StatusMessage"] = $"تم إنشاء المؤسسة «{tenant.Name}» ومديرها.";
+        HttpContext.Items[RealState.Web.Filters.ActivityLogFilter.TenantItem] = tenant.Id;   // logged in the new tenant's log
         return RedirectToAction(nameof(Index));
     }
 
@@ -170,6 +171,7 @@ public class TenantsController : Controller
 
         await _db.SaveChangesAsync(ct);
         TempData["StatusMessage"] = $"تم تحديث المؤسسة «{tenant.Name}».";
+        HttpContext.Items[RealState.Web.Filters.ActivityLogFilter.TenantItem] = tenant.Id;   // logged in that tenant's log
         return RedirectToAction(nameof(Index));
     }
 
@@ -265,6 +267,7 @@ public class TenantsController : Controller
         });
 
         TempData["StatusMessage"] = $"تم حذف المؤسسة «{tenant.Name}» وكل بياناتها ومستخدميها.";
+        HttpContext.Items[RealState.Web.Filters.ActivityLogFilter.SkipItem] = true;   // its log is deleted with it — don't log into another tenant
         return RedirectToAction(nameof(Index));
     }
 

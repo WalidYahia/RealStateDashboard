@@ -62,7 +62,7 @@
                     <td>@(i++)</td>
                     <td>@(isOrder ? r.Project : "")</td>
                     <td dir="ltr" style="text-align:right;">@D(r.Date)</td>
-                    <td>@r.Statement</td>
+                    <td>@if (isOrder) { @r.Statement } else { <a asp-controller="WorkOrders" asp-action="Receipt" asp-route-id="@r.Id" target="_blank" style="color:var(--series-1);">@r.Statement</a> }</td>
                     <td>@(isOrder ? r.Unit : "")</td>
                     <td>@(isOrder ? N(r.Quantity) : "")</td>
                     <td>@(isOrder ? N(r.Rate) : "")</td>

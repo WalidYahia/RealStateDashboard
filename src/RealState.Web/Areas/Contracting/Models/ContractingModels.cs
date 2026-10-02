@@ -94,20 +94,6 @@ public class ProgressUpdateModel
     public decimal Value { get; set; }
 }
 
-// ---------- Work order log edit ----------
-public class WorkOrderLogEditModel
-{
-    public Guid Id { get; set; }
-    public Guid WorkOrderId { get; set; }
-    public WorkOrderField Field { get; set; }
-
-    [Display(Name = "القيمة")]
-    public decimal Value { get; set; }
-
-    [Display(Name = "التاريخ والوقت")]
-    public DateTime At { get; set; } = DateTime.Now;
-}
-
 // ---------- Work order details view model ----------
 public class WorkOrderDetailsVm
 {
@@ -115,7 +101,11 @@ public class WorkOrderDetailsVm
     public string ContractorName { get; set; } = "—";
     public string ProjectName { get; set; } = "—";
     public decimal Paid { get; set; }
+    /// <summary>Read-only history of progress updates (each «تحديث» appends one; logs can't be edited or deleted).</summary>
     public List<WorkOrderLog> Logs { get; set; } = new();
+    /// <summary>Payments (سندات صرف) made on the order, with the safe each was paid from.</summary>
+    public List<WorkOrderPayment> Payments { get; set; } = new();
+    public Dictionary<Guid, string> SafeNames { get; set; } = new();
 }
 
 // ---------- Contractor statement (كشف حساب مقاول) ----------
