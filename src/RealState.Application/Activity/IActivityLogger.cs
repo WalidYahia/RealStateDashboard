@@ -92,6 +92,8 @@ public static class ActivityActionType
         "Orders" => "أمر توريد",
         "PurchaseInvoices" => "فاتورة مشتريات",
         "SalesInvoices" => "فاتورة مبيعات",
+        "WorkOrders" => "أمر شغل",
+        "Contractors" => "مقاول",
         "Payments" => "دفعة لمورد",
         "Settings" => "الإعدادات",
         "Host" => "المؤسسة الحالية",

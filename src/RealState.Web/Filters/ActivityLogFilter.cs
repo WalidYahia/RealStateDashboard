@@ -11,6 +11,12 @@ namespace RealState.Web.Filters;
 /// </summary>
 public sealed class ActivityLogFilter : IAsyncActionFilter
 {
+    /// <summary>HttpContext.Items key: the tenant (Guid) this request's entry belongs to, when it isn't the current one —
+    /// e.g. the host opening / editing / creating another tenant (so each tenant's log holds only its own actions).</summary>
+    public const string TenantItem = "ActivityLog:TenantId";
+    /// <summary>HttpContext.Items key: don't log this request (e.g. deleting a tenant — its log is deleted with it).</summary>
+    public const string SkipItem = "ActivityLog:Skip";
+
     public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
     {
         var executed = await next();
@@ -21,6 +27,8 @@ public sealed class ActivityLogFilter : IAsyncActionFilter
         if (!HttpMethods.IsPost(req.Method)) return;             // only state changes
         if (executed.Exception != null) return;                  // action failed — not a real "action"
         if (http.User?.Identity?.IsAuthenticated != true) return;
+        if (http.Items.ContainsKey(SkipItem)) return;
+        var tenantOverride = http.Items.TryGetValue(TenantItem, out var t) && t is Guid tg ? tg : (Guid?)null;
 
         var rd = context.RouteData.Values;
         var controller = rd.TryGetValue("controller", out var c) ? c?.ToString() ?? "" : "";
@@ -58,7 +66,8 @@ public sealed class ActivityLogFilter : IAsyncActionFilter
                 Area: area,
                 Path: req.Path.Value,
                 Description: description,
-                IpAddress: http.Connection.RemoteIpAddress?.ToString()));
+                IpAddress: http.Connection.RemoteIpAddress?.ToString(),
+                TenantId: tenantOverride));
         }
         catch
         {

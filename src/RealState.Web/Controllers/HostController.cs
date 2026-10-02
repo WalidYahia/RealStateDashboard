@@ -51,8 +51,11 @@ public class HostController : Controller
             return RedirectToAction(nameof(SelectTenant));
         }
 
-        // Re-issue the host cookie carrying the chosen tenant, then open the app on it.
+        // Re-issue the host cookie carrying the chosen tenant, then open the app on it. The activity entry goes to the
+        // chosen tenant's log (it's the host's sign-in into that tenant), not to the tenant being left.
         await HostAuth.SignInAsync(HttpContext, tenant.Id, tenant.Name);
+        HttpContext.Items[RealState.Web.Filters.ActivityLogFilter.TenantItem] = tenant.Id;
+        TempData["StatusMessage"] = $"دخول المشرف العام إلى المؤسسة «{tenant.Name}».";
         return RedirectToAction("Index", "Home", new { area = "" });   // → the chosen tenant's startup page
     }
 }

@@ -46,7 +46,8 @@ public class AccountController : Controller
         if (HostAuth.IsHostLogin(model.UserName, model.Password))
         {
             await HostAuth.SignInAsync(HttpContext, tenantId: null, tenantName: null);
-            await _activityLogger.LogAsync(LoginEntry(null, AppConstants.HostUserName, null));
+            // Not logged here: there's no tenant yet, and a host sign-in isn't any one tenant's activity. Choosing a tenant
+            // (Host/SelectTenant) records «دخول المشرف العام» in that tenant's log.
             return RedirectToAction("SelectTenant", "Host");
         }
 

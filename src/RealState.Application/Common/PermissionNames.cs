@@ -117,6 +117,7 @@ public static class PermissionNames
     public const string ContractingEdit = "Contracting.Edit";   // edit contractors/orders + update execution/uplift/deductions + logs
     public const string ContractingDelete = "Contracting.Delete";
     public const string ContractingPay = "Contracting.Pay";
+    public const string ContractingDeletePayment = "Contracting.DeletePayment";   // delete a payment (سند صرف) made on a work order
 
     // ----- Human Resources ----- (HR.View already exists in some DBs; keep that exact name to avoid
     // a case-insensitive unique-index collision on the Permissions table)
@@ -256,6 +257,7 @@ public static class PermissionNames
         new PermissionInfo(ContractingEdit,   "تعديل المقاولين وأوامر الشغل",           GContracting),
         new PermissionInfo(ContractingDelete, "حذف المقاولين وأوامر الشغل",             GContracting),
         new PermissionInfo(ContractingPay,    "سداد دفعات للمقاولين",                   GContracting),
+        new PermissionInfo(ContractingDeletePayment, "حذف دفعات المقاولين (سندات الصرف)", GContracting),
 
         new PermissionInfo(AccountsView,   "عرض دليل الحسابات ودفتر الأستاذ", GAccounting),
         new PermissionInfo(AccountsManage, "إدارة دليل الحسابات (إضافة/تعديل/ترتيب)", GAccounting),
