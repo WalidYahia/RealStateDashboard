@@ -16,6 +16,9 @@ public static class AccountingSources
     public const string PurchaseInvoice = "PurchaseInvoice";
     public const string SafeTransfer = "SafeTransfer";
     public const string SalesInvoice = "ProductSalesInvoice";
+    public const string SalesReturn = "ProductSalesReturn";
+    public const string PurchaseReturn = "PurchaseReturn";
+    public const string AdvanceSalaryDeduction = "AdvanceSalaryDeduction";
 }
 
 public interface IAccountingService
@@ -65,6 +68,21 @@ public interface IAccountingService
     /// sales-revenue account (إيرادات مبيعات البضائع by default). Re-posts (removes old first) so edits stay in sync.
     /// The cost side (Dr تكلفة المبيعات / Cr المخزون) is posted by the invoice's automatic goods issue.</summary>
     Task SyncSalesInvoiceAsync(ProductSalesInvoice invoice, IReadOnlyList<ProductSalesInvoiceItem> items, CancellationToken ct = default);
+
+    /// <summary>Sales return → Dr مردودات المبيعات / Cr العملاء (a credit on the customer's receivable). The stock side
+    /// (Dr المخزون / Cr تكلفة المبيعات) is posted by the return's automatic goods receipt. Re-posts (removes old first).</summary>
+    Task SyncSalesReturnAsync(ProductSalesReturn ret, int invoiceNumber, IReadOnlyList<ProductSalesReturnItem> items, CancellationToken ct = default);
+
+    /// <summary>Purchase return → Dr الموردون / Cr بضاعة واردة لم تُفوتر (by <paramref name="stockIssueCost"/>, what the
+    /// return's goods issue took out of stock — that issue debited GRNI by the same amount) / Cr مردودات المشتريات
+    /// (non-stock lines); a difference between the stock lines' invoice value <paramref name="stockValue"/> and the issue
+    /// cost goes to إيرادات أخرى / مصروفات عامة. Re-posts (removes old first).</summary>
+    Task SyncPurchaseReturnAsync(PurchaseReturn ret, int invoiceNumber, IReadOnlyList<PurchaseReturnItem> items,
+        decimal stockValue, decimal stockIssueCost, CancellationToken ct = default);
+
+    /// <summary>A from-salary advance installment marked paid → Dr رواتب ومكافآت / Cr سلف الموظفين (the employee);
+    /// marked unpaid → the entry is removed. Re-posts (removes old first). Cash repayments post through their income.</summary>
+    Task SyncAdvanceSalaryDeductionAsync(AdvanceRepayment repayment, Advance advance, CancellationToken ct = default);
 
     /// <summary>Work order → Dr أعمال المقاولات / Cr المقاولون at its current الإجمالي الفعلي. Re-posts on progress/edit.</summary>
     Task SyncWorkOrderAsync(WorkOrder order, CancellationToken ct = default);

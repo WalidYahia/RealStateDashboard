@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
+using RealState.Application.Accounting;
 using RealState.Application.Common;
 using RealState.Application.Entities;
 using RealState.Application.Enums;
@@ -16,7 +17,11 @@ public class AdvancesController : Controller
 {
     private readonly IApplicationDbContext _db;
     private readonly ICurrentUserService _currentUser;
-    public AdvancesController(IApplicationDbContext db, ICurrentUserService currentUser) { _db = db; _currentUser = currentUser; }
+    private readonly IAccountingService _accounting;
+    public AdvancesController(IApplicationDbContext db, ICurrentUserService currentUser, IAccountingService accounting)
+    {
+        _db = db; _currentUser = currentUser; _accounting = accounting;
+    }
 
     private bool CanManage() => User.HasClaim("permission", PermissionNames.HrManage);
 
@@ -178,8 +183,17 @@ public class AdvancesController : Controller
         var r = await _db.AdvanceRepayments.FirstOrDefaultAsync(x => x.Id == id, ct);
         if (r is not null && r.IncomeTxnId is null) // cash repayments (with income link) are managed from Incomes
         {
+            // Only an advance that was actually paid out can be repaid from the salary.
+            var adv = await _db.Advances.FirstOrDefaultAsync(a => a.Id == r.AdvanceId, ct);
+            if (adv is null || adv.Status != DisbursementStatus.Disbursed)
+            {
+                TempData["ErrorMessage"] = "لا يمكن تسجيل سداد قسط لسلفة لم تُصرف بعد — اصرفها أولًا من صفحة المصروفات.";
+                return RedirectToAction(nameof(Details), new { id = advanceId });
+            }
             r.Status = r.Status == PayStatus.Paid ? PayStatus.NotPaid : PayStatus.Paid;
             r.PaidDate = r.Status == PayStatus.Paid ? DateTime.Today : null;
+            // Dr رواتب ومكافآت / Cr سلف الموظفين while paid; removed when un-marked.
+            await _accounting.SyncAdvanceSalaryDeductionAsync(r, adv, ct);
             await _db.SaveChangesAsync(ct);
         }
         return RedirectToAction(nameof(Details), new { id = advanceId });

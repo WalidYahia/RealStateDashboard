@@ -37,7 +37,7 @@ public static class ActivityActionType
         var a = action.ToLowerInvariant();
         if (a is "logout") return Logout;
         if (a is "login") return Login;
-        if (a.Contains("delete") || a is "cancelpayment") return Delete;
+        if (a.Contains("delete") || a is "cancelpayment" or "cancelcollection") return Delete;
         if (a.Contains("create") || a is "pay" or "collect") return Create;
         if (a.Contains("edit") || a.Contains("update") || a.Contains("toggle")
             || a.Contains("reset") || a.Contains("branding") || a.Contains("upload")
@@ -92,6 +92,9 @@ public static class ActivityActionType
         "Orders" => "أمر توريد",
         "PurchaseInvoices" => "فاتورة مشتريات",
         "SalesInvoices" => "فاتورة مبيعات",
+        "SalesReturns" => "مرتجع مبيعات",
+        "CostUpdates" => "تحديث تكلفة الأصناف",
+        "PurchaseReturns" => "مرتجع مشتريات",
         "WorkOrders" => "أمر شغل",
         "Contractors" => "مقاول",
         "Payments" => "دفعة لمورد",

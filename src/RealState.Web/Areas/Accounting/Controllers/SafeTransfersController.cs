@@ -200,8 +200,10 @@ public class SafeTransfersController : Controller
         }
         var outTxn = await _db.SafeTransactions.FirstAsync(x => x.Id == tr.OutTransactionId, ct);
         var inTxn = await _db.SafeTransactions.FirstAsync(x => x.Id == tr.InTransactionId, ct);
-        await _accounting.RemoveSafeTransferAsync(tr, outTxn, inTxn, ct);   // both movements + the transfer's journal entry
+        // The transfer first: it points at its two movements (required FKs), so removing them before it would sever
+        // the relationship and EF refuses the save.
         _db.SafeTransfers.Remove(tr);
+        await _accounting.RemoveSafeTransferAsync(tr, outTxn, inTxn, ct);   // both movements + the transfer's journal entry
         await _db.SaveChangesAsync(ct);
         TempData["StatusMessage"] = $"تم حذف التحويل {SF(tr.Number)} ({tr.Amount:N2} ج.م).";
         return RedirectToAction(nameof(Index));

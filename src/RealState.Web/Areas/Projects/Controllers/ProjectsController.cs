@@ -390,6 +390,15 @@ public class ProjectsController : Controller
             return RedirectToAction(nameof(Details), new { id });
         }
 
+        // Work orders are contractor obligations (journal entries + payments whose cash movements carry the project) —
+        // removing only the project's movements below would leave the contractor's ledger paid with no cash behind it.
+        var workOrderCount = await _db.WorkOrders.CountAsync(o => o.ProjectId == id, ct);
+        if (workOrderCount > 0)
+        {
+            TempData["ErrorMessage"] = $"لا يمكن حذف المشروع «{p.Name}» لارتباطه بأوامر شغل (عدد: {workOrderCount}). يجب حذف أوامر الشغل المرتبطة أولًا.";
+            return RedirectToAction(nameof(Details), new { id });
+        }
+
         var stageIds = await _db.ProjectStages.Where(s => s.ProjectId == id).Select(s => s.Id).ToListAsync(ct);
         var orderIds = await _db.SupplierOrders.Where(o => o.ProjectId == id).Select(o => o.Id).ToListAsync(ct);
 
@@ -463,6 +472,19 @@ public class ProjectsController : Controller
         }
         await _accounting.SyncUnitInventoryAsync(unit, ct);   // Dr مخزون العقارات  Cr رصيد افتتاحي
         await _db.SaveChangesAsync(ct);
+
+        // A sold unit's contract relieves the unit's cost (Dr تكلفة المبيعات / Cr مخزون العقارات) — re-post it with the
+        // new cost (after the save, since the contract entry reads the unit's stored cost).
+        var contracts = await _db.SaleContracts.Where(c => c.UnitId == unit.Id).ToListAsync(ct);
+        if (contracts.Count > 0)
+        {
+            foreach (var c in contracts)
+            {
+                await _accounting.RemoveObligationAsync("SaleContract", c.Id, ct);
+                await _accounting.PostSaleContractAsync(c, ct);
+            }
+            await _db.SaveChangesAsync(ct);
+        }
         return Json(new { ok = true });
     }
 

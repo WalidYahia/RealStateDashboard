@@ -58,6 +58,8 @@
             <button type="button" class="tb-icon sb-toggle" onclick="appToggleLegacyNav()" title="القائمة الكاملة (القديمة)" aria-label="القائمة الكاملة" aria-expanded="false">@NavIcons.Svg("menu", 19)</button>
         }
         <a class="tb-icon tb-home @(isHome ? "active" : "")" href="@nav.WorkspaceUrl" title="مساحة العمل (الرئيسية)" aria-label="مساحة العمل">@NavIcons.Svg("grid", 19)</a>
+        @* The tenant's logo (or its name), as in the side menu — after the workspace button; opens the workspace too. *@
+        <a class="tb-brand" href="@nav.WorkspaceUrl" title="مساحة العمل (الرئيسية)">@await Component.InvokeAsync("Brand")</a>
         @if (isHost || canTenants)
         {
             <div class="tb-menu">

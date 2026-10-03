@@ -62,6 +62,21 @@ public class InventoryEngine : IInventoryEngine
             changed = true;
         }
 
+        // Contra accounts of returns: مردودات المبيعات (under revenue) and مردودات المشتريات (under expenses).
+        foreach (var (code, name, type, parentCode, sort) in new[]
+                 {
+                     (LedgerAccounts.SalesReturns, "مردودات المبيعات", AccountType.Revenue, LedgerAccounts.RevenueGroup, 16),
+                     (LedgerAccounts.PurchaseReturns, "مردودات المشتريات", AccountType.Expense, LedgerAccounts.ExpensesGroup, 35),
+                     (LedgerAccounts.InventoryCostGain, "أرباح تسوية تكلفة المخزون", AccountType.Revenue, LedgerAccounts.RevenueGroup, 85),
+                     (LedgerAccounts.InventoryCostLoss, "خسائر تسوية تكلفة المخزون", AccountType.Expense, LedgerAccounts.ExpensesGroup, 85),
+                 })
+        {
+            if (await _db.Accounts.AnyAsync(a => a.Code == code, ct)) continue;
+            var parent = await _db.Accounts.FirstOrDefaultAsync(a => a.Code == parentCode, ct);
+            _db.Accounts.Add(new Account { Code = code, Name = name, Type = type, ParentId = parent?.Id, IsPostable = true, IsActive = true, SortOrder = sort });
+            changed = true;
+        }
+
         var profile = await _db.InventoryPostingProfiles.FirstOrDefaultAsync(ct);
         if (profile is null)
         {
@@ -190,11 +205,16 @@ public class InventoryEngine : IInventoryEngine
                 InventorySources.GoodsReceipt, doc.Id, doc.Number, l.Quantity, 0, l.UnitCost, cost, doc.Notes);
         }
 
+        // A purchase receipt credits GRNI (cleared by the purchase invoice); goods a customer returned come back at
+        // their original cost of sale, so they reverse that cost: Cr تكلفة المبيعات.
+        var counter = doc.Reason == ReceiptReason.SalesReturn
+            ? new LedgerLine(p.CogsCode, 0, total, "إرجاع تكلفة مبيعات (مرتجع مبيعات)")
+            : new LedgerLine(p.PurchaseGrniCode, 0, total, "بضاعة واردة لم تُفوتر");
         var wh = await WhNameAsync(doc.WarehouseId, ct);
         await _accounting.PostAsync(doc.Date, $"إذن استلام {doc.Number}", InventorySources.GoodsReceipt, doc.Id, new[]
         {
             InvLine(p.InventoryCode, doc.WarehouseId, wh, total, 0, "استلام مخزون"),
-            new LedgerLine(p.PurchaseGrniCode, 0, total, "بضاعة واردة لم تُفوتر")
+            counter
         }, ct);
         doc.Status = InventoryDocStatus.Posted;
     }
@@ -212,16 +232,22 @@ public class InventoryEngine : IInventoryEngine
             RequirePositive(l.Quantity);
             var stock = await GetStockAsync(l.ProductId, doc.WarehouseId, doc.Date, ct);
             RequireAvailable(l.Quantity, stock.Quantity, "صرفها");
-            var cost = OutflowCost(stock, l.Quantity);
-            l.UnitCost = stock.AverageCost; l.TotalCost = cost; total += cost;
+            // A purchase return leaves at the cost it was bought at (the caller sets it as the line total), so the
+            // GRNI the return clears nets to zero; any other issue is costed by the costing method.
+            var cost = doc.Reason == IssueReason.PurchaseReturn && l.TotalCost > 0
+                ? FixedOutflowCost(stock, l.Quantity, l.TotalCost)
+                : OutflowCost(stock, l.Quantity);
+            var unitCost = doc.Reason == IssueReason.PurchaseReturn && l.Quantity > 0 ? Math.Round(cost / l.Quantity, 6) : stock.AverageCost;
+            l.UnitCost = unitCost; l.TotalCost = cost; total += cost;
             AddMovement(l.ProductId, doc.WarehouseId, doc.Date, InventoryMovementType.Issue,
-                InventorySources.GoodsIssue, doc.Id, doc.Number, 0, l.Quantity, stock.AverageCost, cost, doc.Notes);
+                InventorySources.GoodsIssue, doc.Id, doc.Number, 0, l.Quantity, unitCost, cost, doc.Notes);
         }
 
         var counter = doc.Reason switch
         {
             IssueReason.Sale => p.CogsCode,
             IssueReason.Damage => p.AdjustmentLossCode,
+            IssueReason.PurchaseReturn => p.PurchaseGrniCode,
             _ => p.ConsumptionExpenseCode
         };
         if (total > 0)
@@ -361,6 +387,88 @@ public class InventoryEngine : IInventoryEngine
         doc.Status = InventoryDocStatus.Posted;
     }
 
+    public async Task<decimal> CurrentUnitCostAsync(Guid productId, Guid? warehouseId, CancellationToken ct = default)
+    {
+        // 1) the weighted average where the goods are received
+        if (warehouseId is Guid wid)
+        {
+            var s = await GetStockAsync(productId, wid, null, ct);
+            if (s.Quantity > 0 && s.Value > 0) return Math.Round(s.Value / s.Quantity, 6);
+        }
+        // 2) the average across all warehouses
+        var all = await _db.InventoryMovements.Where(m => m.ProductId == productId)
+            .GroupBy(m => 1).Select(g => new
+            {
+                Qty = g.Sum(m => m.QuantityIn - m.QuantityOut),
+                Value = g.Sum(m => m.QuantityOut > 0 ? -m.TotalCost : m.TotalCost)
+            }).FirstOrDefaultAsync(ct);
+        if (all is not null && all.Qty > 0 && all.Value > 0) return Math.Round(all.Value / all.Qty, 6);
+        // 3) the last cost it came in at, or was set to by a cost update
+        return await _db.InventoryMovements
+            .Where(m => m.ProductId == productId && m.UnitCost > 0 && !m.IsReversal
+                        && (m.QuantityIn > 0 || m.MovementType == InventoryMovementType.Revaluation))
+            .OrderByDescending(m => m.Date).ThenByDescending(m => m.CreatedAt)
+            .Select(m => m.UnitCost).FirstOrDefaultAsync(ct);
+    }
+
+    public async Task PostRevaluationAsync(CostRevaluation doc, CancellationToken ct = default)
+    {
+        var p = await ProfileAsync(ct);
+        RequireLines(doc.Lines.Count);
+        RequireUniqueProducts(doc.Lines.Select(l => l.ProductId));
+        if (doc.Date.Date > DateTime.Today) throw new InvalidOperationException("لا يمكن ترحيل مستند بتاريخ مستقبلي.");
+
+        var warehouses = await _db.Warehouses.Select(w => new { w.Id, w.Name, w.IsDefault }).ToListAsync(ct);
+        var gainByWh = new Dictionary<Guid, decimal>();   // + value increase, − decrease, per warehouse
+        foreach (var l in doc.Lines)
+        {
+            if (l.NewUnitCost <= 0) throw new InvalidOperationException("التكلفة الجديدة يجب أن تكون أكبر من صفر.");
+            l.OldUnitCost = await CurrentUnitCostAsync(l.ProductId, null, ct);
+            decimal qtyAll = 0m, change = 0m;
+            foreach (var w in warehouses)
+            {
+                var s = await GetStockAsync(l.ProductId, w.Id, null, ct);
+                if (s.Quantity <= 0) continue;
+                // The warehouse's stock is worth quantity × new cost from now on (the average becomes the new cost).
+                var delta = Math.Round(s.Quantity * l.NewUnitCost, 2) - Math.Round(s.Value, 2);
+                qtyAll += s.Quantity;
+                if (delta == 0) continue;
+                change += delta;
+                gainByWh[w.Id] = gainByWh.GetValueOrDefault(w.Id) + delta;
+                AddMovement(l.ProductId, w.Id, doc.Date, InventoryMovementType.Revaluation, InventorySources.CostRevaluation,
+                    doc.Id, doc.Number, 0, 0, l.NewUnitCost, delta, doc.Notes);
+            }
+            if (qtyAll == 0)
+            {
+                // Nothing in stock: just record the cost (a zero-value movement), for the next manual receipt.
+                var wh = warehouses.FirstOrDefault(w => w.IsDefault) ?? warehouses.FirstOrDefault()
+                         ?? throw new InvalidOperationException("لا يوجد مخزن.");
+                AddMovement(l.ProductId, wh.Id, doc.Date, InventoryMovementType.Revaluation, InventorySources.CostRevaluation,
+                    doc.Id, doc.Number, 0, 0, l.NewUnitCost, 0, doc.Notes);
+            }
+            l.Quantity = qtyAll;
+            l.ValueChange = change;
+        }
+
+        // One line per warehouse for its value change; the profit-or-loss side is NET per product — a product whose
+        // warehouses held it at different averages (each warehouse keeps its own) may rise in one and fall in another,
+        // and only its overall change is a real gain or loss. Gains go to 4950, losses to 5950.
+        var lines = new List<LedgerLine>();
+        foreach (var (whId, delta) in gainByWh.Where(x => x.Value != 0))
+        {
+            var whName = warehouses.First(w => w.Id == whId).Name;
+            lines.Add(delta > 0
+                ? InvLine(p.InventoryCode, whId, whName, delta, 0, "زيادة قيمة المخزون (تحديث التكلفة)")
+                : InvLine(p.InventoryCode, whId, whName, 0, -delta, "نقص قيمة المخزون (تحديث التكلفة)"));
+        }
+        var gain = doc.Lines.Where(l => l.ValueChange > 0).Sum(l => l.ValueChange);
+        var loss = -doc.Lines.Where(l => l.ValueChange < 0).Sum(l => l.ValueChange);
+        if (gain > 0) lines.Add(new LedgerLine(LedgerAccounts.InventoryCostGain, 0, gain, "أرباح تسوية تكلفة المخزون (صافي)"));
+        if (loss > 0) lines.Add(new LedgerLine(LedgerAccounts.InventoryCostLoss, loss, 0, "خسائر تسوية تكلفة المخزون (صافي)"));
+        if (lines.Count > 0)
+            await _accounting.PostAsync(doc.Date, $"تحديث تكلفة الأصناف {doc.Number}", InventorySources.CostRevaluation, doc.Id, lines, ct);
+    }
+
     /// <summary>
     /// Reverses a posted document by ADDING counter-movements and a reversing journal entry — the
     /// original movements and entry are kept, so the audit trail is never erased.
@@ -446,6 +554,18 @@ public class InventoryEngine : IInventoryEngine
     /// </summary>
     private static decimal OutflowCost(StockLevel stock, decimal qty)
         => qty >= stock.Quantity ? Math.Round(stock.Value, 2) : Math.Round(qty * stock.Value / stock.Quantity, 2);
+
+    /// <summary>
+    /// An outflow at a given cost (a purchase return at its invoice cost), kept within what the stock is worth:
+    /// taking everything takes the whole value (no residue on a zero quantity), and a part never takes more than
+    /// the value on hand. The remaining units' average absorbs the difference, as a return at cost should.
+    /// </summary>
+    private static decimal FixedOutflowCost(StockLevel stock, decimal qty, decimal requested)
+    {
+        var value = Math.Max(Math.Round(stock.Value, 2), 0m);
+        if (qty >= stock.Quantity) return value;
+        return Math.Min(Math.Round(requested, 2), value);
+    }
 
     /// <summary>
     /// Weighted average has no history rewrite: a document dated before existing movements would cost

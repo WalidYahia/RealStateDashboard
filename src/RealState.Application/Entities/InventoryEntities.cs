@@ -124,6 +124,11 @@ public class GoodsReceipt : AuditableEntity, ITenantEntity
     /// <summary>Set when the receipt was created automatically by a purchase invoice; it is then managed
     /// (re-built / reversed) only through that invoice.</summary>
     public Guid? PurchaseInvoiceId { get; set; }
+    /// <summary>Purchase (Cr GRNI) or a customer's sales return (Cr تكلفة المبيعات, at the original cost of sale).</summary>
+    public ReceiptReason Reason { get; set; } = ReceiptReason.Purchase;
+    /// <summary>Set when the receipt was created automatically by a sales return; it is then managed (reversed)
+    /// only through that return.</summary>
+    public Guid? SalesReturnId { get; set; }
     public InventoryDocStatus Status { get; set; } = InventoryDocStatus.Draft;
     public string? Notes { get; set; }
     public List<GoodsReceiptLine> Lines { get; set; } = new();
@@ -159,6 +164,9 @@ public class GoodsIssue : AuditableEntity, ITenantEntity
     public Guid? SalesInvoiceId { get; set; }
     /// <summary>The customer of the sales invoice that generated this issue (display only).</summary>
     public Guid? CustomerId { get; set; }
+    /// <summary>Set when the issue was created automatically by a purchase return (goods sent back to the supplier);
+    /// it is then managed (reversed) only through that return.</summary>
+    public Guid? PurchaseReturnId { get; set; }
     public InventoryDocStatus Status { get; set; } = InventoryDocStatus.Draft;
     public string? Notes { get; set; }
     public List<GoodsIssueLine> Lines { get; set; } = new();
@@ -269,6 +277,35 @@ public class StockCountLine : AuditableEntity, ITenantEntity
     /// <summary>Quantity the system expected at count time (snapshot).</summary>
     public decimal SystemQty { get; set; }
     public decimal CountedQty { get; set; }
+}
+
+/// <summary>
+/// Cost update (تحديث تكلفة الأصناف) — sets products' unit cost: each warehouse holding the product is revalued to
+/// quantity × new cost (a value-only movement), Dr المخزون / Cr أرباح تسوية تكلفة المخزون (4950) for an increase,
+/// Dr خسائر تسوية تكلفة المخزون (5950) / Cr المخزون for a decrease. A product with no stock just records the cost, used by later manual receipts.
+/// </summary>
+public class CostRevaluation : AuditableEntity, ITenantEntity
+{
+    public Guid TenantId { get; set; }
+    public int Number { get; set; }
+    public DateTime Date { get; set; }
+    public string? Notes { get; set; }
+    public List<CostRevaluationLine> Lines { get; set; } = new();
+}
+
+public class CostRevaluationLine : AuditableEntity, ITenantEntity
+{
+    public Guid TenantId { get; set; }
+    public Guid CostRevaluationId { get; set; }
+    public Guid ProductId { get; set; }
+    public Product? Product { get; set; }
+    /// <summary>Stock on hand across all warehouses at the update (smallest unit).</summary>
+    public decimal Quantity { get; set; }
+    /// <summary>Unit costs per smallest unit: the average before, and the one set.</summary>
+    public decimal OldUnitCost { get; set; }
+    public decimal NewUnitCost { get; set; }
+    /// <summary>Change in stock value (new − old), across all warehouses.</summary>
+    public decimal ValueChange { get; set; }
 }
 
 /// <summary>

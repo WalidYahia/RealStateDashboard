@@ -19,7 +19,7 @@
     @if (!string.IsNullOrWhiteSpace(Model.Notes)) { <text> · @Model.Notes</text> }
 </div>
 <table class="rs-table" data-no-grid>
-    <thead><tr><th>الصنف</th><th>الوحدة</th><th>الكمية</th><th>تكلفة الوحدة</th><th>الإجمالي</th></tr></thead>
+    <thead><tr><th>الصنف</th><th>الوحدة</th><th>الكمية</th>@if (Model.ShowCost) { <th>تكلفة الوحدة</th><th>الإجمالي</th> }</tr></thead>
     <tbody>
     @foreach (var l in Model.Lines)
     {
@@ -27,13 +27,19 @@
             <td>@l.Product</td>
             <td>@(l.Unit ?? "—")</td>
             <td dir="ltr" style="text-align:right;">@Q(l.Quantity)</td>
-            <td>@(l.UnitCost == 0 ? "" : N(l.UnitCost))</td>
-            <td>@(l.TotalCost == 0 ? "" : N(l.TotalCost))</td>
+            @if (Model.ShowCost)
+            {
+                <td>@(l.UnitCost == 0 ? "" : N(l.UnitCost))</td>
+                <td>@(l.TotalCost == 0 ? "" : N(l.TotalCost))</td>
+            }
         </tr>
     }
     @if (Model.Lines.Count == 0) { <tr><td colspan="5" style="color:var(--muted)">لا توجد أسطر.</td></tr> }
     </tbody>
-    <tfoot>
-        <tr><th colspan="4" style="text-align:start;">الإجمالي</th><th>@N(Model.Lines.Sum(l => l.TotalCost))</th></tr>
-    </tfoot>
+    @if (Model.ShowCost)
+    {
+        <tfoot>
+            <tr><th colspan="4" style="text-align:start;">الإجمالي</th><th>@N(Model.Lines.Sum(l => l.TotalCost))</th></tr>
+        </tfoot>
+    }
 </table>

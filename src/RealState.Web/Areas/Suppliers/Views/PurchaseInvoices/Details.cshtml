@@ -3,7 +3,13 @@
     var inv = Model.Invoice;
     ViewData["Title"] = $"فاتورة مشتريات PI-{inv.Number}";
     var canPay = ViewData["CanPay"] as bool? ?? false;
+    var canDeletePayment = ViewData["CanDeletePayment"] as bool? ?? false;
     var canViewSuppliers = ViewData["CanViewSuppliers"] as bool? ?? false;
+    var canReturn = User.Can(PermissionNames.PurchaseReturnsCreate);
+    var canViewReturns = User.Can(PermissionNames.PurchaseReturnsView);
+    var hasReturns = Model.Returns.Count > 0;
+    // Something left to return (exact per-line availability is shown on the return form).
+    var returnable = Model.Returned < Model.Total;
     string N(decimal v) => v.ToString("N2", RealState.Web.AppCulture.Ar);
     string Q(decimal v) => v.ToString("0.####", System.Globalization.CultureInfo.InvariantCulture);
     string D(DateTime d) => d.ToString("yyyy/MM/dd", System.Globalization.CultureInfo.InvariantCulture);
@@ -41,11 +47,16 @@
             <button type="button" class="btn-new-tenant" onclick="appOpenModal('@Url.Action("Pay", "Payments", new { target = "I:" + inv.Id })', 'سداد دفعة على الفاتورة')">💵 سداد دفعة</button>
         }
         <a class="btn-new-tenant" asp-action="PrintInvoice" asp-route-id="@inv.Id" target="_blank">🖨 طباعة الفاتورة (PDF)</a>
-        @if (User.Can(PermissionNames.PurchaseInvoicesEdit))
+        @if (canReturn && returnable)
+        {
+            <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("Form", "PurchaseReturns", new { invoiceId = inv.Id })', 'مرتجع مشتريات جديد', 'xl')">↩ مرتجع</button>
+        }
+        @* An invoice with returns is locked: they're tied to its lines, quantities and costs. *@
+        @if (User.Can(PermissionNames.PurchaseInvoicesEdit) && !hasReturns)
         {
             <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("Form", new { id = inv.Id })', 'تعديل فاتورة المشتريات', 'xl')">✏️ تعديل</button>
         }
-        @if (User.Can(PermissionNames.PurchaseInvoicesDelete))
+        @if (User.Can(PermissionNames.PurchaseInvoicesDelete) && !hasReturns)
         {
             <form asp-action="Delete" asp-route-id="@inv.Id" method="post" style="display:inline;" data-confirm="حذف فاتورة المشتريات PI-@inv.Number؟ سيتم عكس قيدها المحاسبي وعكس إذن الاستلام (سحب الأصناف من المخزن)." data-danger>@Html.AntiForgeryToken()<button type="submit" class="btn-sm btn-danger">🗑 حذف الفاتورة</button></form>
         }
@@ -58,8 +69,8 @@
 }
 
 <div class="kpi-grid" style="grid-template-columns: repeat(3, 1fr);">
-    <div class="kpi k-reserve"><div class="kpi-label">إجمالي الفاتورة</div><div class="kpi-value">@N(Model.Total) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">@inv.Items.Count صنف</div></div>
-    <div class="kpi k-collect"><div class="kpi-label">المسدَّد</div><div class="kpi-value">@N(Model.Paid) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">@inv.Payments.Count دفعة</div></div>
+    <div class="kpi k-reserve"><div class="kpi-label">إجمالي الفاتورة</div><div class="kpi-value">@N(Model.NetTotal) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">@inv.Items.Count صنف@(hasReturns ? $" · قبل المرتجعات {N(Model.Total)} − مرتجعات {N(Model.Returned)}" : "")</div></div>
+    <div class="kpi k-collect"><div class="kpi-label">المسدَّد</div><div class="kpi-value">@N(Model.NetPaid) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">@inv.Payments.Count دفعة@(Model.Refunded > 0 ? $" · استُرد من المورد {N(Model.Refunded)}" : "")</div></div>
     <div class="kpi k-alerts"><div class="kpi-label">المتبقي</div><div class="kpi-value">@N(Model.Remaining) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">مستحق الدفع للمورد</div></div>
 </div>
 
@@ -73,7 +84,14 @@
             <tr><td>@it.Name</td><td>@(it.Unit ?? "—")</td><td>@N(it.Cost)</td><td dir="ltr" style="text-align:right;">@Q(it.Quantity)</td><td>@N(it.LineTotal)</td></tr>
         }
         </tbody>
-        <tfoot><tr><th colspan="4">الإجمالي</th><th>@N(Model.Total) ج.م</th></tr></tfoot>
+        <tfoot>
+            <tr><th colspan="4">الإجمالي</th><th>@N(Model.Total) ج.م</th></tr>
+            @if (hasReturns)
+            {
+                <tr><th colspan="4">المرتجعات</th><th>− @N(Model.Returned) ج.م</th></tr>
+                <tr><th colspan="4">الصافي بعد المرتجعات</th><th>@N(Model.NetTotal) ج.م</th></tr>
+            }
+        </tfoot>
     </table>
     @if (!string.IsNullOrWhiteSpace(inv.Notes))
     {
@@ -112,6 +130,44 @@
     </table>
 </div>
 
+@if (hasReturns || (canReturn && returnable))
+{
+    <div class="card-tile" style="margin-bottom:14px;">
+        <div class="card-head"><h3>المرتجعات</h3></div>
+        <table class="rs-table">
+            <thead><tr><th>رقم المرتجع</th><th>التاريخ</th><th>القيمة</th><th>استُرد نقدًا</th><th>خُصم من المستحق</th><th></th></tr></thead>
+            <tbody>
+            @foreach (var r in Model.Returns)
+            {
+                <tr>
+                    <td dir="ltr" style="text-align:right;">
+                        @if (canViewReturns) { <a asp-controller="PurchaseReturns" asp-action="Details" asp-route-id="@r.Id" style="color:var(--series-1);">PR-@r.Number</a> } else { <text>PR-@r.Number</text> }
+                    </td>
+                    <td dir="ltr" style="text-align:right;">@D(r.Date)</td>
+                    <td>@N(r.Total)</td>
+                    <td class="tag-up">@N(r.Refund)</td>
+                    <td>@N(r.Total - r.Refund)</td>
+                    <td style="white-space:nowrap;">
+                        @if (canViewReturns)
+                        {
+                            <a class="btn-sm" asp-controller="PurchaseReturns" asp-action="Print" asp-route-id="@r.Id" target="_blank">🖨 المرتجع</a>
+                            @if (r.RefundVoucherNo.HasValue)
+                            {
+                                <a class="btn-sm" asp-controller="PurchaseReturns" asp-action="RefundVoucher" asp-route-id="@r.Id" target="_blank">🖨 إيصال استلام نقدية</a>
+                            }
+                        }
+                    </td>
+                </tr>
+            }
+            @if (!hasReturns)
+            {
+                <tr><td colspan="6" style="color:var(--muted)">لا توجد مرتجعات على هذه الفاتورة.</td></tr>
+            }
+            </tbody>
+        </table>
+    </div>
+}
+
 <div class="card-tile">
     <div class="card-head"><h3>الدفعات</h3></div>
     <table class="rs-table">
@@ -123,7 +179,16 @@
                 <td dir="ltr" style="text-align:right;">@p.ReceiptNo.ToString("D5")</td>
                 <td dir="ltr" style="text-align:right;">@D(p.PaidDate)</td>
                 <td class="tag-up">@N(p.Amount)</td>
-                <td><a class="btn-sm" asp-controller="Payments" asp-action="Receipt" asp-route-id="@p.Id" target="_blank">🖨 إيصال صرف نقدية</a></td>
+                <td style="white-space:nowrap;">
+                    <a class="btn-sm" asp-controller="Payments" asp-action="Receipt" asp-route-id="@p.Id" target="_blank">🖨 إيصال صرف نقدية</a>
+                    @if (canDeletePayment)
+                    {
+                        <form asp-action="DeletePayment" asp-route-id="@p.Id" method="post" style="display:inline;" data-danger
+                              data-confirm="حذف سند الصرف رقم @p.ReceiptNo (@N(p.Amount) ج.م)؟ سيُحذف المصروف وقيده، ويعود المبلغ إلى الخزنة ومستحقًّا على الفاتورة.">
+                            @Html.AntiForgeryToken()<button type="submit" class="btn-sm btn-danger">🗑 حذف</button>
+                        </form>
+                    }
+                </td>
             </tr>
         }
         @if (inv.Payments.Count == 0)

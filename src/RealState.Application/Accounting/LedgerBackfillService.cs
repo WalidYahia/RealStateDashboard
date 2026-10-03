@@ -9,7 +9,9 @@ public sealed record LedgerBackfillResult(int Safes, int Units, int Sales, int S
 public interface ILedgerBackfillService
 {
     /// <summary>Reconstructs journal entries for all existing records of the CURRENT tenant. Idempotent
-    /// (skips records that already have an entry) and reuses the same posting logic as live actions.</summary>
+    /// (skips records that already have an entry) and reuses the same posting logic as live actions. Manual
+    /// incomes / expenses and HR movements are always re-posted from their current values (earlier versions didn't
+    /// re-post manual ones on edit nor post them to their category's account, and posted HR ones without the employee).</summary>
     Task<LedgerBackfillResult> RunAsync(CancellationToken ct = default);
 }
 
@@ -73,10 +75,18 @@ public class LedgerBackfillService : ILedgerBackfillService
         var repByIncTxn = (await _db.AdvanceRepayments.Where(r => r.IncomeTxnId != null).ToListAsync(ct)).ToDictionary(r => r.IncomeTxnId!.Value, r => r);
         var sicByTxn = (await _db.SalesInvoiceCollections.Where(c => c.SafeTransactionId != null).ToListAsync(ct)).ToDictionary(c => c.SafeTransactionId!.Value, c => c);
         var rewByExpTxn = (await _db.Rewards.Where(r => r.ExpenseTxnId != null).ToListAsync(ct)).ToDictionary(r => r.ExpenseTxnId!.Value, r => r);
+        var srByTxn = (await _db.ProductSalesReturns.Where(r => r.RefundTransactionId != null).ToListAsync(ct)).ToDictionary(r => r.RefundTransactionId!.Value, r => r);
+        var prByTxn = (await _db.PurchaseReturns.Where(r => r.RefundTransactionId != null).ToListAsync(ct)).ToDictionary(r => r.RefundTransactionId!.Value, r => r);
 
         foreach (var t in await _db.SafeTransactions.OrderBy(t => t.OccurredAt).ThenBy(t => t.Serial).ToListAsync(ct))
         {
-            if (Has("SafeTransaction", t.Id)) continue;
+            // Manual and HR movements are always re-posted: earlier versions posted manual ones without their category and
+            // edits without re-posting, and HR ones (advance paid / repaid, reward) without the employee — so to مصروفات
+            // عامة / إيرادات أخرى instead of سلف الموظفين.
+            if (t.Source is TxnSource.Manual or TxnSource.AdvanceDisbursement or TxnSource.AdvanceRepayment or TxnSource.RewardPayment
+                && Has("SafeTransaction", t.Id))
+                await _engine.RemoveBySourceAsync("SafeTransaction", t.Id, ct);   // re-posted below from its current values
+            else if (Has("SafeTransaction", t.Id)) continue;
             Guid? projectId = t.ProjectId, customerId = null, supplierId = null, contractorId = null, employeeId = null, unitId = null;
             switch (t.Source)
             {
@@ -104,10 +114,22 @@ public class LedgerBackfillService : ILedgerBackfillService
                 case TxnSource.RewardPayment:
                     if (rewByExpTxn.TryGetValue(t.Id, out var rw)) employeeId = rw.EmployeeId;
                     break;
+                case TxnSource.SalesReturnRefund:
+                    if (srByTxn.TryGetValue(t.Id, out var sr)) customerId = sr.CustomerId;
+                    break;
+                case TxnSource.PurchaseReturnRefund:
+                    if (prByTxn.TryGetValue(t.Id, out var pr)) supplierId = pr.SupplierId;
+                    break;
             }
             await _accounting.PostCashSettlementAsync(t, projectId, customerId, supplierId, contractorId, employeeId, unitId, t.CategoryId, ct);
             moves++;
         }
+
+        // 7) From-salary advance installments marked paid (they now post Dr رواتب / Cr سلف الموظفين).
+        var advances = await _db.Advances.Where(a => a.Status == DisbursementStatus.Disbursed).ToDictionaryAsync(a => a.Id, ct);
+        foreach (var r in await _db.AdvanceRepayments.Where(r => r.Status == PayStatus.Paid && r.IncomeTxnId == null).ToListAsync(ct))
+            if (advances.TryGetValue(r.AdvanceId, out var a) && !Has(AccountingSources.AdvanceSalaryDeduction, r.Id))
+            { await _accounting.SyncAdvanceSalaryDeductionAsync(r, a, ct); moves++; }
 
         await _db.SaveChangesAsync(ct);
         return new LedgerBackfillResult(safes, units, sales, orders, works, moves);

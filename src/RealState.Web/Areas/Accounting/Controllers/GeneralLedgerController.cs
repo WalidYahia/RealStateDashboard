@@ -197,6 +197,14 @@ public class GeneralLedgerController : Controller
         if (lines.Any(l => l.Debit < 0 || l.Credit < 0)) ModelState.AddModelError(string.Empty, "لا يُسمح بقيم سالبة.");
         if (Math.Round(lines.Sum(l => l.Debit) - lines.Sum(l => l.Credit), 2) != 0m)
             ModelState.AddModelError(string.Empty, $"القيد غير متوازن: مدين {lines.Sum(l => l.Debit):N2} ≠ دائن {lines.Sum(l => l.Credit):N2}.");
+        // Safe and warehouse accounts mirror their subledgers (cash movements / stock valuation) — a manual line would
+        // make the GL disagree with the safe balance or the stock value. Cash moves through incomes / expenses /
+        // transfers, stock through inventory documents.
+        var lineAccountIds = lines.Select(l => l.AccountId!.Value).Distinct().ToList();
+        var locked = await _db.Accounts.Where(a => lineAccountIds.Contains(a.Id) && ManagedSubKinds.Contains(a.SubKind!))
+            .Select(a => a.Code + " — " + a.Name).ToListAsync(ct);
+        if (locked.Count > 0)
+            ModelState.AddModelError(string.Empty, $"لا يمكن القيد يدويًا على حسابات الخزائن أو المخازن ({string.Join("، ", locked)}) — استخدم الإيرادات / المصروفات / التحويلات أو مستندات المخزون.");
 
         if (!ModelState.IsValid) { model.Accounts = await PostableAccountsAsync(ct); return PartialView("_ManualEntryForm", model); }
 
@@ -236,7 +244,10 @@ public class GeneralLedgerController : Controller
         return RedirectToAction(nameof(Index), new { accountId, from = from?.ToString("yyyy-MM-dd"), to = to?.ToString("yyyy-MM-dd") });
     }
 
+    /// <summary>Subsidiary kinds kept in step by their own documents — not offered for manual entries.</summary>
+    private static readonly string[] ManagedSubKinds = { "Safe", RealState.Application.Inventory.InventorySources.WarehouseSubKind };
+
     private async Task<List<SelectListItem>> PostableAccountsAsync(CancellationToken ct) =>
-        await _db.Accounts.Where(a => a.IsPostable && a.IsActive).OrderBy(a => a.Code)
+        await _db.Accounts.Where(a => a.IsPostable && a.IsActive && (a.SubKind == null || !ManagedSubKinds.Contains(a.SubKind))).OrderBy(a => a.Code)
             .Select(a => new SelectListItem { Value = a.Id.ToString(), Text = a.Code + " — " + a.Name }).ToListAsync(ct);
 }

@@ -34,6 +34,18 @@ public interface IInventoryEngine
     Task PostAdjustmentAsync(InventoryAdjustment doc, CancellationToken ct = default);
     Task PostStockCountAsync(StockCount doc, CancellationToken ct = default);
 
+    /// <summary>
+    /// The product's current unit cost (per smallest unit): its weighted average in the warehouse; else across all
+    /// warehouses; else the last cost it came in at / was set to. 0 when nothing is known.
+    /// </summary>
+    Task<decimal> CurrentUnitCostAsync(Guid productId, Guid? warehouseId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Posts a cost update: each line's product is revalued to its new unit cost in every warehouse holding it
+    /// (value-only movements + one GL entry). Fills the lines' quantity / old cost / value change. No SaveChanges.
+    /// </summary>
+    Task PostRevaluationAsync(CostRevaluation doc, CancellationToken ct = default);
+
     /// <summary>Reverses a posted document: removes its movements and its GL entry (no self-SaveChanges).</summary>
     Task ReverseAsync(string sourceType, Guid sourceId, CancellationToken ct = default);
 }
@@ -49,4 +61,5 @@ public static class InventorySources
     public const string StockTransfer = "StockTransfer";
     public const string InventoryAdjustment = "InventoryAdjustment";
     public const string StockCount = "StockCount";
+    public const string CostRevaluation = "CostRevaluation";
 }

@@ -191,6 +191,8 @@ public class ReportsController : Controller
         var paidByInvoice = (await _db.SupplierPayments.Where(p => p.PurchaseInvoiceId != null && invoiceIds.Contains(p.PurchaseInvoiceId!.Value))
             .GroupBy(p => p.PurchaseInvoiceId!.Value).Select(g => new { g.Key, Sum = g.Sum(x => x.Amount) }).ToListAsync(ct))
             .ToDictionary(x => x.Key, x => x.Sum);
+        // Invoice values net of purchase returns; paid net of the cash the supplier refunded through them.
+        var returns = await RealState.Application.Accounting.InvoiceReturns.PurchaseAsync(_db, invoiceIds, ct);
         var orderIds = orders.Select(o => o.Id).ToList();
         var itemSums = (await _db.SupplierOrderItems.Where(i => orderIds.Contains(i.SupplierOrderId))
             .GroupBy(i => i.SupplierOrderId).Select(g => new { g.Key, Sum = g.Sum(x => x.Cost * x.Quantity) }).ToListAsync(ct))
@@ -200,7 +202,9 @@ public class ReportsController : Controller
             .ToDictionary(x => x.Key, x => x.Sum);
         var suppliers = await _db.Suppliers.ToDictionaryAsync(s => s.Id, s => s, ct);
 
-        var docs = invoices.Select(i => (SupplierId: i.SupplierId, Value: invoiceSums.GetValueOrDefault(i.Id, 0), Paid: paidByInvoice.GetValueOrDefault(i.Id, 0)))
+        var docs = invoices.Select(i => (SupplierId: i.SupplierId,
+                Value: invoiceSums.GetValueOrDefault(i.Id, 0) - returns.GetValueOrDefault(i.Id).Returned,
+                Paid: paidByInvoice.GetValueOrDefault(i.Id, 0) - returns.GetValueOrDefault(i.Id).Refunded))
             .Concat(orders.Select(o => (SupplierId: o.SupplierId!.Value, Value: itemSums.GetValueOrDefault(o.Id, 0), Paid: paidByOrder.GetValueOrDefault(o.Id, 0))));
 
         vm.Rows = docs.GroupBy(d => d.SupplierId).Select(g =>

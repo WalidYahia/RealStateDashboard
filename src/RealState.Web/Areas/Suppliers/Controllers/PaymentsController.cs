@@ -165,7 +165,9 @@ public class PaymentsController : Controller
                 if (inv is null) return null;
                 var total = await _db.PurchaseInvoiceItems.Where(i => i.PurchaseInvoiceId == id).SumAsync(i => (decimal?)i.LineTotal, ct) ?? 0;
                 var paid = await _db.SupplierPayments.Where(p => p.PurchaseInvoiceId == id).SumAsync(p => (decimal?)p.Amount, ct) ?? 0;
-                return new Payable(inv.Id, null, inv.SupplierId, inv.ProjectId, PI(inv.Number), "فاتورة المشتريات", total, paid);
+                // Net of purchase returns (debit notes) and of the cash the supplier refunded through them.
+                var r = await RealState.Application.Accounting.InvoiceReturns.ForPurchaseInvoiceAsync(_db, id, ct);
+                return new Payable(inv.Id, null, inv.SupplierId, inv.ProjectId, PI(inv.Number), "فاتورة المشتريات", total - r.Returned, paid - r.Refunded);
             }
             case 'O':
             {

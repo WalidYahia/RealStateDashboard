@@ -103,6 +103,8 @@ public class DocListRow
     public Guid? PurchaseInvoiceId { get; set; }
     /// <summary>Goods issues only: the sales invoice that generated it (then it's managed from the invoice).</summary>
     public Guid? SalesInvoiceId { get; set; }
+    /// <summary>The sales return (receipts) / purchase return (issues) that generated it — then it's managed from the return.</summary>
+    public Guid? ReturnId { get; set; }
     public string? SourceLabel { get; set; }
 }
 
@@ -120,6 +122,9 @@ public class DocDetailsVm
     public List<(string Label, string Value)> Extra { get; set; } = new();
     /// <summary>When set, the details popup shows a print button opening this URL in a new tab.</summary>
     public string? PrintUrl { get; set; }
+    /// <summary>Show unit cost / total columns. Off for receipts and issues — their cost is the system's average, not
+    /// something entered or shown on the document.</summary>
+    public bool ShowCost { get; set; } = true;
 }
 
 /// <summary>A document line as shown: quantity / unit cost in the unit it was entered in (<see cref="Unit"/>).</summary>

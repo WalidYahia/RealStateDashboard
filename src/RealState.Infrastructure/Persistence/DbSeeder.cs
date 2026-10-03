@@ -88,6 +88,11 @@ public static class DbSeeder
             var roleIds = await db.RolePermissions.Where(rp => rp.PermissionId == source.Id).Select(rp => rp.RoleId).ToListAsync();
             foreach (var roleId in roleIds)
                 db.RolePermissions.Add(new RolePermission { RoleId = roleId, Permission = perm });
+            // Users hold their permissions as direct claims (the user module is permission-based) — grant them too.
+            var userIds = await db.UserClaims.Where(c => c.ClaimType == "permission" && c.ClaimValue == sourceName)
+                .Select(c => c.UserId).Distinct().ToListAsync();
+            foreach (var userId in userIds)
+                db.UserClaims.Add(new IdentityUserClaim<Guid> { UserId = userId, ClaimType = "permission", ClaimValue = perm.Name });
         }
 
         // Prune permissions that no longer exist in the catalog (e.g. after consolidating a module's

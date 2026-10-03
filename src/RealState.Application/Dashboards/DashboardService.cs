@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using RealState.Application.Accounting;
 using RealState.Application.Enums;
 using RealState.Application.Interfaces;
 
@@ -59,8 +60,10 @@ public class DashboardService : IDashboardService
         var invoicePaid = (await _db.SupplierPayments.Where(p => p.PurchaseInvoiceId != null)
             .GroupBy(p => p.PurchaseInvoiceId!.Value).Select(g => new { g.Key, Sum = g.Sum(x => x.Amount) }).ToListAsync(ct))
             .ToDictionary(x => x.Key, x => x.Sum);
+        // Invoices net of their purchase returns (and of the cash refunded through them).
+        var invoiceReturns = await InvoiceReturns.PurchaseAsync(_db, null, ct);
         vm.SupplierPayables = orderTotals.Sum(o => Math.Max(0, o.Value - orderPaid.GetValueOrDefault(o.Key, 0)))
-            + invoiceTotals.Sum(i => Math.Max(0, i.Value - invoicePaid.GetValueOrDefault(i.Key, 0)));
+            + invoiceTotals.Sum(i => Math.Max(0, InvoiceReturns.Remaining(i.Value, invoicePaid.GetValueOrDefault(i.Key, 0), invoiceReturns.GetValueOrDefault(i.Key))));
 
         // --- Projects / units ---
         vm.ProjectsCount = await _db.Projects.CountAsync(ct);

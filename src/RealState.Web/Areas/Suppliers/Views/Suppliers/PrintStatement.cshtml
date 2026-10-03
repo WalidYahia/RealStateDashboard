@@ -41,7 +41,7 @@
         <tbody>
         @foreach (var r in Model.Rows)
         {
-            var isPay = r.Kind == SupplierLedgerKind.Payment;
+            var isPay = r.Decreases;
             <tr>
                 <td>@r.Source</td>
                 <td>@D(r.Date)</td>

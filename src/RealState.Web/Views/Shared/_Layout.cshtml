@@ -73,9 +73,9 @@
                     // «العملاء» — salespersons, customers and the customers report.
                     var customersOpen = curCtrl is "Salespersons" or "Customers" || repAct == "Customers";
                     // «المبيعات» — product sales invoices (+ returns, planned). Parent points to the sales-invoices summary.
-                    var invSalesOpen = curCtrl == "SalesInvoices";
+                    var invSalesOpen = curCtrl is "SalesInvoices" or "SalesReturns";
                     var invSummaryActive = invSalesOpen && (curAction == "Summary" || curAction == "SummaryPrint");
-                    var invReturnsActive = invSalesOpen && curAction == "Returns";
+                    var invReturnsActive = curCtrl == "SalesReturns";
                     // Marketing group hosts Campaigns (الحملات) and "إدارة علاقات العملاء" (the Leads page).
                     var mktOpen = curArea == "Marketing" || curCtrl == "Leads";
                 }
@@ -156,7 +156,7 @@
                         </div>
                         <div class="subnav">
                             <a class="subnav-link @(invSalesOpen && !invSummaryActive && !invReturnsActive ? "active" : "")" asp-area="Sales" asp-controller="SalesInvoices" asp-action="Index">فواتير المبيعات</a>
-                            <a class="subnav-link @(invReturnsActive ? "active" : "")" asp-area="Sales" asp-controller="SalesInvoices" asp-action="Returns">مرتجعات المبيعات <span class="nav-soon">قريبًا</span></a>
+                            <a class="subnav-link @(invReturnsActive ? "active" : "")" asp-area="Sales" asp-controller="SalesReturns" asp-action="Index">مرتجعات المبيعات</a>
                         </div>
                     </div>
                 }
@@ -173,7 +173,7 @@
                     var suppliersOpen = (supArea == "Suppliers" && supCtrl == "Suppliers") || repAct == "Suppliers";
                     // «المشتريات» — purchase orders, invoices (+ returns, planned).
                     var supOpen = supArea == "Suppliers" && supCtrl != "Suppliers";
-                    var purReturnsActive = supOpen && supCtrl == "PurchaseInvoices" && curAction == "Returns";
+                    var purReturnsActive = supOpen && supCtrl == "PurchaseReturns";
                 }
                 @if (canSuppliers || canReports)
                 {
@@ -209,7 +209,7 @@
                             @if (canPurchaseInvoices)
                             {
                                 <a class="subnav-link @(supOpen && supCtrl == "PurchaseInvoices" && !purReturnsActive ? "active" : "")" asp-area="Suppliers" asp-controller="PurchaseInvoices" asp-action="Index">فواتير المشتريات</a>
-                                <a class="subnav-link @(purReturnsActive ? "active" : "")" asp-area="Suppliers" asp-controller="PurchaseInvoices" asp-action="Returns">مرتجعات المشتريات <span class="nav-soon">قريبًا</span></a>
+                                <a class="subnav-link @(purReturnsActive ? "active" : "")" asp-area="Suppliers" asp-controller="PurchaseReturns" asp-action="Index">مرتجعات المشتريات</a>
                             }
                         </div>
                     </div>
@@ -312,6 +312,10 @@
                             @if (Can(PermissionNames.InventoryReports))
                             {
                                 <a class="subnav-link @NavActive("InventoryReports")" asp-area="Inventory" asp-controller="InventoryReports" asp-action="Index">التقارير</a>
+                            }
+                            @if (Can(PermissionNames.InventoryUpdateCost))
+                            {
+                                <a class="subnav-link @NavActive("CostUpdates")" asp-area="Inventory" asp-controller="CostUpdates" asp-action="Index">تحديث التكلفة</a>
                             }
                             @if (canInvManage)
                             {
@@ -457,6 +461,7 @@
     <script src="~/js/app-modal.js" asp-append-version="true"></script>
     <script src="~/js/grid.js" asp-append-version="true"></script>
     <script src="~/js/filter-bar.js" asp-append-version="true"></script>
+    <script src="~/js/return-doc.js" asp-append-version="true"></script>
     @if (isAuth)
     {
         <script src="~/js/workspace-nav.js" asp-append-version="true"></script>

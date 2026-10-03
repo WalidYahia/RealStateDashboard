@@ -327,9 +327,9 @@ body {
     :root.sb-collapsed .nav-caret,
     :root.sb-collapsed .nav-group .subnav { display: none; }
     /* A wide logo can't shrink to 44px legibly — show its mark (left end) instead. */
-    :root.sb-collapsed .brand-logo { width: 40px; height: 44px; max-width: none; max-height: none; object-fit: cover; object-position: left center; }
-    :root.sb-collapsed .brand-fallback { display: none; }
-    :root.sb-collapsed .brand-mini {
+    :root.sb-collapsed .sidebar .brand-logo { width: 40px; height: 44px; max-width: none; max-height: none; object-fit: cover; object-position: left center; }
+    :root.sb-collapsed .sidebar .brand-fallback { display: none; }
+    :root.sb-collapsed .sidebar .brand-mini {
         display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px;
         border-radius: 12px; background: var(--surface-2); border: 1px solid var(--border); font-weight: 800; font-size: 18px;
     }
@@ -650,13 +650,19 @@ select.form-control { appearance: auto; }
 .topbar.tb-bar {
     position: sticky; top: 0; z-index: 1030;
     display: grid; grid-template-columns: 1fr minmax(260px, 540px) 1fr; align-items: center; gap: 14px;
-    height: 64px; padding: 0 22px; border-bottom: 1px solid var(--border);
+    height: 76px; padding: 0 22px; border-bottom: 1px solid var(--border);   /* room for the 60px tenant logo */
     background: var(--page);
     background: color-mix(in srgb, var(--page) 84%, transparent);
     -webkit-backdrop-filter: blur(14px) saturate(140%); backdrop-filter: blur(14px) saturate(140%);
 }
 .tb-start, .tb-end { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .tb-start { justify-self: start; }
+/* Tenant logo — the side menu's size (up to 60px high, its 220px inner width), or the tenant's name. */
+.tb-brand { display: inline-flex; align-items: center; flex: none; height: 60px; margin-inline: 8px; text-decoration: none; color: var(--text-primary); }
+.tb-brand .brand { padding: 0; min-height: 0; gap: 0; }
+.tb-brand .brand-logo { max-height: 60px; max-width: 220px; object-fit: contain; }
+.tb-brand .brand-fallback { font-size: 17px; white-space: nowrap; }
+.tb-brand .brand-mini { display: none; }
 .tb-end { justify-self: end; }
 
 /* Ghost icon buttons (menu, home, favorites, bell, theme) */
@@ -786,7 +792,10 @@ kbd { font-family: inherit; font-size: 11px; padding: 2px 7px; border-radius: 6p
     .tb-tenant { max-width: 180px; }
 }
 @media (max-width: 860px) {
-    .topbar.tb-bar { padding: 0 14px; gap: 8px; }
+    .topbar.tb-bar { padding: 0 14px; gap: 8px; height: 64px; }
+    .tb-brand { height: 44px; }
+    .tb-brand .brand-logo { max-height: 44px; max-width: 120px; }
+    .tb-brand .brand-fallback { display: none; }
     .tb-search { width: 40px; height: 40px; padding: 0; justify-content: center; justify-self: end; }
     .tb-search span, .tb-search kbd, .tb-new span, .tb-tenant-text, .tb-tenant .tb-caret, .tb-user .tb-caret { display: none; }
     .tb-new { width: 40px; padding: 0; justify-content: center; }

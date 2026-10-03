@@ -242,6 +242,8 @@ public static class ArabicLabels
         TxnSource.ContractorPayment => "سداد مقاول",
         TxnSource.SafeTransfer => "تحويل بين الخزائن",
         TxnSource.SalesInvoiceCollection => "تحصيل فاتورة مبيعات",
+        TxnSource.SalesReturnRefund => "رد نقدية مرتجع مبيعات",
+        TxnSource.PurchaseReturnRefund => "استرداد نقدية مرتجع مشتريات",
         _ => s.ToString()
     };
 

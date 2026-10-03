@@ -122,8 +122,9 @@ public abstract class TxnControllerBase : Controller
         long serial;
         if (model.Id == Guid.Empty)
         {
+            // The category (بند) picks the entry's counter account — a user-defined one posts to its own account.
             var txn = await _accounting.AddTransactionAsync(model.SafeId!.Value, TxnType, TxnSource.Manual,
-                model.Amount, model.OccurredAt, model.Description, ct: ct);
+                model.Amount, model.OccurredAt, model.Description, categoryId: model.CategoryId, ct: ct);
             txn.CategoryId = model.CategoryId;
             await _db.SaveChangesAsync(ct);
             serial = txn.Serial;
@@ -135,6 +136,9 @@ public abstract class TxnControllerBase : Controller
             if (t is null || t.Source != TxnSource.Manual || t.Type != TxnType) return NotFound();
             t.Amount = model.Amount; t.OccurredAt = model.OccurredAt; t.Description = model.Description; t.SafeId = model.SafeId!.Value;
             t.CategoryId = model.CategoryId;
+            // Re-post its journal entry from the new amount / safe / date / category (the old one is removed first).
+            await _accounting.RemoveObligationAsync("SafeTransaction", t.Id, ct);
+            await _accounting.PostCashSettlementAsync(t, projectId: t.ProjectId, categoryId: t.CategoryId, ct: ct);
             await _db.SaveChangesAsync(ct);
             serial = t.Serial;
             TempData["StatusMessage"] = $"تعديل {label} رقم {serial:D4}";
@@ -157,7 +161,7 @@ public abstract class TxnControllerBase : Controller
             if (!ModelState.IsValid) return PartialView("_TxnForm", model);
             var empName = await _db.Employees.Where(e => e.Id == adv!.EmployeeId).Select(e => e.FullName).FirstOrDefaultAsync(ct) ?? "—";
             var txn = await _accounting.AddTransactionAsync(model.SafeId!.Value, TxnType.Expense, TxnSource.AdvanceDisbursement,
-                adv!.Amount, model.OccurredAt, $"صرف سلفة ADV-{adv.Number:D4} للموظف {empName}", ct: ct);
+                adv!.Amount, model.OccurredAt, $"صرف سلفة ADV-{adv.Number:D4} للموظف {empName}", employeeId: adv.EmployeeId, ct: ct);   // Dr سلف الموظفين (the employee)
             await _db.SaveChangesAsync(ct);
             adv.Status = DisbursementStatus.Disbursed; adv.ExpenseTxnId = txn.Id;
             await _db.SaveChangesAsync(ct);
@@ -174,7 +178,7 @@ public abstract class TxnControllerBase : Controller
             if (!ModelState.IsValid) return PartialView("_TxnForm", model);
             var empName = await _db.Employees.Where(e => e.Id == rw!.EmployeeId).Select(e => e.FullName).FirstOrDefaultAsync(ct) ?? "—";
             var txn = await _accounting.AddTransactionAsync(model.SafeId!.Value, TxnType.Expense, TxnSource.RewardPayment,
-                rw!.Amount, model.OccurredAt, $"صرف مكافأة RWD-{rw.Number:D4} للموظف {empName}", ct: ct);
+                rw!.Amount, model.OccurredAt, $"صرف مكافأة RWD-{rw.Number:D4} للموظف {empName}", employeeId: rw.EmployeeId, ct: ct);
             await _db.SaveChangesAsync(ct);
             rw.Status = PayStatus.Paid; rw.ExpenseTxnId = txn.Id;
             await _db.SaveChangesAsync(ct);
@@ -194,7 +198,7 @@ public abstract class TxnControllerBase : Controller
             if (!ModelState.IsValid) return PartialView("_TxnForm", model);
             var empName = await _db.Employees.Where(e => e.Id == adv!.EmployeeId).Select(e => e.FullName).FirstOrDefaultAsync(ct) ?? "—";
             var txn = await _accounting.AddTransactionAsync(model.SafeId!.Value, TxnType.Income, TxnSource.AdvanceRepayment,
-                model.Amount, model.OccurredAt, $"سداد سلفة ADV-{adv!.Number:D4} من {empName}", ct: ct);
+                model.Amount, model.OccurredAt, $"سداد سلفة ADV-{adv!.Number:D4} من {empName}", employeeId: adv.EmployeeId, ct: ct);   // Cr سلف الموظفين (the employee)
             var nextSeq = (await _db.AdvanceRepayments.Where(r => r.AdvanceId == adv.Id).MaxAsync(r => (int?)r.SeqNo, ct) ?? 0) + 1;
             _db.AdvanceRepayments.Add(new AdvanceRepayment { AdvanceId = adv.Id, SeqNo = nextSeq, Amount = model.Amount, Status = PayStatus.Paid, PaidDate = model.OccurredAt.Date, IncomeTxnId = txn.Id });
             await _db.SaveChangesAsync(ct);
@@ -354,13 +358,27 @@ public abstract class TxnControllerBase : Controller
             var invNo = await _db.ProductSalesInvoices.IgnoreQueryFilters().Where(i => i.Id == sic.SalesInvoiceId).Select(i => (int?)i.Number).FirstOrDefaultAsync(ct);
             ViewBag.About = invNo.HasValue ? $"تحصيل فاتورة مبيعات SI-{invNo}" : "تحصيل فاتورة مبيعات";
         }
+        else if (t.Source == TxnSource.SalesReturnRefund
+                 && await _db.ProductSalesReturns.FirstOrDefaultAsync(r => r.RefundTransactionId == t.Id, ct) is { } sr)
+        {
+            ViewBag.PartyLabel = "العميل";
+            ViewBag.Party = await _db.Customers.IgnoreQueryFilters().Where(c => c.Id == sr.CustomerId).Select(c => c.FullName).FirstOrDefaultAsync(ct);
+            ViewBag.About = $"رد نقدية عن مرتجع المبيعات SR-{sr.Number}";
+        }
+        else if (t.Source == TxnSource.PurchaseReturnRefund
+                 && await _db.PurchaseReturns.FirstOrDefaultAsync(r => r.RefundTransactionId == t.Id, ct) is { } pr)
+        {
+            ViewBag.PartyLabel = "المورد";
+            ViewBag.Party = await _db.Suppliers.IgnoreQueryFilters().Where(s => s.Id == pr.SupplierId).Select(s => s.Name).FirstOrDefaultAsync(ct);
+            ViewBag.About = $"استرداد نقدية عن مرتجع المشتريات PR-{pr.Number}";
+        }
         return View("PrintOne", t);
     }
 
     // System (non-manual) sources per direction — shown in «المصدر» alongside the predefined categories.
     // Manual entries are represented by their category (بند) instead, so Manual is intentionally omitted.
-    private static readonly TxnSource[] IncomeSources = { TxnSource.Collection, TxnSource.SalesInvoiceCollection, TxnSource.AdvanceRepayment };
-    private static readonly TxnSource[] ExpenseSources = { TxnSource.ProjectExpense, TxnSource.SupplierPayment, TxnSource.ContractorPayment, TxnSource.AdvanceDisbursement, TxnSource.RewardPayment };
+    private static readonly TxnSource[] IncomeSources = { TxnSource.Collection, TxnSource.SalesInvoiceCollection, TxnSource.PurchaseReturnRefund, TxnSource.AdvanceRepayment };
+    private static readonly TxnSource[] ExpenseSources = { TxnSource.ProjectExpense, TxnSource.SupplierPayment, TxnSource.SalesReturnRefund, TxnSource.ContractorPayment, TxnSource.AdvanceDisbursement, TxnSource.RewardPayment };
 
     private async Task<TxnListVm> BuildListAsync(DateTime? from, DateTime? to, string? q, string? source, CancellationToken ct)
     {

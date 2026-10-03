@@ -1,0 +1,114 @@
+@model RealState.Web.Models.ReturnDetailsVm
+@using RealState.Application.Common
+@using RealState.Application.Enums
+@*
+    A sales / purchase return: its lines, where the stock went, the cash refund, and the invoice after all its returns.
+*@
+@{
+    var k = Model.Kind;
+    ViewData["Title"] = $"{k.One} {k.Prefix}{Model.Number}";
+    var canViewInventory = User.Can(PermissionNames.InventoryView);
+    var canViewParty = User.Can(k.IsSales ? PermissionNames.CustomersView : PermissionNames.SuppliersView);
+    string N(decimal v) => v.ToString("N2", RealState.Web.AppCulture.Ar);
+    string Q(decimal v) => v.ToString("0.####", System.Globalization.CultureInfo.InvariantCulture);
+    string D(DateTime d) => d.ToString("yyyy/MM/dd", System.Globalization.CultureInfo.InvariantCulture);
+    string St(InventoryDocStatus s) => s switch { InventoryDocStatus.Posted => "مُرحَّل", InventoryDocStatus.Reversed => "معكوس", _ => "مسودة" };
+    var invLabel = Model.InvoiceNumber.HasValue ? k.InvoicePrefix + Model.InvoiceNumber : "—";
+    var stockDocController = k.IsSales ? "GoodsReceipts" : "GoodsIssues";
+}
+<div class="page-head">
+    <div>
+        <h1>@k.One <span class="proj-code" dir="ltr">@k.Prefix@Model.Number</span></h1>
+        <p style="color:var(--muted);margin:2px 0 0;">
+            @Model.Party · @D(Model.Date) · الفاتورة <a asp-area="@k.InvoiceArea" asp-controller="@k.InvoiceController" asp-action="Details" asp-route-id="@Model.InvoiceId" dir="ltr" style="color:var(--series-1);">@invLabel</a>
+            @if (Model.Warehouse is not null) { <text> · المخزن: @Model.Warehouse</text> }
+        </p>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <a class="btn-sm" asp-action="Index" onclick="if (history.length > 1) { history.back(); return false; }">رجوع</a>
+        @if (canViewParty)
+        {
+            <a class="btn-sm" asp-area="@k.PartyArea" asp-controller="@k.PartyController" asp-action="@k.PartyAction" asp-route-id="@Model.PartyId">@(k.IsSales ? "ملف العميل" : "كشف حساب المورد")</a>
+        }
+        <a class="btn-new-tenant" asp-action="Print" asp-route-id="@Model.Id" target="_blank">🖨 طباعة المرتجع (PDF)</a>
+        @if (Model.RefundVoucherNo.HasValue)
+        {
+            <a class="btn-sm" asp-action="RefundVoucher" asp-route-id="@Model.Id" target="_blank">🖨 @k.RefundVoucher</a>
+        }
+        @if (Model.CanDeleteRefund && Model.Refund > 0)
+        {
+            <form asp-action="DeleteRefund" asp-route-id="@Model.Id" method="post" style="display:inline;" data-danger
+                  data-confirm="حذف المبلغ النقدي (@N(Model.Refund) ج.م) من @k.One @k.Prefix@Model.Number؟ سيُحذف @k.RefundVoucher وقيده، ويبقى المرتجع وتُخصم قيمته كاملة من @(k.IsSales ? "رصيد العميل" : "المستحق للمورد").">
+                @Html.AntiForgeryToken()<button type="submit" class="btn-sm btn-danger">🗑 حذف المبلغ النقدي</button>
+            </form>
+        }
+        @if (Model.CanDelete)
+        {
+            <form asp-action="Delete" asp-route-id="@Model.Id" method="post" style="display:inline;" data-danger
+                  data-confirm="حذف @k.One @k.Prefix@Model.Number؟ سيُعكس قيده وإذن المخزن@(Model.Refund > 0 ? " ويُلغى المبلغ النقدي" : "") ويعود المبلغ متبقيًا على الفاتورة.">
+                @Html.AntiForgeryToken()<button type="submit" class="btn-sm btn-danger">🗑 حذف المرتجع</button>
+            </form>
+        }
+    </div>
+</div>
+
+@if (TempData["StatusMessage"] is string status)
+{
+    <div class="status-message">@status</div>
+}
+
+<div class="kpi-grid" style="grid-template-columns: repeat(4, 1fr);">
+    <div class="kpi k-reserve"><div class="kpi-label">قيمة المرتجع</div><div class="kpi-value">@N(Model.Total) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">@Model.Lines.Count صنف</div></div>
+    <div class="kpi k-collect"><div class="kpi-label">@(k.IsSales ? "رُدّ نقدًا للعميل" : "استُرد نقدًا من المورد")</div><div class="kpi-value">@N(Model.Refund) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">@(Model.RefundSafe is null ? "بدون نقدية" : "الخزنة: " + Model.RefundSafe)</div></div>
+    <div class="kpi k-sales"><div class="kpi-label">@(k.IsSales ? "خُصم من رصيد العميل" : "خُصم من المستحق للمورد")</div><div class="kpi-value">@N(Model.Credited) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">على الفاتورة <span dir="ltr">@invLabel</span></div></div>
+    @if (Model.Invoice is { } pos)
+    {
+        <div class="kpi k-alerts"><div class="kpi-label">المتبقي على الفاتورة الآن</div><div class="kpi-value">@N(pos.Remaining) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">الإجمالي @N(pos.Total) · المرتجعات @N(pos.Returned)</div></div>
+    }
+</div>
+
+<div class="card-tile" style="margin-bottom:14px;">
+    <div class="card-head"><h3>الأصناف المرتجعة</h3></div>
+    <table class="rs-table">
+        <thead><tr><th>الصنف</th><th>الوحدة</th><th>@k.PriceLabel</th><th>الكمية</th><th>الإجمالي</th></tr></thead>
+        <tbody>
+        @foreach (var l in Model.Lines)
+        {
+            <tr><td>@l.Name</td><td>@(l.Unit ?? "—")</td><td>@N(l.Price)</td><td dir="ltr" style="text-align:right;">@Q(l.Quantity)</td><td>@N(l.LineTotal)</td></tr>
+        }
+        </tbody>
+        <tfoot><tr><th colspan="4">الإجمالي</th><th>@N(Model.Total) ج.م</th></tr></tfoot>
+    </table>
+    @if (!string.IsNullOrWhiteSpace(Model.Notes))
+    {
+        <p style="color:var(--muted);margin-top:10px;">السبب / ملاحظات: @Model.Notes</p>
+    }
+</div>
+
+<div class="card-tile">
+    <div class="card-head"><h3>المخزون — @k.StockDocLabel</h3></div>
+    <table class="rs-table">
+        <thead><tr><th>رقم الإذن</th><th>التاريخ</th><th>التكلفة</th><th>الحالة</th><th></th></tr></thead>
+        <tbody>
+        @foreach (var d in Model.StockDocs)
+        {
+            <tr>
+                <td dir="ltr" style="text-align:right;">@d.Number</td>
+                <td dir="ltr" style="text-align:right;">@D(d.Date)</td>
+                <td>@N(d.Cost)</td>
+                <td><span style="color:@(d.Status == InventoryDocStatus.Posted ? "var(--good)" : "var(--muted)");">@St(d.Status)</span></td>
+                <td>
+                    @if (canViewInventory)
+                    {
+                        <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("Details", stockDocController, new { area = "Inventory", id = d.Id })', 'تفاصيل الإذن')">📄 التفاصيل</button>
+                    }
+                </td>
+            </tr>
+        }
+        @if (Model.StockDocs.Count == 0)
+        {
+            <tr><td colspan="5" style="color:var(--muted)">لا توجد أصناف مخزنية في هذا المرتجع — لا حركة مخزون.</td></tr>
+        }
+        </tbody>
+    </table>
+</div>

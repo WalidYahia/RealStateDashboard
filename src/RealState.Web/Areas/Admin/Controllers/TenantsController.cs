@@ -197,33 +197,63 @@ public class TenantsController : Controller
         {
             await using var tx = await _db.Database.BeginTransactionAsync(ct);
 
-            // Delete every tenant-scoped table, children before parents so the Restrict FKs pass.
-            // --- Accounting movements (transfers -> movements, before Safe/Project) ---
+            // Delete every tenant-scoped table, children before parents so the Restrict FKs pass. Every table with a
+            // TenantId must be listed here — the QC checks that no row of a deleted tenant is left behind.
+            // --- Ledger (lines -> entries; before Accounts) ---
+            await _db.JournalLines.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
+            await _db.JournalEntries.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
+            // --- Inventory subledger + documents (lines -> documents; before Warehouses / Products / invoices / returns) ---
+            await _db.InventoryMovements.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
+            await _db.CostRevaluationLines.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
+            await _db.CostRevaluations.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
+            await _db.GoodsReceiptLines.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
+            await _db.GoodsIssueLines.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
+            await _db.StockTransferLines.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
+            await _db.InventoryAdjustmentLines.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
+            await _db.StockCountLines.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
+            await _db.GoodsReceipts.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
+            await _db.GoodsIssues.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
+            await _db.StockTransfers.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
+            await _db.InventoryAdjustments.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
+            await _db.StockCounts.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
+            // --- Cash (transfers -> movements; before Safe / Project) ---
             await _db.SafeTransfers.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
             await _db.SafeTransactions.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
-            // --- Purchasing (payments -> invoice items -> invoices -> order items -> orders -> suppliers) ---
+            // --- Returns (items -> returns; before their invoices) ---
+            await _db.ProductSalesReturnItems.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
+            await _db.ProductSalesReturns.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
+            await _db.PurchaseReturnItems.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
+            await _db.PurchaseReturns.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
+            // --- Purchasing (payments -> invoice items -> invoices -> order items/attachments -> orders -> suppliers) ---
             await _db.SupplierPayments.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
             await _db.PurchaseInvoiceItems.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
             await _db.PurchaseInvoices.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
+            await _db.SupplierOrderAttachments.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
             await _db.SupplierOrderItems.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
             await _db.SupplierOrders.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
             await _db.Suppliers.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
-            // --- Sales (installments -> contracts) + invoices ---
+            // --- Contracting (payments/logs -> work orders -> contractors; before Safe / Project) ---
+            await _db.WorkOrderPayments.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
+            await _db.WorkOrderLogs.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
+            await _db.WorkOrders.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
+            await _db.Contractors.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
+            // --- Sales (installments -> contracts) + legacy invoices ---
             await _db.Installments.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
             await _db.SaleContracts.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
             await _db.SalesInvoices.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
-            // --- Product sales invoices (collections -> items -> invoices; before Customer/Safe/Warehouse) ---
+            // --- Product sales invoices (collections -> items -> invoices; before Customer / Safe / Warehouse) ---
             await _db.SalesInvoiceCollections.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
             await _db.ProductSalesInvoiceItems.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
             await _db.ProductSalesInvoices.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
-            // --- Tasks (logs/attachments -> tasks; before Employee/Department) ---
+            // --- Tasks (logs/attachments -> tasks; before Employee / Department) ---
             await _db.WorkTaskLogs.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
             await _db.WorkTaskAttachments.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
             await _db.WorkTasks.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
-            // --- Projects (stage activities/expenses -> stages; units/attachments; before Project) ---
+            // --- Projects (stage activities/expenses -> stages; unit attachments -> units; attachments) ---
             await _db.StageActivities.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
             await _db.StageExpenses.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
             await _db.ProjectStages.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
+            await _db.ProjectUnitAttachments.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
             await _db.ProjectUnits.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
             await _db.ProjectAttachments.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
             await _db.StageDefinitions.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
@@ -232,21 +262,33 @@ public class TenantsController : Controller
             await _db.Advances.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
             await _db.Rewards.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
             await _db.Vacations.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
+            await _db.LeaveRequests.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
             await _db.EmployeeAttachments.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
             await _db.Employees.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
             await _db.Departments.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
             await _db.JobRoles.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
             await _db.AttendanceSettings.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
             await _db.LateDeductionRules.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
-            // --- CRM + marketing (logs -> customers; updates -> campaigns) ---
+            // --- CRM + marketing (logs/imports -> customers; updates -> campaigns) ---
             await _db.CustomerLogs.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
+            await _db.CampaignLeads.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
             await _db.CampaignUpdates.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
             await _db.Campaigns.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
             await _db.Customers.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
             await _db.Leads.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
+            // --- Inventory masters (products -> categories / units; warehouses; posting profile) ---
+            await _db.Products.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
+            await _db.ProductCategories.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
+            await _db.UnitsOfMeasure.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
+            await _db.Warehouses.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
+            await _db.InventoryPostingProfiles.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
             // --- Parents referenced above ---
             await _db.Safes.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
             await _db.Projects.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
+            await _db.ProjectTypes.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
+            // --- Chart of accounts (one statement, so parent/child rows go together) + categories ---
+            await _db.Accounts.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
+            await _db.TxnCategories.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
             // --- Standalone tenant records ---
             await _db.Incomes.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
             await _db.Expenses.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
@@ -254,6 +296,7 @@ public class TenantsController : Controller
             await _db.Notifications.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
             await _db.Attachments.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
             await _db.Settings.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
+            await _db.ReportTemplates.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
             await _db.AuditLogs.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
             await _db.ActivityLogs.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
             await _db.UserNavItems.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);

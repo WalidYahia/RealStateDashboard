@@ -1,0 +1,79 @@
+@model RealState.Web.Models.ReturnIndexVm
+@*
+    Sales / purchase returns list (SalesReturnsController / PurchaseReturnsController). The form opens in the shared modal.
+*@
+@{
+    var k = Model.Kind;
+    ViewData["Title"] = k.Title;
+    string N(decimal v) => v.ToString("N2", RealState.Web.AppCulture.Ar);
+    string D(DateTime d) => d.ToString("yyyy/MM/dd", System.Globalization.CultureInfo.InvariantCulture);
+    string? F(DateTime? d) => d?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+    var total = Model.Rows.Sum(r => r.Total);
+    var refund = Model.Rows.Sum(r => r.Refund);
+    var partyParam = k.IsSales ? "customerId" : "supplierId";
+}
+<div class="page-head">
+    <h1>@k.Title</h1>
+    <div style="display:flex;gap:8px;">
+        <a class="btn-sm" asp-controller="@k.InvoiceController" asp-action="Index" asp-area="@k.InvoiceArea">@(k.IsSales ? "فواتير المبيعات" : "فواتير المشتريات")</a>
+        @if (Model.CanCreate)
+        {
+            <button type="button" class="btn-new-tenant" data-quick-new onclick="appOpenModal('@Url.Action("Form")', '@k.One جديد', 'xl')">↩ @k.One جديد</button>
+        }
+    </div>
+</div>
+
+@if (TempData["StatusMessage"] is string status)
+{
+    <div class="status-message">@status</div>
+}
+
+@{
+    var fFrom = F(Model.From); var fTo = F(Model.To);
+    var filter = RealState.Web.Models.FilterBarVm.For(Url.Action("Index"))
+        .DateRange(fFrom, fTo, "تاريخ المرتجع")
+        .Select(partyParam, k.PartyLabel, Model.Parties, Model.PartyId?.ToString());
+}
+<partial name="_FilterBar" model="filter" />
+
+<div class="card-tile">
+    <div class="card-head">
+        <h3>المرتجعات</h3>
+        <span class="pill">العدد: <span data-live-count="#retTable">@Model.Rows.Count</span> · القيمة: <span data-live-sum="#retTable:4">@N(total)</span> ج.م · نقدًا: <span data-live-sum="#retTable:5">@N(refund)</span> ج.م</span>
+    </div>
+    <div class="list-search-bar"><input class="form-control list-search" data-target="#retTable" placeholder="🔍 بحث في القائمة..." /></div>
+    <table class="rs-table" id="retTable">
+        <thead>
+            <tr><th>الرقم</th><th>التاريخ</th><th>الفاتورة</th><th>@k.PartyLabel</th><th>القيمة</th><th>@(k.IsSales ? "رُدّ نقدًا" : "استُرد نقدًا")</th><th>خُصم من الرصيد</th><th></th></tr>
+        </thead>
+        <tbody>
+        @foreach (var r in Model.Rows)
+        {
+            <tr>
+                <td style="white-space:nowrap;"><a asp-action="Details" asp-route-id="@r.Id" dir="ltr" style="color:var(--series-1);text-decoration:none;font-weight:600;">@k.Prefix@r.Number</a></td>
+                <td dir="ltr" style="text-align:right;">@D(r.Date)</td>
+                <td>
+                    @if (r.InvoiceNumber.HasValue)
+                    {
+                        <a asp-area="@k.InvoiceArea" asp-controller="@k.InvoiceController" asp-action="Details" asp-route-id="@r.InvoiceId" dir="ltr" style="color:var(--series-1);text-decoration:none;">@k.InvoicePrefix@r.InvoiceNumber</a>
+                    }
+                    else { <span style="color:var(--muted)">—</span> }
+                </td>
+                <td>@r.Party</td>
+                <td>@N(r.Total)</td>
+                <td class="tag-up">@N(r.Refund)</td>
+                <td>@N(r.Total - r.Refund)</td>
+                <td style="white-space:nowrap;">
+                    <a class="btn-sm" asp-action="Details" asp-route-id="@r.Id">التفاصيل</a>
+                    <a class="btn-sm" asp-action="Print" asp-route-id="@r.Id" target="_blank" title="طباعة">🖨</a>
+                </td>
+            </tr>
+        }
+        @if (Model.Rows.Count == 0)
+        {
+            <tr data-skip-search><td colspan="8" style="color:var(--muted)">لا توجد مرتجعات في هذه الفترة.</td></tr>
+        }
+        <tr data-no-results data-skip-search style="display:none;"><td colspan="8" style="color:var(--muted)">لا توجد نتائج مطابقة للبحث.</td></tr>
+        </tbody>
+    </table>
+</div>

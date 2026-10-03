@@ -70,7 +70,11 @@ public class CustomersController : Controller
                 .Select(g => new { g.Key, Sum = g.Sum(x => x.LineTotal) }).ToDictionaryAsync(x => x.Key, x => x.Sum, ct);
             var collected = await _db.SalesInvoiceCollections.Where(x => invIds.Contains(x.SalesInvoiceId)).GroupBy(x => x.SalesInvoiceId)
                 .Select(g => new { g.Key, Sum = g.Sum(x => x.Amount) }).ToDictionaryAsync(x => x.Key, x => x.Sum, ct);
-            ViewBag.SalesInvoices = invs.Select(i => (i.Id, i.Number, i.InvoiceDate, Total: totals.GetValueOrDefault(i.Id), Collected: collected.GetValueOrDefault(i.Id))).ToList();
+            // Net of sales returns, and of the cash refunded through them.
+            var returns = await RealState.Application.Accounting.InvoiceReturns.SalesAsync(_db, invIds, ct);
+            ViewBag.SalesInvoices = invs.Select(i => (i.Id, i.Number, i.InvoiceDate,
+                Total: totals.GetValueOrDefault(i.Id) - returns.GetValueOrDefault(i.Id).Returned,
+                Collected: collected.GetValueOrDefault(i.Id) - returns.GetValueOrDefault(i.Id).Refunded)).ToList();
         }
         return View(vm);
     }
@@ -273,9 +277,13 @@ public class CustomersController : Controller
         if (c is null) return NotFound();
         if (!CanDeleteEntity(c.IsLead)) return Forbid();
         // A customer billed by product sales invoices keeps its receivable history — delete the invoices first.
-        if (await _db.ProductSalesInvoices.AnyAsync(i => i.CustomerId == id, ct))
+        // …and so does one with real-estate sale contracts (receivable, installments, collections).
+        var hasInvoices = await _db.ProductSalesInvoices.AnyAsync(i => i.CustomerId == id, ct);
+        if (hasInvoices || await _db.SaleContracts.AnyAsync(s => s.CustomerId == id, ct))
         {
-            TempData["ErrorMessage"] = $"لا يمكن حذف العميل «{c.FullName}» لوجود فواتير مبيعات عليه — احذف الفواتير أولًا.";
+            TempData["ErrorMessage"] = hasInvoices
+                ? $"لا يمكن حذف العميل «{c.FullName}» لوجود فواتير مبيعات عليه — احذف الفواتير أولًا."
+                : $"لا يمكن حذف العميل «{c.FullName}» لوجود عقود بيع عليه — احذف العقود أولًا.";
             if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl)) return LocalRedirect(returnUrl);
             return RedirectToAction(nameof(Details), new { id });
         }

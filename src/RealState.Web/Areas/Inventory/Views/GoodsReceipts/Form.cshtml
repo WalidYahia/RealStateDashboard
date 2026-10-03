@@ -36,7 +36,7 @@
 
         <div style="overflow-x:auto;margin-top:12px;">
             <table class="rs-table" id="invLines" data-no-grid>
-                <thead><tr><th style="min-width:240px;">الصنف</th><th>الوحدة</th><th>الكمية</th><th>تكلفة الوحدة</th><th></th></tr></thead>
+                <thead><tr><th style="min-width:240px;">الصنف</th><th>الوحدة</th><th>الكمية</th><th></th></tr></thead>
                 <tbody>
                 @foreach (var l in Model.ExistingLines)
                 {
@@ -49,7 +49,6 @@
                         </td>
                         <td><partial name="_UnitSelect" model="Model.UnitSelect(l)" /></td>
                         <td><input class="form-control" data-field="quantity" type="number" step="0.01" min="0" dir="ltr" style="width:120px;" value="@l.Quantity" /></td>
-                        <td><input class="form-control" data-field="unitCost" type="number" step="0.01" min="0" dir="ltr" style="width:120px;" value="@l.UnitCost" /></td>
                         <td><button type="button" class="btn-sm btn-danger" onclick="invRemoveLine(this)">🗑</button></td>
                     </tr>
                 }
@@ -67,7 +66,6 @@
                 </td>
                 <td><select class="form-control" data-field="unitLevel" data-inv-unit style="width:110px;"></select></td>
                 <td><input class="form-control" data-field="quantity" type="number" step="0.01" min="0" dir="ltr" style="width:120px;" /></td>
-                <td><input class="form-control" data-field="unitCost" type="number" step="0.01" min="0" dir="ltr" style="width:120px;" /></td>
                 <td><button type="button" class="btn-sm btn-danger" onclick="invRemoveLine(this)">🗑</button></td>
             </tr>
         </template>

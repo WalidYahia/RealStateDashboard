@@ -128,6 +128,15 @@ public class AccountingEngine : IAccountingEngine
         if (Math.Round(dr - cr, 2) != 0m)
             throw new InvalidOperationException($"القيد غير متوازن: إجمالي المدين {dr:N2} ≠ إجمالي الدائن {cr:N2}.");
 
+        // Accounts come in as raw ids (e.g. posted by the manual-entry form): each must be one of THIS tenant's
+        // accounts (the query is tenant-filtered) and postable — never another tenant's or a group account.
+        var ids = lines.Select(l => l.AccountId).Distinct().ToList();
+        var found = await _db.Accounts.Where(a => ids.Contains(a.Id)).Select(a => new { a.Id, a.IsPostable }).ToListAsync(ct);
+        foreach (var a in _db.Accounts.Local.Where(a => ids.Contains(a.Id) && !a.IsDeleted && found.All(f => f.Id != a.Id)))
+            found.Add(new { a.Id, a.IsPostable });   // accounts created in this same unit of work
+        if (found.Count != ids.Count) throw new InvalidOperationException("أحد حسابات القيد غير موجود.");
+        if (found.Any(a => !a.IsPostable)) throw new InvalidOperationException("لا يمكن الترحيل على حساب رئيسي (غير قابل للترحيل).");
+
         var entry = new JournalEntry
         {
             Number = await NextNumberAsync(date.Year, ct),

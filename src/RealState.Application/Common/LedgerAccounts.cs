@@ -33,6 +33,10 @@ public static class LedgerAccounts
     public const string OpeningBalanceEquity = "3200";
     public const string SalesRevenue = "4100";         // real-estate sales (عقود البيع)
     public const string GoodsSalesRevenue = "4200";    // product sales invoices (فواتير المبيعات)
+    public const string SalesReturns = "4250";         // مردودات المبيعات — contra-revenue (debit balance), sales returns
+    public const string PurchaseReturns = "5350";      // مردودات المشتريات — contra-expense (credit balance), non-stock purchase returns
+    public const string InventoryCostGain = "4950";    // أرباح تسوية تكلفة المخزون — cost updates that raise stock value
+    public const string InventoryCostLoss = "5950";    // خسائر تسوية تكلفة المخزون — cost updates that lower stock value
     public const string OtherRevenue = "4900";
     public const string CostOfSales = "5100";
     public const string ProjectCosts = "5200";
@@ -71,6 +75,8 @@ public static class LedgerAccounts
         new("4000", "الإيرادات", AccountType.Revenue, null, false),
         new(SalesRevenue, "إيرادات المبيعات", AccountType.Revenue, "4000", true),
         new(GoodsSalesRevenue, "إيرادات مبيعات البضائع", AccountType.Revenue, "4000", true),
+        new(SalesReturns, "مردودات المبيعات", AccountType.Revenue, "4000", true),
+        new(InventoryCostGain, "أرباح تسوية تكلفة المخزون", AccountType.Revenue, "4000", true),
         new(OtherRevenue, "إيرادات أخرى", AccountType.Revenue, "4000", true),
 
         // Expenses
@@ -78,8 +84,10 @@ public static class LedgerAccounts
         new(CostOfSales, "تكلفة المبيعات", AccountType.Expense, "5000", true),
         new(ProjectCosts, "مصروفات المشاريع", AccountType.Expense, "5000", true),
         new(Purchases, "المشتريات", AccountType.Expense, "5000", true),
+        new(PurchaseReturns, "مردودات المشتريات", AccountType.Expense, "5000", true),
         new(ContractingCosts, "أعمال المقاولات", AccountType.Expense, "5000", true),
         new(SalariesAndRewards, "رواتب ومكافآت", AccountType.Expense, "5000", true),
+        new(InventoryCostLoss, "خسائر تسوية تكلفة المخزون", AccountType.Expense, "5000", true),
         new(GeneralExpenses, "مصروفات عامة", AccountType.Expense, "5000", true),
     };
 }

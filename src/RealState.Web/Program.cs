@@ -90,6 +90,7 @@ builder.Services.AddControllersWithViews(options =>
     // Central try/catch → friendly SweetAlert, and an audit trail for every user action.
     options.Filters.Add<RealState.Web.Filters.GlobalExceptionFilter>();
     options.Filters.Add<RealState.Web.Filters.ActivityLogFilter>();
+    options.Filters.Add<RealState.Web.Filters.HostTenantFilter>();   // the host must pick a tenant before touching tenant data
 });
 
 // Arabic RTL as the only supported culture, with a Latin '.' decimal separator so HTML number

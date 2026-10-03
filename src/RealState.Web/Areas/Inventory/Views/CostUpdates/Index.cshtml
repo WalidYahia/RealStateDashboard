@@ -1,0 +1,134 @@
+@model RealState.Web.Areas.Inventory.Models.CostUpdatePageVm
+@*
+    «تحديث تكلفة الأصناف»: type a new cost on the products to change; the difference per unit and the change in stock
+    value follow as you type. Saving revalues the stock and posts the difference to the GL (CostUpdatesController).
+*@
+@{
+    ViewData["Title"] = "تحديث تكلفة الأصناف";
+    string N(decimal v) => v.ToString("N2", RealState.Web.AppCulture.Ar);
+    string C(decimal v) => v.ToString("0.####", System.Globalization.CultureInfo.InvariantCulture);
+    string Q(decimal v) => v.ToString("0.####", System.Globalization.CultureInfo.InvariantCulture);
+}
+<div class="page-head">
+    <h1>تحديث تكلفة الأصناف</h1>
+</div>
+
+@if (TempData["StatusMessage"] is string status) { <div class="status-message">@status</div> }
+
+<div class="status-message" style="background:var(--surface-2);border-color:var(--border);color:var(--text-secondary);">
+    التكلفة الحالية هي متوسط تكلفة الصنف في المخزون (بالوحدة الافتراضية للصنف). لكل مخزن متوسطه الخاص — يظهر تحت الصنف إذا اختلف بين المخازن،
+    والتكلفة الجديدة تحل محله في كل المخازن، ويُسجَّل صافي الفرق للصنف ربحًا أو خسارة. عند الحفظ يُعاد تقييم رصيد الصنف في كل المخازن
+    بالتكلفة الجديدة ويُسجَّل الفرق في الحسابات: الزيادة → مدين المخزون / دائن أرباح تسوية تكلفة المخزون، والنقص → مدين خسائر تسوية تكلفة المخزون / دائن المخزون.
+    أذون الاستلام اليدوية تأخذ التكلفة الحالية تلقائيًا، ولا تغيّر التكلفة إلا فواتير المشتريات وهذه الصفحة.
+</div>
+
+<form asp-action="Save" method="post" id="costForm" data-confirm="تحديث تكلفة الأصناف المعدّلة وإعادة تقييم المخزون؟ سيُسجَّل فرق القيمة في الحسابات.">
+    @Html.AntiForgeryToken()
+    <div class="card-tile">
+        <div class="card-head">
+            <h3>الأصناف</h3>
+            <span class="pill">أصناف معدّلة: <strong data-cost-count>0</strong> · فرق قيمة المخزون: <strong data-cost-total>0.00</strong> ج.م</span>
+        </div>
+        <div class="list-search-bar"><input class="form-control list-search" data-target="#costTable" placeholder="🔍 بحث في القائمة..." /></div>
+        <table class="rs-table" id="costTable" data-no-grid>
+            <thead>
+                <tr><th>الصنف</th><th>الوحدة</th><th>الرصيد</th><th>التكلفة الحالية</th><th style="width:150px;">التكلفة الجديدة</th><th>الفرق للوحدة</th><th>فرق القيمة</th></tr>
+            </thead>
+            <tbody>
+            @for (var i = 0; i < Model.Rows.Count; i++)
+            {
+                var r = Model.Rows[i];
+                <tr data-cost-row data-current="@C(r.CurrentCost)" data-qty="@Q(r.Quantity)">
+                    <td>@r.Product</td>
+                    <td>@r.Unit</td>
+                    <td dir="ltr" style="text-align:right;">@Q(r.Quantity)</td>
+                    <td>
+                        @(r.CurrentCost > 0 ? N(r.CurrentCost) : "—")
+                        @if (r.ByWarehouse.Count > 1)
+                        {
+                            @* Each warehouse keeps its own average — the new cost replaces each of them. *@
+                            <div style="font-size:11.5px;color:var(--muted);line-height:1.6;margin-top:2px;">
+                                @foreach (var w in r.ByWarehouse)
+                                {
+                                    <div>@w.Warehouse: <span dir="ltr">@N(w.Cost)</span> × <span dir="ltr">@Q(w.Quantity)</span></div>
+                                }
+                            </div>
+                        }
+                    </td>
+                    <td>
+                        <input type="hidden" name="lines[@i].ProductId" value="@r.ProductId" />
+                        <input type="number" name="lines[@i].NewCost" class="form-control" data-cost-new dir="ltr" step="any" min="0" placeholder="@(r.CurrentCost > 0 ? C(r.CurrentCost) : "")" style="margin:0;" />
+                    </td>
+                    <td data-cost-diff>—</td>
+                    <td data-cost-value>—</td>
+                </tr>
+            }
+            @if (Model.Rows.Count == 0)
+            {
+                <tr data-skip-search><td colspan="7" style="color:var(--muted)">لا توجد أصناف مخزنية.</td></tr>
+            }
+            <tr data-no-results data-skip-search style="display:none;"><td colspan="7" style="color:var(--muted)">لا توجد نتائج مطابقة للبحث.</td></tr>
+            </tbody>
+        </table>
+        <div class="form-grid" style="margin-top:12px;">
+            <div class="full">
+                <label class="form-label" for="notes">ملاحظات</label>
+                <input class="form-control" id="notes" name="notes" placeholder="سبب تحديث التكلفة (اختياري)" />
+            </div>
+        </div>
+        <button type="submit" class="btn-primary" style="margin-top:12px;width:auto;">💾 حفظ التكلفة الجديدة</button>
+    </div>
+</form>
+
+<div class="card-tile" style="margin-top:14px;">
+    <div class="card-head"><h3>آخر تحديثات التكلفة</h3></div>
+    <table class="rs-table">
+        <thead><tr><th>الرقم</th><th>التاريخ</th><th>بواسطة</th><th>الأصناف</th><th>فرق القيمة</th><th>ملاحظات</th><th></th></tr></thead>
+        <tbody>
+        @foreach (var h in Model.History)
+        {
+            <tr>
+                <td dir="ltr" style="text-align:right;">@h.Number</td>
+                <td dir="ltr" style="text-align:right;">@h.Date.ToString("yyyy/MM/dd")</td>
+                <td>@(h.By ?? "—")</td>
+                <td>@h.Lines</td>
+                <td style="color:@(h.ValueChange > 0 ? "var(--good)" : h.ValueChange < 0 ? "var(--critical)" : "inherit");">@N(h.ValueChange)</td>
+                <td>@(h.Notes ?? "—")</td>
+                <td><button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("Details", new { id = h.Id })', 'تحديث التكلفة @h.Number')">📄 التفاصيل</button></td>
+            </tr>
+        }
+        @if (Model.History.Count == 0) { <tr><td colspan="7" style="color:var(--muted)">لا توجد تحديثات بعد.</td></tr> }
+        </tbody>
+    </table>
+</div>
+
+@section Scripts {
+    <script>
+        // Difference per unit and change in stock value, live; a row is counted when its new cost differs.
+        (function () {
+            var form = document.getElementById('costForm');
+            if (!form) return;
+            function fmt(v) { return (Math.round(v * 100) / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+            function recalc() {
+                var count = 0, total = 0;
+                form.querySelectorAll('[data-cost-row]').forEach(function (tr) {
+                    var input = tr.querySelector('[data-cost-new]');
+                    var cur = parseFloat(tr.getAttribute('data-current')) || 0, qty = parseFloat(tr.getAttribute('data-qty')) || 0;
+                    var v = parseFloat(input.value);
+                    var diffCell = tr.querySelector('[data-cost-diff]'), valCell = tr.querySelector('[data-cost-value]');
+                    if (input.value === '' || isNaN(v) || Math.abs(v - cur) < 0.0001) {
+                        diffCell.textContent = '—'; valCell.textContent = '—'; diffCell.style.color = valCell.style.color = ''; return;
+                    }
+                    var diff = v - cur, value = diff * qty;
+                    count++; total += value;
+                    var color = diff > 0 ? 'var(--good)' : 'var(--critical)';
+                    diffCell.textContent = (diff > 0 ? '+' : '') + fmt(diff); diffCell.style.color = color;
+                    valCell.textContent = (value > 0 ? '+' : '') + fmt(value); valCell.style.color = color;
+                });
+                form.querySelector('[data-cost-count]').textContent = count;
+                form.querySelector('[data-cost-total]').textContent = fmt(total);
+            }
+            form.addEventListener('input', function (e) { if (e.target.matches('[data-cost-new]')) recalc(); });
+        })();
+    </script>
+}

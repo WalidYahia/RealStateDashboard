@@ -72,7 +72,7 @@ public static class NavigationCatalog
         new("collections", "التحصيلات", "الأقساط المستحقة والمحصّلة", "coins", "sales", "Sales", "Collections", "Index", P(CollectionsView)),
         new("sales-summary", "ملخص المبيعات", "مؤشرات فواتير المبيعات والعملاء", "pie", "sales", "Sales", "SalesInvoices", "Summary", P(SalesInvoicesView), AlsoIn: new[] { "reports" }),
         new("sales-invoices", "فواتير المبيعات", "بيع الأصناف للعملاء والتحصيل", "receipt", "sales", "Sales", "SalesInvoices", "Index", P(SalesInvoicesView)),
-        new("sales-returns", "مرتجعات المبيعات", "قريبًا", "undo", "sales", "Sales", "SalesInvoices", "Returns", P(SalesInvoicesView), Soon: true),
+        new("sales-returns", "مرتجعات المبيعات", "إرجاع أصناف من العملاء ورد النقدية", "undo", "sales", "Sales", "SalesReturns", "Index", P(SalesReturnsView)),
         new("customers", "العملاء", "بيانات العملاء وكشوف الحساب", "users", "sales", "CRM", "Customers", "Index", P(CustomersView)),
         new("salespersons", "المناديب", "مندوبو المبيعات", "user-check", "sales", "CRM", "Salespersons", "Index", P(SalespersonsView), AlsoIn: new[] { "marketing" }),
         new("leads", "العملاء المحتملون", "إدارة علاقات العملاء والمتابعة", "user-plus", "marketing", "CRM", "Leads", "Index", P(CustomersView, LeadsControl, LeadsConvert), AlsoIn: new[] { "sales" }),
@@ -84,7 +84,7 @@ public static class NavigationCatalog
         new("work-orders", "أوامر الشغل", "أوامر الشغل والتنفيذ والسداد", "clipboard", "purchasing", "Contracting", "WorkOrders", "Index", P(ContractingView)),
         new("purchase-orders", "أوامر التوريد", "طلبات الأصناف قبل الفوترة", "clipboard", "purchasing", "Suppliers", "Orders", "Index", P(SuppliersView)),
         new("purchase-invoices", "فواتير المشتريات", "فواتير الموردين والاستلام والسداد", "receipt", "purchasing", "Suppliers", "PurchaseInvoices", "Index", P(PurchaseInvoicesView)),
-        new("purchase-returns", "مرتجعات المشتريات", "قريبًا", "undo", "purchasing", "Suppliers", "PurchaseInvoices", "Returns", P(PurchaseInvoicesView), Soon: true),
+        new("purchase-returns", "مرتجعات المشتريات", "رد أصناف للموردين واسترداد النقدية", "undo", "purchasing", "Suppliers", "PurchaseReturns", "Index", P(PurchaseReturnsView)),
         new("suppliers-report", "تقرير الموردين", "أرصدة ومستحقات الموردين", "chart", "purchasing", "Reports", "Reports", "Suppliers", P(ReportsView), AlsoIn: new[] { "reports" }),
 
         // ---- المخزون ----
@@ -101,6 +101,7 @@ public static class NavigationCatalog
         new("stock-card", "بطاقة الصنف", "حركة صنف في مخزن ورصيده", "file", "inventory", "Inventory", "InventoryReports", "Index", P(InventoryReports), Q("tab", "card")),
         new("stock-valuation", "تقييم المخزون", "قيمة المخزون حسب الصنف", "scale", "inventory", "Inventory", "InventoryReports", "Index", P(InventoryReports), Q("tab", "valuation")),
         new("inventory-reconciliation", "مطابقة الأستاذ", "دفتر المخزون مقابل حساب الأستاذ", "book", "inventory", "Inventory", "InventoryReports", "Index", P(InventoryReports), Q("tab", "reconciliation")),
+        new("cost-update", "تحديث تكلفة الأصناف", "التكلفة الحالية والجديدة وإعادة تقييم المخزون", "tag", "inventory", "Inventory", "CostUpdates", "Index", P(InventoryUpdateCost)),
         new("inventory-settings", "إعدادات المخزون", "الحسابات والتصنيفات ووحدات القياس", "settings", "inventory", "Inventory", "Settings", "Index", P(InventoryManage)),
 
         // ---- المالية ----
@@ -141,9 +142,11 @@ public static class NavigationCatalog
         new("new-contract", "عقد بيع", "contract", "sales", "Sales", "Sales", "Index", P(SalesCreate)),
         new("new-collection", "تحصيل قسط", "coins", "sales", "Sales", "Collections", "Index", P(CollectionsCollect), Fragment: null),
         new("new-sales-invoice", "فاتورة مبيعات", "receipt", "sales", "Sales", "SalesInvoices", "Index", P(SalesInvoicesCreate)),
+        new("new-sales-return", "مرتجع مبيعات", "undo", "sales", "Sales", "SalesReturns", "Index", P(SalesReturnsCreate)),
         new("new-customer", "عميل", "users", "sales", "CRM", "Customers", "Index", P(CustomersCreate)),
         new("new-purchase-order", "أمر توريد", "clipboard", "purchasing", "Suppliers", "Orders", "Index", P(SuppliersCreate)),
         new("new-purchase-invoice", "فاتورة مشتريات", "cart", "purchasing", "Suppliers", "PurchaseInvoices", "Index", P(PurchaseInvoicesCreate)),
+        new("new-purchase-return", "مرتجع مشتريات", "undo", "purchasing", "Suppliers", "PurchaseReturns", "Index", P(PurchaseReturnsCreate)),
         new("new-supplier", "مورد", "truck", "purchasing", "Suppliers", "Suppliers", "Index", P(SuppliersCreate)),
         new("new-work-order", "أمر شغل", "hardhat", "purchasing", "Contracting", "WorkOrders", "Index", P(ContractingCreate)),
         new("new-product", "صنف", "package", "inventory", "Inventory", "Products", "Index", P(InventoryManage)),

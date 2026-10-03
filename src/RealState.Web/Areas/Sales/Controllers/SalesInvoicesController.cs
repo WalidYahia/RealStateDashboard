@@ -60,16 +60,9 @@ public class SalesInvoicesController : Controller
         return View("SummaryPrint", await BuildSummaryAsync(ct));
     }
 
-    /// <summary>مرتجعات المبيعات — planned; shows a "coming soon" page for now.</summary>
+    /// <summary>مرتجعات المبيعات — kept for old links; the returns live in <see cref="SalesReturnsController"/>.</summary>
     [HttpGet]
-    public IActionResult Returns()
-    {
-        ViewData["Title"] = "مرتجعات المبيعات";
-        ViewData["Message"] = "إدارة مرتجعات المبيعات (إرجاع الأصناف المباعة للمخزن وتسوية حساب العميل) قيد التطوير وستتوفر قريبًا.";
-        ViewData["BackText"] = "فواتير المبيعات";
-        ViewData["BackUrl"] = Url.Action(nameof(Index));
-        return View("~/Views/Shared/ComingSoon.cshtml");
-    }
+    public IActionResult Returns() => RedirectToAction(nameof(SalesReturnsController.Index), "SalesReturns");
 
     private static readonly string[] ArMonths =
         { "", "يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر" };
@@ -82,16 +75,23 @@ public class SalesInvoicesController : Controller
             .ToDictionary(x => x.Key, x => x.Sum);
         var collections = await _db.SalesInvoiceCollections.Select(c => new { c.SalesInvoiceId, c.Amount, c.CollectedDate }).ToListAsync(ct);
         var collectedByInvoice = collections.GroupBy(c => c.SalesInvoiceId).ToDictionary(g => g.Key, g => g.Sum(x => x.Amount));
-        // Cost of sales = the invoices' posted goods issues (reversed issues net to zero and are left out).
-        var cogs = await (from l in _db.GoodsIssueLines
-                          join g in _db.GoodsIssues on l.GoodsIssueId equals g.Id
-                          where g.SalesInvoiceId != null && g.Status == InventoryDocStatus.Posted
-                          select (decimal?)l.TotalCost).SumAsync(ct) ?? 0m;
+        // Returns are credit notes on their invoice: sales are net of them, and cash refunded through them is no longer collected.
+        var returns = await InvoiceReturns.SalesAsync(_db, null, ct);
+        // Cost of sales = the invoices' posted goods issues, less the cost that came back with sales returns
+        // (reversed documents net to zero and are left out).
+        var cogs = (await (from l in _db.GoodsIssueLines
+                           join g in _db.GoodsIssues on l.GoodsIssueId equals g.Id
+                           where g.SalesInvoiceId != null && g.Status == InventoryDocStatus.Posted
+                           select (decimal?)l.TotalCost).SumAsync(ct) ?? 0m)
+                   - (await (from l in _db.GoodsReceiptLines
+                             join g in _db.GoodsReceipts on l.GoodsReceiptId equals g.Id
+                             where g.SalesReturnId != null && g.Status == InventoryDocStatus.Posted
+                             select (decimal?)l.TotalCost).SumAsync(ct) ?? 0m);
         var custIds = invoices.Select(i => i.CustomerId).Distinct().ToList();
         var custNames = await _db.Customers.Where(c => custIds.Contains(c.Id)).ToDictionaryAsync(c => c.Id, c => c.FullName, ct);
 
-        decimal Total(Guid id) => totals.GetValueOrDefault(id);
-        decimal Collected(Guid id) => collectedByInvoice.GetValueOrDefault(id);
+        decimal Total(Guid id) => totals.GetValueOrDefault(id) - returns.GetValueOrDefault(id).Returned;
+        decimal Collected(Guid id) => collectedByInvoice.GetValueOrDefault(id) - returns.GetValueOrDefault(id).Refunded;
 
         var now = DateTime.Today;
         var thisStart = new DateTime(now.Year, now.Month, 1);
@@ -118,7 +118,7 @@ public class SalesInvoicesController : Controller
         {
             InvoicesCount = invoices.Count,
             TotalSales = invoices.Sum(i => Total(i.Id)),
-            TotalCollected = collections.Sum(c => c.Amount),
+            TotalCollected = invoices.Sum(i => Collected(i.Id)),
             CostOfSales = cogs,
             BuyingCustomers = perCustomer.Count,
             CustomersWithBalance = perCustomer.Count(c => c.Remaining > 0),
@@ -171,6 +171,7 @@ public class SalesInvoicesController : Controller
         var collectedByInvoice = (await _db.SalesInvoiceCollections.Where(c => ids.Contains(c.SalesInvoiceId))
             .GroupBy(c => c.SalesInvoiceId).Select(g => new { g.Key, Sum = g.Sum(x => x.Amount) }).ToListAsync(ct))
             .ToDictionary(x => x.Key, x => x.Sum);
+        var returns = await InvoiceReturns.SalesAsync(_db, ids, ct);
 
         return invoices.Select(i =>
         {
@@ -185,6 +186,8 @@ public class SalesInvoicesController : Controller
                 Total = agg.Sum,
                 ItemCount = agg.Count,
                 Collected = collectedByInvoice.GetValueOrDefault(i.Id, 0),
+                Returned = returns.GetValueOrDefault(i.Id).Returned,
+                Refunded = returns.GetValueOrDefault(i.Id).Refunded,
             };
         }).ToList();
     }
@@ -209,6 +212,8 @@ public class SalesInvoicesController : Controller
 
         var inv = await _db.ProductSalesInvoices.FirstOrDefaultAsync(x => x.Id == id, ct);
         if (inv is null) return NotFound();
+        if (await _db.ProductSalesReturns.AnyAsync(r => r.SalesInvoiceId == inv.Id, ct))
+            ModelState.AddModelError(string.Empty, HasReturnsMessage(inv.Number, "تعديل"));
         var items = await _db.ProductSalesInvoiceItems.Where(i => i.SalesInvoiceId == inv.Id).OrderBy(i => i.CreatedAt).ToListAsync(ct);
         return PartialView("_InvoiceForm", await FillAsync(new SalesInvoiceFormModel
         {
@@ -275,6 +280,9 @@ public class SalesInvoicesController : Controller
         {
             inv = await _db.ProductSalesInvoices.FirstOrDefaultAsync(x => x.Id == model.Id, ct);
             if (inv is null) return NotFound();
+            // Returns are tied to the invoice's lines, quantities and prices — editing under them would unbalance them.
+            if (await _db.ProductSalesReturns.AnyAsync(r => r.SalesInvoiceId == inv.Id, ct))
+                ModelState.AddModelError(string.Empty, HasReturnsMessage(inv.Number, "تعديل"));
             var collections = await _db.SalesInvoiceCollections.Where(c => c.SalesInvoiceId == inv.Id).ToListAsync(ct);
             var alreadyCollected = collections.Sum(c => c.Amount);
             if (collections.Count > 0 && model.CustomerId != inv.CustomerId)
@@ -410,6 +418,11 @@ public class SalesInvoicesController : Controller
             TempData["ErrorMessage"] = $"لا يمكن حذف فاتورة المبيعات {SI(inv.Number)} لوجود تحصيلات عليها — ألغِ التحصيلات أولًا.";
             return RedirectToAction(nameof(Details), new { id });
         }
+        if (await _db.ProductSalesReturns.AnyAsync(r => r.SalesInvoiceId == id, ct))
+        {
+            TempData["ErrorMessage"] = HasReturnsMessage(inv.Number, "حذف");
+            return RedirectToAction(nameof(Details), new { id });
+        }
         // Put the sold stock back: reverse the invoice's goods issue (kept as معكوس for the audit trail).
         var issue = await _db.GoodsIssues.FirstOrDefaultAsync(r => r.SalesInvoiceId == id && r.Status == InventoryDocStatus.Posted, ct);
         if (issue is not null)
@@ -533,13 +546,21 @@ public class SalesInvoicesController : Controller
 
     /// <summary>Cancels a collection: removes its Income movement (and journal entry) — the amount goes back onto the invoice.</summary>
     [HttpPost]
-    [Authorize(Policy = PermissionNames.SalesInvoicesCollect)]
+    [Authorize(Policy = PermissionNames.SalesInvoicesDeleteCollection)]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> CancelCollection(Guid id, CancellationToken ct)
     {
         var c = await _db.SalesInvoiceCollections.FirstOrDefaultAsync(x => x.Id == id, ct);
         if (c is null) return NotFound();
         var invNo = await _db.ProductSalesInvoices.Where(i => i.Id == c.SalesInvoiceId).Select(i => i.Number).FirstOrDefaultAsync(ct);
+        // Cash already refunded through returns came out of what was collected — it can't be left larger than that.
+        var refunded = (await InvoiceReturns.ForSalesInvoiceAsync(_db, c.SalesInvoiceId, ct)).Refunded;
+        var collected = await _db.SalesInvoiceCollections.Where(x => x.SalesInvoiceId == c.SalesInvoiceId).SumAsync(x => x.Amount, ct);
+        if (refunded > 0 && collected - c.Amount < refunded)
+        {
+            TempData["ErrorMessage"] = $"لا يمكن إلغاء التحصيل رقم {c.ReceiptNo}: رُدّ للعميل {refunded:N2} ج.م من مرتجعات هذه الفاتورة، ولا يجوز أن يقل المحصَّل عنه — احذف المرتجع أولًا.";
+            return RedirectToAction(nameof(Details), new { id = c.SalesInvoiceId });
+        }
         // Taking the money back out of the safe — «سحب على المكشوف» applies.
         if (await _guard.CheckWithdrawalAsync(c.SafeId, c.Amount, ct) is string overdraw)
         {
@@ -585,6 +606,15 @@ public class SalesInvoicesController : Controller
         var customer = await _db.Customers.FirstOrDefaultAsync(c => c.Id == inv.CustomerId, ct);
         var issues = await _db.GoodsIssues.Where(r => r.SalesInvoiceId == id).OrderByDescending(r => r.Number)
             .Select(r => new { r.Id, r.Number, r.Date, r.Status, Cost = r.Lines.Sum(l => (decimal?)l.TotalCost) ?? 0m }).ToListAsync(ct);
+        var rets = await _db.ProductSalesReturns.Where(r => r.SalesInvoiceId == id).OrderBy(r => r.ReturnDate).ThenBy(r => r.Number).ToListAsync(ct);
+        var retIds = rets.Select(r => r.Id).ToList();
+        var retTotals = await _db.ProductSalesReturnItems.Where(i => retIds.Contains(i.SalesReturnId)).GroupBy(i => i.SalesReturnId)
+            .Select(g => new { g.Key, Sum = g.Sum(x => x.LineTotal) }).ToDictionaryAsync(x => x.Key, x => x.Sum, ct);
+        // The cost that came back into stock with the returns (their posted goods receipts).
+        var returnedCost = await (from l in _db.GoodsReceiptLines
+                                  join g in _db.GoodsReceipts on l.GoodsReceiptId equals g.Id
+                                  where g.SalesReturnId != null && retIds.Contains(g.SalesReturnId.Value) && g.Status == InventoryDocStatus.Posted
+                                  select (decimal?)l.TotalCost).SumAsync(ct) ?? 0m;
         return new SalesInvoiceDetailsVm
         {
             Invoice = inv,
@@ -594,8 +624,13 @@ public class SalesInvoicesController : Controller
                 ? await _db.Warehouses.Where(w => w.Id == inv.WarehouseId.Value).Select(w => w.Name).FirstOrDefaultAsync(ct)
                 : null,
             Issues = issues.Select(r => new SalesInvoiceIssueRef(r.Id, r.Number, r.Date, r.Status, r.Cost)).ToList(),
+            Returns = rets.Select(r => new InvoiceReturnRef(r.Id, r.Number, r.ReturnDate, retTotals.GetValueOrDefault(r.Id), r.RefundAmount, r.RefundVoucherNo)).ToList(),
+            ReturnedCost = returnedCost,
         };
     }
+
+    private static string HasReturnsMessage(int number, string verb)
+        => $"لا يمكن {verb} فاتورة المبيعات {SI(number)} لوجود مرتجعات عليها — احذف المرتجعات أولًا.";
 
     // Year-prefixed serial (SI-2026000001 = 2026 × 1000000 + 1), resetting each year.
     private Task<int> NextNumberAsync(int year, CancellationToken ct)

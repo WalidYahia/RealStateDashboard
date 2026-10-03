@@ -48,6 +48,13 @@ public static class PermissionNames
     public const string SalesInvoicesEdit = "SalesInvoices.Edit";
     public const string SalesInvoicesDelete = "SalesInvoices.Delete";
     public const string SalesInvoicesCollect = "SalesInvoices.Collect";   // record collections (تحصيل) against an invoice
+    public const string SalesInvoicesDeleteCollection = "SalesInvoices.DeleteCollection";   // delete a collection (سند قبض) — its income + entry
+
+    // ----- Sales returns (مرتجعات المبيعات) — against a product sales invoice (stock back in, customer credited / refunded) -----
+    public const string SalesReturnsView = "SalesReturns.View";
+    public const string SalesReturnsCreate = "SalesReturns.Create";
+    public const string SalesReturnsDelete = "SalesReturns.Delete";
+    public const string SalesReturnsDeleteRefund = "SalesReturns.DeleteRefund";   // delete a return's cash refund only (the return stays)
 
     // ----- Collections -----
     public const string CollectionsView = "Collections.View";
@@ -110,6 +117,13 @@ public static class PermissionNames
     public const string PurchaseInvoicesCreate = "PurchaseInvoices.Create";
     public const string PurchaseInvoicesEdit = "PurchaseInvoices.Edit";
     public const string PurchaseInvoicesDelete = "PurchaseInvoices.Delete";
+    public const string PurchaseInvoicesDeletePayment = "PurchaseInvoices.DeletePayment";   // delete a payment (سند صرف) on an invoice — its expense + entry
+
+    // ----- Purchase returns (مرتجعات المشتريات) — against a purchase invoice (stock back out, supplier debited / refund received) -----
+    public const string PurchaseReturnsView = "PurchaseReturns.View";
+    public const string PurchaseReturnsCreate = "PurchaseReturns.Create";
+    public const string PurchaseReturnsDelete = "PurchaseReturns.Delete";
+    public const string PurchaseReturnsDeleteRefund = "PurchaseReturns.DeleteRefund";   // delete a return's cash refund only (the return stays)
 
     // ----- Contracting: contractors + work orders (المقاولات) -----
     public const string ContractingView = "Contracting.View";
@@ -132,6 +146,7 @@ public static class PermissionNames
     // ----- Inventory (المخزون) -----
     public const string InventoryView = "Inventory.View";           // view inventory pages
     public const string InventoryManage = "Inventory.Manage";       // manage masters (products/categories/UOM/warehouses) + posting profile
+    public const string InventoryUpdateCost = "Inventory.UpdateCost";   // تحديث تكلفة الأصناف (revalues stock; posts to the GL)
     public const string InventoryDocuments = "Inventory.Documents"; // create/post/reverse inventory documents (IN/OUT/transfer/adjust/count)
     public const string InventoryReports = "Inventory.Reports";     // inventory reports
 
@@ -203,6 +218,11 @@ public static class PermissionNames
         new PermissionInfo(SalesInvoicesEdit,    "تعديل فواتير المبيعات",          GSalesInvoices),
         new PermissionInfo(SalesInvoicesDelete,  "حذف فواتير المبيعات",            GSalesInvoices),
         new PermissionInfo(SalesInvoicesCollect, "تحصيل مبالغ فواتير المبيعات من العملاء", GSalesInvoices),
+        new PermissionInfo(SalesInvoicesDeleteCollection, "حذف تحصيلات فواتير المبيعات (سندات القبض)", GSalesInvoices),
+        new PermissionInfo(SalesReturnsView,     "عرض مرتجعات المبيعات",           GSalesInvoices),
+        new PermissionInfo(SalesReturnsCreate,   "إضافة مرتجع مبيعات (ورد النقدية للعميل)", GSalesInvoices),
+        new PermissionInfo(SalesReturnsDelete,   "حذف مرتجعات المبيعات",           GSalesInvoices),
+        new PermissionInfo(SalesReturnsDeleteRefund, "حذف المبلغ النقدي المردود في مرتجعات المبيعات", GSalesInvoices),
 
         new PermissionInfo(CollectionsView,    "عرض التحصيلات", GCollections),
         new PermissionInfo(CollectionsCollect, "تحصيل الأقساط", GCollections),
@@ -251,6 +271,11 @@ public static class PermissionNames
         new PermissionInfo(PurchaseInvoicesCreate, "إضافة فاتورة مشتريات",  GSuppliers),
         new PermissionInfo(PurchaseInvoicesEdit,   "تعديل فواتير المشتريات", GSuppliers),
         new PermissionInfo(PurchaseInvoicesDelete, "حذف فواتير المشتريات",  GSuppliers),
+        new PermissionInfo(PurchaseInvoicesDeletePayment, "حذف دفعات فواتير المشتريات (سندات الصرف)", GSuppliers),
+        new PermissionInfo(PurchaseReturnsView,    "عرض مرتجعات المشتريات", GSuppliers),
+        new PermissionInfo(PurchaseReturnsCreate,  "إضافة مرتجع مشتريات (واسترداد النقدية من المورد)", GSuppliers),
+        new PermissionInfo(PurchaseReturnsDelete,  "حذف مرتجعات المشتريات", GSuppliers),
+        new PermissionInfo(PurchaseReturnsDeleteRefund, "حذف المبلغ النقدي المسترد في مرتجعات المشتريات", GSuppliers),
 
         new PermissionInfo(ContractingView,   "عرض المقاولين وأوامر الشغل وكشوف الحساب", GContracting),
         new PermissionInfo(ContractingCreate, "إضافة مقاول / أمر شغل",                  GContracting),
@@ -266,6 +291,7 @@ public static class PermissionNames
         new PermissionInfo(InventoryView,      "عرض المخزون", GInventory),
         new PermissionInfo(InventoryManage,    "إدارة الأصناف والتصنيفات ووحدات القياس والمخازن والإعدادات", GInventory),
         new PermissionInfo(InventoryDocuments, "إنشاء وترحيل مستندات المخزون (استلام/صرف/تحويل/تسوية/جرد)", GInventory),
+        new PermissionInfo(InventoryUpdateCost, "تحديث تكلفة الأصناف (إعادة تقييم المخزون)", GInventory),
         new PermissionInfo(InventoryReports,   "عرض تقارير المخزون", GInventory),
 
         new PermissionInfo(ReportsView,     "عرض التقارير (اليومي، العملاء، الموردين)", GReports),
@@ -312,6 +338,18 @@ public static class PermissionNames
         [PurchaseInvoicesEdit] = SuppliersEdit,
         [PurchaseInvoicesDelete] = SuppliersDelete,
         [SafesTransfer] = SafesEdit,
+        [InventoryUpdateCost] = InventoryManage,
+        [SalesReturnsView] = SalesInvoicesView,
+        [SalesReturnsCreate] = SalesInvoicesCreate,
+        [SalesReturnsDelete] = SalesInvoicesDelete,
+        [PurchaseReturnsView] = PurchaseInvoicesView,
+        [PurchaseReturnsCreate] = PurchaseInvoicesCreate,
+        [PurchaseReturnsDelete] = PurchaseInvoicesDelete,
+        // Deleting money vouchers: whoever could cancel / pay / delete them before keeps it.
+        [SalesInvoicesDeleteCollection] = SalesInvoicesCollect,
+        [PurchaseInvoicesDeletePayment] = SuppliersPay,
+        [SalesReturnsDeleteRefund] = SalesReturnsDelete,
+        [PurchaseReturnsDeleteRefund] = PurchaseReturnsDelete,
     };
 
     /// <summary>Permissions granted to a TenantAdmin: everything except cross-tenant management.</summary>

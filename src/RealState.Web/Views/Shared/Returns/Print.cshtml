@@ -1,0 +1,66 @@
+@model RealState.Web.Models.ReturnDetailsVm
+@{
+    Layout = null;
+    var k = Model.Kind;
+    string N(decimal v) => v.ToString("N2", RealState.Web.AppCulture.Ar);
+    string Q(decimal v) => v.ToString("0.####", System.Globalization.CultureInfo.InvariantCulture);
+    string D(DateTime d) => d.ToString("yyyy/MM/dd", System.Globalization.CultureInfo.InvariantCulture);
+}
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="utf-8" />
+    <title>@k.One @k.Prefix@Model.Number</title>
+    <style>
+        body { font-family: "Segoe UI", Tahoma, sans-serif; padding: 28px; color: #111; }
+        h1 { font-size: 20px; text-align: center; margin: 6px 0 2px; }
+        .sub { text-align: center; color: #666; font-size: 12px; margin-bottom: 18px; }
+        h2 { font-size: 14px; margin: 18px 0 8px; border-bottom: 1px solid #ddd; padding-bottom: 4px; }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 8px; }
+        th, td { border: 1px solid #ccc; padding: 7px 8px; text-align: start; unicode-bidi: plaintext; }
+        th { background: #f2f2f2; }
+        .kv th { width: 180px; background: #fafafa; }
+        .sign { display: flex; justify-content: space-between; margin-top: 48px; font-size: 13px; }
+        .sign div { width: 40%; border-top: 1px solid #333; padding-top: 6px; text-align: center; }
+        .no-print { margin-bottom: 14px; } @@media print { .no-print { display: none; } }
+    </style>
+</head>
+<body>
+    @await Component.InvokeAsync("ReportBackground", new { part = "open" })
+    <div class="no-print"><button onclick="window.print()">🖨 طباعة / حفظ PDF</button></div>
+    <h1>@k.One رقم @k.Prefix@Model.Number</h1>
+    <div class="sub">تاريخ التحرير: @DateTime.Now.ToString("yyyy/MM/dd")</div>
+
+    <h2>البيانات</h2>
+    <table class="kv">
+        <tr><th>@k.PartyLabel</th><td>@Model.Party @(string.IsNullOrEmpty(Model.PartyPhone) ? "" : "— " + Model.PartyPhone)</td></tr>
+        <tr><th>@k.InvoiceOne</th><td>@(Model.InvoiceNumber.HasValue ? k.InvoicePrefix + Model.InvoiceNumber : "—")</td></tr>
+        <tr><th>تاريخ المرتجع</th><td>@D(Model.Date)</td></tr>
+        <tr><th>المخزن</th><td>@(Model.Warehouse ?? "—")</td></tr>
+        @if (!string.IsNullOrWhiteSpace(Model.Notes)) { <tr><th>السبب / ملاحظات</th><td>@Model.Notes</td></tr> }
+    </table>
+
+    <h2>الأصناف المرتجعة</h2>
+    <table>
+        <thead><tr><th>#</th><th>الصنف</th><th>الوحدة</th><th>@k.PriceLabel (ج.م)</th><th>الكمية</th><th>الإجمالي (ج.م)</th></tr></thead>
+        <tbody>
+        @{ var n = 0; }
+        @foreach (var l in Model.Lines)
+        {
+            n++;
+            <tr><td>@n</td><td>@l.Name</td><td>@(l.Unit ?? "—")</td><td>@N(l.Price)</td><td>@Q(l.Quantity)</td><td>@N(l.LineTotal)</td></tr>
+        }
+        </tbody>
+        <tfoot>
+            <tr><th colspan="5">قيمة المرتجع</th><th>@N(Model.Total) ج.م</th></tr>
+            <tr><th colspan="5">@(k.IsSales ? "رُدّ نقدًا" : "استُرد نقدًا")@(Model.RefundVoucherNo.HasValue ? $" ({k.RefundVoucher} {Model.RefundVoucherNo})" : "")</th><th>@N(Model.Refund) ج.م</th></tr>
+            <tr><th colspan="5">@(k.IsSales ? "خُصم من رصيد العميل" : "خُصم من المستحق للمورد")</th><th>@N(Model.Credited) ج.م</th></tr>
+        </tfoot>
+    </table>
+
+    <div class="sign"><div>توقيع المسؤول</div><div>توقيع @k.PartyLabel</div></div>
+
+    <script>window.addEventListener('load', function () { setTimeout(function () { window.print(); }, 500); });</script>
+    @await Component.InvokeAsync("ReportBackground", new { part = "close" })
+</body>
+</html>

@@ -78,6 +78,7 @@ public class PurchaseInvoicesController : Controller
         var paidByInvoice = (await _db.SupplierPayments.Where(p => p.PurchaseInvoiceId != null && ids.Contains(p.PurchaseInvoiceId!.Value))
             .GroupBy(p => p.PurchaseInvoiceId!.Value).Select(g => new { g.Key, Sum = g.Sum(x => x.Amount) }).ToListAsync(ct))
             .ToDictionary(x => x.Key, x => x.Sum);
+        var returns = await InvoiceReturns.PurchaseAsync(_db, ids, ct);
 
         return invoices.Select(i =>
         {
@@ -94,6 +95,8 @@ public class PurchaseInvoicesController : Controller
                 Total = agg.Sum,
                 ItemCount = agg.Count,
                 Paid = paidByInvoice.GetValueOrDefault(i.Id, 0),
+                Returned = returns.GetValueOrDefault(i.Id).Returned,
+                Refunded = returns.GetValueOrDefault(i.Id).Refunded,
             };
         }).ToList();
     }
@@ -126,6 +129,8 @@ public class PurchaseInvoicesController : Controller
 
         var inv = await _db.PurchaseInvoices.FirstOrDefaultAsync(x => x.Id == id, ct);
         if (inv is null) return NotFound();
+        if (await _db.PurchaseReturns.AnyAsync(r => r.PurchaseInvoiceId == inv.Id, ct))
+            ModelState.AddModelError(string.Empty, HasReturnsMessage(inv.Number, "تعديل"));
         var items = await _db.PurchaseInvoiceItems.Where(i => i.PurchaseInvoiceId == inv.Id).OrderBy(i => i.CreatedAt).ToListAsync(ct);
         return PartialView("_InvoiceForm", await FillAsync(new InvoiceFormModel
         {
@@ -202,6 +207,9 @@ public class PurchaseInvoicesController : Controller
         {
             inv = await _db.PurchaseInvoices.FirstOrDefaultAsync(x => x.Id == model.Id, ct);
             if (inv is null) return NotFound();
+            // Returns are tied to the invoice's lines, quantities and costs — editing under them would unbalance them.
+            if (await _db.PurchaseReturns.AnyAsync(r => r.PurchaseInvoiceId == inv.Id, ct))
+                ModelState.AddModelError(string.Empty, HasReturnsMessage(inv.Number, "تعديل"));
             var payments = await _db.SupplierPayments.Where(p => p.PurchaseInvoiceId == inv.Id).ToListAsync(ct);
             var alreadyPaid = payments.Sum(p => p.Amount);
             if (payments.Count > 0 && model.SupplierId != inv.SupplierId)
@@ -340,6 +348,11 @@ public class PurchaseInvoicesController : Controller
             TempData["ErrorMessage"] = $"لا يمكن حذف فاتورة المشتريات {PI(inv.Number)} لوجود مدفوعات عليها.";
             return RedirectToAction(nameof(Details), new { id });
         }
+        if (await _db.PurchaseReturns.AnyAsync(r => r.PurchaseInvoiceId == id, ct))
+        {
+            TempData["ErrorMessage"] = HasReturnsMessage(inv.Number, "حذف");
+            return RedirectToAction(nameof(Details), new { id });
+        }
         // Take the received stock back out: reverse the invoice's goods receipt (kept as معكوس for the audit trail).
         var receipt = await _db.GoodsReceipts.FirstOrDefaultAsync(r => r.PurchaseInvoiceId == id && r.Status == InventoryDocStatus.Posted, ct);
         if (receipt is not null)
@@ -362,19 +375,43 @@ public class PurchaseInvoicesController : Controller
         return RedirectToAction(nameof(Index));
     }
 
+    /// <summary>
+    /// Deletes a payment (سند صرف) made on the invoice: its expense movement and journal entry are removed (the money
+    /// goes back into the safe, Dr الخزنة / Cr الموردون reversed) and the amount is owed on the invoice again.
+    /// </summary>
+    [HttpPost]
+    [Authorize(Policy = PermissionNames.PurchaseInvoicesDeletePayment)]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> DeletePayment(Guid id, CancellationToken ct)
+    {
+        var p = await _db.SupplierPayments.FirstOrDefaultAsync(x => x.Id == id && x.PurchaseInvoiceId != null, ct);
+        if (p is null) return NotFound();
+        var invId = p.PurchaseInvoiceId!.Value;
+        var invNo = await _db.PurchaseInvoices.Where(i => i.Id == invId).Select(i => i.Number).FirstOrDefaultAsync(ct);
+        // Cash the supplier refunded through returns came out of what was paid — paid can't be left below it.
+        var refunded = (await InvoiceReturns.ForPurchaseInvoiceAsync(_db, invId, ct)).Refunded;
+        var paid = await _db.SupplierPayments.Where(x => x.PurchaseInvoiceId == invId).SumAsync(x => x.Amount, ct);
+        if (refunded > 0 && paid - p.Amount < refunded)
+        {
+            TempData["ErrorMessage"] = $"لا يمكن حذف سند الصرف رقم {p.ReceiptNo}: استُرد من المورد {refunded:N2} ج.م في مرتجعات هذه الفاتورة، ولا يجوز أن يقل المسدَّد عنه — احذف استرداد المرتجع أولًا.";
+            return RedirectToAction(nameof(Details), new { id = invId });
+        }
+        var txn = await _db.SafeTransactions.FirstOrDefaultAsync(
+            t => t.Type == TxnType.Expense && t.Source == TxnSource.SupplierPayment && t.Serial == p.ReceiptNo, ct);
+        if (txn is not null) await _accounting.RemoveTransactionAsync(txn, ct);   // the expense + its journal entry
+        _db.SupplierPayments.Remove(p);
+        await _db.SaveChangesAsync(ct);
+        var safe = await _db.Safes.Where(s => s.Id == p.SafeId).Select(s => s.Name).FirstOrDefaultAsync(ct);
+        TempData["StatusMessage"] = $"تم حذف سند الصرف رقم {p.ReceiptNo} ({p.Amount:N2} ج.م) على فاتورة المشتريات {PI(invNo)} وإعادة المبلغ إلى الخزنة «{safe}».";
+        return RedirectToAction(nameof(Details), new { id = invId });
+    }
+
     [HttpGet]
     public IActionResult Help() => PartialView("_Help");
 
-    /// <summary>مرتجعات المشتريات — planned; shows a "coming soon" page for now.</summary>
+    /// <summary>مرتجعات المشتريات — kept for old links; the returns live in <see cref="PurchaseReturnsController"/>.</summary>
     [HttpGet]
-    public IActionResult Returns()
-    {
-        ViewData["Title"] = "مرتجعات المشتريات";
-        ViewData["Message"] = "إدارة مرتجعات المشتريات (إرجاع الأصناف للمورد وتسوية حسابه والمخزون) قيد التطوير وستتوفر قريبًا.";
-        ViewData["BackText"] = "فواتير المشتريات";
-        ViewData["BackUrl"] = Url.Action(nameof(Index));
-        return View("~/Views/Shared/ComingSoon.cshtml");
-    }
+    public IActionResult Returns() => RedirectToAction(nameof(PurchaseReturnsController.Index), "PurchaseReturns");
 
     // ---------- Single invoice (view + print) ----------
     public async Task<IActionResult> Details(Guid id, CancellationToken ct)
@@ -382,6 +419,7 @@ public class PurchaseInvoicesController : Controller
         var vm = await LoadAsync(id, ct);
         if (vm is null) return NotFound();
         ViewData["CanPay"] = Can(PermissionNames.SuppliersPay);
+        ViewData["CanDeletePayment"] = Can(PermissionNames.PurchaseInvoicesDeletePayment);
         ViewData["CanViewSuppliers"] = Can(PermissionNames.SuppliersView);
         return View(vm);
     }
@@ -463,8 +501,23 @@ public class PurchaseInvoicesController : Controller
             Receipts = (await _db.GoodsReceipts.Where(r => r.PurchaseInvoiceId == id).OrderByDescending(r => r.Number)
                     .Select(r => new { r.Id, r.Number, r.Date, r.Status }).ToListAsync(ct))
                 .Select(r => new InvoiceReceiptRef(r.Id, r.Number, r.Date, r.Status)).ToList(),
+            Returns = await ReturnRefsAsync(id, ct),
         };
     }
+
+    /// <summary>The invoice's purchase returns (debit notes), oldest first.</summary>
+    private async Task<List<RealState.Web.Areas.Sales.Models.InvoiceReturnRef>> ReturnRefsAsync(Guid invoiceId, CancellationToken ct)
+    {
+        var rets = await _db.PurchaseReturns.Where(r => r.PurchaseInvoiceId == invoiceId).OrderBy(r => r.ReturnDate).ThenBy(r => r.Number).ToListAsync(ct);
+        var retIds = rets.Select(r => r.Id).ToList();
+        var totals = await _db.PurchaseReturnItems.Where(i => retIds.Contains(i.PurchaseReturnId)).GroupBy(i => i.PurchaseReturnId)
+            .Select(g => new { g.Key, Sum = g.Sum(x => x.LineTotal) }).ToDictionaryAsync(x => x.Key, x => x.Sum, ct);
+        return rets.Select(r => new RealState.Web.Areas.Sales.Models.InvoiceReturnRef(r.Id, r.Number, r.ReturnDate, totals.GetValueOrDefault(r.Id), r.RefundAmount, r.RefundVoucherNo)).ToList();
+    }
+
+    private static string HasReturnsMessage(int number, string verb)
+        => $"لا يمكن {verb} فاتورة المشتريات {PI(number)} لوجود مرتجعات عليها — احذف المرتجعات أولًا.";
+
 
     // Year-prefixed serial (PI-2026000001 = 2026 × 1000000 + 1), resetting each year.
     private Task<int> NextNumberAsync(int year, CancellationToken ct)

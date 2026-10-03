@@ -51,7 +51,7 @@
 
     <h2>الأصناف</h2>
     <table>
-        <thead><tr><th>#</th><th>الصنف</th><th>الوحدة</th><th>الكمية</th><th>تكلفة الوحدة (ج.م)</th><th>الإجمالي (ج.م)</th></tr></thead>
+        <thead><tr><th>#</th><th>الصنف</th><th>الوحدة</th><th>الكمية</th>@if (Model.ShowCost) { <th>تكلفة الوحدة (ج.م)</th><th>الإجمالي (ج.م)</th> }</tr></thead>
         <tbody>
         @foreach (var l in Model.Lines)
         {
@@ -61,15 +61,21 @@
                 <td>@l.Product</td>
                 <td>@(l.Unit ?? "—")</td>
                 <td>@l.Quantity.ToString("0.####", System.Globalization.CultureInfo.InvariantCulture)</td>
-                <td>@(l.UnitCost == 0 ? "" : N(l.UnitCost))</td>
-                <td>@(l.TotalCost == 0 ? "" : N(l.TotalCost))</td>
+                @if (Model.ShowCost)
+                {
+                    <td>@(l.UnitCost == 0 ? "" : N(l.UnitCost))</td>
+                    <td>@(l.TotalCost == 0 ? "" : N(l.TotalCost))</td>
+                }
             </tr>
         }
         @if (Model.Lines.Count == 0) { <tr><td colspan="6">لا توجد أسطر.</td></tr> }
         </tbody>
-        <tfoot>
-            <tr><th colspan="3">الإجمالي</th><th></th><th></th><th>@N(total) ج.م</th></tr>
-        </tfoot>
+        @if (Model.ShowCost)
+        {
+            <tfoot>
+                <tr><th colspan="3">الإجمالي</th><th></th><th></th><th>@N(total) ج.م</th></tr>
+            </tfoot>
+        }
     </table>
 
     <div class="sign"><div>أمين المخزن (المستلم)</div><div>المُسلِّم</div><div>الاعتماد</div></div>

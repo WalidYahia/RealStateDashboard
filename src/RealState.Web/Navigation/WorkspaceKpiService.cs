@@ -52,7 +52,12 @@ public sealed class WorkspaceKpiService : IWorkspaceKpiService
             var open = await (from i in _db.ProductSalesInvoices
                               let total = _db.ProductSalesInvoiceItems.Where(x => x.SalesInvoiceId == i.Id).Sum(x => (decimal?)x.LineTotal) ?? 0m
                               let paid = _db.SalesInvoiceCollections.Where(x => x.SalesInvoiceId == i.Id).Sum(x => (decimal?)x.Amount) ?? 0m
-                              where total > paid
+                              let returned = (from x in _db.ProductSalesReturnItems
+                                              join r in _db.ProductSalesReturns on x.SalesReturnId equals r.Id
+                                              where r.SalesInvoiceId == i.Id
+                                              select (decimal?)x.LineTotal).Sum() ?? 0m
+                              let refunded = _db.ProductSalesReturns.Where(r => r.SalesInvoiceId == i.Id).Sum(r => (decimal?)r.RefundAmount) ?? 0m
+                              where total - returned > paid - refunded
                               select i.Id).CountAsync(ct);
             if (open > 0) k["sales-invoices"] = new($"{N(open)} فاتورة غير محصّلة", "warn");
         }
@@ -62,7 +67,12 @@ public sealed class WorkspaceKpiService : IWorkspaceKpiService
             var open = await (from i in _db.PurchaseInvoices
                               let total = _db.PurchaseInvoiceItems.Where(x => x.PurchaseInvoiceId == i.Id).Sum(x => (decimal?)x.LineTotal) ?? 0m
                               let paid = _db.SupplierPayments.Where(x => x.PurchaseInvoiceId == i.Id).Sum(x => (decimal?)x.Amount) ?? 0m
-                              where total > paid
+                              let returned = (from x in _db.PurchaseReturnItems
+                                              join r in _db.PurchaseReturns on x.PurchaseReturnId equals r.Id
+                                              where r.PurchaseInvoiceId == i.Id
+                                              select (decimal?)x.LineTotal).Sum() ?? 0m
+                              let refunded = _db.PurchaseReturns.Where(r => r.PurchaseInvoiceId == i.Id).Sum(r => (decimal?)r.RefundAmount) ?? 0m
+                              where total - returned > paid - refunded
                               select i.Id).CountAsync(ct);
             if (open > 0) k["purchase-invoices"] = new($"{N(open)} فاتورة غير مسددة", "warn");
         }

@@ -112,12 +112,44 @@ Selling inventory **products** to a customer — separate from real‑estate con
 - **Sales summary** (the «المبيعات» menu parent, `SalesInvoices/Summary`): KPIs with month‑over‑month
   deltas (sales, collected, invoices, new buying customers), gross profit + margin, outstanding balance
   (customers with a balance), monthly sales chart (last 6 months), top buyers chart, latest invoices,
-  top customer balances — plus a branded print. «مرتجعات المبيعات» is a «قريبًا» placeholder.
+  top customer balances — plus a branded print. Sales and collections are net of sales returns.
+
+### 2.4.2 Returns — مرتجعات المبيعات / مرتجعات المشتريات (`SalesReturns`, `Suppliers/PurchaseReturns`)
+Goods coming back from a customer (sales return, `SR‑YYYY######`) or going back to a supplier (purchase return,
+`PR‑YYYY######`) — always **against one invoice**, line by line, never more of a line than invoiced minus earlier
+returns (the form shows invoiced / returned before / returnable per line). One shared form, list, details and
+print (`Views/Shared/Returns`, `wwwroot/js/return-doc.js`); opened from the returns page («↩ مرتجع … جديد», with an
+invoice picker) or from an invoice («↩ مرتجع»). A return isn't edited: delete it (stock, entries and cash are
+reversed) and record it again.
+- **Credit / debit note**: an invoice now leaves `total − returns − (paid − refunds)` owed (`InvoiceReturns`) —
+  everywhere: invoice pages and lists, customer page, supplier statement (return −, refund + rows), supplier pay
+  form, suppliers report, dashboard payables, workspace KPIs, sales summary (cost of sales net of returned cost).
+- **Cash refund** (optional): «رد نقدية للعميل» from a safe (overdraft rule applies) / «استرداد نقدية من المورد» into a
+  safe. It's **required** for the part of the return the invoice no longer owes (value − remaining) and capped at
+  the return's value and at what was paid and not refunded yet — the form keeps it within these limits live.
+  Printable voucher (إيصال صرف / استلام نقدية) — the unified cash voucher of the refund movement.
+- **Journal entries**:
+  | Entry | Debit | Credit |
+  |---|---|---|
+  | Sales return | مردودات المبيعات (4250) | العملاء — customer subsidiary |
+  | Its automatic goods receipt (reason: sales return, at the original cost of sale) | مخزون — warehouse | تكلفة المبيعات |
+  | Refund to the customer (source «رد نقدية مرتجع مبيعات») | العملاء | الخزنة |
+  | Purchase return | الموردون — supplier subsidiary | بضاعة واردة لم تُفوتر (stock lines, by the issue cost) / مردودات المشتريات (5350, non‑stock lines) |
+  | Its automatic goods issue (reason: purchase return, at the invoice cost) | بضاعة واردة لم تُفوتر | مخزون — warehouse |
+  | Refund from the supplier (source «استرداد نقدية مرتجع مشتريات») | الخزنة | الموردون |
+  GRNI nets to zero; if the stock on hand was worth less than the invoice cost, the difference goes to إيرادات
+  أخرى / مصروفات عامة. 4250 / 5350 are created for existing tenants on first use.
+- **Guards**: an invoice with returns can't be edited or deleted (delete the returns first); a collection can't be
+  cancelled below what was refunded; deleting a sales return is refused if its stock was sold since; deleting a
+  purchase return with a refund applies the overdraft rule. The returns' goods receipts / issues are managed
+  only from the return (inventory pages show «↩ من المرتجع SR‑/PR‑…»).
+- Permissions `SalesReturns.View/Create/Delete`, `PurchaseReturns.View/Create/Delete` — granted on upgrade to every
+  user / role holding the matching invoice permission. Navigation: pages + «＋ إجراء جديد» actions; old
+  `…/Returns` links redirect.
 
 **Side menu (sales & purchasing):** التعاقدات (parent → contracts summary; العقود، التحصيلات) · العملاء
-(المناديب، العملاء، تقرير العملاء) · المبيعات (parent → sales summary; فواتير المبيعات، مرتجعات المبيعات
-«قريبًا») · الموردين (الموردين، تقرير الموردين) · المشتريات (أوامر التوريد، فواتير المشتريات، مرتجعات
-المشتريات «قريبًا»). The customers / suppliers reports moved out of التقارير into their groups.
+(المناديب، العملاء، تقرير العملاء) · المبيعات (parent → sales summary; فواتير المبيعات، مرتجعات المبيعات)
+· الموردين (الموردين، تقرير الموردين) · المشتريات (أوامر التوريد، فواتير المشتريات، مرتجعات المشتريات). The customers / suppliers reports moved out of التقارير into their groups.
 Placeholders use the shared `Views/Shared/ComingSoon.cshtml`.
 
 ### 2.5 CRM (`CRM` area)
@@ -325,6 +357,23 @@ vouchers in place (202600007 → 20260000007, same sequence). Contract codes, re
 receipts issued before the year rule keep their original numbers.
 
 ---
+
+## 2.15 Tenant isolation & accounting-cycle rules (QC, Oct 2026)
+Verified end to end on a scratch database (two tenants; every money-moving add / edit / delete followed by ledger
+invariants: balanced trial balance and entries, no orphan entries, one entry per document / cash movement for its
+value, safe GL = safe balance, inventory GL = stock value per warehouse, real-estate inventory per unit).
+- **Tenant isolation**: all business tables are tenant-filtered; records of another tenant answer «not found» (pages,
+  edit forms, deletes, search); users are scoped by `CanManage`. The **host must choose a tenant** before any
+  tenant page (`HostTenantFilter`) — before, its actions fell into the fallback tenant.
+- **Tenant delete** purges every tenant-scoped table (accounting, inventory, contracting, returns… were missing, and
+  some FKs could make the delete fail).
+- **Accounting fixes**: manual incomes/expenses post to their category's account and re-post on edit; advance
+  disbursement / cash repayment / reward payout post to the employee (سلف الموظفين); a from-salary installment marked
+  paid posts Dr رواتب ومكافآت / Cr سلف الموظفين (only for a disbursed advance); editing a sold unit's cost re-posts its
+  contract; deleting a safe removes its opening entry; lowering a safe's opening balance obeys the overdraft rule.
+- **Guards**: a project with work orders, or a customer with sale contracts, can't be deleted.
+- **Repair existing data**: «إعادة بناء القيود» (بيانات المؤسسة) now re-posts every manual and HR cash movement from
+  its current values and posts missing salary-deduction entries — idempotent; run it once per tenant after upgrading.
 
 ## 3. Permissions Catalog
 

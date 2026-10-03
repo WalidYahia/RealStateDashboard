@@ -9,7 +9,8 @@ public enum InventoryMovementType
     TransferOut,    // sent out of a warehouse via transfer
     AdjustmentIn,   // stock increase (gain / count surplus)
     AdjustmentOut,  // stock decrease (loss / count shortage)
-    Opening         // opening balance
+    Opening,        // opening balance
+    Revaluation     // cost update (تحديث التكلفة): value changes, quantity doesn't
 }
 
 /// <summary>Lifecycle of an inventory document. Draft is editable; Posted affects stock + GL; Reversed is undone.</summary>
@@ -26,7 +27,15 @@ public enum IssueReason
     Sale,           // Dr COGS
     Consumption,    // Dr consumption expense
     Damage,         // Dr adjustment loss
-    Other
+    Other,
+    PurchaseReturn  // Dr بضاعة واردة لم تُفوتر — goods sent back to the supplier (purchase return, at the invoice cost)
+}
+
+/// <summary>Why stock is being received (drives the GL counter-account).</summary>
+public enum ReceiptReason
+{
+    Purchase,       // Cr بضاعة واردة لم تُفوتر (cleared by the purchase invoice)
+    SalesReturn     // Cr تكلفة المبيعات — goods a customer returned, back at their original cost of sale
 }
 
 /// <summary>Why an adjustment is being made.</summary>

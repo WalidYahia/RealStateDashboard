@@ -1,0 +1,130 @@
+@model RealState.Web.Models.ReturnFormModel
+@*
+    Sales / purchase return form (modal). Picking the invoice reloads the form with its lines; quantities, totals and
+    the refund's limits are kept live by wwwroot/js/return-doc.js (retInit). Server-side rules are the same.
+*@
+@{
+    var k = Model.Kind;
+    var controller = k.IsSales ? "SalesReturns" : "PurchaseReturns";
+    var area = k.IsSales ? "Sales" : "Suppliers";
+    string N(decimal v) => v.ToString("N2", RealState.Web.AppCulture.Ar);
+    string Q(decimal v) => v.ToString("0.####", System.Globalization.CultureInfo.InvariantCulture);
+    var pos = Model.Position;
+    var reloadUrl = Url.Action("Form", controller, new { area });
+}
+<form id="appModalForm" action="@Url.Action("Form", controller, new { area })" method="post" data-modal-init="retInit"
+      data-ret-reload="@reloadUrl" data-ret-title="@k.One جديد"
+      data-ret-remaining="@((pos?.Remaining ?? 0).ToString(System.Globalization.CultureInfo.InvariantCulture))"
+      data-ret-netpaid="@((pos?.NetPaid ?? 0).ToString(System.Globalization.CultureInfo.InvariantCulture))">
+    @Html.AntiForgeryToken()
+    <div asp-validation-summary="ModelOnly" class="validation-summary-errors"></div>
+
+    <div class="form-grid">
+        <div>
+            <label class="form-label">رقم المرتجع</label>
+            <input class="form-control" value="@k.Prefix@Model.Number" dir="ltr" readonly title="الرقم المتوقع — يُثبَّت عند الحفظ" />
+        </div>
+        <div>
+            <label asp-for="InvoiceId" class="form-label">@k.InvoiceOne</label>
+            <select asp-for="InvoiceId" class="form-control" data-searchable data-ret-invoice asp-items="Model.Invoices"
+                    data-search-placeholder="🔍 ابحث برقم الفاتورة أو @k.PartyLabel..."><option value="">— اختر الفاتورة —</option></select>
+            <span asp-validation-for="InvoiceId" class="field-validation-error"></span>
+        </div>
+    </div>
+
+    @if (Model.InvoiceId is null)
+    {
+        <div class="status-message" style="background:var(--surface-2);border-color:var(--border);color:var(--text-secondary);margin-top:12px;">
+            @(Model.Invoices.Count == 0
+                ? $"لا توجد فواتير بها أصناف متاحة للإرجاع."
+                : $"اختر {k.InvoiceOne} لعرض أصنافها والكميات المتاحة للإرجاع.")
+        </div>
+    }
+    else
+    {
+        <div class="status-message" style="background:var(--surface-2);border-color:var(--border);color:var(--text-secondary);margin-top:12px;">
+            <div style="margin-bottom:6px;font-weight:600;"><span dir="ltr">@Model.InvoiceLabel</span> — @k.PartyLabel: @Model.Party · @Model.InvoiceDate?.ToString("yyyy/MM/dd")</div>
+            @if (pos is not null)
+            {
+                <div style="display:flex;gap:18px;flex-wrap:wrap;">
+                    <span>الإجمالي: <strong>@N(pos.Total)</strong></span>
+                    @if (pos.Returned > 0) { <span>مرتجعات سابقة: <strong>@N(pos.Returned)</strong></span> }
+                    <span>@k.PaidLabel: <strong style="color:var(--good);">@N(pos.NetPaid)</strong></span>
+                    <span>المتبقي: <strong style="color:var(--critical);">@N(pos.Remaining)</strong> ج.م</span>
+                </div>
+            }
+        </div>
+
+        <div class="form-grid">
+            <div>
+                <label asp-for="ReturnDate" class="form-label"></label>
+                <input asp-for="ReturnDate" class="form-control" type="date" dir="ltr" max="@DateTime.Today.ToString("yyyy-MM-dd")"
+                       min="@Model.InvoiceDate?.ToString("yyyy-MM-dd")" />
+                <span asp-validation-for="ReturnDate" class="field-validation-error"></span>
+            </div>
+            @if (Model.HasTrackedLines)
+            {
+                <div>
+                    <label asp-for="WarehouseId" class="form-label">@(k.IsSales ? "المخزن (تعود إليه الأصناف)" : "المخزن (تُصرف منه الأصناف)")</label>
+                    <select asp-for="WarehouseId" class="form-control" data-searchable asp-items="Model.Warehouses"><option value="">— اختر المخزن —</option></select>
+                    <span asp-validation-for="WarehouseId" class="field-validation-error"></span>
+                </div>
+            }
+            <div class="full">
+                <label asp-for="Notes" class="form-label"></label>
+                <input asp-for="Notes" class="form-control" placeholder="مثال: عيب صناعة / زيادة عن المطلوب" />
+            </div>
+        </div>
+
+        <table class="rs-table" style="margin-top:12px;">
+            <thead>
+                <tr><th>الصنف</th><th>الوحدة</th><th>@k.PriceLabel</th><th>بالفاتورة</th><th>مرتجع سابقًا</th><th>المتاح للإرجاع</th><th style="width:130px;">الكمية المرتجعة</th><th>الإجمالي</th></tr>
+            </thead>
+            <tbody>
+            @for (var i = 0; i < Model.Rows.Count; i++)
+            {
+                var r = Model.Rows[i];
+                var q = Model.QuantityFor(r.InvoiceItemId);
+                <tr data-ret-row data-price="@r.Price.ToString(System.Globalization.CultureInfo.InvariantCulture)">
+                    <td>@r.Name @if (!r.Tracked) { <small style="color:var(--muted);">(غير مخزني)</small> }</td>
+                    <td>@(r.Unit ?? "—")</td>
+                    <td>@N(r.Price)</td>
+                    <td dir="ltr" style="text-align:right;">@Q(r.Invoiced)</td>
+                    <td dir="ltr" style="text-align:right;">@Q(r.ReturnedBefore)</td>
+                    <td dir="ltr" style="text-align:right;font-weight:600;">@Q(r.Returnable)</td>
+                    <td>
+                        <input type="hidden" name="Lines[@i].InvoiceItemId" value="@r.InvoiceItemId" />
+                        <input type="number" name="Lines[@i].Quantity" class="form-control" data-ret-qty dir="ltr" step="any" min="0"
+                               max="@r.Returnable.ToString(System.Globalization.CultureInfo.InvariantCulture)"
+                               value="@(q > 0 ? q.ToString(System.Globalization.CultureInfo.InvariantCulture) : "")"
+                               disabled="@(r.Returnable <= 0)" placeholder="0" />
+                    </td>
+                    <td data-ret-line>0.00</td>
+                </tr>
+            }
+            </tbody>
+            <tfoot><tr><th colspan="7">قيمة المرتجع</th><th><span data-ret-total>0.00</span> ج.م</th></tr></tfoot>
+        </table>
+
+        <div class="card-tile" style="margin-top:12px;padding:12px 14px;">
+            <div style="font-weight:700;margin-bottom:6px;">💵 @k.RefundLabel</div>
+            <p style="color:var(--muted);font-size:12.5px;margin:0 0 10px;" data-ret-hint>
+                قيمة المرتجع تُخصم من المتبقي على الفاتورة، وما يزيد عنه يُرد نقدًا.
+            </p>
+            <div class="form-grid">
+                <div>
+                    <label asp-for="RefundAmount" class="form-label"></label>
+                    <input asp-for="RefundAmount" class="form-control" type="number" step="0.01" min="0" dir="ltr" data-ret-refund />
+                    <span asp-validation-for="RefundAmount" class="field-validation-error"></span>
+                </div>
+                <div>
+                    <label asp-for="RefundSafeId" class="form-label">@(k.IsSales ? "الخزنة (يُصرف منها)" : "الخزنة (يُستلم فيها)")</label>
+                    <select asp-for="RefundSafeId" class="form-control" asp-items="Model.Safes"><option value="">— اختر الخزنة —</option></select>
+                    <span asp-validation-for="RefundSafeId" class="field-validation-error"></span>
+                </div>
+            </div>
+        </div>
+
+        <button type="submit" class="btn-primary" style="margin-top:12px;">↩ حفظ @k.One</button>
+    }
+</form>

@@ -58,7 +58,7 @@
         <tbody>
         @foreach (var r in Model.Rows)
         {
-            var isPay = r.Kind == SupplierLedgerKind.Payment;
+            var isPay = r.Decreases;
             <tr>
                 <td>
                     @if (r.Kind == SupplierLedgerKind.Invoice && (ViewData["CanViewInvoices"] as bool? ?? false))
@@ -69,6 +69,10 @@
                     {
                         <a asp-controller="Orders" asp-action="Details" asp-route-id="@r.Id" style="color:var(--series-1);text-decoration:none;font-weight:600;">@r.Source</a>
                     }
+                    else if (r.Kind == SupplierLedgerKind.Return && User.Can(PermissionNames.PurchaseReturnsView))
+                    {
+                        <a asp-controller="PurchaseReturns" asp-action="Details" asp-route-id="@r.Id" style="color:var(--series-1);text-decoration:none;font-weight:600;">@r.Source</a>
+                    }
                     else
                     {
                         @r.Source
@@ -77,9 +81,13 @@
                 <td dir="ltr" style="text-align:right;">@D(r.Date)</td>
                 <td>
                     @r.Statement
-                    @if (isPay)
+                    @if (r.Kind == SupplierLedgerKind.Payment)
                     {
                         <a class="btn-sm" asp-controller="Payments" asp-action="Receipt" asp-route-id="@r.Id" target="_blank" style="margin-inline-start:8px;">🖨 طباعة</a>
+                    }
+                    else if (r.Kind == SupplierLedgerKind.Refund && User.Can(PermissionNames.PurchaseReturnsView))
+                    {
+                        <a class="btn-sm" asp-controller="PurchaseReturns" asp-action="RefundVoucher" asp-route-id="@r.Id" target="_blank" style="margin-inline-start:8px;">🖨 طباعة</a>
                     }
                 </td>
                 <td style="white-space:nowrap;color:var(--muted);">@N(r.BalanceBefore)</td>

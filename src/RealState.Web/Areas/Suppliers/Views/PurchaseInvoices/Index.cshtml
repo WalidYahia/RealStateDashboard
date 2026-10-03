@@ -10,7 +10,7 @@
     string PI(int n) => "PI-" + n;
     string PO(int n) => "PO-" + n.ToString("D4");
     var total = Model.Sum(r => r.Total);
-    var paid = Model.Sum(r => r.Paid);
+    var remaining = Model.Sum(r => r.Remaining);
 }
 <div class="page-head">
     <h1>فواتير المشتريات
@@ -49,12 +49,12 @@
 <div class="card-tile">
     <div class="card-head">
         <h3>الفواتير</h3>
-        <span class="pill">الفواتير: <span data-live-count="#invTable">@Model.Count</span> · الإجمالي: <span data-live-sum="#invTable:5">@N(total)</span> ج.م · المتبقي: <span data-live-sum="#invTable:7">@N(total - paid)</span> ج.م</span>
+        <span class="pill">الفواتير: <span data-live-count="#invTable">@Model.Count</span> · الإجمالي: <span data-live-sum="#invTable:5">@N(total)</span> ج.م · المتبقي: <span data-live-sum="#invTable:8">@N(remaining)</span> ج.م</span>
     </div>
     <div class="list-search-bar"><input class="form-control list-search" data-target="#invTable" placeholder="🔍 بحث في القائمة..." /></div>
     <table class="rs-table" id="invTable">
         <thead>
-            <tr><th>الرقم</th><th>التاريخ</th><th>المورد</th><th>المشروع</th><th>أمر التوريد</th><th>الإجمالي</th><th>المسدَّد</th><th>المتبقي</th><th></th></tr>
+            <tr><th>الرقم</th><th>التاريخ</th><th>المورد</th><th>المشروع</th><th>أمر التوريد</th><th>الإجمالي</th><th>المرتجعات</th><th>المسدَّد</th><th>المتبقي</th><th></th></tr>
         </thead>
         <tbody>
         @foreach (var i in Model)
@@ -79,11 +79,12 @@
                     }
                 </td>
                 <td>@N(i.Total)</td>
-                <td class="tag-up">@N(i.Paid)</td>
+                <td>@(i.Returned > 0 ? N(i.Returned) : "—")</td>
+                <td class="tag-up">@N(i.NetPaid)</td>
                 <td>@N(i.Remaining)</td>
                 <td style="white-space:nowrap;">
                     <a class="btn-sm" asp-action="Details" asp-route-id="@i.Id">التفاصيل</a>
-                    @if (canEdit)
+                    @if (canEdit && i.Returned == 0)
                     {
                         <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("Form", new { id = i.Id })', 'تعديل فاتورة المشتريات', 'xl')">✏️ تعديل</button>
                     }
@@ -92,9 +93,9 @@
         }
         @if (Model.Count == 0)
         {
-            <tr data-skip-search><td colspan="9" style="color:var(--muted)">لا توجد فواتير مشتريات.</td></tr>
+            <tr data-skip-search><td colspan="10" style="color:var(--muted)">لا توجد فواتير مشتريات.</td></tr>
         }
-        <tr data-no-results data-skip-search style="display:none;"><td colspan="9" style="color:var(--muted)">لا توجد نتائج مطابقة للبحث.</td></tr>
+        <tr data-no-results data-skip-search style="display:none;"><td colspan="10" style="color:var(--muted)">لا توجد نتائج مطابقة للبحث.</td></tr>
         </tbody>
     </table>
 </div>

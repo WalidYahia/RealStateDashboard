@@ -110,6 +110,12 @@ public class ApplicationDbContext
     public DbSet<ProductSalesInvoice> ProductSalesInvoices => Set<ProductSalesInvoice>();
     public DbSet<ProductSalesInvoiceItem> ProductSalesInvoiceItems => Set<ProductSalesInvoiceItem>();
     public DbSet<SalesInvoiceCollection> SalesInvoiceCollections => Set<SalesInvoiceCollection>();
+    public DbSet<CostRevaluation> CostRevaluations => Set<CostRevaluation>();
+    public DbSet<CostRevaluationLine> CostRevaluationLines => Set<CostRevaluationLine>();
+    public DbSet<ProductSalesReturn> ProductSalesReturns => Set<ProductSalesReturn>();
+    public DbSet<ProductSalesReturnItem> ProductSalesReturnItems => Set<ProductSalesReturnItem>();
+    public DbSet<PurchaseReturn> PurchaseReturns => Set<PurchaseReturn>();
+    public DbSet<PurchaseReturnItem> PurchaseReturnItems => Set<PurchaseReturnItem>();
     public DbSet<UserNavItem> UserNavItems => Set<UserNavItem>();
     public DbSet<Income> Incomes => Set<Income>();
     public DbSet<Expense> Expenses => Set<Expense>();
@@ -289,6 +295,41 @@ public class ApplicationDbContext
         builder.Entity<UserNavItem>().Property(x => x.Title).HasMaxLength(200);
         builder.Entity<UserNavItem>().Property(x => x.Url).HasMaxLength(400);
         builder.Entity<SalesInvoiceCollection>().HasOne<Safe>().WithMany().HasForeignKey(c => c.SafeId).OnDelete(DeleteBehavior.Restrict);
+
+        // Cost updates (تحديث تكلفة الأصناف): numbered per tenant; lines cascade with their document.
+        builder.Entity<CostRevaluation>().HasIndex(d => new { d.TenantId, d.Number }).IsUnique().HasFilter("[IsDeleted] = 0");
+        builder.Entity<CostRevaluationLine>().HasOne<CostRevaluation>().WithMany(d => d.Lines).HasForeignKey(l => l.CostRevaluationId).OnDelete(DeleteBehavior.Cascade);
+        builder.Entity<CostRevaluationLine>().HasOne(l => l.Product).WithMany().HasForeignKey(l => l.ProductId).OnDelete(DeleteBehavior.Restrict);
+        builder.Entity<CostRevaluationLine>().Property(l => l.Quantity).HasPrecision(18, 4);
+        builder.Entity<CostRevaluationLine>().Property(l => l.OldUnitCost).HasPrecision(18, 6);
+        builder.Entity<CostRevaluationLine>().Property(l => l.NewUnitCost).HasPrecision(18, 6);
+
+        // Returns (sales / purchase): one invoice each (restrict — an invoice with returns can't be deleted), the
+        // invoice's party + warehouse (restrict); items cascade with their return. The automatic stock documents
+        // point back at their return (SET NULL, like the invoices' ones).
+        builder.Entity<ProductSalesReturn>().HasIndex(r => new { r.TenantId, r.Number }).IsUnique().HasFilter("[IsDeleted] = 0");
+        builder.Entity<ProductSalesReturn>().HasOne(r => r.Invoice).WithMany().HasForeignKey(r => r.SalesInvoiceId).OnDelete(DeleteBehavior.Restrict);
+        builder.Entity<ProductSalesReturn>().HasOne(r => r.Customer).WithMany().HasForeignKey(r => r.CustomerId).OnDelete(DeleteBehavior.Restrict);
+        builder.Entity<ProductSalesReturn>().HasOne(r => r.Warehouse).WithMany().HasForeignKey(r => r.WarehouseId).OnDelete(DeleteBehavior.Restrict);
+        builder.Entity<ProductSalesReturnItem>().HasOne(i => i.Return).WithMany(r => r.Items).HasForeignKey(i => i.SalesReturnId).OnDelete(DeleteBehavior.Cascade);
+        builder.Entity<ProductSalesReturnItem>().HasOne(i => i.Product).WithMany().HasForeignKey(i => i.ProductId).OnDelete(DeleteBehavior.Restrict);
+        builder.Entity<ProductSalesReturnItem>().HasIndex(i => i.InvoiceItemId);
+        builder.Entity<ProductSalesReturnItem>().Property(i => i.Quantity).HasPrecision(18, 4);
+        builder.Entity<ProductSalesReturnItem>().Property(i => i.Price).HasPrecision(18, 4);
+        builder.Entity<ProductSalesReturnItem>().Property(i => i.UnitFactor).HasPrecision(18, 6);
+        builder.Entity<GoodsReceipt>().HasOne<ProductSalesReturn>().WithMany().HasForeignKey(r => r.SalesReturnId).OnDelete(DeleteBehavior.SetNull);
+
+        builder.Entity<PurchaseReturn>().HasIndex(r => new { r.TenantId, r.Number }).IsUnique().HasFilter("[IsDeleted] = 0");
+        builder.Entity<PurchaseReturn>().HasOne(r => r.Invoice).WithMany().HasForeignKey(r => r.PurchaseInvoiceId).OnDelete(DeleteBehavior.Restrict);
+        builder.Entity<PurchaseReturn>().HasOne(r => r.Supplier).WithMany().HasForeignKey(r => r.SupplierId).OnDelete(DeleteBehavior.Restrict);
+        builder.Entity<PurchaseReturn>().HasOne(r => r.Warehouse).WithMany().HasForeignKey(r => r.WarehouseId).OnDelete(DeleteBehavior.Restrict);
+        builder.Entity<PurchaseReturnItem>().HasOne(i => i.Return).WithMany(r => r.Items).HasForeignKey(i => i.PurchaseReturnId).OnDelete(DeleteBehavior.Cascade);
+        builder.Entity<PurchaseReturnItem>().HasOne(i => i.Product).WithMany().HasForeignKey(i => i.ProductId).OnDelete(DeleteBehavior.Restrict);
+        builder.Entity<PurchaseReturnItem>().HasIndex(i => i.InvoiceItemId);
+        builder.Entity<PurchaseReturnItem>().Property(i => i.Quantity).HasPrecision(18, 4);
+        builder.Entity<PurchaseReturnItem>().Property(i => i.Cost).HasPrecision(18, 4);
+        builder.Entity<PurchaseReturnItem>().Property(i => i.UnitFactor).HasPrecision(18, 6);
+        builder.Entity<GoodsIssue>().HasOne<PurchaseReturn>().WithMany().HasForeignKey(r => r.PurchaseReturnId).OnDelete(DeleteBehavior.SetNull);
 
         // Contracting: work orders reference a contractor + project (restrict); logs cascade with their order;
         // payments restrict (deletes handled in code).

@@ -116,6 +116,16 @@ public class AccountingService : IAccountingService
                 return new LedgerLine(LedgerAccounts.AccountsReceivable, 0, 0,
                     SubKind: "Customer", SubRefId: invCust, SubName: await NameAsync("Customer", invCust), CustomerId: invCust);
 
+            case TxnSource.SalesReturnRefund when customerId is Guid retCust:
+                // Cash refunded to the customer for a sales return gives back the credit the return booked (Dr العملاء).
+                return new LedgerLine(LedgerAccounts.AccountsReceivable, 0, 0,
+                    SubKind: "Customer", SubRefId: retCust, SubName: await NameAsync("Customer", retCust), CustomerId: retCust);
+
+            case TxnSource.PurchaseReturnRefund when supplierId is Guid retSup:
+                // Cash the supplier paid back for a purchase return settles what the return left them owing (Cr الموردون).
+                return new LedgerLine(LedgerAccounts.AccountsPayable, 0, 0,
+                    SubKind: "Supplier", SubRefId: retSup, SubName: await NameAsync("Supplier", retSup), SupplierId: retSup, ProjectId: projectId);
+
             case TxnSource.SupplierPayment when supplierId is Guid sup:
                 return new LedgerLine(LedgerAccounts.AccountsPayable, 0, 0,
                     SubKind: "Supplier", SubRefId: sup, SubName: await NameAsync("Supplier", sup), SupplierId: sup);
@@ -276,6 +286,74 @@ public class AccountingService : IAccountingService
             new LedgerLine(LedgerAccounts.AccountsReceivable, total, 0, desc,
                 SubKind: "Customer", SubRefId: inv.CustomerId, SubName: custName, CustomerId: inv.CustomerId),
             new LedgerLine(revenueCode, 0, total, desc, CustomerId: inv.CustomerId),
+        }, ct);
+    }
+
+    public async Task SyncSalesReturnAsync(ProductSalesReturn ret, int invoiceNumber, IReadOnlyList<ProductSalesReturnItem> items, CancellationToken ct = default)
+    {
+        await _engine.RemoveBySourceAsync(AccountingSources.SalesReturn, ret.Id, ct);
+        var total = items.Sum(i => i.LineTotal);
+        if (total <= 0) return;
+        var custName = await _db.Customers.IgnoreQueryFilters().Where(c => c.Id == ret.CustomerId).Select(c => c.FullName).FirstOrDefaultAsync(ct);
+        var desc = $"مرتجع مبيعات SR-{ret.Number} على الفاتورة SI-{invoiceNumber}";
+
+        // Dr مردودات المبيعات / Cr العملاء — the return is a credit on the customer's receivable. The stock side
+        // (Dr المخزون / Cr تكلفة المبيعات) is posted by the return's automatic goods receipt.
+        await _engine.PostAsync(ret.ReturnDate, desc, AccountingSources.SalesReturn, ret.Id, new[]
+        {
+            new LedgerLine(LedgerAccounts.SalesReturns, total, 0, desc, CustomerId: ret.CustomerId),
+            new LedgerLine(LedgerAccounts.AccountsReceivable, 0, total, desc,
+                SubKind: "Customer", SubRefId: ret.CustomerId, SubName: custName, CustomerId: ret.CustomerId),
+        }, ct);
+    }
+
+    public async Task SyncPurchaseReturnAsync(PurchaseReturn ret, int invoiceNumber, IReadOnlyList<PurchaseReturnItem> items,
+        decimal stockValue, decimal stockIssueCost, CancellationToken ct = default)
+    {
+        await _engine.RemoveBySourceAsync(AccountingSources.PurchaseReturn, ret.Id, ct);
+        var total = items.Sum(i => i.LineTotal);
+        if (total <= 0) return;
+        var grniCode = await _db.InventoryPostingProfiles.Select(p => p.PurchaseGrniCode).FirstOrDefaultAsync(ct);
+        if (string.IsNullOrWhiteSpace(grniCode)) grniCode = LedgerAccounts.GoodsReceivedNotInvoiced;
+        var supName = await _db.Suppliers.IgnoreQueryFilters().Where(s => s.Id == ret.SupplierId).Select(s => s.Name).FirstOrDefaultAsync(ct);
+        var desc = $"مرتجع مشتريات PR-{ret.Number} على الفاتورة PI-{invoiceNumber}";
+
+        // Dr الموردون (the whole return) / Cr GRNI by what the goods issue took out of stock (it debited GRNI by the
+        // same amount, so GRNI nets to zero) / Cr مردودات المشتريات for non-stock lines. The issue takes the goods out
+        // at their invoice cost; only if the stock on hand was worth less does a difference remain, booked as an
+        // inventory loss / gain so the entry stays balanced.
+        var otherValue = total - stockValue;
+        var diff = stockValue - stockIssueCost;
+        var lines = new List<LedgerLine>
+        {
+            new(LedgerAccounts.AccountsPayable, total, 0, desc,
+                SubKind: "Supplier", SubRefId: ret.SupplierId, SubName: supName, SupplierId: ret.SupplierId, ProjectId: ret.ProjectId),
+        };
+        if (stockIssueCost > 0)
+            lines.Add(new LedgerLine(grniCode, 0, stockIssueCost, $"{desc} — أصناف مخزنية", SupplierId: ret.SupplierId, ProjectId: ret.ProjectId));
+        if (otherValue > 0)
+            lines.Add(new LedgerLine(LedgerAccounts.PurchaseReturns, 0, otherValue, $"{desc} — أصناف غير مخزنية", SupplierId: ret.SupplierId, ProjectId: ret.ProjectId));
+        if (diff > 0)
+            lines.Add(new LedgerLine(LedgerAccounts.OtherRevenue, 0, diff, $"{desc} — فرق تكلفة المرتجع", ProjectId: ret.ProjectId));
+        else if (diff < 0)
+            lines.Add(new LedgerLine(LedgerAccounts.GeneralExpenses, -diff, 0, $"{desc} — فرق تكلفة المرتجع", ProjectId: ret.ProjectId));
+
+        await _engine.PostAsync(ret.ReturnDate, desc, AccountingSources.PurchaseReturn, ret.Id, lines, ct);
+    }
+
+    public async Task SyncAdvanceSalaryDeductionAsync(AdvanceRepayment repayment, Advance advance, CancellationToken ct = default)
+    {
+        await _engine.RemoveBySourceAsync(AccountingSources.AdvanceSalaryDeduction, repayment.Id, ct);
+        if (repayment.Status != PayStatus.Paid || repayment.IncomeTxnId is not null || repayment.Amount <= 0) return;
+        var empName = await _db.Employees.IgnoreQueryFilters().Where(e => e.Id == advance.EmployeeId).Select(e => e.FullName).FirstOrDefaultAsync(ct);
+        var desc = $"خصم قسط السلفة ADV-{advance.Number:D4} رقم {repayment.SeqNo} من الراتب";
+        // The installment was withheld from the employee's salary: the salary it settles is an expense, and the
+        // advance the employee owed goes down by it.
+        await _engine.PostAsync(repayment.PaidDate ?? DateTime.Today, desc, AccountingSources.AdvanceSalaryDeduction, repayment.Id, new[]
+        {
+            new LedgerLine(LedgerAccounts.SalariesAndRewards, repayment.Amount, 0, desc, EmployeeId: advance.EmployeeId),
+            new LedgerLine(LedgerAccounts.EmployeeAdvances, 0, repayment.Amount, desc,
+                SubKind: "Employee", SubRefId: advance.EmployeeId, SubName: empName, EmployeeId: advance.EmployeeId),
         }, ct);
     }
 

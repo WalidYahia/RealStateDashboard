@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using RealState.Application.Accounting;
 using RealState.Application.Common;
 using RealState.Application.Entities;
 using RealState.Application.Interfaces;
@@ -115,9 +116,10 @@ public class SuppliersController : Controller
     }
 
     /// <summary>An obligation (purchase invoice, or legacy order) with its total and what's been paid on it.</summary>
-    private sealed record Obligation(SupplierLedgerKind Kind, Guid Id, string Label, DateTime Date, string Statement, decimal Total, decimal Paid)
+    /// <summary>Paid is net of refunds; Returned is the value of the invoice's purchase returns.</summary>
+    private sealed record Obligation(SupplierLedgerKind Kind, Guid Id, string Label, DateTime Date, string Statement, decimal Total, decimal Paid, decimal Returned = 0)
     {
-        public decimal Remaining => Total - Paid;
+        public decimal Remaining => Total - Returned - Paid;
     }
 
     /// <summary>The supplier's obligations: every purchase invoice, plus legacy orders that still carry the supplier.</summary>
@@ -136,6 +138,8 @@ public class SuppliersController : Controller
         var payments = await _db.SupplierPayments.Where(p => p.SupplierId == supplierId).ToListAsync(ct);
         var paidByInvoice = payments.Where(p => p.PurchaseInvoiceId.HasValue)
             .GroupBy(p => p.PurchaseInvoiceId!.Value).ToDictionary(g => g.Key, g => g.Sum(x => x.Amount));
+        // Purchase returns lower an invoice's total; cash the supplier refunded through them is no longer "paid".
+        var returns = await InvoiceReturns.PurchaseAsync(_db, invIds, ct);
         var paidByOrder = payments.Where(p => p.SupplierOrderId.HasValue)
             .GroupBy(p => p.SupplierOrderId!.Value).ToDictionary(g => g.Key, g => g.Sum(x => x.Amount));
 
@@ -148,8 +152,10 @@ public class SuppliersController : Controller
         return invoices.Select(i =>
             {
                 var items = invItems.GetValueOrDefault(i.Id, new());
+                var r = returns.GetValueOrDefault(i.Id);
                 return new Obligation(SupplierLedgerKind.Invoice, i.Id, $"فاتورة مشتريات رقم {PI(i.Number)}", i.InvoiceDate,
-                    Names(items.Select(x => x.Name), "فاتورة مشتريات"), items.Sum(x => x.LineTotal), paidByInvoice.GetValueOrDefault(i.Id, 0));
+                    Names(items.Select(x => x.Name), "فاتورة مشتريات"), items.Sum(x => x.LineTotal),
+                    paidByInvoice.GetValueOrDefault(i.Id, 0) - r.Refunded, r.Returned);
             })
             .Concat(orders.Select(o =>
             {
@@ -164,6 +170,12 @@ public class SuppliersController : Controller
     {
         var obligations = await ObligationsAsync(supplier.Id, ct);
         var payments = await _db.SupplierPayments.Where(p => p.SupplierId == supplier.Id).ToListAsync(ct);
+        var rets = await _db.PurchaseReturns.Where(r => r.SupplierId == supplier.Id).ToListAsync(ct);
+        var retIds = rets.Select(r => r.Id).ToList();
+        var retTotals = await _db.PurchaseReturnItems.Where(i => retIds.Contains(i.PurchaseReturnId)).GroupBy(i => i.PurchaseReturnId)
+            .Select(g => new { g.Key, Sum = g.Sum(x => x.LineTotal) }).ToDictionaryAsync(x => x.Key, x => x.Sum, ct);
+        var invNos = await _db.PurchaseInvoices.Where(i => i.SupplierId == supplier.Id).ToDictionaryAsync(i => i.Id, i => i.Number, ct);
+        string InvLabel(Guid id) => invNos.TryGetValue(id, out var n) ? PI(n) : "—";
 
         // Build one ledger row per obligation (+) and per payment (settlement, −).
         var rows = obligations.Select(o => new SupplierLedgerRow
@@ -180,15 +192,28 @@ public class SuppliersController : Controller
             ReceiptNo = p.ReceiptNo,
             Amount = p.Amount
         }));
+        // Purchase returns (debit notes, −) and the cash the supplier refunded through them (+).
+        rows.AddRange(rets.Select(r => new SupplierLedgerRow
+        {
+            Kind = SupplierLedgerKind.Return, Id = r.Id, Source = $"مرتجع مشتريات رقم PR-{r.Number}", Date = r.ReturnDate,
+            Statement = $"مرتجع على الفاتورة {InvLabel(r.PurchaseInvoiceId)}" + (string.IsNullOrWhiteSpace(r.Notes) ? "" : $" — {r.Notes}"),
+            Amount = retTotals.GetValueOrDefault(r.Id)
+        }));
+        rows.AddRange(rets.Where(r => r.RefundAmount > 0).Select(r => new SupplierLedgerRow
+        {
+            Kind = SupplierLedgerKind.Refund, Id = r.Id, Source = "إيصال استلام نقدية", Date = r.ReturnDate,
+            Statement = $"استرداد نقدية عن مرتجع المشتريات PR-{r.Number} (إيصال استلام نقدية رقم {r.RefundVoucherNo})",
+            ReceiptNo = r.RefundVoucherNo ?? 0, Amount = r.RefundAmount
+        }));
 
         // Chronological running balance (owed to supplier) over ALL rows — obligations before payments on
         // the same date — so each row's balance stays correct even when the list is date-filtered.
-        var ordered = rows.OrderBy(r => r.Date).ThenBy(r => r.IsObligation ? 0 : 1).ToList();
+        var ordered = rows.OrderBy(r => r.Date).ThenBy(r => r.DayOrder).ToList();
         decimal running = 0;
         foreach (var r in ordered)
         {
             r.BalanceBefore = running;
-            running += r.IsObligation ? r.Amount : -r.Amount;
+            running += r.Decreases ? -r.Amount : r.Amount;
             r.Balance = running;
         }
 
@@ -204,8 +229,9 @@ public class SuppliersController : Controller
             Supplier = supplier,
             From = from,
             To = to,
-            TotalObligations = obligations.Sum(o => o.Total),
-            TotalPaid = payments.Sum(p => p.Amount),
+            // Net of purchase returns, and of the cash the supplier refunded through them.
+            TotalObligations = obligations.Sum(o => o.Total - o.Returned),
+            TotalPaid = payments.Sum(p => p.Amount) - rets.Sum(r => r.RefundAmount),
             InvoicesCount = obligations.Count,
             PaymentsCount = payments.Count,
             // The pay button shows when ANY single document still has an outstanding balance — independent of

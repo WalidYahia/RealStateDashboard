@@ -16,12 +16,15 @@ public class SafesController : Controller
     private readonly IApplicationDbContext _db;
     private readonly ICurrentUserService _currentUser;
     private readonly RealState.Application.Accounting.IAccountingService _accounting;
+    private readonly RealState.Application.Accounting.ISafeBalanceGuard _guard;
 
-    public SafesController(IApplicationDbContext db, ICurrentUserService currentUser, RealState.Application.Accounting.IAccountingService accounting)
+    public SafesController(IApplicationDbContext db, ICurrentUserService currentUser, RealState.Application.Accounting.IAccountingService accounting,
+        RealState.Application.Accounting.ISafeBalanceGuard guard)
     {
         _db = db;
         _currentUser = currentUser;
         _accounting = accounting;
+        _guard = guard;
     }
 
     private bool Can(string permission) => User.HasClaim("permission", permission);
@@ -87,6 +90,13 @@ public class SafesController : Controller
         {
             safe = await _db.Safes.FirstOrDefaultAsync(x => x.Id == model.Id, ct);
             if (safe is null) return NotFound();
+            // Lowering the opening balance takes money out of the safe — «سحب على المكشوف» applies.
+            if (model.InitialAmount < safe.InitialAmount
+                && await _guard.CheckChangesAsync(new[] { (safe.Id, model.InitialAmount - safe.InitialAmount) }, ct) is string overdraw)
+            {
+                ModelState.AddModelError(nameof(model.InitialAmount), overdraw);
+                return PartialView("_SafeForm", model);
+            }
             overdraftBefore = safe.AllowOverdraft;
             safe.Name = model.Name; safe.Type = model.Type; safe.InitialAmount = model.InitialAmount; safe.IsActive = model.IsActive;
         }
@@ -113,6 +123,7 @@ public class SafesController : Controller
             TempData["StatusMessage"] = "لا يمكن حذف خزنة لها حركات.";
             return RedirectToAction(nameof(Index));
         }
+        await _accounting.RemoveObligationAsync("SafeOpening", s.Id, ct);   // its opening-balance entry goes with it
         _db.Safes.Remove(s);
         await _db.SaveChangesAsync(ct);
         TempData["StatusMessage"] = $"تم حذف الخزنة «{s.Name}».";

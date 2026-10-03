@@ -20,6 +20,8 @@ public enum TxnSource
     ContractorPayment = 7,   // سداد دفعة لمقاول على أمر شغل (مصروف)
     SafeTransfer = 8,        // تحويل نقدية بين الخزائن (منصرف من خزنة / وارد إلى أخرى) — ليس إيرادًا ولا مصروفًا
     SalesInvoiceCollection = 9, // تحصيل من عميل على فاتورة مبيعات (إيراد)
+    SalesReturnRefund = 10,     // رد نقدية لعميل عن مرتجع مبيعات (مصروف — يعيد ذمة العميل)
+    PurchaseReturnRefund = 11,  // استرداد نقدية من مورد عن مرتجع مشتريات (إيراد — يعيد ذمة المورد)
 }
 
 /// <summary>Kind of safe (نوع الخزنة) — where the money is held.</summary>
