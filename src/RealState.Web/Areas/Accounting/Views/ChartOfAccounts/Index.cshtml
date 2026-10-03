@@ -81,6 +81,20 @@
         color: #7184b0;
     }
 
+    .coa-indent { width: calc(var(--d, 0) * 20px); }
+
+    /* Phones: the name gets the room — no type column, tighter indent, row actions always shown (no hover on touch). */
+    @@media (max-width: 720px) {
+        .coa-head .coa-type, .coa-row .coa-type { display: none; }
+        .coa-head-lead { width: 34px; }
+        .coa-row { gap: 6px; padding: 6px 4px; }
+        .coa-indent { width: calc(var(--d, 0) * 10px); }
+        .coa-acct { flex-wrap: wrap; gap: 0 6px; }
+        .coa-nm { white-space: normal; }
+        .coa-bal { width: auto; font-size: 13px; }
+        .coa-actions { width: auto; visibility: visible; }        .coa-search { max-width: none; flex: 1 1 100%; }
+    }
+
     .coa-hide { display: none !important; }
     .coa-hit > .coa-row { background: rgba(57,135,229,.16); }
     .coa-li.dragging > .coa-row { opacity: .45; }

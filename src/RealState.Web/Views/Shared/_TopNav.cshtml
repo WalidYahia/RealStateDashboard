@@ -29,6 +29,8 @@
         else crumbs[^1] = (loc.Module.Title, null);
     }
     else if (!isHome && title.Length > 0) crumbs.Add((title, null));
+    // The «الرئيسية» module shares its name with the root crumb: الرئيسية › مهامي, not الرئيسية › الرئيسية › مهامي.
+    if (crumbs.Count > 1 && crumbs[0].Text == "الرئيسية") crumbs.RemoveAt(0);
     var starKey = loc?.Page is { } sp && loc.IsPageItself && !sp.Soon ? sp.Key : null;
 
     // Account

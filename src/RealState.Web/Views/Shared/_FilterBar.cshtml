@@ -14,7 +14,7 @@
     // Active states are rendered server-side (no flash on load); filter-bar.js keeps them live afterwards.
     var rangeOn = r is not null && (!string.IsNullOrEmpty(r.From) || !string.IsNullOrEmpty(r.To));
 }
-<div class="card-tile fb">
+<div class="card-tile fb @(hasBody ? "fb-collapsible" : "")">
     <form action="@Model.Action" method="get" class="fb-form" id="@Model.FormId">
         @foreach (var h in Model.Hidden)
         {
@@ -35,6 +35,13 @@
             @if (Model.ResetUrl is string reset)
             {
                 <a class="fb-reset" href="@reset" title="إعادة الفلاتر للوضع الافتراضي">↺ مسح الفلاتر</a>
+            }
+            @if (hasBody)
+            {
+                @* Phones: the filters start folded under this header; filter-bar.js toggles them. *@
+                <button type="button" class="fb-toggle" aria-expanded="false" aria-label="إظهار الفلاتر">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6" /></svg>
+                </button>
             }
         </div>
 

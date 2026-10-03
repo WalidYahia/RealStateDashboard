@@ -17,7 +17,7 @@
 <li class="coa-li" draggable="@(canManage ? "true" : "false")" data-id="@Model.Id" data-system="@(Model.IsSystem ? "1" : "0")"
     data-search="@((Model.Code + " " + Model.Name).ToLower())">
     <div class="coa-row @(hasChildren ? "coa-group" : "") @(Model.Depth == 0 ? "coa-main" : "")">
-        <span class="coa-indent" style="width:@(Model.Depth * 20)px"></span>
+        <span class="coa-indent" style="--d:@Model.Depth"></span>
         <span class="coa-toggle" onclick="coaToggle(event, this)">@(hasChildren ? "▾" : "")</span>
         <span class="coa-ico">@icon</span>
         <span class="coa-acct">

@@ -59,6 +59,16 @@
         if (field && el.matches('select')) field.classList.toggle('fb-on', !!el.value);
     });
 
+    // Phones: tapping the header (or its chevron) folds / unfolds the filters; the reset link keeps its own job.
+    document.addEventListener('click', function (e) {
+        var head = e.target.closest ? e.target.closest('.fb-collapsible .fb-head') : null;
+        if (!head || e.target.closest('.fb-reset')) return;
+        var toggle = head.querySelector('.fb-toggle');
+        if (!toggle || getComputedStyle(toggle).display === 'none') return;
+        var open = head.closest('.fb').classList.toggle('fb-open');
+        toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
+
     function init() { document.querySelectorAll('[data-fb-range]').forEach(sync); }
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 })();

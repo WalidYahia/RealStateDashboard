@@ -17,6 +17,9 @@ public static class AppCulture
         c.NumberFormat.NumberDecimalSeparator = ".";
         c.NumberFormat.CurrencyDecimalSeparator = ".";
         c.NumberFormat.PercentDecimalSeparator = ".";
+        // ar-EG's date separator is "‏/" (a right-to-left mark + slash): inside a dir="ltr" cell that mark
+        // scrambles "2026/08/22" into "202622/08/". A plain slash renders the same date correctly everywhere.
+        c.DateTimeFormat.DateSeparator = "/";
         return CultureInfo.ReadOnly(c);   // shared + immutable, so it is safe as a static
     }
 }

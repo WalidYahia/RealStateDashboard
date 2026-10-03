@@ -188,8 +188,25 @@ html.theme-fading, html.theme-fading *, html.theme-fading *::before, html.theme-
 .fb-submit:hover { filter: brightness(1.08); }
 .fb-submit:active { transform: translateY(1px); }
 
+.fb-toggle { display: none; }
 @media (max-width: 720px) {
     .fb-range, .fb-wide { grid-column: 1 / -1; }
+    /* Filters start folded: the header (title + active count) opens them. */
+    .fb-collapsible .fb-head { cursor: pointer; padding: 10px 14px; }
+    .fb-toggle {
+        display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; padding: 0; margin-inline-start: 4px;
+        border: 1px solid var(--border); border-radius: 9px; background: var(--surface-2); color: var(--text-secondary); cursor: pointer;
+    }
+    .fb-toggle svg { transition: transform .15s; }
+    .fb-open .fb-toggle svg { transform: rotate(180deg); }
+    /* Folded: the summary and print / Excel stay reachable; «بحث» returns with the fields. */
+    .fb-collapsible:not(.fb-open) .fb-body, .fb-collapsible:not(.fb-open) .fb-submit { display: none; }
+    .fb-collapsible:not(.fb-open) .fb-foot:not(:has(.fb-btn, .fb-summary:not(:empty))) { display: none; }
+    .fb-collapsible:not(.fb-open) .fb-foot .fb-btn { flex: 1; justify-content: center; }
+    .fb-collapsible .fb-head { justify-content: flex-start; gap: 6px; }
+    .fb-collapsible .fb-title { margin-inline-end: auto; }
+    .fb-body { padding: 14px; gap: 14px; }
+    .fb-foot { padding: 12px 14px; }
     .fb-actions { width: 100%; }
     .fb-submit { flex: 1; justify-content: center; }
 }
@@ -632,7 +649,36 @@ select.form-control { appearance: auto; }
         opacity: 0; pointer-events: none; transition: opacity .25s ease;
     }
     :root.sb-open .sb-backdrop { opacity: 1; pointer-events: auto; }
-    .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+
+    /* ---- Phones: one readable column, nothing wider than the screen ---- */
+    .content { padding: 16px 12px 24px; }
+    .main { overflow-x: clip; }
+    /* KPI cards: two per row; layout grids (often set inline per page): stacked. */
+    .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 10px; }
+    .kpi-grid > :last-child:nth-child(odd) { grid-column: 1 / -1; }
+    .kpi { padding: 12px; }
+    .kpi-value { font-size: 20px; }
+    .grid-row, .content [style*="grid-template-columns"]:not(.kpi-grid) { grid-template-columns: minmax(0, 1fr) !important; }
+    .form-grid { grid-template-columns: minmax(0, 1fr); }
+    /* Page header: title on its own line, actions wrap under it. */
+    .page-head { flex-wrap: wrap; align-items: flex-start; gap: 10px; }
+    .page-head > div:last-child:not(:first-child) { display: flex; flex-wrap: wrap; gap: 6px; max-width: 100%; }
+    .page-head h1 { font-size: 21px; }
+    .card-tile { padding: 14px; min-width: 0; }
+    .card-head { flex-wrap: wrap; gap: 8px; }
+    /* Tables scroll inside their card (responsive.js wraps them); cells keep one line, so columns stay readable. */
+    .table-scroll { margin-inline: -4px; padding-inline: 4px; }
+    .rs-table th, .rs-table td { white-space: nowrap; padding: 9px 8px; }
+    .rs-table td .btn-sm, .rs-table td .btn-new-tenant { padding: 4px 8px; }
+    .grid-toolbar { gap: 8px; }
+    .grid-search { flex: 1 1 100%; }
+    /* Tabs scroll sideways instead of wrapping into several rows. */
+    .subtabs { overflow-x: auto; flex-wrap: nowrap; scrollbar-width: none; }
+    .subtabs > * { flex: none; }
+    /* Modals use the whole width. */
+    #appModal .modal-dialog { margin: 8px; max-width: none; }
+    #appModal .modal-body { padding: 14px; }
+    .status-message { font-size: 12.5px; }
 }
 
 /* =====================================================================================================
@@ -810,6 +856,9 @@ kbd { font-family: inherit; font-size: 11px; padding: 2px 7px; border-radius: 6p
     .tb-bar .tb-icon { width: 36px; }
     .tb-end .tb-fav, .tb-end .theme-toggle { display: none; }
     .tb-pop .tb-pop-phone { display: flex; }
+    /* Menus open as a full-width sheet under the bar, so none runs off either edge. */
+    .tb-pop, .tb-pop-start { position: fixed; top: 70px; inset-inline: 8px; min-width: 0; max-height: calc(100vh - 86px); }
+    .tb-pop-grid { min-width: 0; }
 }
 
 /* ---- favorite star (cards + current page) ---- */
