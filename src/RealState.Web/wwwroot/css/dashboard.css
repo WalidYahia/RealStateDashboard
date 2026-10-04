@@ -856,9 +856,25 @@ kbd { font-family: inherit; font-size: 11px; padding: 2px 7px; border-radius: 6p
     .tb-bar .tb-icon { width: 36px; }
     .tb-end .tb-fav, .tb-end .theme-toggle { display: none; }
     .tb-pop .tb-pop-phone { display: flex; }
+    /* No search button in the bar on phones (the workspace hero keeps its search box). */
+    .tb-bar .tb-search { display: none; }
+    .topbar.tb-bar { grid-template-columns: auto minmax(0, 1fr); }
     /* Menus open as a full-width sheet under the bar, so none runs off either edge. */
     .tb-pop, .tb-pop-start { position: fixed; top: 70px; inset-inline: 8px; min-width: 0; max-height: calc(100vh - 86px); }
     .tb-pop-grid { min-width: 0; }
+}
+/* Touch screens (any width) have no Ctrl K. */
+@media (hover: none) and (pointer: coarse) {
+    .ws-search kbd, .tb-search kbd, .pal-input kbd { display: none; }
+}
+/* Narrow phones (≈360px): a smaller logo and tighter spacing keep every top-bar button clear of its neighbours. */
+@media (max-width: 400px) {
+    .topbar.tb-bar { padding: 0 10px; gap: 6px; }
+    .tb-start { gap: 2px; }
+    .tb-brand { margin-inline: 4px; }
+    .tb-brand .brand-logo { max-width: 92px; max-height: 38px; }
+    .tb-bar .tb-icon { width: 34px; }
+    .tb-new { width: 36px; }
 }
 
 /* ---- favorite star (cards + current page) ---- */
@@ -985,10 +1001,13 @@ kbd { font-family: inherit; font-size: 11px; padding: 2px 7px; border-radius: 6p
 @media (max-width: 560px) {
     .ws-hero { padding: 18px; }
     .ws-search { flex: 1 1 100%; min-width: 0; height: 44px; }
+    .ws-search kbd, .pal-input kbd { display: none; }
     .ws-modules, .ws-pages { grid-template-columns: 1fr 1fr; gap: 10px; }
     .ws-module { padding: 14px; }
     .ws-card-link { flex-direction: column; gap: 10px; padding: 14px; padding-inline-end: 14px; }
-    .ws-card-desc, .ws-go { display: none; }
+    .ws-go { display: none; }
+    /* Descriptions stay (as on desktop), a little smaller and at most three lines in the narrow cards. */
+    .ws-card-desc { font-size: 12px; line-height: 1.6; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 }
 @media (max-width: 380px) { .ws-modules, .ws-pages { grid-template-columns: 1fr; } }
 @media (prefers-reduced-motion: reduce) {
