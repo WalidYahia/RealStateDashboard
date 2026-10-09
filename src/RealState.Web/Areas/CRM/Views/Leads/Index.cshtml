@@ -95,7 +95,7 @@
             <tr data-search="@(((l.Name ?? "") + " " + (l.Phone ?? "")).ToLower())">
                 @if (canAssign) { <td class="bulk-col"><input type="checkbox" class="lead-select" value="@l.Id" /></td> }
                 <td><a asp-controller="Customers" asp-action="Details" asp-route-id="@l.Id" asp-route-returnUrl="@returnUrl" style="color:var(--series-1);text-decoration:none;font-weight:600;">@l.Name</a></td>
-                <td dir="ltr" style="text-align:right;">@l.Phone</td>
+                <td><span class="phone-cell"><span dir="ltr">@l.Phone</span>@ContactLinks.Buttons(l.Phone)</span></td>
                 <td dir="ltr" style="text-align:right;">@D(l.CreatedOn)</td>
                 <td>@l.SourceLabel</td>
                 <td>@(l.CampaignName ?? "—")</td>

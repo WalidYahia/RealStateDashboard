@@ -30,7 +30,7 @@
     <div class="kpi k-tasks"><div class="kpi-label">السعر الإجمالي</div><div class="kpi-value">@N(Model.TotalPrice) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">المقدم @N(Model.DownPayment)</div></div>
     <div class="kpi k-sales"><div class="kpi-label">المحصّل</div><div class="kpi-value">@N(paid) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">من الأقساط والمقدم</div></div>
     <div class="kpi k-alerts"><div class="kpi-label">المتبقي</div><div class="kpi-value">@N(remaining) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">@installments.Count(i => !i.IsPaid) قسط متبقٍ</div></div>
-    <div class="kpi k-reserve"><div class="kpi-label">الأقساط</div><div class="kpi-value">@Model.InstallmentsCount</div><div class="kpi-foot">@Model.Step.Ar()</div></div>
+    <div class="kpi k-reserve"><div class="kpi-label">الأقساط</div><div class="kpi-value">@Model.InstallmentsCount</div><div class="kpi-foot">@(Model.IsManualSchedule ? "جدول يدوي" : Model.Step.Ar())</div></div>
 </div>
 
 <div class="card-tile">

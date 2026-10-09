@@ -26,6 +26,12 @@ public class SaleContract : AuditableEntity, ITenantEntity
     public decimal DownPayment { get; set; }
     public int InstallmentsCount { get; set; }
     public InstallmentStep Step { get; set; }
+
+    /// <summary>
+    /// True when the installment dates/amounts were entered by hand instead of generated from
+    /// first-date + count + <see cref="Step"/> (which are then informational only).
+    /// </summary>
+    public bool IsManualSchedule { get; set; }
     public string? Notes { get; set; }
 
     public ICollection<Installment> Installments { get; set; } = new List<Installment>();

@@ -27,7 +27,7 @@
         {
             <tr data-search="@(((c.FullName ?? "") + " " + (c.Phone ?? "")).ToLower())">
                 <td>@c.FullName</td>
-                <td dir="ltr" style="text-align:right;">@c.Phone</td>
+                <td><span class="phone-cell"><span dir="ltr">@c.Phone</span>@ContactLinks.Buttons(c.Phone)</span></td>
                 <td dir="ltr" style="text-align:right;">@c.Email</td>
                 <td>@c.SourceLabel(campaignNames)</td>
                 <td>@(c.SalesPersonId.HasValue && salesNames.TryGetValue(c.SalesPersonId.Value, out var sn) ? sn : "—")</td>

@@ -158,7 +158,9 @@ public class SalesController : Controller
             ContractDate = c.ContractDate, ReceiveDate = c.ReceiveDate,
             FirstInstallmentDate = firstInst?.DueDate ?? c.ContractDate,
             TotalPrice = c.TotalPrice, DownPayment = c.DownPayment, InstallmentsCount = c.InstallmentsCount,
-            Step = c.Step, Notes = c.Notes,
+            Step = c.Step, Notes = c.Notes, IsManualSchedule = c.IsManualSchedule,
+            ManualDates = insts.Where(i => i.Number > 0).OrderBy(i => i.Number).Select(i => (DateTime?)i.DueDate).ToList(),
+            ManualAmounts = insts.Where(i => i.Number > 0).OrderBy(i => i.Number).Select(i => (decimal?)i.Amount).ToList(),
             CustomerName = await _db.Customers.Where(x => x.Id == c.CustomerId).Select(x => x.FullName).FirstOrDefaultAsync(ct),
             UnitName = await _db.ProjectUnits.Where(x => x.Id == c.UnitId)
                 .Select(x => x.Name + (string.IsNullOrEmpty(x.Number) ? "" : $" ({x.Number})")).FirstOrDefaultAsync(ct),
@@ -174,8 +176,24 @@ public class SalesController : Controller
         var isEdit = model.Id != Guid.Empty;
         if (!Can(isEdit ? PermissionNames.SalesEdit : PermissionNames.SalesCreate)) return Forbid();
 
+        // A manual schedule's count/first date come from its rows.
+        var manualRows = model.IsManualSchedule ? ReadManualRows(model) : null;
+        if (manualRows is not null)
+        {
+            model.InstallmentsCount = manualRows.Count;
+            if (manualRows.Count > 0) model.FirstInstallmentDate = manualRows[0].DueDate;
+        }
+
         // With zero installments the whole contract value becomes the down payment (collected as #0).
         if (model.InstallmentsCount == 0) model.DownPayment = model.TotalPrice;
+        if (manualRows is { Count: > 0 } && model.DownPayment <= model.TotalPrice)
+        {
+            var expected = model.TotalPrice - model.DownPayment;
+            var sum = manualRows.Sum(r => r.Amount);
+            if (Math.Abs(sum - expected) > 0.01m)
+                ModelState.AddModelError(ManualScheduleKey,
+                    $"مجموع الأقساط ({sum:N2}) يجب أن يساوي المتبقي بعد المقدم ({expected:N2} ج.م) — الفرق {expected - sum:N2}.");
+        }
         if (model.DownPayment > model.TotalPrice)
             ModelState.AddModelError(nameof(model.DownPayment), "المقدم لا يمكن أن يتجاوز السعر الإجمالي.");
 
@@ -199,6 +217,7 @@ public class SalesController : Controller
             DownPayment = model.DownPayment,
             InstallmentsCount = model.InstallmentsCount,
             Step = model.Step,
+            IsManualSchedule = model.IsManualSchedule,
             Notes = model.Notes
         };
         _db.SaleContracts.Add(contract);
@@ -219,6 +238,7 @@ public class SalesController : Controller
         var insts = await _db.Installments.Where(i => i.SaleContractId == c.Id).ToListAsync(ct);
         var locked = insts.Any(i => i.PaidAmount > 0);   // a collection exists → financials are frozen
 
+        if (locked) ModelState.Remove(ManualScheduleKey);   // the schedule isn't touched once collected
         if (!ModelState.IsValid)
         {
             model.LockFinancials = locked;
@@ -237,6 +257,7 @@ public class SalesController : Controller
             c.DownPayment = model.DownPayment;
             c.InstallmentsCount = model.InstallmentsCount;
             c.Step = model.Step;
+            c.IsManualSchedule = model.IsManualSchedule;
             _db.Installments.RemoveRange(insts);
             GenerateInstallments(c, model);
         }
@@ -249,12 +270,47 @@ public class SalesController : Controller
         return Json(new { ok = true, redirect = Url.Action("Details", new { id = c.Id }) });
     }
 
+    private const string ManualScheduleKey = "ManualSchedule";
+
+    /// <summary>
+    /// The manual table's rows sorted by date. Fully empty rows are ignored; a half-filled row or a
+    /// non-positive amount is reported on <see cref="ManualScheduleKey"/>.
+    /// </summary>
+    private List<(DateTime DueDate, decimal Amount)> ReadManualRows(SaleFormModel model)
+    {
+        var rows = new List<(DateTime, decimal)>();
+        var count = Math.Max(model.ManualDates.Count, model.ManualAmounts.Count);
+        for (var i = 0; i < count; i++)
+        {
+            var date = i < model.ManualDates.Count ? model.ManualDates[i] : null;
+            var amount = i < model.ManualAmounts.Count ? model.ManualAmounts[i] : null;
+            if (date is null && amount is null) continue;
+            if (date is null || amount is null || amount <= 0)
+            {
+                ModelState.AddModelError(ManualScheduleKey, $"الصف {i + 1}: أدخل التاريخ وقيمة أكبر من صفر.");
+                continue;
+            }
+            rows.Add((date.Value.Date, Math.Round(amount.Value, 2)));
+        }
+        if (rows.Count > 600) ModelState.AddModelError(ManualScheduleKey, "عدد الأقساط بين 0 و600.");
+        return rows.OrderBy(r => r.Item1).ToList();
+    }
+
     // Builds the installment schedule for a contract: the down payment as installment #0 (due at the
-    // contract date), then the remaining balance split across the requested number of installments.
+    // contract date), then either the manual rows as entered or the remaining balance split across the
+    // requested number of installments.
     private void GenerateInstallments(SaleContract contract, SaleFormModel model)
     {
         if (model.DownPayment > 0)
             _db.Installments.Add(new Installment { SaleContractId = contract.Id, Number = 0, DueDate = model.ContractDate, Amount = model.DownPayment });
+
+        if (model.IsManualSchedule)
+        {
+            var number = 0;
+            foreach (var (dueDate, amount) in ReadManualRows(model))
+                _db.Installments.Add(new Installment { SaleContractId = contract.Id, Number = ++number, DueDate = dueDate, Amount = amount });
+            return;
+        }
 
         var remaining = model.TotalPrice - model.DownPayment;
         if (model.InstallmentsCount > 0 && remaining > 0)

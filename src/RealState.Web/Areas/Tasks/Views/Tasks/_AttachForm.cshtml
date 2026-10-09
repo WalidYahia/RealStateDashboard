@@ -1,0 +1,20 @@
+@model AttachFormModel
+<form id="appModalForm" asp-area="Tasks" asp-controller="Tasks" asp-action="Attach" method="post" enctype="multipart/form-data">
+    @Html.AntiForgeryToken()
+    <input type="hidden" asp-for="TaskId" />
+    <div class="form-grid">
+        <div class="full">
+            <label asp-for="Text" class="form-label"></label>
+            <textarea asp-for="Text" class="form-control" rows="3" placeholder="اكتب البيان..."></textarea>
+            <span asp-validation-for="Text" class="field-validation-error"></span>
+        </div>
+        <div class="full">
+            <label class="form-label" for="attachFiles">المرفقات</label>
+            <input type="file" id="attachFiles" name="files" class="form-control" multiple required />
+            <span class="field-validation-error">@Html.ValidationMessage("files")</span>
+            <span style="color:var(--muted);font-size:12px;display:block;margin-top:4px;">يمكن اختيار أكثر من ملف — حتى 15 ميجابايت للملف. تُضاف إلى مرفقات المهمة.</span>
+        </div>
+    </div>
+    <p style="color:var(--muted);font-size:12px;margin-top:8px;">يُضاف البيان إلى سجل المهمة.</p>
+    <div style="margin-top:12px;"><button type="submit" class="btn-primary" style="width:auto;">📎 إضافة المرفقات</button></div>
+</form>

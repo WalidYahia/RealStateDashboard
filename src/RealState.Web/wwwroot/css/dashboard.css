@@ -372,6 +372,62 @@ body {
         font-family: sans-serif;
     }
 .badge-role { background: var(--surface-2); border: 1px solid var(--border); color: var(--text-secondary); padding: 3px 9px; border-radius: 8px; font-size: 12px; margin-inline-end: 4px; display: inline-block; }
+/* Contract form: installment schedule mode + manual (date, amount) table (Sales/_SaleForm). */
+.sched-mode { display: flex; flex-wrap: wrap; gap: 8px 18px; }
+.sched-mode label { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-primary); cursor: pointer; }
+.sched-table .form-control { margin: 0; min-width: 0; }
+.sched-table td { vertical-align: middle; }
+.sched-no { color: var(--muted); text-align: center; }
+.sched-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-top: 10px; }
+.sched-total { font-size: 13px; font-weight: 700; }
+.sched-total.ok { color: var(--good); }
+.sched-total.off { color: var(--warning); }
+
+/* Click-to-call / WhatsApp buttons next to a phone number (ContactLinks.Buttons). */
+.phone-cell { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.contact-btns { display: inline-flex; gap: 6px; vertical-align: middle; }
+.cbtn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; width: 28px; height: 28px; border-radius: 8px;
+        border: 1px solid var(--border); background: var(--surface-2); text-decoration: none; transition: background .15s, color .15s; }
+.cbtn-lg { width: auto; height: 34px; padding: 0 12px; font-size: 12px; font-weight: 600; }
+.cbtn-call { color: var(--series-1); }
+.cbtn-call:hover { background: var(--series-1); color: #fff; }
+.cbtn-wa { color: #1fa855; }
+.cbtn-wa:hover { background: #25d366; border-color: #25d366; color: #fff; }
+
+/* Phones: the updates above (contact buttons, task log, manual schedule) laid out for a narrow screen. */
+@media (max-width: 720px) {
+    /* The number + its buttons stay on one line in the (sideways-scrolling) lists. */
+    .phone-cell { flex-wrap: nowrap; }
+    /* Profile header: call / WhatsApp become a full-width pair of big buttons on their own row, first. */
+    .page-head .contact-btns { flex: 1 1 100%; order: -1; gap: 8px; }
+    .page-head .contact-btns .cbtn-lg { flex: 1; height: 42px; font-size: 14px; }
+
+    /* Task log: each entry stacks (date · by, then the text) instead of a wide table. */
+    .log-table, .log-table tbody { display: block; }
+    .log-table thead { display: none; }
+    .log-table tr { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 10px; padding: 10px 2px; border-bottom: 1px solid var(--border); }
+    .log-table tr:last-child { border-bottom: 0; }
+    .log-table td { display: block; border: 0 !important; padding: 0 !important; white-space: normal !important; }
+    .log-table td.log-at, .log-table td.log-by { font-size: 12px; color: var(--muted); }
+    .log-table td.log-body { order: 3; flex: 1 1 100%; min-width: 0; }
+    .log-table td[colspan] { flex: 1 1 100%; }
+
+    /* Manual schedule: fixed columns so the table fits the full-width modal without scrolling sideways. */
+    .sched-table { table-layout: fixed; }
+    .sched-table th:first-child { width: 28px !important; }
+    .sched-table th:nth-child(4) { width: 40px !important; }
+    .sched-table th, .sched-table td { padding: 6px 3px !important; }
+    .sched-table .form-control { padding: 8px 6px; }
+    .sched-table .btn-sm { padding: 4px 0 !important; width: 34px; }
+    .sched-foot .btn-sm { flex: 1 1 100%; min-height: 40px; }
+    .sched-total { flex: 1 1 100%; text-align: center; }
+}
+/* Touch screens: finger-sized targets, and 16px inputs so iOS doesn't zoom in on focus. */
+@media (hover: none) and (pointer: coarse) {
+    .cbtn { width: 36px; height: 36px; }
+    .cbtn-lg { width: auto; height: 42px; }
+    .sched-table .form-control { font-size: 16px; }
+}
 .badge-state { padding: 3px 10px; border-radius: 8px; font-size: 12px; font-weight: 700; }
 .state-on { background: rgba(12,163,12,.15); color: var(--good); }
 .state-off { background: rgba(208,59,59,.15); color: var(--critical); }

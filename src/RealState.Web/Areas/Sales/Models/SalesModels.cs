@@ -45,6 +45,16 @@ public class SaleFormModel
     [Display(Name = "دورية القسط")]
     public InstallmentStep Step { get; set; }
 
+    /// <summary>
+    /// False = generate the schedule from first date + count + step; true = the user enters each installment
+    /// (date, amount) in <see cref="ManualDates"/> / <see cref="ManualAmounts"/> (parallel lists, one per table row).
+    /// </summary>
+    [Display(Name = "جدول الأقساط")]
+    public bool IsManualSchedule { get; set; }
+
+    public List<DateTime?> ManualDates { get; set; } = new();
+    public List<decimal?> ManualAmounts { get; set; } = new();
+
     [Display(Name = "ملاحظات")]
     public string? Notes { get; set; }
 

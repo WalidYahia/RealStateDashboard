@@ -201,7 +201,9 @@ public class TasksController : Controller
         t.Department = t.DepartmentId.HasValue ? await _db.Departments.FirstOrDefaultAsync(x => x.Id == t.DepartmentId, ct) : null;
         t.Assignee = await _db.Employees.FirstOrDefaultAsync(x => x.Id == t.AssigneeEmployeeId, ct);
         t.Logs = await _db.WorkTaskLogs.Where(l => l.WorkTaskId == id).OrderByDescending(l => l.At).ToListAsync(ct);
-        t.Attachments = await _db.WorkTaskAttachments.Where(x => x.WorkTaskId == id).OrderBy(x => x.FileName).ToListAsync(ct);
+        t.Attachments = await _db.WorkTaskAttachments.Where(x => x.WorkTaskId == id).OrderBy(x => x.FileName)
+            .Select(x => new WorkTaskAttachment { Id = x.Id, WorkTaskId = x.WorkTaskId, FileName = x.FileName, ContentType = x.ContentType, Size = x.Size })
+            .ToListAsync(ct);
 
         ViewData["CanEdit"] = CanEdit();
         ViewData["CanDelete"] = CanDelete();
@@ -313,7 +315,7 @@ public class TasksController : Controller
             // Changing the status auto-adds one log record.
             var text = $"تغيير الحالة من «{old.Ar()}» إلى «{model.Status.Ar()}»";
             if (!string.IsNullOrWhiteSpace(model.Note)) text += $" — {model.Note.Trim()}";
-            _db.WorkTaskLogs.Add(new WorkTaskLog { WorkTaskId = t.Id, At = DateTime.Now, ByName = CurrentName(), ByUserId = _currentUser.UserId, Text = text });
+            AddLog(t.Id, text);
             await _db.SaveChangesAsync(ct);
             TempData["StatusMessage"] = $"تم تحديث حالة المهمة T-{t.Number}.";
         }
@@ -338,13 +340,45 @@ public class TasksController : Controller
         if (!await CanActAsync(t, ct)) return Forbid();
         if (!ModelState.IsValid) return PartialView("_LogForm", model);
 
-        _db.WorkTaskLogs.Add(new WorkTaskLog { WorkTaskId = t.Id, At = DateTime.Now, ByName = CurrentName(), ByUserId = _currentUser.UserId, Text = model.Text.Trim() });
+        AddLog(t.Id, model.Text.Trim());
         await _db.SaveChangesAsync(ct);
         TempData["StatusMessage"] = "تمت إضافة السجل.";
         return Json(new { ok = true });
     }
 
     // ---------------- Attachments ----------------
+    // «إضافة مرفقات»: the files join the task's attachments and the statement (البيان) is saved as a normal log
+    // entry. Same people who may add logs.
+    [HttpGet]
+    public async Task<IActionResult> AttachForm(Guid id, CancellationToken ct)
+    {
+        var t = await _db.WorkTasks.FirstOrDefaultAsync(x => x.Id == id, ct);
+        if (t is null) return NotFound();
+        if (!await CanActAsync(t, ct)) return Forbid();
+        return PartialView("_AttachForm", new AttachFormModel { TaskId = t.Id });
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Attach(AttachFormModel model, List<IFormFile>? files, CancellationToken ct)
+    {
+        var t = await _db.WorkTasks.FirstOrDefaultAsync(x => x.Id == model.TaskId, ct);
+        if (t is null) return NotFound();
+        if (!await CanActAsync(t, ct)) return Forbid();
+        if (files?.Any(f => f is { Length: > 0 }) != true)
+            ModelState.AddModelError("files", "اختر ملفًا واحدًا على الأقل.");
+        var tooBig = files?.Where(f => f.Length > MaxFileBytes).Select(f => Path.GetFileName(f.FileName)).ToList();
+        if (tooBig is { Count: > 0 })
+            ModelState.AddModelError("files", $"الحد الأقصى لحجم الملف {MaxFileBytes / (1024 * 1024)} ميجابايت: {string.Join("، ", tooBig)}");
+        if (!ModelState.IsValid) return PartialView("_AttachForm", model);
+
+        var names = await SaveAttachmentsAsync(t.Id, files, ct);
+        AddLog(t.Id, model.Text.Trim());
+        await _db.SaveChangesAsync(ct);
+        TempData["StatusMessage"] = names.Count == 1 ? $"تمت إضافة المرفق «{names[0]}»." : $"تمت إضافة {names.Count} مرفقات.";
+        return Json(new { ok = true });
+    }
+
     [HttpGet]
     public async Task<IActionResult> AttachmentDownload(Guid id, CancellationToken ct)
     {
@@ -361,8 +395,15 @@ public class TasksController : Controller
     {
         if (!CanEdit()) return Forbid();
         var a = await _db.WorkTaskAttachments.FirstOrDefaultAsync(x => x.Id == id, ct);
-        if (a is not null) { _db.WorkTaskAttachments.Remove(a); await _db.SaveChangesAsync(ct); }
-        return RedirectToAction(nameof(Details), new { id = taskId });
+        if (a is not null)
+        {
+            _db.WorkTaskAttachments.Remove(a);
+            // Deleting a file is recorded in the task's log automatically.
+            AddLog(a.WorkTaskId, $"حذف المرفق «{a.FileName}»");
+            await _db.SaveChangesAsync(ct);
+            TempData["StatusMessage"] = $"تم حذف المرفق «{a.FileName}».";
+        }
+        return RedirectToAction(nameof(Details), new { id = a?.WorkTaskId ?? taskId });
     }
 
     // ---------------- helpers ----------------
@@ -408,19 +449,28 @@ public class TasksController : Controller
         return myEmpIds.Contains(t.AssigneeEmployeeId);
     }
 
-    private async Task SaveAttachmentsAsync(Guid taskId, List<IFormFile>? files, CancellationToken ct)
+    /// <summary>Adds a log entry by the current user (saved with the caller's SaveChanges).</summary>
+    private void AddLog(Guid taskId, string text) =>
+        _db.WorkTaskLogs.Add(new WorkTaskLog { WorkTaskId = taskId, At = DateTime.Now, ByName = CurrentName(), ByUserId = _currentUser.UserId, Text = text });
+
+    /// <summary>Adds the (non-empty, size-limited) files to the task; returns the saved file names.</summary>
+    private async Task<List<string>> SaveAttachmentsAsync(Guid taskId, List<IFormFile>? files, CancellationToken ct)
     {
-        if (files is null) return;
+        var names = new List<string>();
+        if (files is null) return names;
         foreach (var file in files.Where(f => f is { Length: > 0 } && f.Length <= MaxFileBytes))
         {
             using var ms = new MemoryStream();
             await file.CopyToAsync(ms, ct);
+            var name = Path.GetFileName(file.FileName);
             _db.WorkTaskAttachments.Add(new WorkTaskAttachment
             {
-                WorkTaskId = taskId, FileName = Path.GetFileName(file.FileName),
+                WorkTaskId = taskId, FileName = name,
                 ContentType = file.ContentType, Size = file.Length, Data = ms.ToArray()
             });
+            names.Add(name);
         }
+        return names;
     }
 
     private async Task<TaskFormModel> FillAsync(TaskFormModel m, CancellationToken ct)

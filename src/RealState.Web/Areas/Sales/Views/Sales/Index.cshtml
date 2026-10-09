@@ -91,14 +91,114 @@
 
         // When عدد الأقساط = 0, the whole contract value becomes the down payment — confirm before saving.
         window.saleInstallmentWarn = function (form) {
+            var manual = !!form.querySelector('[name="IsManualSchedule"][value="true"]:checked');
             var cntEl = form.querySelector('[name="InstallmentsCount"]');
-            var cnt = parseInt((cntEl && cntEl.value) || '0', 10);
+            var cnt = manual
+                ? Array.prototype.filter.call(form.querySelectorAll('[name="ManualAmounts"]'), function (i) { return !i.disabled; }).length
+                : parseInt((cntEl && cntEl.value) || '0', 10);
             if (cnt !== 0) return null;
             var tpEl = form.querySelector('[name="TotalPrice"]');
             var tp = parseFloat((tpEl && tpEl.value) || '0');
             var dp = form.querySelector('[name="DownPayment"]');
             if (dp) dp.value = tp;   // reflect it for the user
             return 'عدد الأقساط = 0، لذلك سيُعتبر كامل قيمة العقد (' + (tp ? tp.toLocaleString('en-US') : '0') + ' ج.م) مقدمًا يُحصَّل دفعة واحدة. هل تريد المتابعة؟';
+        };
+
+        // Installment schedule: «تلقائي» shows first date / count / period; «يدوي» shows a (date, amount) table
+        // with add/delete rows and a live total against (price − down payment). Switching to manual with an
+        // empty table pre-fills it from the auto settings, splitting like the server does.
+        window.saleFormInit = function () {
+            var form = document.querySelector('#appModalBody #appModalForm');
+            var body = form && form.querySelector('[data-sched-rows]');
+            if (!body) return;
+            var locked = !form.querySelector('[data-sched-add]');
+            var STEP_MONTHS = { '0': 1, '1': 3, '2': 6, '3': 12 };
+
+            function num(name) { var el = form.querySelector('[name="' + name + '"]'); return parseFloat((el && el.value) || '0') || 0; }
+            function isManual() {
+                return !!form.querySelector('[name="IsManualSchedule"][value="true"]:checked')
+                    || (locked && !!form.querySelector('input[type=hidden][name="IsManualSchedule"][value="true"]'));
+            }
+            function stepMonths() { var el = form.querySelector('[name="Step"]'); return STEP_MONTHS[(el && el.value) || '0'] || 1; }
+            function fmt(v) { return v.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 }); }
+            function iso(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+            function addMonths(d, m) {   // like .NET AddMonths: clamp to the target month's last day
+                var r = new Date(d.getFullYear(), d.getMonth() + m, 1);
+                r.setDate(Math.min(d.getDate(), new Date(r.getFullYear(), r.getMonth() + 1, 0).getDate()));
+                return r;
+            }
+
+            function addRow(date, amount) {
+                var tr = document.createElement('tr');
+                tr.innerHTML = '<td class="sched-no"></td>'
+                    + '<td><input type="date" name="ManualDates" class="form-control" dir="ltr" required /></td>'
+                    + '<td><input type="number" name="ManualAmounts" class="form-control" dir="ltr" step="0.01" min="0.01" inputmode="decimal" required /></td>'
+                    + '<td><button type="button" class="btn-sm btn-danger" data-sched-del title="حذف الصف" aria-label="حذف الصف">✕</button></td>';
+                if (date) tr.querySelector('[name="ManualDates"]').value = date;
+                if (amount != null) tr.querySelector('[name="ManualAmounts"]').value = amount;
+                body.appendChild(tr);
+                return tr;
+            }
+            function renumber() { body.querySelectorAll('.sched-no').forEach(function (td, i) { td.textContent = i + 1; }); }
+
+            function refreshTotal() {
+                var out = form.querySelector('[data-sched-total]');
+                if (!out) return;
+                var sum = 0;
+                body.querySelectorAll('[name="ManualAmounts"]').forEach(function (i) { sum += parseFloat(i.value) || 0; });
+                var need = Math.max(0, num('TotalPrice') - num('DownPayment'));
+                var diff = Math.round((need - sum) * 100) / 100;
+                out.className = 'sched-total ' + (diff === 0 ? 'ok' : 'off');
+                out.textContent = 'المجموع ' + fmt(sum) + ' من ' + fmt(need) + ' ج.م'
+                    + (diff === 0 ? ' ✓' : ' — ' + (diff > 0 ? 'متبقٍ ' : 'زيادة ') + fmt(Math.abs(diff)));
+            }
+
+            // Pre-fill from first date + count + period (the last row takes the rounding remainder).
+            function prefill() {
+                var cnt = parseInt(num('InstallmentsCount'), 10) || 0;
+                var need = num('TotalPrice') - num('DownPayment');
+                var first = (form.querySelector('[name="FirstInstallmentDate"]') || {}).value;
+                if (cnt <= 0 || need <= 0 || !first) { addRow(first || '', null); return; }
+                var per = Math.round(need / cnt * 100) / 100;
+                var start = new Date(first + 'T00:00:00');
+                for (var i = 1; i <= cnt; i++) {
+                    var amount = i === cnt ? Math.round((need - per * (cnt - 1)) * 100) / 100 : per;
+                    addRow(iso(addMonths(start, (i - 1) * stepMonths())), amount);
+                }
+            }
+
+            function applyMode() {
+                var manual = isManual();
+                form.querySelectorAll('.sale-auto').forEach(function (el) { el.style.display = manual ? 'none' : ''; });
+                var box = form.querySelector('.sale-manual');
+                box.style.display = manual ? '' : 'none';
+                if (manual && !locked && !body.querySelector('tr')) prefill();
+                // Hidden rows must neither post nor block the browser's required-field check.
+                box.querySelectorAll('input').forEach(function (i) { i.disabled = !manual; });
+                renumber();
+                refreshTotal();
+            }
+
+            form.querySelectorAll('[name="IsManualSchedule"]').forEach(function (r) { r.addEventListener('change', applyMode); });
+            var add = form.querySelector('[data-sched-add]');
+            if (add) add.addEventListener('click', function () {
+                // A new row starts one period after the last row's date.
+                var dates = body.querySelectorAll('[name="ManualDates"]');
+                var last = dates.length ? dates[dates.length - 1].value : '';
+                var next = last ? iso(addMonths(new Date(last + 'T00:00:00'), stepMonths())) : '';
+                addRow(next, null).querySelector('[name="ManualAmounts"]').focus();
+                renumber(); refreshTotal();
+            });
+            body.addEventListener('click', function (e) {
+                var del = e.target.closest('[data-sched-del]');
+                if (!del) return;
+                del.closest('tr').remove();
+                renumber(); refreshTotal();
+            });
+            form.addEventListener('input', function (e) {
+                if (e.target.matches('[name="ManualAmounts"], [name="TotalPrice"], [name="DownPayment"]')) refreshTotal();
+            });
+            applyMode();
         };
 
         // Pre-fill the total price from the selected unit (only if empty or unchanged).

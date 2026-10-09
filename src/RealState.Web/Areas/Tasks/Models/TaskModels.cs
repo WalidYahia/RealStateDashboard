@@ -111,6 +111,14 @@ public class LogFormModel
     public string Text { get; set; } = string.Empty;
 }
 
+/// <summary>«إضافة مرفقات» popup: files for the task + the statement saved as the log entry.</summary>
+public class AttachFormModel
+{
+    public Guid TaskId { get; set; }
+    [Required(ErrorMessage = "البيان مطلوب")][Display(Name = "البيان")]
+    public string Text { get; set; } = string.Empty;
+}
+
 public class StatusFormModel
 {
     public Guid TaskId { get; set; }

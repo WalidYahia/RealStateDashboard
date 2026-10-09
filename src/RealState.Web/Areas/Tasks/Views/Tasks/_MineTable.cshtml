@@ -23,6 +23,7 @@
                 <a class="btn-sm" asp-action="Details" asp-route-id="@r.Id">التفاصيل</a>
                 <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("StatusForm", new { id = r.Id })', 'تحديث الحالة')">الحالة</button>
                 <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("LogForm", new { id = r.Id })', 'إضافة سجل')">سجل</button>
+                <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("AttachForm", new { id = r.Id })', 'إضافة مرفقات')">مرفقات</button>
             </td>
         </tr>
     }

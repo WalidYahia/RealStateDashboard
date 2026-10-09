@@ -16,10 +16,11 @@
             @if (c.Interest.HasValue) { <text> · <span style="color:@c.Interest.Value.Color()">@c.Interest.Value.Ar()</span></text> }
         </p>
     </div>
-    <div style="display:flex;gap:8px;">
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
         @{
             var backUrl = ViewBag.ReturnUrl as string;
         }
+        @ContactLinks.Buttons(c.Phone, labeled: true)
         @if (c.IsLead)
         {
             <a class="btn-sm" href="@(backUrl ?? Url.Action("Index", "Leads"))" onclick="if (history.length > 1) { history.back(); return false; }">رجوع للعملاء المحتملين</a>
@@ -70,7 +71,7 @@
     <div class="card-tile" style="flex:1 1 420px;max-width:620px;margin:0;">
         <table class="rs-table">
             <tr><th style="width:160px;">الاسم</th><td>@c.FullName</td></tr>
-            <tr><th>الهاتف</th><td dir="ltr" style="text-align:right;">@c.Phone</td></tr>
+            <tr><th>الهاتف</th><td><span class="phone-cell"><span dir="ltr">@c.Phone</span>@ContactLinks.Buttons(c.Phone)</span></td></tr>
             <tr><th>البريد الإلكتروني</th><td dir="ltr" style="text-align:right;">@c.Email</td></tr>
             <tr><th>المصدر</th><td>@sourceLabel</td></tr>
             <tr><th>المندوب</th><td>@(salesName ?? "—")</td></tr>

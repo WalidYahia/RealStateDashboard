@@ -23,6 +23,7 @@
         <a class="btn-sm" asp-action="PrintOne" asp-route-id="@Model.Id" target="_blank">🖨 طباعة</a>
         @if (canAct) { <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("StatusForm", new { id = Model.Id })', 'تحديث الحالة')">🔄 تحديث الحالة</button> }
         @if (canAct) { <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("LogForm", new { id = Model.Id })', 'إضافة سجل')">📝 إضافة سجل</button> }
+        @if (canAct) { <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("AttachForm", new { id = Model.Id })', 'إضافة مرفقات')">📎 إضافة مرفقات</button> }
         @if (canEdit) { <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("Form", new { id = Model.Id })', 'تعديل المهمة T-@Model.Number')">✏️ تعديل</button> }
         @if (canDelete)
         {
@@ -67,7 +68,7 @@
                     <td>
                         @if (canEdit)
                         {
-                            <form asp-action="AttachmentDelete" asp-route-id="@a.Id" asp-route-taskId="@Model.Id" method="post" style="display:inline;" data-confirm="حذف المرفق؟" data-danger>@Html.AntiForgeryToken()<button type="submit" class="btn-sm btn-danger">حذف</button></form>
+                            <form asp-action="AttachmentDelete" asp-route-id="@a.Id" asp-route-taskId="@Model.Id" method="post" style="display:inline;" data-confirm="حذف المرفق «@a.FileName»؟ سيُسجَّل الحذف في سجل المهمة." data-danger>@Html.AntiForgeryToken()<button type="submit" class="btn-sm btn-danger">حذف</button></form>
                         }
                     </td>
                 </tr>
@@ -80,15 +81,17 @@
 
 <div class="card-tile" style="margin-top:16px;">
     <div class="card-head"><h3>سجل المهمة (Time Log)</h3></div>
-    <table class="rs-table">
+    <table class="rs-table log-table">
         <thead><tr><th style="width:170px;">التاريخ والوقت</th><th>البيان</th><th style="width:180px;">بواسطة</th></tr></thead>
         <tbody>
         @foreach (var l in Model.Logs)
         {
             <tr>
-                <td dir="ltr" style="text-align:right;">@DT(l.At)</td>
-                <td>@l.Text</td>
-                <td>@l.ByName</td>
+                <td class="log-at" dir="ltr" style="text-align:right;">@DT(l.At)</td>
+                <td class="log-body">
+                    <div style="white-space:pre-wrap;">@l.Text</div>
+                </td>
+                <td class="log-by">@l.ByName</td>
             </tr>
         }
         @if (Model.Logs.Count == 0) { <tr><td colspan="3" style="color:var(--muted)">لا توجد سجلات.</td></tr> }

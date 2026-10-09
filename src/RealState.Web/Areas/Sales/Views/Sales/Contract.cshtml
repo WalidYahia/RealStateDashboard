@@ -61,7 +61,7 @@
     <table class="kv">
         <tr><th>السعر الإجمالي</th><td>@N(Model.TotalPrice) ج.م</td></tr>
         <tr><th>المقدم</th><td>@N(Model.DownPayment) ج.م </td></tr>
-        <tr><th>المتبقي على أقساط</th><td>@N(Model.TotalPrice - Model.DownPayment) ج.م على @Model.InstallmentsCount قسط (@Model.Step.Ar())</td></tr>
+        <tr><th>المتبقي على أقساط</th><td>@N(Model.TotalPrice - Model.DownPayment) ج.م على @Model.InstallmentsCount قسط (@(Model.IsManualSchedule ? "جدول يدوي — انظر جدول الأقساط" : Model.Step.Ar()))</td></tr>
         @if (firstDue.HasValue)
         {
             <tr><th>تاريخ أول قسط</th><td>@D(firstDue)</td></tr>
