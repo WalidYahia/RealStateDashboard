@@ -78,6 +78,7 @@
                     @if (isHost)
                     {
                         <a role="menuitem" asp-area="" asp-controller="Host" asp-action="SelectTenant"><span class="tb-pop-ico">@NavIcons.Svg("switch", 16)</span><span>تبديل المؤسسة</span></a>
+                        <a role="menuitem" asp-area="Admin" asp-controller="WhatsAppTest" asp-action="Index"><span class="tb-pop-ico">@NavIcons.Svg("send", 16)</span><span>اختبار واتساب</span></a>
                     }
                     @if (canTenants)
                     {

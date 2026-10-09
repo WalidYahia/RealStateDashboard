@@ -72,6 +72,7 @@ public static class NavIcons
         ["moon"] = "<path d='M20.5 14.5A8.5 8.5 0 1 1 9.5 3.5a7 7 0 0 0 11 11Z'/>",
         ["logout"] = "<path d='M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4'/><path d='m16 17 5-5-5-5'/><path d='M21 12H9'/>",
         ["switch"] = "<path d='M16 3h5v5'/><path d='m21 3-7 7'/><path d='M8 21H3v-5'/><path d='m3 21 7-7'/>",
+        ["send"] = "<path d='m22 2-7 20-4-9-9-4Z'/><path d='M22 2 11 13'/>",
     };
 
     public static bool Exists(string? name) => name is not null && Paths.ContainsKey(name);

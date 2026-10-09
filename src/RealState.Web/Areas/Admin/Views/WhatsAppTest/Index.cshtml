@@ -1,0 +1,328 @@
+@model RealState.Infrastructure.Services.WhatsApp.WhatsAppOptions
+@{
+    ViewData["Title"] = "اختبار واتساب";
+    var isConfigured = ViewData["IsConfigured"] as bool? ?? false;
+    var token = Model.ApiToken ?? "";
+    var maskedToken = token.Length == 0 ? "غير مُعدّ" : token.Length <= 4 ? "••••" : "••••" + token[^4..];
+}
+
+<style>
+    .wa-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; align-items: start; }
+    .wa-grid .card-tile { margin: 0; }
+    .wa-wide { grid-column: 1 / -1; }
+    .wa-kv { display: grid; grid-template-columns: max-content 1fr; gap: 8px 16px; font-size: 13px; margin: 0; }
+    .wa-kv dt { color: var(--muted); }
+    .wa-kv dd { margin: 0; color: var(--text-primary); overflow-wrap: anywhere; }
+    .wa-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+    .wa-ltr { direction: ltr; unicode-bidi: plaintext; }
+    .wa-qr { margin-top: 12px; text-align: center; }
+    .wa-qr img { max-width: 260px; width: 100%; background: #fff; padding: 10px; border-radius: 10px; border: 1px solid var(--border); }
+    .wa-log { direction: ltr; text-align: left; background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; padding: 12px;
+              font-size: 12px; max-height: 320px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; }
+    .wa-note { font-size: 12px; color: var(--muted); margin: 8px 0 0; }
+    .state-wait { background: rgba(214,150,10,.15); color: var(--warning); }
+    .wa-tabs { display: flex; gap: 6px; }
+    .wa-tabs .btn-sm[aria-pressed="true"] { border-color: var(--accent, #2f7ad8); color: var(--accent, #2f7ad8); }
+    .wa-table-wrap { overflow-x: auto; }
+    textarea.form-control { min-height: 96px; resize: vertical; }
+</style>
+
+<div class="page-head">
+    <h1>اختبار واتساب</h1>
+    <span class="badge-state @(isConfigured ? "state-on" : "state-off")">@(isConfigured ? "الإعدادات مكتملة" : "الإعدادات غير مكتملة")</span>
+</div>
+
+@Html.AntiForgeryToken()
+
+<div class="wa-grid">
+    <div class="card-tile">
+        <div class="card-head"><h3>الإعدادات</h3><span class="pill">appsettings → WhatsApp</span></div>
+        <dl class="wa-kv">
+            <dt>الرابط</dt><dd class="wa-ltr">@Model.BaseUrl</dd>
+            <dt>رمز API</dt><dd class="wa-ltr">@maskedToken</dd>
+            <dt>رقم المثيل</dt><dd class="wa-ltr">@(string.IsNullOrWhiteSpace(Model.InstanceId) ? "غير مُعدّ" : Model.InstanceId)</dd>
+            <dt>نوع المثيل</dt><dd>@(Model.InstanceKind == RealState.Application.WhatsApp.WhatsAppInstanceKind.Official ? "Official (Meta)" : "QR")</dd>
+            <dt>كود الدولة</dt><dd class="wa-ltr">@(string.IsNullOrWhiteSpace(Model.DefaultCountryCode) ? "—" : "+" + Model.DefaultCountryCode)</dd>
+        </dl>
+        @if (!isConfigured)
+        {
+            <p class="wa-note">أضف <span class="wa-ltr">ApiToken</span> و<span class="wa-ltr">InstanceId</span> في قسم WhatsApp بالإعدادات ثم أعد تشغيل التطبيق.</p>
+        }
+    </div>
+
+    <div class="card-tile">
+        <div class="card-head"><h3>حالة الاتصال</h3><span class="badge-state" id="waStatusBadge">—</span></div>
+        <dl class="wa-kv" id="waStatus">
+            <dt>الرقم المتصل</dt><dd class="wa-ltr" data-k="me">—</dd>
+            <dt>الاسم</dt><dd data-k="name">—</dd>
+            <dt>الرسالة</dt><dd data-k="msg">—</dd>
+            <dt>الاشتراك</dt><dd data-k="sub">—</dd>
+        </dl>
+        <div class="wa-actions">
+            <button type="button" class="btn-sm" onclick="waStatus()">تحديث الحالة</button>
+            <button type="button" class="btn-sm" onclick="waQr()">عرض رمز QR</button>
+            <button type="button" class="btn-sm" onclick="waInstances()">كل الأرقام</button>
+            <button type="button" class="btn-sm btn-danger" onclick="waRestart()">إعادة تشغيل الجلسة</button>
+        </div>
+        <div class="wa-qr" id="waQr" hidden></div>
+    </div>
+
+    <div class="card-tile">
+        <div class="card-head"><h3>إرسال رسالة نصية</h3></div>
+        <form id="waTextForm" class="form-grid" onsubmit="return waSendText(event)">
+            <div class="full">
+                <label class="form-label" for="waTextPhone">رقم الهاتف</label>
+                <input id="waTextPhone" name="phone" class="form-control wa-phone" dir="ltr" placeholder="01001234567" autocomplete="off" required />
+            </div>
+            <div class="full">
+                <label class="form-label" for="waText">نص الرسالة</label>
+                <textarea id="waText" name="text" class="form-control" required>رسالة تجريبية من نظام Syncro ✅</textarea>
+            </div>
+            <div class="full"><button type="submit" class="btn-primary">إرسال</button></div>
+        </form>
+    </div>
+
+    <div class="card-tile">
+        <div class="card-head"><h3>إرسال صورة / ملف / فيديو</h3></div>
+        <form id="waMediaForm" class="form-grid" onsubmit="return waSendMedia(event)">
+            <div>
+                <label class="form-label" for="waMediaPhone">رقم الهاتف</label>
+                <input id="waMediaPhone" name="phone" class="form-control wa-phone" dir="ltr" placeholder="01001234567" autocomplete="off" required />
+            </div>
+            <div>
+                <label class="form-label" for="waMediaKind">النوع</label>
+                <select id="waMediaKind" name="kind" class="form-control">
+                    <option value="image">صورة</option>
+                    <option value="file">ملف / مستند</option>
+                    <option value="video">فيديو</option>
+                </select>
+            </div>
+            <div class="full">
+                <label class="form-label" for="waFile">الملف</label>
+                <input id="waFile" type="file" name="file" class="form-control" required />
+            </div>
+            <div class="full">
+                <label class="form-label" for="waCaption">تعليق (اختياري)</label>
+                <input id="waCaption" name="caption" class="form-control" autocomplete="off" />
+            </div>
+            <div class="full"><button type="submit" class="btn-primary">إرسال</button></div>
+        </form>
+        <p class="wa-note">الصور: jpg/png/webp/gif حتى 10 ميجابايت · الفيديو: mp4/mov/… حتى 50 ميجابايت · الملفات: حتى 50 ميجابايت في هذه الصفحة.</p>
+    </div>
+
+    <div class="card-tile">
+        <div class="card-head"><h3>تتبع رسالة</h3><span class="badge-state" id="waMsgBadge">—</span></div>
+        <form class="form-grid" onsubmit="return waTrack(event)">
+            <div class="full">
+                <label class="form-label" for="waMsgId">معرّف الرسالة (message_id)</label>
+                <input id="waMsgId" class="form-control" dir="ltr" autocomplete="off" required />
+            </div>
+            <div class="full wa-actions" style="margin-top:0;">
+                <button type="submit" class="btn-primary">فحص الحالة</button>
+                <button type="button" class="btn-sm" id="waRetryBtn" onclick="waRetry()" hidden>إعادة المحاولة</button>
+            </div>
+        </form>
+        <dl class="wa-kv" id="waMsg" style="margin-top:12px;">
+            <dt>المستلم</dt><dd class="wa-ltr" data-k="chat">—</dd>
+            <dt>المحاولات</dt><dd data-k="attempts">—</dd>
+            <dt>وقت التسليم</dt><dd data-k="delivered">—</dd>
+            <dt>الخطأ</dt><dd class="wa-ltr" data-k="error">—</dd>
+        </dl>
+        <p class="wa-note">بعد الإرسال تتم المتابعة تلقائيًا حتى تخرج الرسالة من قائمة الانتظار (نجاح الإرسال يعني القبول في الطابور وليس التسليم).</p>
+    </div>
+
+    <div class="card-tile wa-wide">
+        <div class="card-head">
+            <h3>آخر الرسائل</h3>
+            <div class="wa-tabs">
+                <button type="button" class="btn-sm" data-done="false" aria-pressed="false" onclick="waList(false)">قيد الانتظار</button>
+                <button type="button" class="btn-sm" data-done="true" aria-pressed="true" onclick="waList(true)">المُعالَجة</button>
+            </div>
+        </div>
+        <div class="wa-table-wrap">
+            <table class="rs-table">
+                <thead><tr><th>الوقت</th><th>المستلم</th><th>النوع</th><th>المحتوى</th><th>الحالة</th><th>الخطأ</th><th></th></tr></thead>
+                <tbody id="waRows"><tr><td colspan="7" class="muted">اضغط على أحد التبويبين لعرض الرسائل.</td></tr></tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="card-tile wa-wide">
+        <div class="card-head"><h3>آخر استجابة من الخادم</h3><button type="button" class="btn-sm" onclick="waLog(null)">مسح</button></div>
+        <pre class="wa-log" id="waLog">—</pre>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+(function () {
+    var urls = {
+        status: '@Url.Action("Status")', instances: '@Url.Action("Instances")', qr: '@Url.Action("QrCode")',
+        restart: '@Url.Action("Restart")', sendText: '@Url.Action("SendText")', sendMedia: '@Url.Action("SendMedia")',
+        message: '@Url.Action("Message")', messages: '@Url.Action("Messages")', retry: '@Url.Action("Retry")'
+    };
+    var token = document.querySelector('input[name="__RequestVerificationToken"]').value;
+    var pollTimer = null;
+
+    function $(id) { return document.getElementById(id); }
+    function setKv(container, key, value) {
+        var el = container.querySelector('[data-k="' + key + '"]');
+        if (el) el.textContent = (value === null || value === undefined || value === '') ? '—' : value;
+    }
+    function fmtDate(v) { if (!v) return '—'; var d = new Date(v); return isNaN(d) ? v : d.toLocaleString('ar-EG'); }
+    function esc(s) { return String(s === null || s === undefined ? '' : s).replace(/[&<>"']/g, function (c) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]; }); }
+
+    window.waLog = function (obj) { $('waLog').textContent = obj === null ? '—' : JSON.stringify(obj, null, 2); };
+
+    function call(url, form) {
+        var opts = { headers: { 'X-Requested-With': 'XMLHttpRequest' } };
+        if (form) { form.append('__RequestVerificationToken', token); opts.method = 'POST'; opts.body = form; }
+        return fetch(url, opts)
+            .then(function (r) {
+                if (r.status === 403) throw new Error('هذه الصفحة متاحة لحساب Syncro فقط.');
+                return r.json();
+            })
+            .then(function (j) {
+                waLog(j);
+                if (!j.ok) {
+                    var msg = j.error || 'تعذّر تنفيذ الطلب.';
+                    if (j.code) msg += ' (' + j.code + ')';
+                    throw new Error(msg);
+                }
+                return j.data;
+            })
+            .catch(function (e) { window.appAlertError(esc(e.message || 'تعذّر الاتصال بالخادم.')); throw e; });
+    }
+
+    function statusClass(s) {
+        s = (s || '').toLowerCase();
+        if (['success', 'accepted', 'sent', 'delivered', 'read', 'working'].indexOf(s) >= 0) return 'state-on';
+        if (['failed', 'canceled', 'faild', 'stopped'].indexOf(s) >= 0) return 'state-off';
+        return 'state-wait';
+    }
+    function setBadge(el, text) { el.className = 'badge-state ' + statusClass(text); el.textContent = text || '—'; }
+
+    // ---- connection
+    window.waStatus = function () {
+        call(urls.status).then(function (d) {
+            var box = $('waStatus'), st = d.status || {}, inst = d.instance || {};
+            setBadge($('waStatusBadge'), st.status);
+            setKv(box, 'me', st.meId || inst.meId);
+            setKv(box, 'name', st.mePushName || inst.mePushName || inst.instanceName);
+            setKv(box, 'msg', st.statusMessage);
+            var sub = inst.subscription;
+            setKv(box, 'sub', sub && typeof sub === 'object'
+                ? (sub.plan_name || '') + ' · ' + (sub.status || '') + (sub.end_date ? ' · حتى ' + sub.end_date : '')
+                : (sub || inst.subscriptionStatus));
+        }).catch(function () { });
+    };
+    window.waQr = function () {
+        call(urls.qr).then(function (d) {
+            var box = $('waQr');
+            box.hidden = false;
+            box.innerHTML = d.qr
+                ? '<img alt="QR" src="' + esc(d.qr) + '" /><p class="wa-note">امسح الرمز من واتساب ← الأجهزة المرتبطة، ثم اضغط «تحديث الحالة».</p>'
+                : '<p class="wa-note">لا يوجد رمز QR متاح — الرقم متصل بالفعل أو الجلسة متوقفة.</p>';
+        }).catch(function () { });
+    };
+    window.waInstances = function () { call(urls.instances).then(function (d) { window.appToast('عدد الأرقام: ' + d.length + ' — التفاصيل في «آخر استجابة».', 'info'); }).catch(function () { }); };
+    window.waRestart = function () {
+        var ask = window.Swal
+            ? Swal.fire({ icon: 'warning', title: 'إعادة تشغيل جلسة واتساب؟', showCancelButton: true, confirmButtonText: 'إعادة التشغيل', cancelButtonText: 'إلغاء', confirmButtonColor: '#d03b3b' }).then(function (r) { return r.isConfirmed; })
+            : Promise.resolve(confirm('إعادة تشغيل جلسة واتساب؟'));
+        ask.then(function (yes) {
+            if (!yes) return;
+            call(urls.restart, new FormData()).then(function () { window.appToast('تم طلب إعادة التشغيل.', 'success'); setTimeout(waStatus, 3000); }).catch(function () { });
+        });
+    };
+
+    // ---- sending
+    function rememberPhone(form) {
+        var phone = form.querySelector('.wa-phone').value;
+        try { localStorage.setItem('waTestPhone', phone); } catch (e) { }
+        document.querySelectorAll('.wa-phone').forEach(function (i) { if (!i.value) i.value = phone; });
+    }
+    function afterSend(btn, d) {
+        btn.disabled = false;
+        window.appToast(d.idempotentReplay ? 'سبق إرسال هذه الرسالة (تكرار).' : 'تم قبول الرسالة في قائمة الإرسال.', 'success');
+        if (d.messageId) { $('waMsgId').value = d.messageId; startPolling(d.messageId); }
+    }
+    window.waSendText = function (e) {
+        e.preventDefault();
+        var form = e.target, btn = form.querySelector('button[type=submit]');
+        rememberPhone(form); btn.disabled = true;
+        call(urls.sendText, new FormData(form)).then(function (d) { afterSend(btn, d); }).catch(function () { btn.disabled = false; });
+        return false;
+    };
+    window.waSendMedia = function (e) {
+        e.preventDefault();
+        var form = e.target, btn = form.querySelector('button[type=submit]');
+        rememberPhone(form); btn.disabled = true; btn.textContent = 'جارٍ الرفع…';
+        call(urls.sendMedia, new FormData(form))
+            .then(function (d) { btn.textContent = 'إرسال'; afterSend(btn, d); })
+            .catch(function () { btn.disabled = false; btn.textContent = 'إرسال'; });
+        return false;
+    };
+
+    // ---- tracking
+    function showMessage(m) {
+        var box = $('waMsg');
+        setBadge($('waMsgBadge'), m.status);
+        setKv(box, 'chat', m.chatId);
+        setKv(box, 'attempts', m.attempts);
+        setKv(box, 'delivered', m.deliveredAt ? fmtDate(m.deliveredAt) : null);
+        setKv(box, 'error', [m.errorCode, m.errorType].filter(Boolean).join(' · '));
+        $('waRetryBtn').hidden = !m.isFailed;
+    }
+    function stopPolling() { if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } }
+    function startPolling(id) {
+        stopPolling();
+        var tries = 0;
+        var tick = function () {
+            tries++;
+            call(urls.message + '?id=' + encodeURIComponent(id)).then(function (m) {
+                showMessage(m);
+                if (!m.isPending || tries >= 20) stopPolling();
+            }).catch(function () { stopPolling(); });
+        };
+        tick();
+        pollTimer = setInterval(tick, 3000);
+    }
+    window.waTrack = function (e) { e.preventDefault(); startPolling($('waMsgId').value.trim()); return false; };
+    window.waRetry = function () {
+        var fd = new FormData(); fd.append('id', $('waMsgId').value.trim());
+        call(urls.retry, fd).then(function () { window.appToast('أُعيدت الرسالة إلى قائمة الانتظار.', 'success'); startPolling($('waMsgId').value.trim()); }).catch(function () { });
+    };
+
+    // ---- recent messages
+    window.waList = function (done) {
+        document.querySelectorAll('.wa-tabs .btn-sm').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.done === String(done))); });
+        call(urls.messages + '?done=' + done).then(function (page) {
+            var rows = (page.items || []).map(function (m) {
+                return '<tr><td>' + esc(fmtDate(m.createdAt)) + '</td>'
+                    + '<td class="wa-ltr">' + esc(m.chatId) + '</td>'
+                    + '<td>' + esc(m.type) + '</td>'
+                    + '<td>' + esc((m.text || m.caption || '').slice(0, 60)) + '</td>'
+                    + '<td><span class="badge-state ' + statusClass(m.status) + '">' + esc(m.status) + '</span></td>'
+                    + '<td class="wa-ltr">' + esc(m.errorCode || '') + '</td>'
+                    + '<td><button type="button" class="btn-sm" data-track="' + esc(m.id) + '">تتبع</button></td></tr>';
+            });
+            $('waRows').innerHTML = rows.length ? rows.join('') : '<tr><td colspan="7" class="muted">لا توجد رسائل.</td></tr>';
+        }).catch(function () { });
+    };
+    $('waRows').addEventListener('click', function (e) {
+        var b = e.target.closest('[data-track]');
+        if (!b) return;
+        $('waMsgId').value = b.dataset.track;
+        startPolling(b.dataset.track);
+        $('waMsgId').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+
+    try { var p = localStorage.getItem('waTestPhone'); if (p) document.querySelectorAll('.wa-phone').forEach(function (i) { i.value = p; }); } catch (e) { }
+    @if (isConfigured)
+    {
+        <text>waStatus();</text>
+    }
+})();
+</script>
+}

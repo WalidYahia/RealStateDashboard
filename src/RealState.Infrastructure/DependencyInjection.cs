@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using RealState.Application.Interfaces;
 using RealState.Infrastructure.Persistence;
 using RealState.Infrastructure.Services;
+using RealState.Infrastructure.Services.WhatsApp;
 
 namespace RealState.Infrastructure;
 
@@ -38,6 +39,9 @@ public static class DependencyInjection
         services.AddScoped<IApplicationDbContext>(sp => sp.GetRequiredService<ApplicationDbContext>());
 
         services.AddSingleton<IDateTimeProvider, SystemDateTimeProvider>();
+
+        // WhatsApp messaging (WaPilot) — configured from the "WhatsApp" section.
+        services.AddWhatsApp(configuration);
 
         return services;
     }
