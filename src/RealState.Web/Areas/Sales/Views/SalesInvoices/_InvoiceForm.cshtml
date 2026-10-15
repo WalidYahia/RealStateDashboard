@@ -12,7 +12,8 @@
         </div>
     }
 
-    <div class="form-grid">
+    @* Row 1: number · date · payment type — Row 2: warehouse · customer · safe — then the help and one-line notes. *@
+    <div class="form-grid form-grid-3">
         <div>
             <label class="form-label">رقم الفاتورة</label>
             <input class="form-control" value="SI-@Model.Number" dir="ltr" readonly
@@ -20,18 +21,37 @@
         </div>
         <div>
             <label asp-for="InvoiceDate" class="form-label"></label>
-            <input asp-for="InvoiceDate" class="form-control" type="date" dir="ltr" max="@DateTime.Today.ToString("yyyy-MM-dd")" />
+            <input asp-for="InvoiceDate" class="form-control" type="datetime-local" dir="ltr" asp-format="{0:yyyy-MM-ddTHH:mm}" max="@(ClientTime.Today.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture))T23:59" />
             <span asp-validation-for="InvoiceDate" class="field-validation-error"></span>
         </div>
         <div>
-            <label asp-for="CustomerId" class="form-label"></label>
-            <select asp-for="CustomerId" class="form-control" data-searchable asp-items="Model.Customers" data-search-placeholder="🔍 ابحث بالاسم أو الهاتف..."><option value="">— اختر العميل —</option></select>
-            <span asp-validation-for="CustomerId" class="field-validation-error"></span>
+            <label class="form-label">طريقة الدفع</label>
+            <div class="sched-mode">
+                <label><input type="radio" name="PaymentType" value="Credit" checked="@(Model.PaymentType == InvoicePaymentType.Credit)" data-pay-type /> آجل</label>
+                @if (Model.CanCash || Model.PaymentType == InvoicePaymentType.Cash)
+                {
+                    <label><input type="radio" name="PaymentType" value="Cash" checked="@(Model.PaymentType == InvoicePaymentType.Cash)" data-pay-type /> نقدي</label>
+                }
+            </div>
+            <span asp-validation-for="PaymentType" class="field-validation-error"></span>
         </div>
         <div>
             <label asp-for="WarehouseId" class="form-label"></label>
             <select asp-for="WarehouseId" class="form-control" data-searchable asp-items="Model.Warehouses"><option value="">— اختر المخزن —</option></select>
             <span asp-validation-for="WarehouseId" class="field-validation-error"></span>
+        </div>
+        <div>
+            <label asp-for="CustomerId" class="form-label"></label>
+            <select asp-for="CustomerId" class="form-control" data-searchable asp-items="Model.Customers" data-search-placeholder="🔍 ابحث بالاسم أو الهاتف..."
+                    data-pay-party data-cash-id="@Model.CashCustomerId"><option value="">— اختر العميل —</option></select>
+            <span asp-validation-for="CustomerId" class="field-validation-error"></span>
+        </div>
+        @* Always shown; enabled for نقدي only (a disabled select isn't posted — آجل has no safe). *@
+        <div data-pay-safe>
+            <label asp-for="CashSafeId" class="form-label"></label>
+            <select asp-for="CashSafeId" class="form-control" asp-items="Model.Safes" disabled="@(Model.PaymentType != InvoicePaymentType.Cash)"
+                    title="يُحصَّل إجمالي الفاتورة النقدية في هذه الخزنة عند الحفظ (سند قبض تلقائي)"><option value="">— اختر الخزنة —</option></select>
+            <span asp-validation-for="CashSafeId" class="field-validation-error"></span>
         </div>
         <div class="full">
             @* Inline (collapsible) so reading it doesn't replace the form in the shared modal. *@
@@ -44,7 +64,7 @@
         </div>
         <div class="full">
             <label asp-for="Notes" class="form-label"></label>
-            <textarea asp-for="Notes" class="form-control" rows="2"></textarea>
+            <input asp-for="Notes" class="form-control" autocomplete="off" />
         </div>
     </div>
 

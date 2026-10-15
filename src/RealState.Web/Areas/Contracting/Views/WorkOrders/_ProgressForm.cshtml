@@ -11,7 +11,7 @@
     <div class="form-grid">
         <div class="full">
             <label class="form-label">@label @(isPercent ? "(%)" : "(ج.م)")</label>
-            <input asp-for="Value" class="form-control" type="number" step="0.01" min="0" dir="ltr" />
+            <input asp-for="Value" class="form-control" type="number" step="any" min="0" dir="ltr" />
             <span asp-validation-for="Value" class="field-validation-error"></span>
         </div>
     </div>

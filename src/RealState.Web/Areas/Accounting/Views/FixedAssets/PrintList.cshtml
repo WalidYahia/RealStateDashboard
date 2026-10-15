@@ -1,0 +1,47 @@
+@model FixedAssetListVm
+@{
+    Layout = null;
+    string N(decimal v) => v.ToString("N2", RealState.Web.AppCulture.Ar);
+    string D(DateTime? d) => RealState.Web.AppCulture.When(d);   // date + time when it has one
+}
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="utf-8" />
+    <title>سجل الأصول الثابتة</title>
+    <style>
+        body { font-family: "Segoe UI", Tahoma, sans-serif; padding: 24px; color: #111; }
+        h1 { font-size: 19px; text-align: center; margin: 4px 0; }
+        .sub { text-align: center; color: #666; font-size: 12px; margin-bottom: 12px; }
+        table { width: 100%; border-collapse: collapse; font-size: 12px; }
+        th, td { border: 1px solid #ccc; padding: 5px 7px; text-align: start; unicode-bidi: plaintext; }
+        th { background: #f2f2f2; }
+        tfoot td { font-weight: 700; background: #fafafa; }
+        .no-print { margin-bottom: 12px; } @@media print { .no-print { display: none; } }
+    </style>
+</head>
+<body>
+    @await Component.InvokeAsync("ReportBackground", new { part = "open" })
+    <div class="no-print"><button onclick="window.print()">🖨 طباعة / حفظ PDF</button></div>
+    <h1>سجل الأصول الثابتة</h1>
+    <div class="sub">العدد @Model.Rows.Count · تاريخ الطباعة @ClientTime.Now.ToString("yyyy/MM/dd HH:mm")</div>
+    <table>
+        <thead><tr><th>الرقم</th><th>اسم الأصل</th><th>الفئة</th><th>الرقم التسلسلي</th><th>تاريخ الاقتناء</th><th>التكلفة</th><th>مجمع الإهلاك</th><th>القيمة الدفترية</th><th>صاحب العهدة</th><th>الحالة</th></tr></thead>
+        <tbody>
+        @foreach (var r in Model.Rows)
+        {
+            <tr>
+                <td>FA-@r.Number</td><td>@r.Name@(r.Quantity > 1 ? $" × {r.Quantity}" : "")</td><td>@(r.Category ?? "—")</td><td>@(r.SerialNumber ?? "—")</td><td>@D(r.PurchaseDate)</td>
+                <td>@N(r.Cost)</td><td>@N(r.Accumulated)</td><td>@N(r.BookValue)</td><td>@(r.Custodian ?? "—")</td><td>@r.StateText</td>
+            </tr>
+        }
+        @if (Model.Rows.Count == 0) { <tr><td colspan="10">لا توجد أصول.</td></tr> }
+        </tbody>
+        <tfoot>
+            <tr><td colspan="5">الإجمالي</td><td>@N(Model.Rows.Sum(r => r.Cost))</td><td>@N(Model.Rows.Sum(r => r.Accumulated))</td><td>@N(Model.Rows.Sum(r => r.BookValue))</td><td colspan="2"></td></tr>
+        </tfoot>
+    </table>
+    <script>window.addEventListener('load', function () { setTimeout(function () { window.print(); }, 400); });</script>
+    @await Component.InvokeAsync("ReportBackground", new { part = "close" })
+</body>
+</html>

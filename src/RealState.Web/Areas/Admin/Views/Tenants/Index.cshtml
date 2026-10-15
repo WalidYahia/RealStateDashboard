@@ -35,7 +35,7 @@
                 <td>@t.Name</td>
                 <td>@t.UserCount</td>
                 <td><span class="badge-state @(t.IsActive ? "state-on" : "state-off")">@(t.IsActive ? "مفعّلة" : "معطّلة")</span></td>
-                <td>@t.CreatedAt.ToString("yyyy/MM/dd")</td>
+                <td dir="ltr" style="text-align:right;">@RealState.Web.AppCulture.When(t.CreatedAt)</td>
                 <td style="white-space:nowrap;">
                     <a class="btn-sm" asp-action="Edit" asp-route-id="@t.Id">تعديل</a>
                     @if (t.Id != RealState.Application.Common.AppConstants.DefaultTenantId)

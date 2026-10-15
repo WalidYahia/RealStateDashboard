@@ -22,13 +22,13 @@ public class SaleFormModel
     public Guid? UnitId { get; set; }
 
     [Required][DataType(DataType.Date)][Display(Name = "تاريخ العقد")]
-    public DateTime ContractDate { get; set; } = DateTime.Today;
+    public DateTime ContractDate { get; set; } = ClientTime.Today;
 
     [Required][DataType(DataType.Date)][Display(Name = "تاريخ الاستلام")]
-    public DateTime ReceiveDate { get; set; } = DateTime.Today;
+    public DateTime ReceiveDate { get; set; } = ClientTime.Today;
 
     [Required][DataType(DataType.Date)][Display(Name = "تاريخ أول قسط")]
-    public DateTime FirstInstallmentDate { get; set; } = DateTime.Today;
+    public DateTime FirstInstallmentDate { get; set; } = ClientTime.Today;
 
     [Range(1, 999999999999, ErrorMessage = "قيمة غير صالحة")]
     [Display(Name = "السعر الإجمالي (ج.م)")]

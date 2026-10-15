@@ -1,0 +1,54 @@
+@model List<FixedAssetCategoryRow>
+@{
+    ViewData["Title"] = "فئات الأصول الثابتة";
+    var canManage = ViewData["CanManage"] as bool? ?? false;
+    string N(decimal v) => v.ToString("N2", RealState.Web.AppCulture.Ar);
+}
+<div class="page-head">
+    <h1>فئات الأصول الثابتة</h1>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <a class="btn-sm" asp-controller="FixedAssets" asp-action="Index">📦 الأصول الثابتة</a>
+        @if (canManage)
+        {
+            <button type="button" class="btn-new-tenant" data-quick-new onclick="appOpenModal('@Url.Action("Form")', 'فئة أصول جديدة')">➕ فئة</button>
+        }
+    </div>
+</div>
+
+@if (TempData["StatusMessage"] is string msg)
+{
+    <div class="status-message">@msg</div>
+}
+<p style="color:var(--muted);font-size:13px;margin-top:0;">كل فئة تحدد حسابات قيود أصولها في شجرة الحسابات: التكلفة، مجمع الإهلاك، ومصروف الإهلاك. «تلقائي» يُنشئ حسابًا باسم الفئة تحت «الأصول الثابتة» (1500) و«مجمع إهلاك الأصول الثابتة» (1590).</p>
+
+<div class="card-tile">
+    <table class="rs-table">
+        <thead><tr><th>الفئة</th><th>العمر الافتراضي</th><th>حساب التكلفة</th><th>حساب مجمع الإهلاك</th><th>حساب مصروف الإهلاك</th><th>الأصول</th><th>التكلفة</th><th>القيمة الدفترية</th><th></th></tr></thead>
+        <tbody>
+        @foreach (var c in Model)
+        {
+            <tr>
+                <td style="font-weight:600;">@c.Name</td>
+                <td>@(c.DefaultUsefulLifeMonths > 0 ? $"{c.DefaultUsefulLifeMonths} شهر" : "لا يُهلك")</td>
+                <td dir="ltr" style="text-align:right;">@(c.AssetAccount ?? "—")</td>
+                <td dir="ltr" style="text-align:right;">@(c.AccumulatedAccount ?? "—")</td>
+                <td dir="ltr" style="text-align:right;">@(c.ExpenseAccount ?? "—")</td>
+                <td>@c.AssetsCount</td>
+                <td>@N(c.Cost)</td>
+                <td>@N(c.BookValue)</td>
+                <td style="white-space:nowrap;">
+                    @if (canManage)
+                    {
+                        <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("Form", new { id = c.Id })', 'تعديل الفئة')">✏️ تعديل</button>
+                        @if (c.AssetsCount == 0)
+                        {
+                            <form asp-action="Delete" asp-route-id="@c.Id" method="post" style="display:inline;" data-confirm="حذف الفئة «@c.Name»؟" data-danger>@Html.AntiForgeryToken()<button type="submit" class="btn-sm btn-danger">🗑</button></form>
+                        }
+                    }
+                </td>
+            </tr>
+        }
+        @if (Model.Count == 0) { <tr><td colspan="9" style="color:var(--muted)">لا توجد فئات — أضف فئة (أجهزة، سيارات، أثاث…) قبل إضافة الأصول.</td></tr> }
+        </tbody>
+    </table>
+</div>

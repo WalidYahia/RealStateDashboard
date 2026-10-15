@@ -141,7 +141,7 @@ public class ContractorsController : Controller
             };
         });
         var totals = new object?[] { "الإجمالي", null, null, null, null, null, null, null, null, null, null, vm.TotalObligations, vm.TotalPaid, vm.ClosingBalance, null };
-        return RealState.Web.Common.Xlsx.File($"كشف حساب {contractor.Name} {DateTime.Now:yyyy-MM-dd}.xlsx", "كشف حساب مقاول", headers, data, totals);
+        return RealState.Web.Common.Xlsx.File($"كشف حساب {contractor.Name} {ClientTime.Now:yyyy-MM-dd}.xlsx", "كشف حساب مقاول", headers, data, totals);
     }
 
     private async Task<ContractorStatementVm> BuildStatementAsync(Contractor contractor, DateTime? from, DateTime? to, CancellationToken ct)

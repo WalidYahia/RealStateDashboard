@@ -1,3 +1,4 @@
+using RealState.Application.Enums;
 using RealState.Application.Common;
 
 namespace RealState.Application.Entities;
@@ -10,6 +11,9 @@ public class Supplier : AuditableEntity, ITenantEntity
     public string? Phone { get; set; }
     public string? Email { get; set; }
     public string? Notes { get; set; }
+
+    /// <summary>The tenant's built-in «مورد نقدي» (cash supplier) — seeded per tenant, can't be deleted.</summary>
+    public bool IsDefaultCash { get; set; }
 }
 
 /// <summary>
@@ -111,6 +115,11 @@ public class PurchaseInvoice : AuditableEntity, ITenantEntity
 
     public string? Notes { get; set; }
 
+    /// <summary>نقدي / آجل. A cash invoice is paid in full from <see cref="CashSafeId"/> when saved — through an automatic
+    /// <see cref="SupplierPayment"/> (<see cref="SupplierPayment.IsInvoiceCash"/>) kept in step with the invoice total.</summary>
+    public InvoicePaymentType PaymentType { get; set; } = InvoicePaymentType.Credit;
+    public Guid? CashSafeId { get; set; }
+
     public ICollection<PurchaseInvoiceItem> Items { get; set; } = new List<PurchaseInvoiceItem>();
     public ICollection<SupplierPayment> Payments { get; set; } = new List<SupplierPayment>();
 
@@ -172,6 +181,9 @@ public class SupplierPayment : AuditableEntity, ITenantEntity
     public long ReceiptNo { get; set; }
 
     public string? Description { get; set; }
+
+    /// <summary>The automatic payment of a cash (نقدي) invoice — follows the invoice, never deleted on its own.</summary>
+    public bool IsInvoiceCash { get; set; }
 }
 
 /// <summary>A file attached to a supplier order (contract, quotation, invoice scan, …), stored inline.</summary>

@@ -2,7 +2,7 @@
 @{
     Layout = null;
     var p = Model.Project;
-    string D(DateTime? d) => d?.ToString("yyyy/MM/dd") ?? "—";
+    string D(DateTime? d) => RealState.Web.AppCulture.When(d);   // date + time when it has one
     string N(decimal v) => v.ToString("N0", RealState.Web.AppCulture.Ar);
 }
 <!DOCTYPE html>
@@ -16,7 +16,7 @@
     @await Component.InvokeAsync("ReportBackground", new { part = "open" })
     <div class="no-print"><button onclick="window.print()">🖨 طباعة / حفظ PDF</button></div>
     <h1>ملخص المشروع: @p.Name</h1>
-    <div class="sub">الكود #@p.Code · @p.Type.Ar() · تاريخ التقرير @DateTime.Now.ToString("yyyy/MM/dd HH:mm")</div>
+    <div class="sub">الكود #@p.Code · @p.Type.Ar() · تاريخ التقرير @ClientTime.Now.ToString("yyyy/MM/dd HH:mm")</div>
 
     <h2>البيانات الأساسية</h2>
     <table class="kv">

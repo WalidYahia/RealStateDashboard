@@ -80,18 +80,19 @@ public class GeneralLedgerController : Controller
                     select new { l.AccountId, l.Debit, l.Credit, l.Memo, e.Id, e.Date, e.Number, e.Description, e.SourceType };
         if (targetIds != null) lines = lines.Where(x => targetIds.Contains(x.AccountId));
 
+        var (fromAt, toAt) = ClientTime.DayRange(from, to);   // [from, to) of the picked days
         // A running balance only makes sense for a single account/subtree, not for "الكل".
         if (!vm.IsAll)
         {
             var openingRaw = from.HasValue
-                ? await lines.Where(x => x.Date < from.Value.Date).SumAsync(x => (decimal?)(x.Debit - x.Credit), ct) ?? 0m
+                ? await lines.Where(x => x.Date < fromAt!.Value).SumAsync(x => (decimal?)(x.Debit - x.Credit), ct) ?? 0m
                 : 0m;
             vm.Opening = acc!.IsDebitNormal ? openingRaw : -openingRaw;
         }
 
         var q = lines;
-        if (from.HasValue) q = q.Where(x => x.Date >= from.Value.Date);
-        if (to.HasValue) q = q.Where(x => x.Date < to.Value.Date.AddDays(1));
+        if (fromAt.HasValue) q = q.Where(x => x.Date >= fromAt.Value);
+        if (toAt.HasValue) q = q.Where(x => x.Date < toAt.Value);
         var rows = await q.OrderBy(x => x.Date).ThenBy(x => x.Number).ToListAsync(ct);
 
         if (vm.IsAll)
@@ -145,7 +146,7 @@ public class GeneralLedgerController : Controller
         {
             Id = e.Id, Number = e.Number, Date = e.Date, Description = e.Description,
             SourceType = e.SourceType, IsManual = e.SourceType == "ManualJournal", Lines = lines,
-            CreatedBy = e.CreatedBy
+            CreatedBy = e.CreatedBy, Audit = RealState.Web.Models.AuditStampVm.Of(e)
         };
     }
 

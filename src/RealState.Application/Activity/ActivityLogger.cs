@@ -33,7 +33,7 @@ public sealed class ActivityLogger : IActivityLogger
             Path = e.Path,
             Description = e.Description,
             IpAddress = e.IpAddress,
-            Timestamp = _clock.Now,
+            Timestamp = _clock.Now,   // the user's local time — stored in UTC by the DbContext
         };
 
         _db.ActivityLogs.Add(log);

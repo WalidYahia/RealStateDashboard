@@ -1,0 +1,43 @@
+@model FinancialCustodyCreateModel
+<form id="appModalForm" asp-area="Accounting" asp-controller="FinancialCustody" asp-action="Form" method="post">
+    @Html.AntiForgeryToken()
+    <div asp-validation-summary="ModelOnly" class="validation-summary-errors"></div>
+    @if (Model.Safes.Count == 0)
+    {
+        <div class="status-message" style="background:rgba(250,178,25,.12);border-color:var(--warning);color:var(--warning);">
+            لا توجد خزنة نشطة. أضف خزنة من صفحة الخزائن قبل صرف العهدة.
+        </div>
+    }
+    <div class="form-grid">
+        <div class="full">
+            <label asp-for="EmployeeId" class="form-label"></label>
+            <select asp-for="EmployeeId" class="form-control" data-searchable asp-items="Model.Employees"><option value="">— اختر الموظف —</option></select>
+            <span asp-validation-for="EmployeeId" class="field-validation-error"></span>
+        </div>
+        <div class="full">
+            <label asp-for="Purpose" class="form-label"></label>
+            <input asp-for="Purpose" class="form-control" placeholder="مثال: عهدة موقع البرج — أكتوبر" />
+            <span asp-validation-for="Purpose" class="field-validation-error"></span>
+        </div>
+        <div>
+            <label asp-for="Amount" class="form-label"></label>
+            <input asp-for="Amount" class="form-control" type="number" step="any" min="0.01" inputmode="decimal" dir="ltr" />
+            <span asp-validation-for="Amount" class="field-validation-error"></span>
+        </div>
+        <div>
+            <label asp-for="Date" class="form-label"></label>
+            <input asp-for="Date" class="form-control" type="date" dir="ltr" />
+        </div>
+        <div class="full">
+            <label asp-for="SafeId" class="form-label"></label>
+            <select asp-for="SafeId" class="form-control" asp-items="Model.Safes"><option value="">— اختر الخزنة —</option></select>
+            <span asp-validation-for="SafeId" class="field-validation-error"></span>
+        </div>
+        <div class="full">
+            <label asp-for="Notes" class="form-label"></label>
+            <textarea asp-for="Notes" class="form-control" rows="2"></textarea>
+        </div>
+    </div>
+    <p style="color:var(--muted);font-size:12px;margin-top:8px;">يُسجَّل سند صرف من الخزنة وقيد: من ح/ العُهد المالية (الموظف) إلى ح/ الخزنة.</p>
+    <button type="submit" class="btn-primary" style="margin-top:8px;" disabled="@(Model.Safes.Count == 0)">💵 فتح العهدة وصرف المبلغ</button>
+</form>

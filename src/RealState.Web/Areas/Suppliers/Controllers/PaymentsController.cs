@@ -55,7 +55,7 @@ public class PaymentsController : Controller
             Total = p.Total,
             Paid = p.Paid,
             Remaining = p.Remaining,
-            PaidDate = DateTime.Today,
+            PaidDate = ClientTime.Today,
             Safes = await SafesAsync(_db, ct)
         });
     }

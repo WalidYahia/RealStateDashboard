@@ -13,7 +13,7 @@
         </div>
         <div>
             <label asp-for="OrderDate" class="form-label"></label>
-            <input asp-for="OrderDate" class="form-control" type="date" dir="ltr" />
+            <input asp-for="OrderDate" class="form-control" type="datetime-local" dir="ltr" asp-format="{0:yyyy-MM-ddTHH:mm}" />
             <span asp-validation-for="OrderDate" class="field-validation-error"></span>
         </div>
         <div>

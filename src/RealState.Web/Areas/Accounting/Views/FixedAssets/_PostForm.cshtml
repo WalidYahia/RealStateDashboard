@@ -1,0 +1,28 @@
+@model FixedAssetPostModel
+<form id="appModalForm" asp-area="Accounting" asp-controller="FixedAssets" asp-action="Post" method="post" data-modal-init="faFormInit">
+    @Html.AntiForgeryToken()
+    <div asp-validation-summary="ModelOnly" class="validation-summary-errors"></div>
+    <input type="hidden" asp-for="Id" />
+    <div class="status-message" style="background:var(--surface-2);border-color:var(--border);color:var(--text-secondary);">
+        FA-@Model.Number — <strong>@Model.Name</strong> · التكلفة <strong>@Model.Cost.ToString("N2", RealState.Web.AppCulture.Ar) ج.م</strong>
+    </div>
+    <div class="form-grid">
+        <div class="full">
+            <div class="sched-mode">
+                <label><input type="radio" name="AcquisitionMethod" value="OpeningBalance" checked="@(Model.AcquisitionMethod == AssetAcquisitionMethod.OpeningBalance)" data-fa-method /> أصل مملوك مسبقًا (رصيد افتتاحي)</label>
+                <label><input type="radio" name="AcquisitionMethod" value="Cash" checked="@(Model.AcquisitionMethod == AssetAcquisitionMethod.Cash)" data-fa-method /> شراء نقدي من خزنة</label>
+            </div>
+        </div>
+        <div class="full" data-fa-cash>
+            <label asp-for="SafeId" class="form-label"></label>
+            <select asp-for="SafeId" class="form-control" asp-items="Model.Safes"><option value="">— اختر الخزنة —</option></select>
+            <span asp-validation-for="SafeId" class="field-validation-error"></span>
+        </div>
+        <div class="full" data-fa-opening>
+            <label asp-for="OpeningAccumulatedDepreciation" class="form-label"></label>
+            <input asp-for="OpeningAccumulatedDepreciation" class="form-control" type="number" step="any" min="0" inputmode="decimal" dir="ltr" />
+            <span asp-validation-for="OpeningAccumulatedDepreciation" class="field-validation-error"></span>
+        </div>
+    </div>
+    <button type="submit" class="btn-primary" style="margin-top:12px;">📒 ترحيل قيد الاقتناء</button>
+</form>

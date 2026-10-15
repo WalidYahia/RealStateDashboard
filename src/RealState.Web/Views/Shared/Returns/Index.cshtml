@@ -6,7 +6,7 @@
     var k = Model.Kind;
     ViewData["Title"] = k.Title;
     string N(decimal v) => v.ToString("N2", RealState.Web.AppCulture.Ar);
-    string D(DateTime d) => d.ToString("yyyy/MM/dd", System.Globalization.CultureInfo.InvariantCulture);
+    string D(DateTime d) => RealState.Web.AppCulture.When(d);   // date + time when it has one
     string? F(DateTime? d) => d?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
     var total = Model.Rows.Sum(r => r.Total);
     var refund = Model.Rows.Sum(r => r.Refund);

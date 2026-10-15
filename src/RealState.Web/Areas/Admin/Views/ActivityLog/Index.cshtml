@@ -3,7 +3,7 @@
 @model ActivityLogVm
 @{
     ViewData["Title"] = "سجل النشاط";
-    string DT(DateTime d) => d.ToString("yyyy/MM/dd HH:mm", CultureInfo.InvariantCulture);
+    string DT(DateTime d) => RealState.Web.AppCulture.When(d);
     string? F(DateTime? d) => d?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
     string TypeClass(string t) => t switch
     {

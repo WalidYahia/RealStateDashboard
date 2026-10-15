@@ -1,3 +1,4 @@
+using RealState.Application.Enums;
 using RealState.Application.Common;
 
 namespace RealState.Application.Entities;
@@ -31,6 +32,11 @@ public class ProductSalesInvoice : AuditableEntity, ITenantEntity
     public Warehouse? Warehouse { get; set; }
 
     public string? Notes { get; set; }
+
+    /// <summary>نقدي / آجل. A cash invoice is collected in full into <see cref="CashSafeId"/> when saved — through an automatic
+    /// <see cref="SalesInvoiceCollection"/> (<see cref="SalesInvoiceCollection.IsInvoiceCash"/>) kept in step with the invoice total.</summary>
+    public InvoicePaymentType PaymentType { get; set; } = InvoicePaymentType.Credit;
+    public Guid? CashSafeId { get; set; }
 
     public ICollection<ProductSalesInvoiceItem> Items { get; set; } = new List<ProductSalesInvoiceItem>();
     public ICollection<SalesInvoiceCollection> Collections { get; set; } = new List<SalesInvoiceCollection>();
@@ -91,4 +97,7 @@ public class SalesInvoiceCollection : AuditableEntity, ITenantEntity
     public long ReceiptNo { get; set; }
 
     public string? Description { get; set; }
+
+    /// <summary>The automatic collection of a cash (نقدي) invoice — follows the invoice, never cancelled on its own.</summary>
+    public bool IsInvoiceCash { get; set; }
 }

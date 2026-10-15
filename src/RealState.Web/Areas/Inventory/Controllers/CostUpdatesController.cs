@@ -93,8 +93,8 @@ public class CostUpdatesController : Controller
         await _engine.EnsureDefaultsAsync(ct);   // posting profile + accounts (commits on its own)
         var doc = new CostRevaluation
         {
-            Number = await _engine.NextNumberAsync(_db.CostRevaluations.Select(x => x.Number), _db.CostRevaluations.Local.Select(x => x.Number), DateTime.Today.Year, ct),
-            Date = DateTime.Today,
+            Number = await _engine.NextNumberAsync(_db.CostRevaluations.Select(x => x.Number), _db.CostRevaluations.Local.Select(x => x.Number), ClientTime.Today.Year, ct),
+            Date = ClientTime.Today,
             Notes = string.IsNullOrWhiteSpace(notes) ? null : notes.Trim(),
         };
         foreach (var l in wanted)

@@ -7,7 +7,7 @@
     var firstDue = schedule.FirstOrDefault()?.DueDate;
     var tenantId = (Guid)ViewBag.TenantId;
     string N(decimal v) => v.ToString("N0", RealState.Web.AppCulture.Ar);
-    string D(DateTime? d) => d?.ToString("yyyy/MM/dd") ?? "—";
+    string D(DateTime? d) => RealState.Web.AppCulture.When(d);   // date + time when it has one
 }
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -35,7 +35,7 @@
     @await Component.InvokeAsync("ReportBackground", new { part = "open" })
     <div class="no-print"><button onclick="window.print()">🖨 طباعة / حفظ PDF</button></div>
     <h1>عقد بيع رقم @Model.Code</h1>
-    <div class="sub">تاريخ التحرير: @DateTime.Now.ToString("yyyy/MM/dd")</div>
+    <div class="sub">تاريخ التحرير: @ClientTime.Now.ToString("yyyy/MM/dd")</div>
 
     <h2>أطراف العقد والوحدة</h2>
     <table class="kv">

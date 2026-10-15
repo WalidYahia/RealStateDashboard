@@ -1,0 +1,102 @@
+@model FixedAssetListVm
+@{
+    ViewData["Title"] = "الأصول الثابتة";
+    var canManage = ViewData["CanManage"] as bool? ?? false;
+    string N(decimal v) => v.ToString("N2", RealState.Web.AppCulture.Ar);
+    string D(DateTime? d) => RealState.Web.AppCulture.When(d);   // date + time when it has one
+    var states = new List<SelectListItem>
+    {
+        new("متاح للتسليم", "available"),
+        new("في عهدة موظف", "custody"),
+        new("خارج الخدمة", "inactive"),
+        new("مُستبعد", "disposed"),
+        new("غير مُرحَّل محاسبيًا", "unposted"),
+    };
+    var categoryId = Model.CategoryId?.ToString();
+}
+<div class="page-head">
+    <h1>الأصول الثابتة</h1>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <a class="btn-sm" asp-controller="FixedAssetCategories" asp-action="Index">🗂 فئات الأصول</a>
+        <a class="btn-sm" asp-controller="FixedAssetDepreciation" asp-action="Index">📉 الإهلاك</a>
+        @if (User.Can(PermissionNames.MaterialCustodyView))
+        {
+            <a class="btn-sm" asp-controller="MaterialCustody" asp-action="Index">💼 العُهد العينية</a>
+        }
+        @if (canManage)
+        {
+            <button type="button" class="btn-new-tenant" data-quick-new onclick="appOpenModal('@Url.Action("Form")', 'إضافة أصل ثابت')">➕ أصل ثابت</button>
+        }
+    </div>
+</div>
+
+@if (TempData["StatusMessage"] is string msg)
+{
+    <div class="status-message">@msg</div>
+}
+@if (Model.UnpostedCount > 0)
+{
+    <div class="status-message" style="background:rgba(250,178,25,.12);border-color:var(--warning);color:var(--warning);">
+        @Model.UnpostedCount أصل غير مُرحَّل محاسبيًا (سُجِّل قبل ربط الأصول بشجرة الحسابات) — افتحه واضغط «ترحيل قيد الاقتناء».
+    </div>
+}
+
+<div class="kpi-grid" style="grid-template-columns: repeat(4, 1fr);">
+    <div class="kpi k-tasks"><div class="kpi-label">التكلفة</div><div class="kpi-value">@N(Model.TotalCost) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">الأصول المملوكة</div></div>
+    <div class="kpi k-alerts"><div class="kpi-label">مجمع الإهلاك</div><div class="kpi-value">@N(Model.TotalAccumulated) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">حتى الآن</div></div>
+    <div class="kpi k-sales"><div class="kpi-label">القيمة الدفترية</div><div class="kpi-value">@N(Model.TotalBookValue) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">التكلفة − الإهلاك</div></div>
+    <div class="kpi k-collect"><div class="kpi-label">في عهدة / متاح</div><div class="kpi-value">@Model.InCustodyCount / @Model.AvailableCount</div><div class="kpi-foot">أصل</div></div>
+</div>
+
+@{
+    var filter = FilterBarVm.For(Url.Action("Index"))
+        .Select("categoryId", "الفئة", Model.Categories, categoryId)
+        .Select("state", "الحالة", states, Model.State)
+        .Text("q", "بحث (الاسم / الرقم التسلسلي / صاحب العهدة)", Model.Q, "FA-… أو اسم الأصل")
+        .Print(Url.Action("PrintList", new { categoryId, state = Model.State, q = Model.Q }));
+}
+<partial name="_FilterBar" model="filter" />
+
+<div class="card-tile">
+    <div class="card-head">
+        <h3>سجل الأصول</h3>
+        <span class="pill">العدد: <span data-live-count="#faTable">@Model.Rows.Count</span></span>
+    </div>
+    <div class="list-search-bar"><input class="form-control list-search" data-target="#faTable" placeholder="🔍 بحث في القائمة..." /></div>
+    <table class="rs-table" id="faTable">
+        <thead><tr><th>الرقم</th><th>اسم الأصل</th><th>الفئة</th><th>الرقم التسلسلي</th><th>تاريخ الاقتناء</th><th>التكلفة</th><th>مجمع الإهلاك</th><th>القيمة الدفترية</th><th>صاحب العهدة</th><th>الحالة</th><th></th></tr></thead>
+        <tbody>
+        @foreach (var r in Model.Rows)
+        {
+            <tr style="@(r.IsDisposed ? "opacity:.6;" : "")">
+                <td dir="ltr" style="text-align:right;white-space:nowrap;"><a asp-action="Details" asp-route-id="@r.Id" style="color:var(--series-1);font-weight:600;text-decoration:none;">FA-@r.Number</a></td>
+                <td>@r.Name@(r.Quantity > 1 ? $" × {r.Quantity}" : "") @if (!r.IsPosted) { <span class="badge-state state-warn" title="غير مُرحَّل محاسبيًا">غير مُرحَّل</span> }</td>
+                <td>@(r.Category ?? "—")</td>
+                <td dir="ltr" style="text-align:right;">@(r.SerialNumber ?? "—")</td>
+                <td dir="ltr" style="text-align:right;">@D(r.PurchaseDate)</td>
+                <td>@N(r.Cost)</td>
+                <td>@N(r.Accumulated)</td>
+                <td style="font-weight:700;">@N(r.BookValue)</td>
+                <td>
+                    @if (r.CustodyId is Guid cid && User.Can(PermissionNames.MaterialCustodyView))
+                    {
+                        <a asp-controller="MaterialCustody" asp-action="Details" asp-route-id="@cid" style="color:var(--series-1);text-decoration:none;">@r.Custodian</a>
+                    }
+                    else { @(r.Custodian ?? "—") }
+                </td>
+                <td><span class="badge-state @r.StateClass">@r.StateText</span></td>
+                <td><a class="btn-sm" asp-action="Details" asp-route-id="@r.Id">التفاصيل</a></td>
+            </tr>
+        }
+        @if (Model.Rows.Count == 0)
+        {
+            <tr data-skip-search><td colspan="11" style="color:var(--muted)">لا توجد أصول مطابقة.</td></tr>
+        }
+        <tr data-no-results data-skip-search style="display:none;"><td colspan="11" style="color:var(--muted)">لا توجد نتائج مطابقة للبحث.</td></tr>
+        </tbody>
+    </table>
+</div>
+
+@section Scripts {
+    <script src="~/js/fixed-assets.js" asp-append-version="true"></script>
+}

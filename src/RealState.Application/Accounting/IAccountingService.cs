@@ -19,6 +19,9 @@ public static class AccountingSources
     public const string SalesReturn = "ProductSalesReturn";
     public const string PurchaseReturn = "PurchaseReturn";
     public const string AdvanceSalaryDeduction = "AdvanceSalaryDeduction";
+    public const string CustodyExpense = "CustodyExpense";
+    /// <summary>An account's opening balance (SourceId = the account) — safes use "SafeOpening".</summary>
+    public const string OpeningBalance = "OpeningBalance";
 }
 
 public interface IAccountingService
@@ -35,6 +38,13 @@ public interface IAccountingService
         Guid? customerId = null, Guid? supplierId = null, Guid? contractorId = null, Guid? employeeId = null,
         Guid? unitId = null, Guid? categoryId = null, CancellationToken ct = default);
 
+    /// <summary>
+    /// Records a numbered cash movement (سند صرف / سند قبض) WITHOUT posting a journal entry — for callers that post their
+    /// own entry (fixed-asset purchase / sale). Added to the unit of work; no SaveChanges.
+    /// </summary>
+    Task<SafeTransaction> AddVoucherAsync(Guid safeId, TxnType type, TxnSource source, decimal amount, DateTime occurredAt,
+        string description, CancellationToken ct = default);
+
     /// <summary>Ensures a chart-of-accounts account exists for a user-defined expense/income category (بند).</summary>
     Task EnsureCategoryAccountAsync(TxnCategory category, CancellationToken ct = default);
 
@@ -49,7 +59,7 @@ public interface IAccountingService
         Guid? categoryId = null, CancellationToken ct = default);
 
     /// <summary>Safe opening balance → Dr النقدية / Cr رصيد افتتاحي for the safe's InitialAmount.</summary>
-    Task PostSafeOpeningBalanceAsync(Safe safe, CancellationToken ct = default);
+    Task PostSafeOpeningBalanceAsync(Safe safe, CancellationToken ct = default, DateTime? date = null);
 
     // ---- accrual obligation postings (create the receivable/payable side) ----
 
@@ -83,6 +93,11 @@ public interface IAccountingService
     /// <summary>A from-salary advance installment marked paid → Dr رواتب ومكافآت / Cr سلف الموظفين (the employee);
     /// marked unpaid → the entry is removed. Re-posts (removes old first). Cash repayments post through their income.</summary>
     Task SyncAdvanceSalaryDeductionAsync(AdvanceRepayment repayment, Advance advance, CancellationToken ct = default);
+
+    /// <summary>An expense settled from a cash custody → Dr its category's expense account (مصروفات عامة when none) /
+    /// Cr «العُهد المالية» (the custodian). Tagged <see cref="AccountingSources.CustodyExpense"/> + the movement id; removed
+    /// with <see cref="RemoveObligationAsync"/>. No SaveChanges.</summary>
+    Task PostCustodyExpenseAsync(FinancialCustodyMovement expense, Guid employeeId, string description, CancellationToken ct = default);
 
     /// <summary>Work order → Dr أعمال المقاولات / Cr المقاولون at its current الإجمالي الفعلي. Re-posts on progress/edit.</summary>
     Task SyncWorkOrderAsync(WorkOrder order, CancellationToken ct = default);

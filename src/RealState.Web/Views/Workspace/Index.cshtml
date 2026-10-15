@@ -7,13 +7,13 @@
 @{
     ViewData["Title"] = "مساحة العمل";
     var name = User.FindFirst("full_name")?.Value ?? User.Identity?.Name;
-    var hour = DateTime.Now.Hour;
+    var hour = ClientTime.Now.Hour;
     var greeting = hour < 12 ? "صباح الخير" : "مساء الخير";
 }
 <div class="ws-hero">
     <div class="ws-hero-text">
         <h1 class="ws-title">@greeting، @name</h1>
-        <p class="ws-sub"><span class="ws-hero-date">@NavIcons.Svg("calendar", 14) @DateTime.Now.ToString("dddd d MMMM yyyy", RealState.Web.AppCulture.Ar)</span> · الوحدات والإجراءات المتاحة لك حسب صلاحياتك</p>
+        <p class="ws-sub"><span class="ws-hero-date">@NavIcons.Svg("calendar", 14) @ClientTime.Now.ToString("dddd d MMMM yyyy", RealState.Web.AppCulture.Ar)</span> · الوحدات والإجراءات المتاحة لك حسب صلاحياتك</p>
     </div>
     <button type="button" class="ws-search" data-open-palette>
         @NavIcons.Svg("search", 18)

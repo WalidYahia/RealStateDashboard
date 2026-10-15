@@ -5,7 +5,7 @@
     var salesName = ViewBag.SalesName as string;
     var sourceLabel = ViewBag.SourceLabel as string ?? c.Source.Ar();
     string N(decimal v) => v.ToString("N0", RealState.Web.AppCulture.Ar);
-    string D(DateTime? d) => d?.ToString("yyyy/MM/dd") ?? "—";
+    string D(DateTime? d) => RealState.Web.AppCulture.When(d);   // date + time when it has one
     var canConvert = Model.CanConvert;
 }
 <div class="page-head">
@@ -35,7 +35,7 @@
         }
         @if (!c.IsLead)
         {
-            <a class="btn-new-tenant" asp-action="PrintStatement" asp-route-id="@c.Id" target="_blank">🖨 كشف الحساب (PDF)</a>
+            <a class="btn-sm" asp-action="Statement" asp-route-id="@c.Id">📒 كشف الحساب</a>
         }
         @{
             var canEditProfile = c.IsLead ? User.Can(PermissionNames.LeadsUpdate) : User.Can(PermissionNames.CustomersEdit);
@@ -57,11 +57,7 @@
     <a class="subtab" data-cs="comm" href="javascript:" onclick="csTab(event,'comm')">التواصل والسجل</a>
     @if (!c.IsLead)
     {
-        <a class="subtab" data-cs="statement" href="javascript:" onclick="csTab(event,'statement')">كشف الحساب</a>
-    }
-    @if (ViewBag.SalesInvoices is not null)
-    {
-        <a class="subtab" data-cs="sinv" href="javascript:" onclick="csTab(event,'sinv')">فواتير المبيعات</a>
+        <a class="subtab" data-cs="statement" href="javascript:" onclick="csTab(event,'statement')">التعاقدات والأقساط</a>
     }
 </div>
 
@@ -81,7 +77,7 @@
 
     @{
         var campaignLeads = ViewBag.CampaignLeads as List<RealState.Application.Entities.CampaignLead> ?? new();
-        string DTT(DateTime d) => d.ToString("yyyy/MM/dd HH:mm", System.Globalization.CultureInfo.InvariantCulture);
+        string DTT(DateTime d) => RealState.Web.AppCulture.When(d);
         Dictionary<string, string> Extras(string? json)
         {
             if (string.IsNullOrEmpty(json)) return new();
@@ -114,6 +110,9 @@
 
 <!-- statement -->
 <div id="cs-statement" class="cstab" style="display:none;">
+    <div style="display:flex;justify-content:flex-end;margin-bottom:12px;">
+        <a class="btn-sm" asp-action="PrintStatement" asp-route-id="@c.Id" target="_blank">🖨 طباعة التعاقدات والأقساط</a>
+    </div>
     <div class="kpi-grid" style="grid-template-columns: repeat(3, 1fr);">
         <div class="kpi k-tasks"><div class="kpi-label">إجمالي الالتزامات</div><div class="kpi-value">@N(Model.TotalObligations) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">@Model.Contracts.Count عقد</div></div>
         <div class="kpi k-sales"><div class="kpi-label">المحصّل</div><div class="kpi-value">@N(Model.TotalPaid) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">من الأقساط والمقدمات</div></div>
@@ -159,48 +158,6 @@
         </div>
     }
 </div>
-
-<!-- product sales invoices -->
-@if (ViewBag.SalesInvoices is List<(Guid Id, int Number, DateTime InvoiceDate, decimal Total, decimal Collected)> sinv)
-{
-    var sTotal = sinv.Sum(x => x.Total); var sCollected = sinv.Sum(x => x.Collected);
-    string N2(decimal v) => v.ToString("N2", RealState.Web.AppCulture.Ar);
-    <div id="cs-sinv" class="cstab" style="display:none;">
-        <div class="kpi-grid" style="grid-template-columns: repeat(3, 1fr);">
-            <div class="kpi k-tasks"><div class="kpi-label">إجمالي الفواتير</div><div class="kpi-value">@N2(sTotal) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">@sinv.Count فاتورة</div></div>
-            <div class="kpi k-sales"><div class="kpi-label">المحصَّل</div><div class="kpi-value">@N2(sCollected) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">من فواتير المبيعات</div></div>
-            <div class="kpi k-alerts"><div class="kpi-label">المتبقي</div><div class="kpi-value">@N2(sTotal - sCollected) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">مستحق على العميل</div></div>
-        </div>
-        <div class="card-tile">
-            <div class="card-head">
-                <h3>فواتير المبيعات (الأصناف)</h3>
-                @if (User.Can(PermissionNames.SalesInvoicesCreate))
-                {
-                    <button type="button" class="btn-new-tenant" onclick="appOpenModal('@Url.Action("Form", "SalesInvoices", new { area = "Sales", customerId = c.Id })', 'فاتورة مبيعات جديدة', 'xl')">➕ فاتورة مبيعات</button>
-                }
-            </div>
-            <table class="rs-table">
-                <thead><tr><th>الرقم</th><th>التاريخ</th><th>الإجمالي</th><th>المحصَّل</th><th>المتبقي</th></tr></thead>
-                <tbody>
-                @foreach (var x in sinv)
-                {
-                    <tr>
-                        <td><a asp-area="Sales" asp-controller="SalesInvoices" asp-action="Details" asp-route-id="@x.Id" dir="ltr" style="color:var(--series-1);font-weight:600;text-decoration:none;">SI-@x.Number</a></td>
-                        <td dir="ltr" style="text-align:right;">@D(x.InvoiceDate)</td>
-                        <td>@N2(x.Total)</td>
-                        <td class="tag-up">@N2(x.Collected)</td>
-                        <td>@N2(x.Total - x.Collected)</td>
-                    </tr>
-                }
-                @if (sinv.Count == 0)
-                {
-                    <tr><td colspan="5" style="color:var(--muted)">لا توجد فواتير مبيعات لهذا العميل.</td></tr>
-                }
-                </tbody>
-            </table>
-        </div>
-    </div>
-}
 
 <!-- communications + action log -->
 <div id="cs-comm" class="cstab" style="display:none;">
@@ -257,8 +214,6 @@
 </div>
 
 @section Scripts {
-    @* Product-lines editor of the «➕ فاتورة مبيعات» modal (sales invoices tab). *@
-    <script src="~/js/purchase-doc.js" asp-append-version="true"></script>
     <script>
         // Profiles open on the data (info) tab; the active tab is kept in the URL hash so a reload
         // after adding a log / updating status stays on the same tab.

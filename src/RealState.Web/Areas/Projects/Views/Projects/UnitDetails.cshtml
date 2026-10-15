@@ -61,7 +61,7 @@
                 <td>@a.FileName</td>
                 <td dir="ltr" style="text-align:right;">@a.ContentType</td>
                 <td>@((a.Size / 1024.0).ToString("N0")) KB</td>
-                <td>@a.CreatedAt.ToString("yyyy/MM/dd")</td>
+                <td dir="ltr" style="text-align:right;">@RealState.Web.AppCulture.When(a.CreatedAt)</td>
                 <td style="white-space:nowrap;">
                     <a class="btn-sm" asp-action="UnitAttachmentPreview" asp-route-id="@a.Id" target="_blank">👁 معاينة</a>
                     <a class="btn-sm" asp-action="UnitAttachmentDownload" asp-route-id="@a.Id" target="_blank">تنزيل</a>

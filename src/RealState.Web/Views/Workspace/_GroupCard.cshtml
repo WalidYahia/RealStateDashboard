@@ -1,0 +1,19 @@
+@model NavGroupVm
+@*
+    A group card in a module / group workspace: opens the group's own page of cards. A «قريبًا» group only shows a
+    «قريبًا» message (.ws-soon-link, workspace-nav.js).
+*@
+@{
+    var g = Model;
+}
+<div class="ws-card ws-group-card @(g.Soon ? "ws-soon" : "")">
+    <a class="ws-card-link @(g.CanOpen ? "" : "ws-soon-link")" href="@(g.CanOpen ? g.Url : "#")" data-title="@g.Title">
+        <span class="ws-card-icon">@NavIcons.Svg(g.Icon, 22)</span>
+        <span class="ws-card-body">
+            <span class="ws-card-title">@g.Title @if (g.Soon) { <span class="nav-soon">قريبًا</span> }</span>
+            <span class="ws-card-desc">@g.Description</span>
+            <span class="ws-meta"><span class="ws-pill">@g.PageCount صفحة</span></span>
+        </span>
+        @if (g.CanOpen) { <span class="ws-go" aria-hidden="true">@NavIcons.Svg("chevron", 16)</span> }
+    </a>
+</div>

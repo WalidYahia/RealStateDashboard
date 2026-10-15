@@ -1,5 +1,3 @@
-using Microsoft.AspNetCore.Mvc.Rendering;
-
 namespace RealState.Web.Areas.Inventory.Models;
 
 /// <summary>Inventory value held in one warehouse (used by the "value by warehouse" bars).</summary>
@@ -25,9 +23,7 @@ public class StockAlertRow
 
 public class InventoryDashboardVm
 {
-    public DateTime AsOf { get; set; } = DateTime.Today;
-    public Guid? CategoryId { get; set; }
-    public List<SelectListItem> Categories { get; set; } = new();
+    public DateTime AsOf { get; set; } = ClientTime.Today;
 
     public decimal TotalValue { get; set; }
     public int TotalProducts { get; set; }
@@ -38,7 +34,4 @@ public class InventoryDashboardVm
 
     public List<WarehouseValueRow> ByWarehouse { get; set; } = new();
     public List<StockAlertRow> Alerts { get; set; } = new();
-
-    /// <summary>Largest warehouse value, used to scale the bars (never zero, to avoid divide-by-zero).</summary>
-    public decimal MaxWarehouseValue => ByWarehouse.Count == 0 ? 0m : ByWarehouse.Max(w => Math.Abs(w.Value));
 }

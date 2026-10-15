@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using RealState.Application.Accounting;
 using RealState.Application.Common;
 using RealState.Application.Entities;
+using RealState.Application.Enums;
 using RealState.Application.Interfaces;
 using RealState.Web.Areas.Suppliers.Models;
 using static RealState.Web.Areas.Suppliers.Controllers.PurchasingLookups;
@@ -82,11 +83,19 @@ public class SuppliersController : Controller
     {
         var s = await _db.Suppliers.FirstOrDefaultAsync(x => x.Id == id, ct);
         if (s is null) return NotFound();
+        if (s.IsDefaultCash)
+        {
+            HttpContext.Items[RealState.Web.Filters.ActivityLogFilter.SkipItem] = true;   // refused — nothing changed
+            TempData["ErrorMessage"] = $"«{s.Name}» هو المورد النقدي الافتراضي لفواتير المشتريات النقدية — لا يمكن حذفه.";
+            return RedirectToAction(nameof(Index));
+        }
         if (await _db.PurchaseInvoices.AnyAsync(i => i.SupplierId == id, ct) ||
             await _db.SupplierOrders.AnyAsync(o => o.SupplierId == id, ct) ||
-            await _db.SupplierPayments.AnyAsync(p => p.SupplierId == id, ct))
+            await _db.SupplierPayments.AnyAsync(p => p.SupplierId == id, ct) ||
+            await _db.SafeTransactions.AnyAsync(t => t.Source == TxnSource.SupplierAccount && t.SupplierId == id, ct) ||
+            await _db.AccountOpeningBalances.AnyAsync(b => b.Account!.SubKind == "Supplier" && b.Account.SubRefId == id, ct))
         {
-            TempData["ErrorMessage"] = "لا يمكن حذف مورد لديه فواتير مشتريات أو أوامر توريد أو مدفوعات.";
+            TempData["ErrorMessage"] = "لا يمكن حذف مورد لديه فواتير مشتريات أو أوامر توريد أو مدفوعات أو رصيد افتتاحي.";
             return RedirectToAction(nameof(Index));
         }
         _db.Suppliers.Remove(s);
@@ -206,6 +215,28 @@ public class SuppliersController : Controller
             ReceiptNo = r.RefundVoucherNo ?? 0, Amount = r.RefundAmount
         }));
 
+        // The opening balance (الأرصدة الافتتاحية): credit = owed to the supplier (+), debit = owed by them (−).
+        var opening = await _db.AccountOpeningBalances.AsNoTracking()
+            .FirstOrDefaultAsync(b => b.Account!.SubKind == "Supplier" && b.Account.SubRefId == supplier.Id, ct);
+        if (opening is not null)
+            rows.Add(new SupplierLedgerRow
+            {
+                Kind = opening.IsDebit ? SupplierLedgerKind.OpeningDebit : SupplierLedgerKind.OpeningCredit, Id = supplier.Id,
+                Source = "رصيد افتتاحي", Date = opening.Date, Amount = opening.Amount,
+                Statement = opening.IsDebit ? "رصيد افتتاحي مدين — مستحق على المورد" : "رصيد افتتاحي دائن — مستحق للمورد"
+            });
+
+        // Vouchers on the supplier's account from المصروفات / الإيرادات (سند صرف −, سند قبض +).
+        var accountVouchers = await _db.SafeTransactions.Where(t => t.Source == TxnSource.SupplierAccount && t.SupplierId == supplier.Id).ToListAsync(ct);
+        rows.AddRange(accountVouchers.Select(t => new SupplierLedgerRow
+        {
+            Kind = t.Type == TxnType.Expense ? SupplierLedgerKind.AccountPayment : SupplierLedgerKind.AccountReceipt,
+            Id = t.Id, ReceiptNo = t.Serial, Date = t.OccurredAt, Amount = t.Amount,
+            Source = t.Type == TxnType.Expense ? "سند صرف" : "سند قبض",
+            Statement = (t.Type == TxnType.Expense ? $"سداد على الحساب — سند صرف رقم {t.Serial}" : $"قبض من المورد على الحساب — سند قبض رقم {t.Serial}")
+                        + (string.IsNullOrWhiteSpace(t.Description) ? "" : $" — {t.Description}")
+        }));
+
         // Chronological running balance (owed to supplier) over ALL rows — obligations before payments on
         // the same date — so each row's balance stays correct even when the list is date-filtered.
         var ordered = rows.OrderBy(r => r.Date).ThenBy(r => r.DayOrder).ToList();
@@ -230,10 +261,11 @@ public class SuppliersController : Controller
             From = from,
             To = to,
             // Net of purchase returns, and of the cash the supplier refunded through them.
-            TotalObligations = obligations.Sum(o => o.Total - o.Returned),
-            TotalPaid = payments.Sum(p => p.Amount) - rets.Sum(r => r.RefundAmount),
+            TotalObligations = obligations.Sum(o => o.Total - o.Returned) + (opening is { IsDebit: false } ? opening.Amount : 0m),
+            TotalPaid = payments.Sum(p => p.Amount) - rets.Sum(r => r.RefundAmount) + (opening is { IsDebit: true } ? opening.Amount : 0m)
+                        + accountVouchers.Where(t => t.Type == TxnType.Expense).Sum(t => t.Amount) - accountVouchers.Where(t => t.Type == TxnType.Income).Sum(t => t.Amount),
             InvoicesCount = obligations.Count,
-            PaymentsCount = payments.Count,
+            PaymentsCount = payments.Count + accountVouchers.Count(t => t.Type == TxnType.Expense),
             // The pay button shows when ANY single document still has an outstanding balance — independent of
             // the net supplier balance (a supplier can be net-overpaid yet still have an unpaid invoice).
             HasPayableDocuments = obligations.Any(o => o.Remaining > 0),

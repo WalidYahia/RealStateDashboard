@@ -27,7 +27,7 @@
     <div class="no-print"><button onclick="window.print()">🖨 طباعة / حفظ PDF</button></div>
     <div class="receipt">
         <h1>سند سلفة</h1>
-        <div class="sub">سلفة رقم ADV-@Model.Number.ToString("D4") · تاريخ الإصدار @DateTime.Now.ToString("yyyy/MM/dd")</div>
+        <div class="sub">سلفة رقم ADV-@Model.Number.ToString("D4") · تاريخ الإصدار @ClientTime.Now.ToString("yyyy/MM/dd")</div>
         <div class="amount">@N(Model.Amount) ج.م</div>
         <table>
             <tr><th>الموظف</th><td>@Model.Employee?.FullName @(string.IsNullOrEmpty(Model.Employee?.Phone) ? "" : "— " + Model.Employee?.Phone)</td></tr>

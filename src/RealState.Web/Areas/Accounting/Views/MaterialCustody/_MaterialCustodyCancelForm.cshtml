@@ -1,0 +1,16 @@
+@model MaterialCustodyCancelModel
+<form id="appModalForm" asp-area="Accounting" asp-controller="MaterialCustody" asp-action="Cancel" method="post">
+    @Html.AntiForgeryToken()
+    <input type="hidden" asp-for="Id" />
+    <div class="status-message" style="background:rgba(208,59,59,.08);border-color:var(--critical);color:var(--critical);">
+        إلغاء العهدة MC-@Model.Number — <strong>@Model.ItemName</strong>. تبقى في السجل بحالة «أُلغيت» مع السبب، ويصبح الأصل متاحًا.
+    </div>
+    <div class="form-grid">
+        <div class="full">
+            <label asp-for="Reason" class="form-label"></label>
+            <textarea asp-for="Reason" class="form-control" rows="3" placeholder="مثال: سُجِّلت للموظف الخطأ"></textarea>
+            <span asp-validation-for="Reason" class="field-validation-error"></span>
+        </div>
+    </div>
+    <button type="submit" class="btn-primary" style="margin-top:12px;background:var(--critical);">✖ إلغاء العهدة</button>
+</form>

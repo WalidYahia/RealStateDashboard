@@ -22,6 +22,19 @@ public enum TxnSource
     SalesInvoiceCollection = 9, // تحصيل من عميل على فاتورة مبيعات (إيراد)
     SalesReturnRefund = 10,     // رد نقدية لعميل عن مرتجع مبيعات (مصروف — يعيد ذمة العميل)
     PurchaseReturnRefund = 11,  // استرداد نقدية من مورد عن مرتجع مشتريات (إيراد — يعيد ذمة المورد)
+    CustodyDisbursement = 12,   // صرف عهدة مالية لموظف (منصرف — يزيد رصيد العُهد المالية)
+    CustodyReturn = 13,         // رد نقدية من عهدة مالية إلى خزنة (وارد — ينقص رصيد العُهد المالية)
+    FixedAssetPurchase = 14,    // شراء أصل ثابت نقدًا (منصرف — يُضاف لحساب الأصل)
+    FixedAssetSale = 15,        // متحصلات بيع أصل ثابت (وارد — قيده ضمن قيد الاستبعاد)
+    CustomerAccount = 16,       // سند قبض / صرف على حساب عميل (من صفحتي الإيرادات / المصروفات) — يحرّك ذمة العميل
+    SupplierAccount = 17,       // سند صرف / قبض على حساب مورد (من صفحتي المصروفات / الإيرادات) — يحرّك ذمة المورد
+}
+
+/// <summary>How a sales / purchase invoice is settled (نقدي / آجل).</summary>
+public enum InvoicePaymentType
+{
+    Credit = 0,   // آجل — يبقى مستحقًا ويُحصَّل / يُسدَّد لاحقًا
+    Cash = 1,     // نقدي — يُحصَّل / يُسدَّد بالكامل من خزنة عند الحفظ
 }
 
 /// <summary>Kind of safe (نوع الخزنة) — where the money is held.</summary>

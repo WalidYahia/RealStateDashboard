@@ -1,0 +1,69 @@
+@model CustodySettleModel
+@{
+    string N(decimal v) => v.ToString("N2", RealState.Web.AppCulture.Ar);
+    var inv = System.Globalization.CultureInfo.InvariantCulture;
+}
+<form id="appModalForm" asp-area="Accounting" asp-controller="FinancialCustody" asp-action="Settle" method="post" enctype="multipart/form-data"
+      data-modal-init="custodySettleInit" data-balance="@Model.Balance.ToString(inv)">
+    @Html.AntiForgeryToken()
+    <input type="hidden" asp-for="CustodyId" />
+    <div class="status-message" style="background:var(--surface-2);border-color:var(--border);color:var(--text-secondary);">
+        العهدة FC-@Model.Number · الرصيد لدى الموظف قبل التسوية: <strong>@N(Model.Balance) ج.م</strong>
+    </div>
+    @if (ViewData.ModelState.TryGetValue("Lines", out var linesState) && linesState.Errors.Count > 0)
+    {
+        <div class="field-validation-error" style="margin-bottom:10px;">@foreach (var e in linesState.Errors) { <div>@e.ErrorMessage</div> }</div>
+    }
+
+    <div data-settle-lines>
+    @for (var i = 0; i < Model.Lines.Count; i++)
+    {
+        var l = Model.Lines[i];
+        <div class="settle-line" data-settle-line>
+            <div class="settle-line-head">
+                <strong>مصروف <span data-line-no>@(i + 1)</span></strong>
+                <button type="button" class="btn-sm btn-danger" data-line-del title="حذف السطر" aria-label="حذف السطر">✕</button>
+            </div>
+            <div class="form-grid">
+                <div>
+                    <label class="form-label">التاريخ</label>
+                    <input type="date" name="Lines[@i].Date" class="form-control" dir="ltr" value="@l.Date?.ToString("yyyy-MM-dd", inv)" />
+                </div>
+                <div>
+                    <label class="form-label">المبلغ (ج.م)</label>
+                    <input type="number" name="Lines[@i].Amount" class="form-control" dir="ltr" step="any" min="0.01" inputmode="decimal" value="@l.Amount?.ToString("0.##", inv)" data-line-amount />
+                </div>
+                <div class="full">
+                    <label class="form-label">البيان</label>
+                    <input name="Lines[@i].Description" class="form-control" value="@l.Description" placeholder="مثال: شراء أدوات كهرباء للموقع" />
+                </div>
+                <div>
+                    <label class="form-label">البند</label>
+                    <select name="Lines[@i].CategoryId" class="form-control">
+                        <option value="">عام — مصروفات عامة</option>
+                        @foreach (var c in Model.Categories) { <option value="@c.Value" selected="@(l.CategoryId?.ToString() == c.Value)">@c.Text</option> }
+                    </select>
+                </div>
+                <div>
+                    <label class="form-label">المشروع (اختياري)</label>
+                    <select name="Lines[@i].ProjectId" class="form-control">
+                        <option value="">— بدون —</option>
+                        @foreach (var p in Model.Projects) { <option value="@p.Value" selected="@(l.ProjectId?.ToString() == p.Value)">@p.Text</option> }
+                    </select>
+                </div>
+                <div class="full">
+                    <label class="form-label">صورة الإيصال (اختياري)</label>
+                    <input type="file" name="Lines[@i].Receipt" class="form-control" accept="image/*,application/pdf" />
+                </div>
+            </div>
+        </div>
+    }
+    </div>
+
+    <div class="settle-foot">
+        <button type="button" class="btn-sm" data-line-add>➕ إضافة مصروف</button>
+        <span class="settle-total" data-settle-total></span>
+    </div>
+    <p style="color:var(--muted);font-size:12px;margin-top:8px;">لكل مصروف قيد: من ح/ البند (أو المصروفات العامة) إلى ح/ العُهد المالية (الموظف). الرصيد المتبقي يُرد للخزنة، وإن كان بالسالب يُصرف للموظف من «صرف مبلغ إضافي للموظف».</p>
+    <button type="submit" class="btn-primary" style="margin-top:8px;">✅ اعتماد المصروفات</button>
+</form>

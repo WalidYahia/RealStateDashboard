@@ -48,7 +48,7 @@ public class StockCountsController : Controller
     public async Task<IActionResult> Excel(DateTime? from, DateTime? to, CancellationToken ct)
     {
         var (h, rows) = await BuildExportAsync(from, to, ct);
-        return RealState.Web.Common.Xlsx.File($"الجرد {DateTime.Now:yyyy-MM-dd}.xlsx", "الجرد", h, rows);
+        return RealState.Web.Common.Xlsx.File($"الجرد {ClientTime.Now:yyyy-MM-dd}.xlsx", "الجرد", h, rows);
     }
 
     [HttpGet]
@@ -89,7 +89,7 @@ public class StockCountsController : Controller
         var d = await _db.StockCounts.Include(x => x.Lines).FirstOrDefaultAsync(x => x.Id == id, ct);
         if (d is null) return NotFound();
         if (d.Status != InventoryDocStatus.Draft) { TempData["ErrorMessage"] = "لا يمكن تعديل مستند مُرحَّل."; return RedirectToAction(nameof(Index)); }
-        var model = new CountFormModel { Id = d.Id, Number = d.Number, Date = d.Date, WarehouseId = d.WarehouseId, Notes = d.Notes, Status = d.Status };
+        var model = new CountFormModel { Id = d.Id, Number = d.Number, Date = d.Date, WarehouseId = d.WarehouseId, Notes = d.Notes, Status = d.Status, Audit = RealState.Web.Models.AuditStampVm.Of(d) };
         await FillAsync(model, ct);
         var names = await ProductNamesAsync(d.Lines.Select(l => l.ProductId), ct);
         model.ExistingLines = d.Lines.Select(l => new DocLineVm { ProductId = l.ProductId, UnitLevel = l.UnitLevel, ProductLabel = names.GetValueOrDefault(l.ProductId, ""), SystemQty = InvDocUnits.Entered(l.SystemQty, l.UnitFactor), CountedQty = InvDocUnits.Entered(l.CountedQty, l.UnitFactor) }).ToList();
@@ -124,6 +124,7 @@ public class StockCountsController : Controller
             if (d is null) return NotFound();
             if (d.Status != InventoryDocStatus.Draft) { TempData["ErrorMessage"] = "لا يمكن تعديل مستند مُرحَّل."; return RedirectToAction(nameof(Index)); }
             _db.StockCountLines.RemoveRange(await _db.StockCountLines.Where(l => l.StockCountId == d.Id).ToListAsync(ct));
+            d.UpdatedAt = ClientTime.Now;   // only the lines changed — the document still counts as updated (LastUpdateTime)
         }
         d.Date = model.Date; d.WarehouseId = model.WarehouseId; d.Notes = model.Notes; d.Status = InventoryDocStatus.Draft;
         // Snapshot the system quantity at count time for each product.

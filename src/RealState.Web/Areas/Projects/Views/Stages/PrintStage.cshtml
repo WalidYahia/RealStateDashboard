@@ -3,7 +3,7 @@
     Layout = null;
     var project = (Project)ViewBag.Project;
     var activities = ViewBag.Activities as List<StageActivity> ?? new();
-    string D(DateTime? d) => d?.ToString("yyyy/MM/dd") ?? "—";
+    string D(DateTime? d) => RealState.Web.AppCulture.When(d);   // date + time when it has one
     string status = Model.ActualEndDate.HasValue ? "مكتملة" : Model.ActualStartDate.HasValue ? "قيد التنفيذ" : "لم تبدأ";
 }
 <!DOCTYPE html>
@@ -17,7 +17,7 @@
     @await Component.InvokeAsync("ReportBackground", new { part = "open" })
     <div class="no-print"><button onclick="window.print()">🖨 طباعة / حفظ PDF</button></div>
     <h1>المرحلة: @Model.Name</h1>
-    <div class="sub">مشروع @project.Name (#@project.Code) · @DateTime.Now.ToString("yyyy/MM/dd HH:mm")</div>
+    <div class="sub">مشروع @project.Name (#@project.Code) · @ClientTime.Now.ToString("yyyy/MM/dd HH:mm")</div>
 
     <table class="kv">
         <tr><th>الحالة</th><td>@status</td></tr>

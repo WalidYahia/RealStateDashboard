@@ -97,7 +97,7 @@ public class WorkOrdersController : Controller
         });
         var totals = new object?[] { "الإجمالي", null, null, null, null, rows.Sum(o => o.Total), null, null,
             rows.Sum(o => o.Deductions), rows.Sum(o => o.ActualTotal), rows.Sum(o => o.Paid), rows.Sum(o => o.Remaining) };
-        return RealState.Web.Common.Xlsx.File($"أوامر الشغل {DateTime.Now:yyyy-MM-dd}.xlsx", "أوامر الشغل", headers, data, totals);
+        return RealState.Web.Common.Xlsx.File($"أوامر الشغل {ClientTime.Now:yyyy-MM-dd}.xlsx", "أوامر الشغل", headers, data, totals);
     }
 
     [HttpGet]
@@ -258,7 +258,7 @@ public class WorkOrdersController : Controller
         }
         _db.WorkOrderLogs.Add(new WorkOrderLog
         {
-            WorkOrderId = o.Id, Field = model.Field, Value = model.Value, At = DateTime.Now, ByName = CurrentName()
+            WorkOrderId = o.Id, Field = model.Field, Value = model.Value, At = ClientTime.Now, ByName = CurrentName()
         });
         // Progress changed الإجمالي الفعلي → re-sync the contractor-cost / payable entry.
         await _accounting.SyncWorkOrderAsync(o, ct);

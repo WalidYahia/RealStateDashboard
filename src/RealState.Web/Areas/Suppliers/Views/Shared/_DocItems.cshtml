@@ -93,9 +93,9 @@
                         </select>
                     }
                 </td>
-                @if (Model.ShowCost) { <td><input class="form-control" style="margin:0" type="number" step="0.0001" min="0" dir="ltr" name="Items[@i].Cost" value="@C(it.Cost)" data-pd-cost /></td> }
+                @if (Model.ShowCost) { <td><input class="form-control" style="margin:0" type="number" step="any" min="0" dir="ltr" name="Items[@i].Cost" value="@C(it.Cost)" data-pd-cost /></td> }
                 @if (Model.ShowStock) { <td class="pd-stock" dir="ltr" style="text-align:right;">—</td> }
-                <td><input class="form-control" style="margin:0" type="number" step="0.0001" min="0" dir="ltr" name="Items[@i].Quantity" value="@Q(it.Quantity)" data-pd-qty /></td>
+                <td><input class="form-control" style="margin:0" type="number" step="any" min="0" dir="ltr" name="Items[@i].Quantity" value="@Q(it.Quantity)" data-pd-qty /></td>
                 @if (Model.ShowCost) { <td dir="ltr" style="text-align:right;"><span class="pd-line">@N(it.LineTotal)</span></td> }
                 <td><button type="button" class="btn-sm btn-danger" onclick="pdRemoveRow(this)">✕</button></td>
             </tr>
@@ -116,9 +116,9 @@
             </select>
         </td>
         <td class="pd-unit"><select class="form-control" name="Items[__k__].UnitLevel" data-pd-unit></select></td>
-        @if (Model.ShowCost) { <td><input class="form-control" style="margin:0" type="number" step="0.0001" min="0" dir="ltr" name="Items[__k__].Cost" data-pd-cost /></td> }
+        @if (Model.ShowCost) { <td><input class="form-control" style="margin:0" type="number" step="any" min="0" dir="ltr" name="Items[__k__].Cost" data-pd-cost /></td> }
         @if (Model.ShowStock) { <td class="pd-stock" dir="ltr" style="text-align:right;">—</td> }
-        <td><input class="form-control" style="margin:0" type="number" step="0.0001" min="0" dir="ltr" name="Items[__k__].Quantity" value="1" data-pd-qty /></td>
+        <td><input class="form-control" style="margin:0" type="number" step="any" min="0" dir="ltr" name="Items[__k__].Quantity" value="1" data-pd-qty /></td>
         @if (Model.ShowCost) { <td dir="ltr" style="text-align:right;"><span class="pd-line">0</span></td> }
         <td><button type="button" class="btn-sm btn-danger" onclick="pdRemoveRow(this)">✕</button></td>
     </tr>

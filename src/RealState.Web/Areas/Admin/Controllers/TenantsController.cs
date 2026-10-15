@@ -84,6 +84,8 @@ public class TenantsController : Controller
         };
         _db.Tenants.Add(tenant);
         await _db.SaveChangesAsync(ct);
+        // Its built-in «عميل نقدي» / «مورد نقدي» (the default party of cash invoices).
+        if (await CashParties.EnsureAsync(_db, tenant.Id, ct)) await _db.SaveChangesAsync(ct);
 
         var admin = new ApplicationUser
         {
@@ -95,7 +97,7 @@ public class TenantsController : Controller
             FullName = model.AdminDisplayName,     // display "user name"
             TenantId = tenant.Id,
             IsActive = true,
-            CreatedAt = DateTime.UtcNow
+            CreatedAt = ClientTime.Now
         };
 
         var result = await _userManager.CreateAsync(admin, model.AdminPassword);

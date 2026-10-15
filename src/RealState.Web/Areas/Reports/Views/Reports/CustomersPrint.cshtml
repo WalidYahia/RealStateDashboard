@@ -3,7 +3,7 @@
     Layout = null;
     var tenantId = (Guid)ViewBag.TenantId;
     string N(decimal v) => v.ToString("N0", RealState.Web.AppCulture.Ar);
-    string D(DateTime d) => d.ToString("yyyy/MM/dd", System.Globalization.CultureInfo.InvariantCulture);
+    string D(DateTime d) => RealState.Web.AppCulture.When(d);   // date + time when it has one
 }
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -28,7 +28,7 @@
     <h1>تقرير العملاء</h1>
     <div class="sub">
         @if (Model.From.HasValue || Model.To.HasValue) { <text>الفترة @D(Model.From ?? DateTime.MinValue) — @D(Model.To ?? DateTime.MaxValue) · </text> }
-        طُبع @DateTime.Now.ToString("yyyy/MM/dd HH:mm")
+        طُبع @ClientTime.Now.ToString("yyyy/MM/dd HH:mm")
     </div>
 
     <table>

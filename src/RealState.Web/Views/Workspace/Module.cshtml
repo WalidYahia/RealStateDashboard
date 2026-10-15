@@ -26,10 +26,24 @@
     }
 </div>
 
-<h2 class="ws-h2">الصفحات <span class="ws-count">@m.Pages.Count(p => !p.Soon)</span></h2>
-<div class="ws-grid ws-pages">
-    @foreach (var p in m.Pages)
-    {
-        <partial name="_PageCard" model="(p, Model.Kpis.GetValueOrDefault(p.Key), Model.FavoriteKeys.Contains(p.Key))" />
-    }
-</div>
+@if (m.Groups.Count > 0)
+{
+    @* Group cards (المالية / المحاسبة / العُهد …): each opens its own page of cards. *@
+    <h2 class="ws-h2">الأقسام <span class="ws-count">@m.Groups.Count</span></h2>
+    <div class="ws-grid ws-pages">
+        @foreach (var g in m.Groups)
+        {
+            <partial name="_GroupCard" model="g" />
+        }
+    </div>
+}
+@if (m.LoosePages.Count > 0)
+{
+    <h2 class="ws-h2" style="@(m.Groups.Count > 0 ? "margin-top:22px;" : "")">الصفحات <span class="ws-count">@m.LoosePages.Count(p => !p.Soon)</span></h2>
+    <div class="ws-grid ws-pages">
+        @foreach (var p in m.LoosePages)
+        {
+            <partial name="_PageCard" model="(p, Model.Kpis.GetValueOrDefault(p.Key), Model.FavoriteKeys.Contains(p.Key))" />
+        }
+    </div>
+}

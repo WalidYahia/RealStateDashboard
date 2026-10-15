@@ -16,6 +16,9 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     @* Apply the saved theme (dark = default) before first paint so pages never flash the wrong one. *@
+    @* The browser's time zone → the «tz» cookie: moments are stored in UTC and shown in this zone (ClientTime.cs).
+       When it was missing / changed, reload once (GET) so this page renders in the right zone. *@
+    <script>(function () { try { var tz = Intl.DateTimeFormat().resolvedOptions().timeZone; if (!tz) return; var m = document.cookie.match(/(?:^|; )tz=([^;]*)/), cur = m ? decodeURIComponent(m[1]) : null; if (cur === tz) return; document.cookie = 'tz=' + encodeURIComponent(tz) + '; path=/; max-age=31536000; samesite=lax'; if (//Account/Login/i.test(location.pathname) || sessionStorage.getItem('tzReloaded') === tz) return; sessionStorage.setItem('tzReloaded', tz); location.replace(location.href); } catch (e) { } })();</script>
     <script>(function () { var t = 'dark'; try { t = localStorage.getItem('appTheme') === 'light' ? 'light' : 'dark'; } catch (e) { } document.documentElement.setAttribute('data-theme', t); })();</script>
     @* Same for the side menu (wwwroot/js/sidebar.js). Navigation is the workspace (top bar + module workspaces); the
        old full side menu is hidden — switched off by NavigationCatalog.LegacySidebar (kept implemented). *@

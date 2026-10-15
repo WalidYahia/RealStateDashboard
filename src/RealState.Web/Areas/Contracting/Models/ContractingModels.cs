@@ -39,8 +39,9 @@ public class WorkOrderFormModel
     [Display(Name = "المشروع")]
     public Guid? ProjectId { get; set; }
 
-    [Display(Name = "التاريخ")]
-    public DateTime OrderDate { get; set; } = DateTime.Today;
+    /// <summary>Date + time of the document, entered by the user (default: now) — auto-created records take it.</summary>
+    [Display(Name = "التاريخ والوقت")]
+    public DateTime OrderDate { get; set; } = ClientTime.Now;
 
     [Required(ErrorMessage = "البيان مطلوب")]
     [Display(Name = "البيان")]
@@ -163,8 +164,9 @@ public class WorkOrderPayFormModel
     [Display(Name = "الخزنة")]
     public Guid? SafeId { get; set; }
 
-    [Display(Name = "التاريخ")]
-    public DateTime PaidDate { get; set; } = DateTime.Today;
+    /// <summary>Date + time of the document, entered by the user (default: now) — auto-created records take it.</summary>
+    [Display(Name = "التاريخ والوقت")]
+    public DateTime PaidDate { get; set; } = ClientTime.Now;
 
     [Display(Name = "ملاحظات")]
     public string? Description { get; set; }

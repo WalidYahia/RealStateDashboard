@@ -2,7 +2,7 @@
 @{
     ViewData["Title"] = "دفتر الأستاذ";
     string N(decimal v) => v.ToString("N2", RealState.Web.AppCulture.Ar);
-    string D(DateTime d) => d.ToString("yyyy/MM/dd", System.Globalization.CultureInfo.InvariantCulture);
+    string D(DateTime d) => RealState.Web.AppCulture.When(d);   // entries carry date + time
     string? F(DateTime? d) => d?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
     var side = Model.IsDebitNormal ? "مدين" : "دائن";
     var acctCol = Model.IsGroup ? 1 : 0;

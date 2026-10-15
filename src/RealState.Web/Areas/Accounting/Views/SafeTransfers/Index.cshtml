@@ -3,7 +3,7 @@
     ViewData["Title"] = "التحويلات بين الخزائن";
     var canTransfer = ViewData["CanTransfer"] as bool? ?? false;
     string N(decimal v) => v.ToString("N2", RealState.Web.AppCulture.Ar);
-    string DT(DateTime d) => d.ToString("yyyy/MM/dd HH:mm", System.Globalization.CultureInfo.InvariantCulture);
+    string DT(DateTime d) => RealState.Web.AppCulture.When(d);
     string? F(DateTime? d) => d?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
     var safeId = Model.SafeId?.ToString();
 }

@@ -14,15 +14,17 @@
     var title = ViewData["Title"] as string ?? "";
     var isWorkspace = string.Equals(ViewContext.RouteData.Values["controller"]?.ToString(), "Workspace", StringComparison.OrdinalIgnoreCase);
     var isHome = isWorkspace && string.Equals(ViewContext.RouteData.Values["action"]?.ToString(), "Index", StringComparison.OrdinalIgnoreCase);
-    // Breadcrumb trail after «الرئيسية»: module → page → record (when the page is a record / operation inside it).
+    // Breadcrumb trail after «الرئيسية»: module → group cards → page → record (when the page is a record / operation inside it).
     var crumbs = new List<(string Text, string? Url)>();
     if (loc is not null)
     {
         crumbs.Add((loc.Module.Title, loc.Module.Url));
-        if (loc.Page is not null)
+        foreach (var g in loc.Trail) crumbs.Add((g.Title, g.CanOpen ? g.Url : null));
+        if (loc.Page is null && loc.Trail.Count > 0) crumbs[^1] = (loc.Trail[^1].Title, null);   // on the group page itself
+        else if (loc.Page is not null)
         {
-            // A page named like its module (المشاريع / المشاريع) appears once — as the page.
-            if (loc.Page.Title == loc.Module.Title) crumbs.RemoveAt(0);
+            // A page named like its module / group (المشاريع / المشاريع) appears once — as the page.
+            if (loc.Page.Title == crumbs[^1].Text) crumbs.RemoveAt(crumbs.Count - 1);
             crumbs.Add((loc.Page.Title, loc.IsPageItself ? null : loc.Page.Url));
             if (!loc.IsPageItself && title.Length > 0 && title != loc.Page.Title) crumbs.Add((title, null));
         }
@@ -167,7 +169,7 @@
         {
             <div class="tb-date">
                 @NavIcons.Svg("calendar", 15)
-                <span>@DateTime.Now.ToString("dddd d MMMM yyyy", RealState.Web.AppCulture.Ar)</span>
+                <span>@ClientTime.Now.ToString("dddd d MMMM yyyy", RealState.Web.AppCulture.Ar)</span>
             </div>
         }
     </div>

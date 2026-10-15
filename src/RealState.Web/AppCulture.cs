@@ -11,6 +11,15 @@ public static class AppCulture
 {
     public static readonly CultureInfo Ar = Build();
 
+    /// <summary>Date + time ("yyyy/MM/dd HH:mm", the user's time zone); a date without a time shows the date only.</summary>
+    public static string When(DateTime d) => d.TimeOfDay == TimeSpan.Zero
+        ? d.ToString("yyyy/MM/dd", CultureInfo.InvariantCulture)
+        : d.ToString("yyyy/MM/dd HH:mm", CultureInfo.InvariantCulture);
+    public static string When(DateTime? d) => d is DateTime v ? When(v) : "—";
+
+    /// <summary>The date only ("yyyy/MM/dd").</summary>
+    public static string Day(DateTime d) => d.ToString("yyyy/MM/dd", CultureInfo.InvariantCulture);
+
     private static CultureInfo Build()
     {
         var c = (CultureInfo)new CultureInfo("ar-EG").Clone();

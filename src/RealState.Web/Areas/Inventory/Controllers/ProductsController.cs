@@ -50,7 +50,7 @@ public class ProductsController : Controller
     public async Task<IActionResult> Excel(CancellationToken ct)
     {
         var (h, rows) = await BuildExportAsync(ct);
-        return RealState.Web.Common.Xlsx.File($"الأصناف {DateTime.Now:yyyy-MM-dd}.xlsx", "الأصناف", h, rows);
+        return RealState.Web.Common.Xlsx.File($"الأصناف {ClientTime.Now:yyyy-MM-dd}.xlsx", "الأصناف", h, rows);
     }
 
     [HttpGet]

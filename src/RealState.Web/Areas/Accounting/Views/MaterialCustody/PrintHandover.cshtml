@@ -1,0 +1,69 @@
+@model MaterialCustodyDetailsVm
+@{
+    Layout = null;
+    var c = Model.Custody;
+    string N(decimal v) => v.ToString("N2", RealState.Web.AppCulture.Ar);
+    string D(DateTime? d) => RealState.Web.AppCulture.When(d);   // date + time when it has one
+}
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="utf-8" />
+    <title>إقرار استلام عهدة MC-@c.Number</title>
+    <style>
+        body { font-family: "Segoe UI", Tahoma, sans-serif; padding: 28px; color: #111; line-height: 1.7; }
+        h1 { font-size: 20px; text-align: center; margin: 4px 0 2px; }
+        .sub { text-align: center; color: #666; font-size: 12px; margin-bottom: 18px; }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 16px; }
+        th, td { border: 1px solid #ccc; padding: 7px 10px; text-align: start; unicode-bidi: plaintext; }
+        th { background: #f2f2f2; width: 28%; }
+        .pledge { border: 1px solid #ccc; border-radius: 8px; padding: 12px 14px; font-size: 13.5px; margin: 6px 0 26px; }
+        .signs { display: flex; justify-content: space-between; gap: 24px; margin-top: 34px; font-size: 13px; }
+        .signs div { flex: 1; text-align: center; }
+        .signs .line { border-top: 1px solid #555; margin-top: 46px; padding-top: 4px; }
+        .no-print { margin-bottom: 12px; } @@media print { .no-print { display: none; } }
+    </style>
+</head>
+<body>
+    @await Component.InvokeAsync("ReportBackground", new { part = "open" })
+    <div class="no-print"><button onclick="window.print()">🖨 طباعة / حفظ PDF</button></div>
+    <h1>إقرار استلام عهدة عينية</h1>
+    <div class="sub">رقم العهدة MC-@c.Number · تاريخ الطباعة @ClientTime.Now.ToString("yyyy/MM/dd HH:mm")</div>
+
+    <table>
+        <tr><th>اسم الموظف</th><td>@(Model.Employee?.FullName ?? "—")</td></tr>
+        <tr><th>القسم</th><td>@(Model.Department ?? "—")</td></tr>
+        @if (!string.IsNullOrWhiteSpace(Model.Employee?.NationalId))
+        {
+            <tr><th>الرقم القومي</th><td>@Model.Employee!.NationalId</td></tr>
+        }
+        <tr><th>الأصل</th><td>@(Model.Asset is { } asset ? $"FA-{asset.Number} — " : "")@c.ItemName</td></tr>
+        <tr><th>النوع</th><td>@(c.ItemType ?? "—")</td></tr>
+        <tr><th>الرقم التسلسلي / الكود</th><td>@(c.SerialNumber ?? "—")</td></tr>
+        <tr><th>الكمية</th><td>@c.Quantity</td></tr>
+        <tr><th>قيمة الوحدة</th><td>@(c.Value is decimal v ? N(v) + " ج.م" : "—")</td></tr>
+        <tr><th>تاريخ التسليم</th><td>@D(c.HandoverDate)</td></tr>
+        <tr><th>تاريخ الإرجاع المتوقع</th><td>@D(c.ExpectedReturnDate)</td></tr>
+        <tr><th>الحالة عند التسليم</th><td>@(string.IsNullOrWhiteSpace(c.HandoverCondition) ? "—" : c.HandoverCondition)</td></tr>
+        @if (c.Status != MaterialCustodyStatus.HandedOver)
+        {
+            <tr><th>تاريخ الاستلام</th><td>@D(c.ReturnDate) — @c.Status.Ar()</td></tr>
+            <tr><th>ملاحظات الاستلام</th><td>@(string.IsNullOrWhiteSpace(c.ReturnCondition) ? "—" : c.ReturnCondition)</td></tr>
+        }
+    </table>
+
+    <div class="pledge">
+        أقرّ أنا الموقّع أدناه بأنني استلمت العهدة المبيّنة أعلاه بحالتها الموضّحة، وأتعهّد بالمحافظة عليها واستخدامها في أغراض العمل فقط،
+        وإعادتها عند الطلب أو عند انتهاء العمل، وأتحمّل مسؤولية فقدها أو تلفها الناتج عن سوء الاستخدام.
+    </div>
+
+    <div class="signs">
+        <div>المستلم (الموظف)<div class="line">الاسم والتوقيع</div></div>
+        <div>المسؤول عن التسليم<div class="line">الاسم والتوقيع</div></div>
+        <div>اعتماد الإدارة<div class="line">التوقيع والختم</div></div>
+    </div>
+
+    <script>window.addEventListener('load', function () { setTimeout(function () { window.print(); }, 400); });</script>
+    @await Component.InvokeAsync("ReportBackground", new { part = "close" })
+</body>
+</html>

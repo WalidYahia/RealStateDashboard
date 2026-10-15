@@ -10,10 +10,12 @@ public class AccountingService : IAccountingService
 {
     private readonly IApplicationDbContext _db;
     private readonly IAccountingEngine _engine;
-    public AccountingService(IApplicationDbContext db, IAccountingEngine engine)
+    private readonly IDateTimeProvider _clock;
+    public AccountingService(IApplicationDbContext db, IAccountingEngine engine, IDateTimeProvider clock)
     {
         _db = db;
         _engine = engine;
+        _clock = clock;
     }
 
     public async Task<SafeTransaction> AddTransactionAsync(
@@ -22,36 +24,42 @@ public class AccountingService : IAccountingService
         Guid? customerId = null, Guid? supplierId = null, Guid? contractorId = null, Guid? employeeId = null,
         Guid? unitId = null, Guid? categoryId = null, CancellationToken ct = default)
     {
-        // Voucher serial (سند قبض / سند صرف) is year-prefixed and resets each year, per transaction type:
-        // year × 10,000,000 + sequence (e.g. 2026 + 0000001 = 20260000001).
-        var yearBase = occurredAt.Year * VoucherSerials.YearMultiplier;
-        var maxThisYear = await _db.SafeTransactions
-            .Where(t => t.Type == type && t.Serial >= yearBase && t.Serial < yearBase + VoucherSerials.YearMultiplier)
-            .MaxAsync(t => (long?)t.Serial, ct) ?? yearBase;
-        var serial = maxThisYear + 1;
-        var txn = new SafeTransaction
-        {
-            SafeId = safeId,
-            Type = type,
-            Source = source,
-            Serial = serial,
-            Amount = amount,
-            OccurredAt = occurredAt,
-            Description = description,
-            InstallmentId = installmentId,
-            StageExpenseId = stageExpenseId,
-            ProjectId = projectId
-        };
-        _db.SafeTransactions.Add(txn);
+        var txn = await AddVoucherAsync(safeId, type, source, amount, occurredAt, description, ct);
+        txn.InstallmentId = installmentId;
+        txn.StageExpenseId = stageExpenseId;
+        txn.ProjectId = projectId;
 
         // Collections carry the customer via the installment's contract.
         if (source == TxnSource.Collection && customerId is null && installmentId is Guid iid)
             customerId = await _db.Installments.Where(i => i.Id == iid)
                 .Join(_db.SaleContracts, i => i.SaleContractId, c => c.Id, (i, c) => (Guid?)c.CustomerId)
                 .FirstOrDefaultAsync(ct);
+        // The party the voucher is about (statements of on-account vouchers read it; re-posting falls back to it).
+        txn.CustomerId = customerId;
+        txn.SupplierId = supplierId;
 
         await PostCashSettlementAsync(txn, projectId, customerId, supplierId, contractorId, employeeId, unitId, categoryId, ct);
 
+        return txn;
+    }
+
+    public async Task<SafeTransaction> AddVoucherAsync(Guid safeId, TxnType type, TxnSource source, decimal amount, DateTime occurredAt,
+        string description, CancellationToken ct = default)
+    {
+        // Voucher serial (سند قبض / سند صرف) is year-prefixed and resets each year, per transaction type:
+        // year × 10,000,000 + sequence (e.g. 2026 + 0000001 = 20260000001). Unsaved local vouchers count too.
+        var yearBase = occurredAt.Year * VoucherSerials.YearMultiplier;
+        bool InYear(SafeTransaction t) => t.Type == type && t.Serial >= yearBase && t.Serial < yearBase + VoucherSerials.YearMultiplier;
+        var maxSaved = await _db.SafeTransactions
+            .Where(t => t.Type == type && t.Serial >= yearBase && t.Serial < yearBase + VoucherSerials.YearMultiplier)
+            .MaxAsync(t => (long?)t.Serial, ct) ?? yearBase;
+        var maxLocal = _db.SafeTransactions.Local.Where(InYear).Select(t => (long?)t.Serial).Max() ?? yearBase;
+        var txn = new SafeTransaction
+        {
+            SafeId = safeId, Type = type, Source = source, Serial = Math.Max(maxSaved, maxLocal) + 1,
+            Amount = amount, OccurredAt = occurredAt, Description = description
+        };
+        _db.SafeTransactions.Add(txn);
         return txn;
     }
 
@@ -67,6 +75,9 @@ public class AccountingService : IAccountingService
     {
         var description = txn.Description;
         var safeName = await _db.Safes.Where(s => s.Id == txn.SafeId).Select(s => s.Name).FirstOrDefaultAsync(ct);
+        // A re-post (edit / backfill) of a party voucher finds its party on the voucher itself.
+        customerId ??= txn.CustomerId;
+        supplierId ??= txn.SupplierId;
 
         // The counter (non-cash) side, chosen by source.
         var counter = await BuildCounterAsync(txn.Source, txn, projectId, customerId, supplierId, contractorId, employeeId, unitId, categoryId, ct);
@@ -126,6 +137,16 @@ public class AccountingService : IAccountingService
                 return new LedgerLine(LedgerAccounts.AccountsPayable, 0, 0,
                     SubKind: "Supplier", SubRefId: retSup, SubName: await NameAsync("Supplier", retSup), SupplierId: retSup, ProjectId: projectId);
 
+            case TxnSource.CustomerAccount when customerId is Guid accCust:
+                // On-account voucher with a customer: a receipt credits / a payment debits the customer's receivable.
+                return new LedgerLine(LedgerAccounts.AccountsReceivable, 0, 0,
+                    SubKind: "Customer", SubRefId: accCust, SubName: await NameAsync("Customer", accCust), CustomerId: accCust, ProjectId: projectId);
+
+            case TxnSource.SupplierAccount when supplierId is Guid accSup:
+                // On-account voucher with a supplier: a payment debits / a receipt credits the supplier's payable.
+                return new LedgerLine(LedgerAccounts.AccountsPayable, 0, 0,
+                    SubKind: "Supplier", SubRefId: accSup, SubName: await NameAsync("Supplier", accSup), SupplierId: accSup, ProjectId: projectId);
+
             case TxnSource.SupplierPayment when supplierId is Guid sup:
                 return new LedgerLine(LedgerAccounts.AccountsPayable, 0, 0,
                     SubKind: "Supplier", SubRefId: sup, SubName: await NameAsync("Supplier", sup), SupplierId: sup);
@@ -144,6 +165,19 @@ public class AccountingService : IAccountingService
 
             case TxnSource.RewardPayment:
                 return new LedgerLine(LedgerAccounts.SalariesAndRewards, 0, 0, EmployeeId: employeeId);
+
+            case TxnSource.FixedAssetPurchase:
+                if (await _db.FixedAssets.Where(a => a.PurchaseTransactionId == txn.Id)
+                        .Join(_db.FixedAssetCategories, a => a.CategoryId, c => (Guid?)c.Id, (a, c) => c.AssetAccountId)
+                        .FirstOrDefaultAsync(ct) is Guid assetAccountId
+                    && await _db.Accounts.Where(x => x.Id == assetAccountId).Select(x => x.Code).FirstOrDefaultAsync(ct) is string assetCode)
+                    return new LedgerLine(assetCode, 0, 0);
+                return new LedgerLine(LedgerAccounts.GeneralExpenses, 0, 0, ProjectId: projectId);
+
+            case TxnSource.CustodyDisbursement when employeeId is not null:
+            case TxnSource.CustodyReturn when employeeId is not null:
+                // Cash handed to / returned by a custodian moves the balance of their «العُهد المالية» subsidiary.
+                return await CustodianLineAsync(employeeId.Value, ct);
 
             case TxnSource.ProjectExpense:
                 return new LedgerLine(LedgerAccounts.ProjectCosts, 0, 0, ProjectId: projectId);
@@ -164,6 +198,29 @@ public class AccountingService : IAccountingService
                     ? new LedgerLine(LedgerAccounts.OtherRevenue, 0, 0, ProjectId: projectId)
                     : new LedgerLine(LedgerAccounts.GeneralExpenses, 0, 0, ProjectId: projectId);
         }
+    }
+
+    /// <summary>The custodian's subsidiary of «العُهد المالية» (kept apart from their «سلف الموظفين» account).</summary>
+    private async Task<LedgerLine> CustodianLineAsync(Guid employeeId, CancellationToken ct)
+    {
+        var name = await _db.Employees.Where(e => e.Id == employeeId).Select(e => e.FullName).FirstOrDefaultAsync(ct);
+        return new LedgerLine(LedgerAccounts.FinancialCustody, 0, 0,
+            SubKind: "Custodian", SubRefId: employeeId, SubName: name is null ? null : $"عهدة — {name}", EmployeeId: employeeId);
+    }
+
+    public async Task PostCustodyExpenseAsync(FinancialCustodyMovement expense, Guid employeeId, string description, CancellationToken ct = default)
+    {
+        if (expense.Amount <= 0) return;
+
+        // Expense side: the user-defined category's account, else مصروفات عامة (like a manual expense voucher).
+        var debit = new LedgerLine(LedgerAccounts.GeneralExpenses, expense.Amount, 0, description, ProjectId: expense.ProjectId, EmployeeId: employeeId);
+        if (expense.CategoryId is Guid catId
+            && await _db.TxnCategories.FirstOrDefaultAsync(c => c.Id == catId, ct) is { IsBuiltIn: false } cat)
+            debit = new LedgerLine(LedgerAccounts.ExpensesGroup, expense.Amount, 0, description,
+                SubKind: "TxnCategory", SubRefId: catId, SubName: cat.Name, ProjectId: expense.ProjectId, EmployeeId: employeeId);
+
+        var credit = (await CustodianLineAsync(employeeId, ct)) with { Credit = expense.Amount, Memo = description };
+        await _engine.PostAsync(expense.Date, description, AccountingSources.CustodyExpense, expense.Id, new[] { debit, credit }, ct);
     }
 
     public async Task EnsureCategoryAccountAsync(TxnCategory category, CancellationToken ct = default)
@@ -349,7 +406,7 @@ public class AccountingService : IAccountingService
         var desc = $"خصم قسط السلفة ADV-{advance.Number:D4} رقم {repayment.SeqNo} من الراتب";
         // The installment was withheld from the employee's salary: the salary it settles is an expense, and the
         // advance the employee owed goes down by it.
-        await _engine.PostAsync(repayment.PaidDate ?? DateTime.Today, desc, AccountingSources.AdvanceSalaryDeduction, repayment.Id, new[]
+        await _engine.PostAsync(repayment.PaidDate ?? _clock.Today, desc, AccountingSources.AdvanceSalaryDeduction, repayment.Id, new[]
         {
             new LedgerLine(LedgerAccounts.SalariesAndRewards, repayment.Amount, 0, desc, EmployeeId: advance.EmployeeId),
             new LedgerLine(LedgerAccounts.EmployeeAdvances, 0, repayment.Amount, desc,
@@ -404,15 +461,17 @@ public class AccountingService : IAccountingService
     public Task RemoveObligationAsync(string sourceType, Guid sourceId, CancellationToken ct = default)
         => _engine.RemoveBySourceAsync(sourceType, sourceId, ct);
 
-    public async Task PostSafeOpeningBalanceAsync(Safe safe, CancellationToken ct = default)
+    public async Task PostSafeOpeningBalanceAsync(Safe safe, CancellationToken ct = default, DateTime? date = null)
     {
         await _engine.RemoveBySourceAsync("SafeOpening", safe.Id, ct);
         if (safe.InitialAmount == 0) return;
         var desc = $"رصيد افتتاحي للخزنة {safe.Name}";
         var abs = Math.Abs(safe.InitialAmount);
         var positive = safe.InitialAmount > 0;
-        var date = safe.CreatedAt == default ? DateTime.Today : safe.CreatedAt;
-        await _engine.PostAsync(date, desc, "SafeOpening", safe.Id, new[]
+        // Dated the tenant's opening date (الأرصدة الافتتاحية) once one is set, else when the safe was created.
+        date ??= await _db.AccountOpeningBalances.Select(b => (DateTime?)b.Date).MinAsync(ct)
+                 ?? (safe.CreatedAt == default ? _clock.Now : safe.CreatedAt);
+        await _engine.PostAsync(date.Value, desc, "SafeOpening", safe.Id, new[]
         {
             new LedgerLine(LedgerAccounts.CashAndBanks, positive ? abs : 0, positive ? 0 : abs, desc,
                 SubKind: "Safe", SubRefId: safe.Id, SubName: safe.Name),

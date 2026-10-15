@@ -12,7 +12,7 @@ public class TaskFormModel
     public Guid Id { get; set; }
 
     [DataType(DataType.Date)][Display(Name = "تاريخ الإسناد")]
-    public DateTime AssignedOn { get; set; } = DateTime.Today;
+    public DateTime AssignedOn { get; set; } = ClientTime.Today;
 
     [Required(ErrorMessage = "الموظف مطلوب")][Display(Name = "الموظف (المُكلَّف)")]
     public Guid? AssigneeEmployeeId { get; set; }

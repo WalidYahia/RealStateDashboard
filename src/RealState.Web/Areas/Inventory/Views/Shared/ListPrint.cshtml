@@ -22,7 +22,7 @@
     @await Component.InvokeAsync("ReportBackground", new { part = "open" })
     <div class="no-print"><button onclick="window.print()">🖨 طباعة / حفظ PDF</button></div>
     <h1>@Model.Title</h1>
-    <div class="sub">@(string.IsNullOrWhiteSpace(Model.Subtitle) ? "" : Model.Subtitle + " · ")العدد: @Model.Rows.Count · طُبع @DateTime.Now.ToString("yyyy/MM/dd HH:mm")</div>
+    <div class="sub">@(string.IsNullOrWhiteSpace(Model.Subtitle) ? "" : Model.Subtitle + " · ")العدد: @Model.Rows.Count · طُبع @ClientTime.Now.ToString("yyyy/MM/dd HH:mm")</div>
 
     <table>
         <thead>

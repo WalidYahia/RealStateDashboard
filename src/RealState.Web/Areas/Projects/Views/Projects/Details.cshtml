@@ -2,7 +2,7 @@
 @{
     var p = Model.Project;
     ViewData["Title"] = p.Name;
-    string D(DateTime? d) => d?.ToString("yyyy/MM/dd") ?? "—";
+    string D(DateTime? d) => RealState.Web.AppCulture.When(d);   // date + time when it has one
     string N(decimal v) => v.ToString("N0", RealState.Web.AppCulture.Ar);
     bool Delayed(DateTime? planned, DateTime? actual) => planned.HasValue && actual.HasValue && actual.Value.Date > planned.Value.Date;
     string StatusClass(UnitStatus s) => s switch { UnitStatus.Sold => "state-off", UnitStatus.Available => "state-on", _ => "badge-role" };
@@ -301,7 +301,7 @@
                     <td>@a.FileName</td>
                     <td dir="ltr" style="text-align:right;">@a.ContentType</td>
                     <td>@((a.Size / 1024.0).ToString("N0")) KB</td>
-                    <td>@a.CreatedAt.ToString("yyyy/MM/dd")</td>
+                    <td dir="ltr" style="text-align:right;">@RealState.Web.AppCulture.When(a.CreatedAt)</td>
                     <td style="white-space:nowrap;">
                         <a class="btn-sm" asp-action="AttachmentPreview" asp-route-id="@a.Id" target="_blank">👁 معاينة</a>
                         <a class="btn-sm" asp-action="AttachmentDownload" asp-route-id="@a.Id" target="_blank">تنزيل</a>

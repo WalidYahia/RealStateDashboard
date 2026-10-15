@@ -1,0 +1,73 @@
+@model MaterialCustodyFormModel
+@{
+    var inv = System.Globalization.CultureInfo.InvariantCulture;
+}
+<form id="appModalForm" asp-area="Accounting" asp-controller="MaterialCustody" asp-action="Form" method="post" enctype="multipart/form-data" data-modal-init="mcAssetInit">
+    @Html.AntiForgeryToken()
+    <div asp-validation-summary="ModelOnly" class="validation-summary-errors"></div>
+    <input type="hidden" asp-for="Id" />
+    @if (Model.IsLocked)
+    {
+        <input type="hidden" asp-for="FixedAssetId" />
+        <input type="hidden" asp-for="EmployeeId" />
+        <input type="hidden" asp-for="HandoverDate" />
+        <div class="status-message" style="background:var(--surface-2);border-color:var(--border);color:var(--text-secondary);">
+            الأصل: <strong>@Model.AssetLabel</strong> · الموظف: <strong>@Model.EmployeeName</strong> · التسليم: <strong dir="ltr">@Model.HandoverDate.ToString("yyyy/MM/dd", inv)</strong>
+            <div style="font-size:12px;margin-top:4px;">لا يُغيَّر الأصل أو الموظف بعد التسليم — استخدم «تحويل لموظف آخر» أو «إلغاء العهدة».</div>
+        </div>
+    }
+    else if (Model.Assets.Count == 0)
+    {
+        <div class="status-message" style="background:rgba(250,178,25,.12);border-color:var(--warning);color:var(--warning);">
+            لا توجد أصول ثابتة متاحة للتسليم (كل الأصول في عهدة، أو خارج الخدمة). أضف أصلًا من صفحة «الأصول الثابتة» أو استلم عهدة قائمة.
+        </div>
+    }
+    <div class="form-grid">
+        @if (!Model.IsLocked)
+        {
+            <div class="full">
+                <label asp-for="FixedAssetId" class="form-label"></label>
+                <select asp-for="FixedAssetId" class="form-control" data-searchable data-mc-asset>
+                    <option value="">— اختر الأصل —</option>
+                    @foreach (var a in Model.Assets)
+                    {
+                        <option value="@a.Id" selected="@(Model.FixedAssetId == a.Id)" data-category="@a.Category" data-serial="@a.SerialNumber"
+                                data-qty="@a.Quantity" data-cost="@a.UnitCost.ToString("0.##", inv)">@a.Label</option>
+                    }
+                </select>
+                <span asp-validation-for="FixedAssetId" class="field-validation-error"></span>
+                <div class="mc-asset-info" data-mc-asset-info></div>
+            </div>
+            <div class="full">
+                <label asp-for="EmployeeId" class="form-label"></label>
+                <select asp-for="EmployeeId" class="form-control" data-searchable asp-items="Model.Employees"><option value="">— اختر الموظف —</option></select>
+                <span asp-validation-for="EmployeeId" class="field-validation-error"></span>
+            </div>
+            <div>
+                <label asp-for="HandoverDate" class="form-label"></label>
+                <input asp-for="HandoverDate" class="form-control" type="date" dir="ltr" />
+            </div>
+        }
+        <div>
+            <label asp-for="ExpectedReturnDate" class="form-label"></label>
+            <input asp-for="ExpectedReturnDate" class="form-control" type="date" dir="ltr" />
+            <span asp-validation-for="ExpectedReturnDate" class="field-validation-error"></span>
+        </div>
+        <div class="full">
+            <label asp-for="HandoverCondition" class="form-label"></label>
+            <input asp-for="HandoverCondition" class="form-control" placeholder="جديد، مستعمل بحالة جيدة، به خدوش…" />
+        </div>
+        <div class="full">
+            <label asp-for="Notes" class="form-label"></label>
+            <textarea asp-for="Notes" class="form-control" rows="2"></textarea>
+        </div>
+        <div class="full">
+            <label class="form-label">مرفقات (اختياري)</label>
+            <input type="file" name="files" class="form-control" multiple />
+            <span class="field-validation-error">@Html.ValidationMessage("files")</span>
+            <span style="color:var(--muted);font-size:12px;display:block;margin-top:4px;">إقرار الاستلام، صور الأصل… حتى 15 ميجابايت للملف.</span>
+        </div>
+    </div>
+    <p style="color:var(--muted);font-size:12px;margin-top:8px;">العهدة تحدد المسؤول عن الأصل فقط — لا قيد محاسبي ولا مديونية على الموظف.</p>
+    <button type="submit" class="btn-primary" style="margin-top:8px;" disabled="@(!Model.IsLocked && Model.Assets.Count == 0)">@(Model.IsLocked ? "💾 حفظ التعديلات" : "💾 تسليم الأصل")</button>
+</form>

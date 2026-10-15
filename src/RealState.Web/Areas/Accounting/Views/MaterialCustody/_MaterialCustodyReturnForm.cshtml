@@ -1,0 +1,25 @@
+@model MaterialCustodyReturnModel
+<form id="appModalForm" asp-area="Accounting" asp-controller="MaterialCustody" asp-action="Return" method="post">
+    @Html.AntiForgeryToken()
+    <input type="hidden" asp-for="Id" />
+    <div class="status-message" style="background:var(--surface-2);border-color:var(--border);color:var(--text-secondary);">
+        العهدة: <strong>MC-@Model.Number — @Model.ItemName</strong>
+    </div>
+    <div class="form-grid">
+        <div>
+            <label asp-for="ReturnDate" class="form-label"></label>
+            <input asp-for="ReturnDate" class="form-control" type="date" dir="ltr" />
+            <span asp-validation-for="ReturnDate" class="field-validation-error"></span>
+        </div>
+        <div>
+            <label asp-for="Status" class="form-label"></label>
+            <select asp-for="Status" class="form-control" asp-items="ArabicLabels.MaterialCustodyReturnOptions(Model.Status)"></select>
+            <span asp-validation-for="Status" class="field-validation-error"></span>
+        </div>
+        <div class="full">
+            <label asp-for="ReturnCondition" class="form-label"></label>
+            <textarea asp-for="ReturnCondition" class="form-control" rows="3" placeholder="الحالة الفعلية عند الاستلام، النواقص، سبب التلف أو الفقد…"></textarea>
+        </div>
+    </div>
+    <button type="submit" class="btn-primary" style="margin-top:12px;">↩ تسجيل الاستلام</button>
+</form>

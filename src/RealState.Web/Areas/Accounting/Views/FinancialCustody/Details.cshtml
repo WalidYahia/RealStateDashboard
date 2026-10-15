@@ -1,0 +1,162 @@
+@model FinancialCustodyDetailsVm
+@{
+    var c = Model.Custody;
+    ViewData["Title"] = $"عهدة مالية FC-{c.Number}";
+    var canCreate = ViewData["CanCreate"] as bool? ?? false;
+    var canSettle = ViewData["CanSettle"] as bool? ?? false;
+    var canDelete = ViewData["CanDelete"] as bool? ?? false;
+    var canExpenses = User.Can(PermissionNames.ExpensesView);
+    var canIncomes = User.Can(PermissionNames.IncomesView);
+    string N(decimal v) => v.ToString("N2", RealState.Web.AppCulture.Ar);
+    string D(DateTime? d) => RealState.Web.AppCulture.When(d);   // date + time when it has one
+    var open = Model.IsOpen;
+    var balanceText = Model.Balance > 0 ? "لدى الموظف — يُسوّى بمصروفات أو رد نقدية"
+                    : Model.Balance < 0 ? "مستحق للموظف — يُصرف له" : "مُسوّاة بالكامل";
+}
+<div class="page-head">
+    <div>
+        <h1>عهدة مالية <span class="proj-code">FC-@c.Number</span></h1>
+        <p style="color:var(--muted);margin:2px 0 0;">
+            @(Model.Employee?.FullName ?? "—") · @c.Purpose · <span class="badge-state @c.Status.BadgeClass()">@c.Status.Ar()</span>
+        </p>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <a class="btn-sm" asp-action="Index">رجوع لقائمة العهد</a>
+        <a class="btn-sm" asp-action="Print" asp-route-id="@c.Id" target="_blank">🖨 كشف العهدة</a>
+        @if (open && canSettle)
+        {
+            <button type="button" class="btn-new-tenant" onclick="appOpenModal('@Url.Action("SettleForm", new { id = c.Id })', 'تسوية مصروفات العهدة FC-@c.Number', 'xl')">🧾 تسوية مصروفات</button>
+            <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("CashForm", new { id = c.Id, kind = CustodyMovementKind.Return })', 'رد نقدية للخزنة')">📥 رد نقدية</button>
+        }
+        @if (open && canCreate)
+        {
+            <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("CashForm", new { id = c.Id, kind = CustodyMovementKind.Disbursement })', 'صرف مبلغ إضافي للموظف')">💵 صرف مبلغ إضافي للموظف</button>
+        }
+        @if (open && canSettle)
+        {
+            <form asp-action="Close" asp-route-id="@c.Id" method="post" style="display:inline;" data-confirm="إقفال العهدة FC-@c.Number بعد تسويتها؟">@Html.AntiForgeryToken()<button type="submit" class="btn-sm">🔒 إقفال العهدة</button></form>
+        }
+        @if (!open && canSettle)
+        {
+            <form asp-action="Reopen" asp-route-id="@c.Id" method="post" style="display:inline;" data-confirm="إعادة فتح العهدة FC-@c.Number؟">@Html.AntiForgeryToken()<button type="submit" class="btn-sm">🔓 إعادة فتح</button></form>
+        }
+        @if (canCreate)
+        {
+            <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("EditForm", new { id = c.Id })', 'تعديل بيانات العهدة')">✏️ تعديل</button>
+        }
+        @if (open && canDelete)
+        {
+            <form asp-action="Delete" asp-route-id="@c.Id" method="post" style="display:inline;" data-confirm="حذف العهدة FC-@c.Number وعكس كل سنداتها وقيودها؟" data-danger>@Html.AntiForgeryToken()<button type="submit" class="btn-sm btn-danger">🗑 حذف</button></form>
+        }
+    </div>
+</div>
+
+@if (TempData["StatusMessage"] is string msg)
+{
+    <div class="status-message">@msg</div>
+}
+
+<div class="kpi-grid" style="grid-template-columns: repeat(4, 1fr);">
+    <div class="kpi k-tasks"><div class="kpi-label">المصروف للموظف</div><div class="kpi-value">@N(Model.Disbursed) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">من الخزائن</div></div>
+    <div class="kpi k-reserve"><div class="kpi-label">المصروفات المعتمدة</div><div class="kpi-value">@N(Model.Spent) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">بإيصالات</div></div>
+    <div class="kpi k-sales"><div class="kpi-label">المردود للخزنة</div><div class="kpi-value">@N(Model.Returned) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">نقدية</div></div>
+    <div class="kpi @(Model.Balance == 0 ? "k-sales" : "k-alerts")"><div class="kpi-label">الرصيد</div><div class="kpi-value">@N(Math.Abs(Model.Balance)) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">@balanceText</div></div>
+</div>
+
+<div class="card-tile">
+    <div class="card-head">
+        <h3>حركات العهدة</h3>
+        <span class="pill">تاريخ العهدة @D(c.Date)@(c.ClosedAt is DateTime closed ? $" · أُقفلت {RealState.Web.AppCulture.When(closed)}" : "")</span>
+    </div>
+    @if (!string.IsNullOrWhiteSpace(c.Notes)) { <p style="color:var(--muted);font-size:13px;margin-top:0;white-space:pre-wrap;">@c.Notes</p> }
+    <table class="rs-table">
+        <thead><tr><th>التاريخ</th><th>الحركة</th><th>البيان</th><th>البند / المشروع</th><th>الخزنة</th><th>المبلغ</th><th>الرصيد</th><th></th></tr></thead>
+        <tbody>
+        @foreach (var m in Model.Movements)
+        {
+            <tr>
+                <td dir="ltr" style="text-align:right;">@D(m.Date)</td>
+                <td><span class="badge-role" style="color:@(m.Kind == CustodyMovementKind.Disbursement ? "var(--series-1)" : m.Kind == CustodyMovementKind.Return ? "var(--good)" : "var(--violet, #8b5cf6)")">@m.Kind.Ar()</span></td>
+                <td>@m.Description</td>
+                <td>@(m.Category is null ? "—" : m.Category + (m.Project is null ? "" : " / " + m.Project))</td>
+                <td>@(m.Safe ?? "—")</td>
+                <td style="white-space:nowrap;color:@(m.Increases ? "var(--critical)" : "var(--good)");">@(m.Increases ? "+" : "−")@N(m.Amount)</td>
+                <td style="white-space:nowrap;font-weight:600;">@N(m.Balance)</td>
+                <td style="white-space:nowrap;">
+                    @if (m.ReceiptFileName is not null)
+                    {
+                        <a class="btn-sm" asp-action="Receipt" asp-route-id="@m.Id" target="_blank" title="@m.ReceiptFileName">📎 الإيصال</a>
+                    }
+                    @if (m.VoucherId is Guid v && (m.Kind == CustodyMovementKind.Disbursement ? canExpenses : canIncomes))
+                    {
+                        <a class="btn-sm" asp-controller="@(m.Kind == CustodyMovementKind.Disbursement ? "Expenses" : "Incomes")" asp-action="PrintOne" asp-route-id="@v" target="_blank">🖨 سند @m.VoucherSerial</a>
+                    }
+                    @if (open && canDelete)
+                    {
+                        <form asp-action="DeleteMovement" asp-route-id="@m.Id" method="post" style="display:inline;" data-confirm="حذف حركة «@m.Kind.Ar()» بمبلغ @N(m.Amount) ج.م وعكس قيدها؟" data-danger>@Html.AntiForgeryToken()<button type="submit" class="btn-sm btn-danger">🗑</button></form>
+                    }
+                </td>
+            </tr>
+        }
+        @if (Model.Movements.Count == 0) { <tr><td colspan="8" style="color:var(--muted)">لا توجد حركات.</td></tr> }
+        </tbody>
+        <tfoot>
+            <tr>
+                <td colspan="6" style="text-align:start;font-weight:700;">الرصيد لدى الموظف</td>
+                <td colspan="2" style="font-weight:800;white-space:nowrap;">@N(Model.Balance) ج.م</td>
+            </tr>
+        </tfoot>
+    </table>
+</div>
+
+@section Scripts {
+    <script>
+        // «تسوية مصروفات» popup: expense cards with add / remove, renumbered names (Lines[i].X) and a live total.
+        window.custodySettleInit = function () {
+            var form = document.querySelector('#appModalBody #appModalForm[data-modal-init="custodySettleInit"]');
+            if (!form) return;
+            var box = form.querySelector('[data-settle-lines]');
+            var balance = parseFloat(form.getAttribute('data-balance')) || 0;
+            function fmt(v) { return v.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 }); }
+
+            function renumber() {
+                box.querySelectorAll('[data-settle-line]').forEach(function (line, i) {
+                    line.querySelector('[data-line-no]').textContent = i + 1;
+                    line.querySelectorAll('[name^="Lines["]').forEach(function (el) {
+                        el.name = el.name.replace(/^Lines\[\d+\]/, 'Lines[' + i + ']');
+                    });
+                    line.querySelector('[data-line-del]').hidden = box.children.length === 1;
+                });
+                total();
+            }
+            function total() {
+                var sum = 0;
+                box.querySelectorAll('[data-line-amount]').forEach(function (i) { sum += parseFloat(i.value) || 0; });
+                var after = Math.round((balance - sum) * 100) / 100;
+                var out = form.querySelector('[data-settle-total]');
+                out.className = 'settle-total ' + (after === 0 ? 'ok' : 'off');
+                out.textContent = 'الإجمالي ' + fmt(sum) + ' ج.م · الرصيد بعد التسوية '
+                    + (after < 0 ? fmt(-after) + ' مستحق للموظف' : fmt(after) + (after === 0 ? ' ✓' : ' لدى الموظف'));
+            }
+            form.querySelector('[data-line-add]').addEventListener('click', function () {
+                var lines = box.querySelectorAll('[data-settle-line]');
+                var copy = lines[lines.length - 1].cloneNode(true);
+                copy.querySelectorAll('input').forEach(function (el) {
+                    if (el.type === 'date') return;          // keep the previous date — receipts are often the same day
+                    el.value = '';
+                });
+                box.appendChild(copy);
+                renumber();
+                copy.querySelector('[data-line-amount]').focus();
+            });
+            box.addEventListener('click', function (e) {
+                var del = e.target.closest('[data-line-del]');
+                if (!del || box.children.length === 1) return;
+                del.closest('[data-settle-line]').remove();
+                renumber();
+            });
+            box.addEventListener('input', function (e) { if (e.target.matches('[data-line-amount]')) total(); });
+            renumber();
+        };
+    </script>
+}

@@ -11,7 +11,7 @@
     var canViewParty = User.Can(k.IsSales ? PermissionNames.CustomersView : PermissionNames.SuppliersView);
     string N(decimal v) => v.ToString("N2", RealState.Web.AppCulture.Ar);
     string Q(decimal v) => v.ToString("0.####", System.Globalization.CultureInfo.InvariantCulture);
-    string D(DateTime d) => d.ToString("yyyy/MM/dd", System.Globalization.CultureInfo.InvariantCulture);
+    string D(DateTime d) => RealState.Web.AppCulture.When(d);   // date + time when it has one
     string St(InventoryDocStatus s) => s switch { InventoryDocStatus.Posted => "مُرحَّل", InventoryDocStatus.Reversed => "معكوس", _ => "مسودة" };
     var invLabel = Model.InvoiceNumber.HasValue ? k.InvoicePrefix + Model.InvoiceNumber : "—";
     var stockDocController = k.IsSales ? "GoodsReceipts" : "GoodsIssues";
@@ -19,6 +19,7 @@
 <div class="page-head">
     <div>
         <h1>@k.One <span class="proj-code" dir="ltr">@k.Prefix@Model.Number</span></h1>
+    @if (Model.Audit is not null) { <partial name="_AuditStamp" model="Model.Audit" /> }
         <p style="color:var(--muted);margin:2px 0 0;">
             @Model.Party · @D(Model.Date) · الفاتورة <a asp-area="@k.InvoiceArea" asp-controller="@k.InvoiceController" asp-action="Details" asp-route-id="@Model.InvoiceId" dir="ltr" style="color:var(--series-1);">@invLabel</a>
             @if (Model.Warehouse is not null) { <text> · المخزن: @Model.Warehouse</text> }

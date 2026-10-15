@@ -26,7 +26,7 @@
     <div class="form-grid">
         <div>
             <label asp-for="Amount" class="form-label"></label>
-            <input asp-for="Amount" class="form-control" type="number" step="0.01" min="0" max="@Model.Remaining" dir="ltr" />
+            <input asp-for="Amount" class="form-control" type="number" step="any" min="0" max="@Model.Remaining" dir="ltr" />
             <span asp-validation-for="Amount" class="field-validation-error"></span>
         </div>
         <div>
@@ -36,7 +36,7 @@
         </div>
         <div>
             <label asp-for="PaidDate" class="form-label"></label>
-            <input asp-for="PaidDate" class="form-control" type="date" dir="ltr" />
+            <input asp-for="PaidDate" class="form-control" type="datetime-local" dir="ltr" asp-format="{0:yyyy-MM-ddTHH:mm}" max="@(ClientTime.Today.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture))T23:59" />
             <span asp-validation-for="PaidDate" class="field-validation-error"></span>
         </div>
         <div class="full">

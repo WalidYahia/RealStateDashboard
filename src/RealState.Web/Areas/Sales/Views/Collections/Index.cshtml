@@ -85,7 +85,7 @@
                         + '<div style="margin-top:14px;text-align:right;"><label style="display:block;margin-bottom:6px;font-size:14px;">الخزنة المستلمة للمبلغ</label><select id="swalSafe" class="swal2-select" style="width:100%;margin:0;">' + colSafeOptions() + '</select></div>';
                     if (partial) {
                         html += '<div style="margin-top:12px;text-align:right;"><label style="display:block;margin-bottom:6px;font-size:14px;">المبلغ المحصّل (المتبقي ' + remaining.toLocaleString('en-US') + ' ج.م)</label>'
-                            + '<input id="swalAmount" type="number" step="0.01" min="0.01" max="' + remaining + '" value="' + remaining + '" class="swal2-input" style="width:100%;margin:0;"></div>';
+                            + '<input id="swalAmount" type="number" step="any" min="0.01" max="' + remaining + '" value="' + remaining + '" class="swal2-input" style="width:100%;margin:0;"></div>';
                     }
                     Swal.fire({
                         icon: 'question', title: 'تأكيد التحصيل', html: html,

@@ -1,0 +1,41 @@
+@model FixedAssetCategoryFormModel
+<form id="appModalForm" asp-area="Accounting" asp-controller="FixedAssetCategories" asp-action="Form" method="post">
+    @Html.AntiForgeryToken()
+    <div asp-validation-summary="ModelOnly" class="validation-summary-errors"></div>
+    <input type="hidden" asp-for="Id" />
+    @if (Model.HasPostings)
+    {
+        <div class="status-message" style="background:rgba(250,178,25,.12);border-color:var(--warning);color:var(--warning);">
+            لهذه الفئة أصول مُرحَّلة — تغيير الحسابات يؤثر على القيود الجديدة فقط (الإهلاك والاستبعاد القادم)، ولا يغيّر القيود السابقة.
+        </div>
+    }
+    <div class="form-grid">
+        <div>
+            <label asp-for="Name" class="form-label"></label>
+            <input asp-for="Name" class="form-control" placeholder="أجهزة كمبيوتر، سيارات، أثاث…" autocomplete="off" />
+            <span asp-validation-for="Name" class="field-validation-error"></span>
+        </div>
+        <div>
+            <label asp-for="DefaultUsefulLifeMonths" class="form-label"></label>
+            <input asp-for="DefaultUsefulLifeMonths" class="form-control" type="number" min="0" max="1200" inputmode="numeric" dir="ltr" />
+            <span asp-validation-for="DefaultUsefulLifeMonths" class="field-validation-error"></span>
+        </div>
+        <div class="full fa-section">ملف الترحيل (حسابات شجرة الحسابات)</div>
+        <div class="full">
+            <label asp-for="AssetAccountId" class="form-label"></label>
+            <select asp-for="AssetAccountId" class="form-control" data-searchable asp-items="Model.AssetAccounts"><option value="">تلقائي — حساب باسم الفئة تحت «الأصول الثابتة» (1500)</option></select>
+            <span asp-validation-for="AssetAccountId" class="field-validation-error"></span>
+        </div>
+        <div class="full">
+            <label asp-for="AccumulatedDepreciationAccountId" class="form-label"></label>
+            <select asp-for="AccumulatedDepreciationAccountId" class="form-control" data-searchable asp-items="Model.AssetAccounts"><option value="">تلقائي — حساب باسم الفئة تحت «مجمع إهلاك الأصول الثابتة» (1590)</option></select>
+            <span asp-validation-for="AccumulatedDepreciationAccountId" class="field-validation-error"></span>
+        </div>
+        <div class="full">
+            <label asp-for="DepreciationExpenseAccountId" class="form-label"></label>
+            <select asp-for="DepreciationExpenseAccountId" class="form-control" data-searchable asp-items="Model.ExpenseAccounts"><option value="">تلقائي — «مصروف الإهلاك» (5600)</option></select>
+            <span asp-validation-for="DepreciationExpenseAccountId" class="field-validation-error"></span>
+        </div>
+    </div>
+    <button type="submit" class="btn-primary" style="margin-top:12px;">💾 حفظ الفئة</button>
+</form>

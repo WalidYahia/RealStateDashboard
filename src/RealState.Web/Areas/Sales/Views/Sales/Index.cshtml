@@ -5,7 +5,7 @@
 @{
     ViewData["Title"] = "المبيعات (عقود البيع)";
     string N(decimal v) => v.ToString("N0", RealState.Web.AppCulture.Ar);
-    string D(DateTime d) => d.ToString("yyyy/MM/dd", CultureInfo.InvariantCulture);
+    string D(DateTime d) => RealState.Web.AppCulture.When(d);   // date + time when it has one
     string? F(DateTime? d) => d?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
     var unitPrices = ViewBag.UnitPrices as Dictionary<string, decimal> ?? new();
 }
@@ -132,7 +132,7 @@
                 var tr = document.createElement('tr');
                 tr.innerHTML = '<td class="sched-no"></td>'
                     + '<td><input type="date" name="ManualDates" class="form-control" dir="ltr" required /></td>'
-                    + '<td><input type="number" name="ManualAmounts" class="form-control" dir="ltr" step="0.01" min="0.01" inputmode="decimal" required /></td>'
+                    + '<td><input type="number" name="ManualAmounts" class="form-control" dir="ltr" step="any" min="0.01" inputmode="decimal" required /></td>'
                     + '<td><button type="button" class="btn-sm btn-danger" data-sched-del title="حذف الصف" aria-label="حذف الصف">✕</button></td>';
                 if (date) tr.querySelector('[name="ManualDates"]').value = date;
                 if (amount != null) tr.querySelector('[name="ManualAmounts"]').value = amount;

@@ -82,7 +82,7 @@
             <table class="rs-table" style="flex:1;min-width:220px;">
                 <tbody>
                     <tr><td class="muted">القالب الحالي</td><td>@tpl.OriginalFileName</td></tr>
-                    <tr><td class="muted">تاريخ الرفع</td><td dir="ltr" style="text-align:right;">@tpl.UploadedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</td></tr>
+                    <tr><td class="muted">تاريخ الرفع</td><td dir="ltr" style="text-align:right;">@RealState.Web.AppCulture.When(tpl.UploadedAt)</td></tr>
                     <tr><td class="muted">عدد الصفحات</td><td>@tpl.PageCount</td></tr>
                 </tbody>
             </table>

@@ -24,6 +24,8 @@ builder.Host.UseSerilog((context, services, config) => config
 // Application + Infrastructure layers.
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
+// The clock: moments stored in UTC, "now / today" and display in the browser's time zone (ClientTime.cs).
+builder.Services.AddSingleton<RealState.Application.Interfaces.IDateTimeProvider, RealState.Web.ClientClock>();
 
 // ASP.NET Identity with Guid keys and permission-aware claims.
 builder.Services
@@ -91,6 +93,7 @@ builder.Services.AddControllersWithViews(options =>
     options.Filters.Add<RealState.Web.Filters.GlobalExceptionFilter>();
     options.Filters.Add<RealState.Web.Filters.ActivityLogFilter>();
     options.Filters.Add<RealState.Web.Filters.HostTenantFilter>();   // the host must pick a tenant before touching tenant data
+    options.Filters.Add<RealState.Web.Filters.ComingSoonFilter>();   // «قريبًا» pages stay closed (NavigationCatalog Soon)
 });
 
 // Arabic RTL as the only supported culture, with a Latin '.' decimal separator so HTML number
@@ -105,6 +108,7 @@ builder.Services.Configure<RequestLocalizationOptions>(options =>
 });
 
 var app = builder.Build();
+RealState.Web.ClientTime.Configure(app.Services.GetRequiredService<RealState.Application.Interfaces.IDateTimeProvider>());
 
 // Apply migrations and seed on startup.
 using (var scope = app.Services.CreateScope())

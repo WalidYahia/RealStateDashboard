@@ -1,0 +1,150 @@
+@model FixedAssetDetailsVm
+@{
+    var a = Model.Asset;
+    ViewData["Title"] = $"أصل ثابت FA-{a.Number}";
+    var canManage = ViewData["CanManage"] as bool? ?? false;
+    var canDelete = ViewData["CanDelete"] as bool? ?? false;
+    var canDispose = ViewData["CanDispose"] as bool? ?? false;
+    var canCustody = User.Can(PermissionNames.MaterialCustodyView);
+    var canExpenses = User.Can(PermissionNames.ExpensesView);
+    var canIncomes = User.Can(PermissionNames.IncomesView);
+    string N(decimal v) => v.ToString("N2", RealState.Web.AppCulture.Ar);
+    string D(DateTime? d) => RealState.Web.AppCulture.When(d);   // date + time when it has one
+    var active = Model.ActiveCustody;
+    var state = a.IsDisposed ? ("مُستبعد", "state-off") : !a.IsActive ? ("خارج الخدمة", "badge-role") : active is not null ? ("في عهدة", "state-warn") : ("متاح", "state-on");
+}
+<div class="page-head">
+    <div>
+        <h1>أصل ثابت <span class="proj-code">FA-@a.Number</span></h1>
+        <p style="color:var(--muted);margin:2px 0 0;">
+            @a.Name@(a.Quantity > 1 ? $" × {a.Quantity}" : "") · @(Model.Category?.Name ?? "بلا فئة") · <span class="badge-state @state.Item2">@state.Item1</span>
+            @if (!a.IsPosted) { <span class="badge-state state-warn">غير مُرحَّل محاسبيًا</span> }
+        </p>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <a class="btn-sm" asp-action="Index">رجوع لقائمة الأصول</a>
+        @if (canManage && !a.IsPosted)
+        {
+            <button type="button" class="btn-new-tenant" onclick="appOpenModal('@Url.Action("PostForm", new { id = a.Id })', 'ترحيل قيد اقتناء FA-@a.Number')">📒 ترحيل قيد الاقتناء</button>
+        }
+        @if (canManage)
+        {
+            <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("Form", new { id = a.Id })', 'تعديل الأصل FA-@a.Number')">✏️ تعديل</button>
+        }
+        @if (canDispose && a.IsPosted && !a.IsDisposed)
+        {
+            <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("DisposeForm", new { id = a.Id })', 'بيع / استبعاد FA-@a.Number')">🗑 بيع / استبعاد</button>
+        }
+        @if (canDispose && a.IsDisposed)
+        {
+            <form asp-action="UndoDispose" asp-route-id="@a.Id" method="post" style="display:inline;" data-confirm="إلغاء استبعاد الأصل FA-@a.Number وعكس قيده؟">@Html.AntiForgeryToken()<button type="submit" class="btn-sm">↺ إلغاء الاستبعاد</button></form>
+        }
+        @if (canDelete && !a.IsDisposed && Model.Custodies.Count == 0 && Model.MonthsPosted == 0)
+        {
+            <form asp-action="Delete" asp-route-id="@a.Id" method="post" style="display:inline;" data-confirm="حذف الأصل FA-@a.Number «@a.Name» وعكس قيد اقتنائه؟ (للأصول المُدخلة بالخطأ فقط)" data-danger>@Html.AntiForgeryToken()<button type="submit" class="btn-sm btn-danger">حذف</button></form>
+        }
+    </div>
+</div>
+
+@if (TempData["StatusMessage"] is string msg)
+{
+    <div class="status-message">@msg</div>
+}
+
+<div class="kpi-grid" style="grid-template-columns: repeat(4, 1fr);">
+    <div class="kpi k-tasks"><div class="kpi-label">التكلفة</div><div class="kpi-value">@N(a.TotalCost) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">@(a.Quantity > 1 ? $"{a.Quantity} × {N(a.UnitCost)}" : "تكلفة الاقتناء")</div></div>
+    <div class="kpi k-alerts"><div class="kpi-label">مجمع الإهلاك</div><div class="kpi-value">@N(Model.Accumulated) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">@Model.MonthsPosted شهر مُرحَّل@(a.OpeningAccumulatedDepreciation > 0 ? $" + سابق {N(a.OpeningAccumulatedDepreciation)}" : "")</div></div>
+    <div class="kpi k-sales"><div class="kpi-label">القيمة الدفترية</div><div class="kpi-value">@N(Model.BookValue) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">@(a.IsDisposed ? "قبل الاستبعاد" : "التكلفة − الإهلاك")</div></div>
+    <div class="kpi k-collect"><div class="kpi-label">صاحب العهدة</div><div class="kpi-value" style="font-size:18px;">@(active?.Employee ?? "—")</div><div class="kpi-foot">@(active is not null ? $"منذ {D(active.HandoverDate)}" : "غير مُسلَّم")</div></div>
+</div>
+
+<div class="grid-row" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start;">
+    <div class="card-tile" style="margin:0;">
+        <div class="card-head"><h3>بيانات الأصل</h3></div>
+        <table class="rs-table">
+            <tbody>
+                <tr><td class="muted" style="width:150px;">الفئة</td><td>@(Model.Category?.Name ?? "—")</td></tr>
+                <tr><td class="muted">الرقم التسلسلي</td><td dir="ltr" style="text-align:right;">@(a.SerialNumber ?? "—")</td></tr>
+                <tr><td class="muted">مكان الحفظ</td><td>@(a.Location ?? "—")</td></tr>
+                <tr><td class="muted">ملاحظات</td><td style="white-space:pre-wrap;">@(string.IsNullOrWhiteSpace(a.Notes) ? "—" : a.Notes)</td></tr>
+            </tbody>
+        </table>
+    </div>
+    <div class="card-tile" style="margin:0;">
+        <div class="card-head"><h3>المحاسبة</h3></div>
+        <table class="rs-table">
+            <tbody>
+                <tr><td class="muted" style="width:150px;">الاقتناء</td><td>
+                    @(a.AcquisitionMethod?.Ar() ?? "غير مُرحَّل") · <span dir="ltr">@D(a.PurchaseDate)</span>
+                    @if (Model.PurchaseSafe is string safe) { <span> · @safe</span> }
+                    @if (a.PurchaseTransactionId is Guid pt && canExpenses) { <a class="btn-sm" asp-controller="Expenses" asp-action="PrintOne" asp-route-id="@pt" target="_blank">🖨 سند @Model.PurchaseVoucherSerial</a> }
+                </td></tr>
+                <tr><td class="muted">الإهلاك</td><td>
+                    @if (a.UsefulLifeMonths > 0)
+                    {
+                        <span>@a.UsefulLifeMonths شهر من <span dir="ltr">@D(a.DepreciationStartDate)</span> · @N(Model.MonthlyDepreciation) ج.م شهريًا@(a.SalvageValue > 0 ? $" · تخريدية {N(a.SalvageValue)}" : "")</span>
+                    }
+                    else { <span>لا يُهلك</span> }
+                </td></tr>
+                @if (a.IsDisposed)
+                {
+                    var result = a.DisposalProceeds - Model.BookValue;
+                    <tr><td class="muted">الاستبعاد</td><td>
+                        <span dir="ltr">@D(a.DisposalDate)</span> · @(a.DisposalProceeds > 0 ? $"بيع بـ {N(a.DisposalProceeds)} ج.م" : "شطب") ·
+                        <span style="color:@(result >= 0 ? "var(--good)" : "var(--critical)")">@(result >= 0 ? "ربح" : "خسارة") @N(Math.Abs(result))</span> · @a.DisposalReason
+                        @if (a.DisposalTransactionId is Guid dt && canIncomes) { <a class="btn-sm" asp-controller="Incomes" asp-action="PrintOne" asp-route-id="@dt" target="_blank">🖨 سند @Model.DisposalVoucherSerial</a> }
+                    </td></tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="card-tile" style="margin-top:16px;">
+    <div class="card-head"><h3>سجل العُهد</h3><span class="pill">@Model.Custodies.Count</span></div>
+    <table class="rs-table">
+        <thead><tr><th>رقم العهدة</th><th>الموظف</th><th>التسليم</th><th>الإرجاع المتوقع</th><th>الاستلام / الإنهاء</th><th>الحالة</th></tr></thead>
+        <tbody>
+        @foreach (var c in Model.Custodies)
+        {
+            <tr>
+                <td dir="ltr" style="text-align:right;white-space:nowrap;">
+                    @if (canCustody) { <a asp-controller="MaterialCustody" asp-action="Details" asp-route-id="@c.Id" style="color:var(--series-1);font-weight:600;text-decoration:none;">MC-@c.Number</a> }
+                    else { <span>MC-@c.Number</span> }
+                </td>
+                <td>@c.Employee</td>
+                <td dir="ltr" style="text-align:right;">@D(c.HandoverDate)</td>
+                <td dir="ltr" style="text-align:right;@(c.IsOverdue ? "color:var(--critical);font-weight:700;" : "")">@D(c.ExpectedReturnDate)@(c.IsOverdue ? " ⚠" : "")</td>
+                <td dir="ltr" style="text-align:right;">@D(c.ReturnDate)</td>
+                <td><span class="badge-state @c.Status.BadgeClass()">@c.Status.Ar()</span></td>
+            </tr>
+        }
+        @if (Model.Custodies.Count == 0) { <tr><td colspan="6" style="color:var(--muted)">لم يُسلَّم هذا الأصل كعهدة بعد.</td></tr> }
+        </tbody>
+    </table>
+</div>
+
+<div class="card-tile" style="margin-top:16px;">
+    <div class="card-head"><h3>الإهلاك المُرحَّل</h3><span class="pill">@Model.MonthsPosted شهر</span></div>
+    <table class="rs-table">
+        <thead><tr><th>الشهر</th><th>القسط</th><th>مجمع الإهلاك بعده</th><th>القيمة الدفترية بعده</th></tr></thead>
+        <tbody>
+        @{ var running = a.OpeningAccumulatedDepreciation; }
+        @foreach (var d in Model.Depreciations)
+        {
+            running += d.Amount;
+            <tr>
+                <td dir="ltr" style="text-align:right;">@d.Period.ToString("yyyy/MM")</td>
+                <td>@N(d.Amount)</td>
+                <td>@N(running)</td>
+                <td>@N(a.TotalCost - running)</td>
+            </tr>
+        }
+        @if (Model.MonthsPosted == 0) { <tr><td colspan="4" style="color:var(--muted)">لا يوجد إهلاك مُرحَّل — يُحتسب من صفحة «إهلاك الأصول الثابتة».</td></tr> }
+        </tbody>
+    </table>
+</div>
+
+@section Scripts {
+    <script src="~/js/fixed-assets.js" asp-append-version="true"></script>
+}

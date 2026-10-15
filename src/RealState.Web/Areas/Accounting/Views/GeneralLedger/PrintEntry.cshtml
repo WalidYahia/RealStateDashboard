@@ -31,10 +31,10 @@
     @await Component.InvokeAsync("ReportBackground", new { part = "open" })
     <div class="no-print"><button onclick="window.print()">🖨 طباعة / حفظ PDF</button></div>
     <h1>قيد يومية رقم @Model.Number</h1>
-    <div class="sub">تاريخ الطباعة: @DateTime.Now.ToString("yyyy/MM/dd HH:mm")</div>
+    <div class="sub">تاريخ الطباعة: @ClientTime.Now.ToString("yyyy/MM/dd HH:mm")</div>
 
     <table class="kv">
-        <tr><th>تاريخ القيد</th><td>@Model.Date.ToString("yyyy/MM/dd")</td></tr>
+        <tr><th>تاريخ القيد</th><td dir="ltr">@RealState.Web.AppCulture.When(Model.Date)</td></tr>
         <tr><th>البيان</th><td>@Model.Description</td></tr>
         <tr><th>نوع القيد</th><td>@(Model.IsManual ? "يدوي" : "آلي (من حركة في النظام)")</td></tr>
         @if (!string.IsNullOrWhiteSpace(Model.CreatedBy)) { <tr><th>سُجّل بواسطة</th><td>@Model.CreatedBy</td></tr> }

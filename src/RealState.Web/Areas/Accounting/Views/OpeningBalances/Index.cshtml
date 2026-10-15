@@ -1,0 +1,81 @@
+@model OpeningBalancesVm
+@{
+    ViewData["Title"] = "الأرصدة الافتتاحية";
+    string N(decimal v) => v.ToString("N2", RealState.Web.AppCulture.Ar);
+    string Num(decimal v) => v.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+    var tabs = new (OpeningKind Kind, string Label)[]
+    {
+        (OpeningKind.All, "الكل"), (OpeningKind.Customers, "العملاء"), (OpeningKind.Suppliers, "الموردون"),
+        (OpeningKind.Safes, "الخزائن")
+    };
+}
+<div class="page-head">
+    <div>
+        <h1>الأرصدة الافتتاحية</h1>
+        <p style="color:var(--muted);margin:2px 0 0;font-size:13px;">
+            رصيد كل حساب في تاريخ بدء العمل على النظام. يُرحَّل كل رصيد بقيد مستقل: من/إلى الحساب، والطرف المقابل حساب «رصيد افتتاحي» (3200).
+        </p>
+    </div>
+    <a class="btn-sm" asp-controller="ChartOfAccounts" asp-action="Index">🌳 دليل الحسابات</a>
+</div>
+
+@if (TempData["StatusMessage"] is string msg) { <div class="status-message">@msg</div> }
+
+<div class="card-tile ob-date">
+    <form asp-action="Redate" method="post" class="ob-date-form" data-confirm="نقل كل الأرصدة الافتتاحية وقيودها إلى التاريخ المختار؟">
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="kind" value="@Model.Kind" />
+        <label class="form-label" for="obDate">تاريخ الأرصدة الافتتاحية</label>
+        <input id="obDate" name="date" type="date" class="form-control" dir="ltr" value="@Model.OpeningDate.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)"
+               max="@ClientTime.Today.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)" disabled="@(!Model.CanEdit)" />
+        @if (Model.CanEdit) { <button type="submit" class="btn-sm">📅 تطبيق التاريخ</button> }
+    </form>
+    <small style="color:var(--muted);">كل الأرصدة الافتتاحية تُرحَّل بهذا التاريخ. أرصدة المخزون والأصول الثابتة تُسجَّل من صفحاتها (الرصيد الافتتاحي للأصناف / رصيد افتتاحي للأصل) — لا تكررها هنا.</small>
+</div>
+
+<div class="subtabs ob-tabs">
+    @foreach (var t in tabs)
+    {
+        <a class="subtab @(Model.Kind == t.Kind ? "active" : "")" asp-action="Index" asp-route-kind="@t.Kind">@t.Label <span class="pill">@Model.Counts.GetValueOrDefault(t.Kind)</span></a>
+    }
+</div>
+
+<div class="card-tile">
+    <div class="list-search-bar"><input class="form-control list-search" data-target="#obTable" placeholder="🔍 بحث بالحساب أو الكود أو الحساب الرئيسي..." /></div>
+    <form id="obToken">@Html.AntiForgeryToken()</form>
+    <table class="rs-table ob-table" id="obTable" data-grid="25" data-ob-save="@Url.Action("Save")">
+        <thead><tr><th>الحساب</th><th>الحساب الرئيسي</th><th>الرصيد الافتتاحي</th><th>مدين / دائن</th><th>آخر تحديث</th>@if (Model.CanEdit) { <th></th> }</tr></thead>
+        <tbody>
+        @foreach (var r in Model.Rows)
+        {
+            <tr data-target="@r.Target" data-amount="@Num(r.Amount)" data-side="@(r.IsDebit ? "D" : "C")">
+                <td data-label="الحساب"><span dir="ltr" class="ob-code" data-ob-code>@(r.Code ?? "—")</span> @r.Name</td>
+                <td data-label="الحساب الرئيسي" class="ob-parent">@r.Parent</td>
+                @if (Model.CanEdit && r.ReadOnlySource is null)
+                {
+                    <td data-label="الرصيد الافتتاحي"><input class="form-control ob-amount" type="number" step="any" min="0" inputmode="decimal" dir="ltr" value="@Num(r.Amount)" aria-label="الرصيد الافتتاحي — @r.Name" /></td>
+                    <td data-label="مدين / دائن">
+                        <select class="form-control ob-side" aria-label="مدين أو دائن — @r.Name">
+                            <option value="D" selected="@r.IsDebit">مدين</option>
+                            <option value="C" selected="@(!r.IsDebit)">دائن</option>
+                        </select>
+                    </td>
+                }
+                else
+                {
+                    <td data-label="الرصيد الافتتاحي">@(r.Amount == 0 ? "—" : N(r.Amount))@if (r.ReadOnlySource is not null) { <small class="ob-source">يُسجَّل من @r.ReadOnlySource</small> }</td>
+                    <td data-label="مدين / دائن">@(r.Amount == 0 ? "—" : r.IsDebit ? "مدين" : "دائن")</td>
+                }
+                <td data-label="آخر تحديث" dir="ltr" class="ob-updated" data-ob-updated>@(r.UpdatedAt is DateTime u ? RealState.Web.AppCulture.When(u) : "—")</td>
+                @if (Model.CanEdit) { <td class="ob-actions">@if (r.ReadOnlySource is null) { <button type="button" class="btn-sm ob-save" disabled>💾 حفظ</button> }</td> }
+            </tr>
+        }
+        @if (Model.Rows.Count == 0) { <tr data-skip-search><td colspan="6" style="color:var(--muted)">لا توجد حسابات.</td></tr> }
+        <tr data-no-results data-skip-search style="display:none;"><td colspan="6" style="color:var(--muted)">لا توجد نتائج مطابقة.</td></tr>
+        </tbody>
+    </table>
+</div>
+
+@section Scripts {
+    <script src="~/js/opening-balances.js" asp-append-version="true"></script>
+}

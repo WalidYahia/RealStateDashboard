@@ -49,7 +49,7 @@ public class CampaignUpdateFormModel
     [Required(ErrorMessage = "التاريخ مطلوب")]
     [DataType(DataType.Date)]
     [Display(Name = "تاريخ القراءة")]
-    public DateTime Date { get; set; } = DateTime.Today;
+    public DateTime Date { get; set; } = ClientTime.Today;
 
     /// <summary>The most recent reading date already logged (used to warn on back-dated entries).</summary>
     public DateTime? LatestDate { get; set; }

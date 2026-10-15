@@ -4,7 +4,7 @@
 @{
     string N(decimal v) => v.ToString("N0", RealState.Web.AppCulture.Ar);
     string RawNum(decimal v) => v.ToString("0.##", CultureInfo.InvariantCulture);
-    string D(DateTime d) => d.ToString("yyyy/MM/dd", CultureInfo.InvariantCulture);
+    string D(DateTime d) => RealState.Web.AppCulture.When(d);   // date + time when it has one
 
     var sort = (string?)ViewData["Sort"] ?? "unit";
     var mode = (string?)ViewData["Mode"] ?? "all";

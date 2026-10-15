@@ -7,7 +7,7 @@
     string N(decimal v) => v.ToString("N0", RealState.Web.AppCulture.Ar);
     string C(decimal v) => v >= 1_000_000 ? (v / 1_000_000m).ToString("0.##") + "M"
         : v >= 1000 ? (v / 1000m).ToString("0.#") + "K" : v.ToString("N0");
-    string D(DateTime d) => d.ToString("yyyy/MM/dd", CultureInfo.InvariantCulture);
+    string D(DateTime d) => RealState.Web.AppCulture.When(d);   // date + time when it has one
     var palette = new[] { "#3987e5", "#199e70", "#9085e9", "#c98500", "#d03b3b", "#2bb8a3" };
     var canCustomers = User.Can(PermissionNames.CustomersView);
 

@@ -23,8 +23,9 @@ public class ActivityLogController : Controller
         (from, to) = DateFilterDefaults.TodayIfFresh(Request, from, to);
 
         var q = _db.ActivityLogs.AsQueryable();
-        if (from.HasValue) q = q.Where(l => l.Timestamp >= from.Value.Date);
-        if (to.HasValue) q = q.Where(l => l.Timestamp < to.Value.Date.AddDays(1));
+        var (fromAt, toAt) = ClientTime.DayRange(from, to);   // [from, to) of the picked days
+        if (fromAt.HasValue) q = q.Where(l => l.Timestamp >= fromAt.Value);
+        if (toAt.HasValue) q = q.Where(l => l.Timestamp < toAt.Value);
         if (userId is { } uid && uid != Guid.Empty) q = q.Where(l => l.UserId == uid);
         if (!string.IsNullOrWhiteSpace(actionType)) q = q.Where(l => l.ActionType == actionType);
 

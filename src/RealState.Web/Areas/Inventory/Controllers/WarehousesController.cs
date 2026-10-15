@@ -29,7 +29,7 @@ public class WarehousesController : Controller
     public async Task<IActionResult> Excel(CancellationToken ct)
     {
         var (h, rows) = await BuildExportAsync(ct);
-        return RealState.Web.Common.Xlsx.File($"المخازن {DateTime.Now:yyyy-MM-dd}.xlsx", "المخازن", h, rows);
+        return RealState.Web.Common.Xlsx.File($"المخازن {ClientTime.Now:yyyy-MM-dd}.xlsx", "المخازن", h, rows);
     }
 
     [HttpGet]

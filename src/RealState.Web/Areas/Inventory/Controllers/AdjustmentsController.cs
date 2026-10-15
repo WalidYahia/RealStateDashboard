@@ -49,7 +49,7 @@ public class AdjustmentsController : Controller
     public async Task<IActionResult> Excel(DateTime? from, DateTime? to, CancellationToken ct)
     {
         var (h, rows) = await BuildExportAsync(from, to, ct);
-        return RealState.Web.Common.Xlsx.File($"تسويات المخزون {DateTime.Now:yyyy-MM-dd}.xlsx", "تسويات المخزون", h, rows);
+        return RealState.Web.Common.Xlsx.File($"تسويات المخزون {ClientTime.Now:yyyy-MM-dd}.xlsx", "تسويات المخزون", h, rows);
     }
 
     [HttpGet]
@@ -73,6 +73,7 @@ public class AdjustmentsController : Controller
         return (new() { "الرقم", "التاريخ", "المخزن", "الأسطر", "القيمة", "الحالة" }, rows);
     }
 
+    /// <summary>A correction / count-difference adjustment — opening stock has its own page (OpeningStockController).</summary>
     [HttpGet]
     public async Task<IActionResult> Create(CancellationToken ct)
     {
@@ -90,8 +91,7 @@ public class AdjustmentsController : Controller
         var d = await _db.InventoryAdjustments.Include(x => x.Lines).FirstOrDefaultAsync(x => x.Id == id, ct);
         if (d is null) return NotFound();
         if (d.Status != InventoryDocStatus.Draft) { TempData["ErrorMessage"] = "لا يمكن تعديل مستند مُرحَّل."; return RedirectToAction(nameof(Index)); }
-        var model = new AdjustmentFormModel { Id = d.Id, Number = d.Number, Date = d.Date, WarehouseId = d.WarehouseId, Reason = d.Reason, Notes = d.Notes, Status = d.Status };
-        await FillAsync(model, ct);
+        var model = new AdjustmentFormModel { Id = d.Id, Number = d.Number, Date = d.Date, WarehouseId = d.WarehouseId, Reason = d.Reason, Notes = d.Notes, Status = d.Status, Audit = RealState.Web.Models.AuditStampVm.Of(d) };
         var names = await ProductNamesAsync(d.Lines.Select(l => l.ProductId), ct);
         model.ExistingLines = d.Lines.Select(l =>
         {
@@ -102,6 +102,7 @@ public class AdjustmentsController : Controller
                 UnitCost = q > 0 && l.TotalCost > 0 ? Math.Round(l.TotalCost / q, 4) : InvDocUnits.EnteredCost(l.UnitCost, l.UnitFactor)
             };
         }).ToList();
+        await FillAsync(model, ct);
         return View("Form", model);
     }
 
@@ -113,10 +114,12 @@ public class AdjustmentsController : Controller
         var lines = Parse(linesJson).Where(l => l.ProductId != Guid.Empty && l.QuantityDelta != 0).ToList();
         if (model.WarehouseId == Guid.Empty) ModelState.AddModelError(string.Empty, "اختر المخزن.");
         if (lines.Count == 0) ModelState.AddModelError(string.Empty, "أضف سطرًا واحدًا على الأقل بكمية غير صفرية.");
+        // Opening stock (an older draft — new ones come from «الرصيد الافتتاحي للأصناف») only adds stock.
+        if (model.Reason == AdjustmentReason.Opening && lines.Any(l => l.QuantityDelta < 0)) ModelState.AddModelError(string.Empty, "كميات الرصيد الافتتاحي موجبة فقط.");
         if (!ModelState.IsValid)
         {
-            await FillAsync(model, ct);
             model.ExistingLines = lines.Select(l => new DocLineVm { ProductId = l.ProductId, UnitLevel = l.UnitLevel, QuantityDelta = l.QuantityDelta, UnitCost = l.UnitCost }).ToList();
+            await FillAsync(model, ct);
             return View("Form", model);
         }
 
@@ -133,6 +136,7 @@ public class AdjustmentsController : Controller
             if (d is null) return NotFound();
             if (d.Status != InventoryDocStatus.Draft) { TempData["ErrorMessage"] = "لا يمكن تعديل مستند مُرحَّل."; return RedirectToAction(nameof(Index)); }
             _db.InventoryAdjustmentLines.RemoveRange(await _db.InventoryAdjustmentLines.Where(l => l.InventoryAdjustmentId == d.Id).ToListAsync(ct));
+            d.UpdatedAt = ClientTime.Now;   // only the lines changed — the document still counts as updated (LastUpdateTime)
         }
         d.Date = model.Date; d.WarehouseId = model.WarehouseId; d.Reason = model.Reason; d.Notes = model.Notes; d.Status = InventoryDocStatus.Draft;
         foreach (var l in lines)
@@ -163,6 +167,11 @@ public class AdjustmentsController : Controller
         var d = await _db.InventoryAdjustments.Include(x => x.Lines).FirstOrDefaultAsync(x => x.Id == id, ct);
         if (d is null) return NotFound();
         if (d.Status != InventoryDocStatus.Draft) { TempData["ErrorMessage"] = "المستند مُرحَّل بالفعل."; return RedirectToAction(nameof(Index)); }
+        if (d.Reason == AdjustmentReason.Opening)   // one opening stock per product per warehouse — kept on its own page
+        {
+            TempData["ErrorMessage"] = "الرصيد الافتتاحي يُدخل من صفحة «الرصيد الافتتاحي للأصناف» (رصيد واحد لكل صنف في كل مخزن) — احذف هذه المسودة.";
+            return RedirectToAction(nameof(Index));
+        }
         try { await _engine.PostAdjustmentAsync(d, ct); await _db.SaveChangesAsync(ct); TempData["StatusMessage"] = $"تم ترحيل التسوية {d.Number}."; }
         catch (InvalidOperationException ex) { TempData["ErrorMessage"] = ex.Message; }
         catch (DbUpdateConcurrencyException) { TempData["ErrorMessage"] = "تم تعديل المستند من جلسة أخرى — أعد تحميل الصفحة وحاول مجددًا."; }

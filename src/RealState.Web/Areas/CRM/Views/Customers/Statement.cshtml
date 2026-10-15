@@ -1,0 +1,111 @@
+@model CustomerLedgerVm
+@{
+    var c = Model.Customer;
+    ViewData["Title"] = $"كشف حساب {c.FullName}";
+    string N(decimal v) => v.ToString("N0", RealState.Web.AppCulture.Ar);
+    string D(DateTime d) => RealState.Web.AppCulture.When(d);   // date + time when it has one
+    string? F(DateTime? d) => d?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+    var canContracts = User.Can(PermissionNames.SalesView);
+    var canInvoices = User.Can(PermissionNames.SalesInvoicesView);
+    var canReturns = User.Can(PermissionNames.SalesReturnsView);
+    var canIncomes = User.Can(PermissionNames.IncomesView);
+    var canExpenses = User.Can(PermissionNames.ExpensesView);
+    const string LinkStyle = "color:var(--series-1);text-decoration:none;font-weight:600;";
+}
+<div class="page-head">
+    <div>
+        <h1>كشف حساب — @c.FullName</h1>
+        <p style="color:var(--muted);margin:2px 0 0;"><span dir="ltr">@c.Phone</span> @(string.IsNullOrEmpty(c.Email) ? "" : "· " + c.Email)</p>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        @ContactLinks.Buttons(c.Phone, labeled: true)
+        <a class="btn-sm" asp-action="Index" onclick="if (history.length > 1) { history.back(); return false; }">رجوع</a>
+        <a class="btn-sm" asp-action="Details" asp-route-id="@c.Id">👤 البيانات</a>
+        @if (canInvoices && (ViewData["ShowInvoiceActions"] as bool? ?? false))
+        {
+            <a class="btn-sm" asp-area="Sales" asp-controller="SalesInvoices" asp-action="Index" asp-route-customerId="@c.Id">فواتير المبيعات</a>
+        }
+        @if (ViewData["HasOpenInvoices"] as bool? ?? false)
+        {
+            <button type="button" class="btn-new-tenant" onclick="appOpenModal('@Url.Action("CollectForm", new { id = c.Id })', 'تحصيل دفعة من العميل')">💵 تحصيل دفعة</button>
+        }
+    </div>
+</div>
+
+@if (TempData["StatusMessage"] is string status)
+{
+    <div class="status-message">@status</div>
+}
+
+<div class="kpi-grid" style="grid-template-columns: repeat(3, 1fr);">
+    <div class="kpi k-reserve"><div class="kpi-label">إجمالي المستحقات</div><div class="kpi-value">@N(Model.TotalObligations) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">@Model.DocumentsCount عقد / فاتورة</div></div>
+    <div class="kpi k-collect"><div class="kpi-label">المحصَّل</div><div class="kpi-value">@N(Model.TotalPaid) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">@Model.CollectionsCount تحصيل</div></div>
+    <div class="kpi k-alerts"><div class="kpi-label">المتبقي</div><div class="kpi-value">@N(Model.TotalRemaining) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">مستحق على العميل</div></div>
+</div>
+
+@{
+    var filter = FilterBarVm.For(Url.Action("Statement", new { id = c.Id }))
+        .WithTitle("تصفية كشف الحساب")
+        .DateRange(F(Model.From), F(Model.To), presets: FilterPresets.Standard().Append(FilterPresets.All()))
+        .Print(Url.Action("PrintLedger", new { id = c.Id, from = F(Model.From), to = F(Model.To) }), "طباعة كشف الحساب");
+}
+<partial name="_FilterBar" model="filter" />
+
+<div class="card-tile">
+    <div class="list-search-bar"><input class="form-control list-search" data-target="#custLedger" placeholder="🔍 بحث في القائمة..." /></div>
+    <table class="rs-table" id="custLedger">
+        <thead><tr><th>المصدر</th><th>التاريخ</th><th>البيان</th><th>رصيد قبل</th><th>المبلغ</th><th>الرصيد</th></tr></thead>
+        <tbody>
+        @foreach (var r in Model.Rows)
+        {
+            var dec = r.Decreases;
+            <tr>
+                <td>
+                    @if (r.Kind == CustomerLedgerKind.Contract && canContracts)
+                    {
+                        <a asp-area="Sales" asp-controller="Sales" asp-action="Details" asp-route-id="@r.Id" style="@LinkStyle">@r.Source</a>
+                    }
+                    else if (r.Kind == CustomerLedgerKind.Invoice && canInvoices)
+                    {
+                        <a asp-area="Sales" asp-controller="SalesInvoices" asp-action="Details" asp-route-id="@r.Id" style="@LinkStyle">@r.Source</a>
+                    }
+                    else if (r.Kind == CustomerLedgerKind.Return && canReturns)
+                    {
+                        <a asp-area="Sales" asp-controller="SalesReturns" asp-action="Details" asp-route-id="@r.Id" style="@LinkStyle">@r.Source</a>
+                    }
+                    else
+                    {
+                        @r.Source
+                    }
+                </td>
+                <td dir="ltr" style="text-align:right;">@D(r.Date)</td>
+                <td>
+                    @r.Statement
+                    @if (r.VoucherId is Guid v && (r.VoucherIsExpense ? canExpenses : canIncomes))
+                    {
+                        <a class="btn-sm" asp-area="Accounting" asp-controller="@(r.VoucherIsExpense ? "Expenses" : "Incomes")" asp-action="PrintOne" asp-route-id="@v" target="_blank" style="margin-inline-start:8px;">🖨 طباعة</a>
+                    }
+                </td>
+                <td style="white-space:nowrap;color:var(--muted);">@N(r.BalanceBefore)</td>
+                <td style="color:@(dec ? "var(--good)" : "var(--critical)");white-space:nowrap;">@(dec ? "−" : "+")@N(r.Amount)</td>
+                <td style="font-weight:600;white-space:nowrap;">@N(r.Balance)</td>
+            </tr>
+        }
+        @if (!Model.HasEntries)
+        {
+            <tr data-skip-search><td colspan="6" style="color:var(--muted)">لا توجد حركات في هذه الفترة.</td></tr>
+        }
+        <tr data-no-results data-skip-search style="display:none;"><td colspan="6" style="color:var(--muted)">لا توجد نتائج مطابقة.</td></tr>
+        </tbody>
+        <tfoot>
+            <tr>
+                <td colspan="5" style="text-align:start;font-weight:700;">الرصيد الختامي للفترة</td>
+                <td style="font-weight:800;white-space:nowrap;">@N(Model.ClosingBalance) ج.م</td>
+            </tr>
+        </tfoot>
+    </table>
+</div>
+
+@section Scripts {
+    <script src="~/js/customer-collect.js" asp-append-version="true"></script>
+}

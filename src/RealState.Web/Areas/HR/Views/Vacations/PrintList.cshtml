@@ -1,7 +1,7 @@
 @model VacationListVm
 @{
     Layout = null;
-    string D(DateTime d) => d.ToString("yyyy/MM/dd", System.Globalization.CultureInfo.InvariantCulture);
+    string D(DateTime d) => RealState.Web.AppCulture.When(d);   // date + time when it has one
     var i = 1;
 }
 <!DOCTYPE html>
@@ -25,7 +25,7 @@
     <h1>الإجازات</h1>
     <div class="sub">
         @if (Model.From.HasValue || Model.To.HasValue) { <text>الفترة @D(Model.From ?? DateTime.MinValue) — @D(Model.To ?? DateTime.MaxValue) · </text> }
-        العدد: @Model.Rows.Count · @DateTime.Now.ToString("yyyy/MM/dd HH:mm")
+        العدد: @Model.Rows.Count · @ClientTime.Now.ToString("yyyy/MM/dd HH:mm")
     </div>
     <table>
         <thead><tr><th>#</th><th>الموظف</th><th>النوع</th><th>تاريخ التقديم</th><th>من</th><th>إلى</th><th>المدة (يوم)</th></tr></thead>

@@ -1,0 +1,38 @@
+@model FixedAssetDisposeModel
+@{
+    string N(decimal v) => v.ToString("N2", RealState.Web.AppCulture.Ar);
+    var inv = System.Globalization.CultureInfo.InvariantCulture;
+}
+<form id="appModalForm" asp-area="Accounting" asp-controller="FixedAssets" asp-action="Dispose" method="post" data-modal-init="faDisposeInit" data-book="@Model.BookValue.ToString(inv)">
+    @Html.AntiForgeryToken()
+    <div asp-validation-summary="ModelOnly" class="validation-summary-errors"></div>
+    <input type="hidden" asp-for="Id" />
+    <div class="status-message" style="background:var(--surface-2);border-color:var(--border);color:var(--text-secondary);">
+        FA-@Model.Number — <strong>@Model.Name</strong> · التكلفة @N(Model.Cost) · مجمع الإهلاك @N(Model.Accumulated) · <strong>القيمة الدفترية @N(Model.BookValue) ج.م</strong>
+    </div>
+    <div class="form-grid">
+        <div>
+            <label asp-for="Date" class="form-label"></label>
+            <input asp-for="Date" class="form-control" type="date" dir="ltr" />
+            <span asp-validation-for="Date" class="field-validation-error"></span>
+        </div>
+        <div>
+            <label asp-for="Proceeds" class="form-label"></label>
+            <input asp-for="Proceeds" class="form-control" type="number" step="any" min="0" inputmode="decimal" dir="ltr" data-fa-proceeds />
+            <span asp-validation-for="Proceeds" class="field-validation-error"></span>
+        </div>
+        <div class="full" data-fa-proceeds-safe>
+            <label asp-for="SafeId" class="form-label"></label>
+            <select asp-for="SafeId" class="form-control" asp-items="Model.Safes"><option value="">— اختر الخزنة —</option></select>
+            <span asp-validation-for="SafeId" class="field-validation-error"></span>
+        </div>
+        <div class="full">
+            <label asp-for="Reason" class="form-label"></label>
+            <input asp-for="Reason" class="form-control" placeholder="بيع، تلف، فقد، انتهاء العمر الإنتاجي…" />
+            <span asp-validation-for="Reason" class="field-validation-error"></span>
+        </div>
+    </div>
+    <div class="settle-total" data-fa-result style="margin-top:10px;"></div>
+    <p style="color:var(--muted);font-size:12px;margin-top:6px;">قيد: من ح/ مجمع الإهلاك + ح/ الخزنة (المتحصلات) إلى ح/ الأصول الثابتة، والفرق إلى أرباح / خسائر استبعاد الأصول. احتسب إهلاك الأشهر السابقة أولًا.</p>
+    <button type="submit" class="btn-primary" style="margin-top:8px;background:var(--critical);">🗑 ترحيل الاستبعاد</button>
+</form>

@@ -31,7 +31,7 @@
     <h1>ميزان المراجعة</h1>
     <div class="sub">
         @if (Model.From.HasValue) { <text>من @Model.From?.ToString("yyyy/MM/dd") </text> }
-        حتى @Model.To?.ToString("yyyy/MM/dd") · طُبع @DateTime.Now.ToString("yyyy/MM/dd HH:mm") · @(Model.IsBalanced ? "متوازن" : "غير متوازن")
+        حتى @Model.To?.ToString("yyyy/MM/dd") · طُبع @ClientTime.Now.ToString("yyyy/MM/dd HH:mm") · @(Model.IsBalanced ? "متوازن" : "غير متوازن")
     </div>
 
     <table>

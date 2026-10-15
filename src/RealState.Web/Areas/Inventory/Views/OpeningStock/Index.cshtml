@@ -1,0 +1,91 @@
+@model OpeningStockVm
+@*
+    «الرصيد الافتتاحي للأصناف» (OpeningStockController): a warehouse's stock products, ONE opening stock each — type
+    the quantity and unit cost, «حفظ» saves and posts that row (editing replaces it; 0 removes it). opening-stock.js.
+*@
+@{
+    ViewData["Title"] = "الرصيد الافتتاحي للأصناف";
+    string Q(decimal v) => v == 0 ? "" : v.ToString("0.####", System.Globalization.CultureInfo.InvariantCulture);
+    string Inv(decimal v) => v.ToString("0.####", System.Globalization.CultureInfo.InvariantCulture);
+    string N(decimal v) => v.ToString("N2", System.Globalization.CultureInfo.InvariantCulture);
+}
+<div class="page-head">
+    <h1>الرصيد الافتتاحي للأصناف</h1>
+</div>
+
+<div class="card-tile">
+    <form id="osToken">@Html.AntiForgeryToken()</form>
+    <div class="form-grid form-grid-3">
+        <div>
+            <label asp-for="Date" class="form-label"></label>
+            <input asp-for="Date" id="osDate" class="form-control" type="datetime-local" dir="ltr" asp-format="{0:yyyy-MM-ddTHH:mm}" max="@(ClientTime.Today.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture))T23:59" />
+            <small class="adj-hint">يُسجَّل به الصنف عند حفظه.</small>
+        </div>
+        <div>
+            <label asp-for="WarehouseId" class="form-label"></label>
+            <select asp-for="WarehouseId" id="osWarehouse" class="form-control" asp-items="Model.Warehouses" data-url="@Url.Action("Index")"></select>
+        </div>
+        <div>
+            <label class="form-label">السبب</label>
+            <input class="form-control" value="رصيد افتتاحي" disabled />
+        </div>
+    </div>
+
+    <div class="adj-toolbar">
+        <input class="form-control list-search" data-target="#osTable" placeholder="🔍 بحث بالكود أو الاسم أو الفئة..." />
+        <label class="adj-sort">ترتيب حسب
+            <select class="form-control" id="osSort">
+                <option value="sku">الكود</option>
+                <option value="name">الاسم</option>
+                <option value="cat">الفئة</option>
+                <option value="filled">المُدخلة أولًا</option>
+            </select>
+        </label>
+    </div>
+    <div class="os-wrap">
+        <table class="rs-table os-table" id="osTable" data-no-grid data-save="@Url.Action("Save")">
+            <thead><tr><th>الكود</th><th>الصنف</th><th>الفئة</th><th>الوحدة</th><th>الكمية</th><th>تكلفة الوحدة</th><th>الإجمالي</th><th>التاريخ / آخر تحديث</th><th></th></tr></thead>
+            <tbody>
+            @foreach (var r in Model.Rows)
+            {
+                var locked = r.Locked is not null;
+                <tr data-sku="@r.Sku" data-name="@r.Name" data-cat="@r.Category" data-product="@r.ProductId"
+                    data-qty="@Inv(r.Quantity)" data-cost="@Inv(r.UnitCost)" class="@(locked ? "os-locked" : "")">
+                    <td data-label="الكود" dir="ltr" class="os-sku">@r.Sku</td>
+                    <td data-label="الصنف" class="os-name">@r.Name</td>
+                    <td data-label="الفئة" class="os-cat">@(string.IsNullOrEmpty(r.Category) ? "—" : r.Category)</td>
+                    <td data-label="الوحدة"><partial name="_UnitSelect" model="r.Unit" /></td>
+                    <td data-label="الكمية"><input class="form-control os-qty" type="number" step="any" min="0" dir="ltr" value="@Q(r.Quantity)" placeholder="0" disabled="@locked" /></td>
+                    <td data-label="تكلفة الوحدة"><input class="form-control os-cost" type="number" step="any" min="0" dir="ltr" value="@Q(r.UnitCost)" placeholder="0" disabled="@locked" /></td>
+                    <td data-label="الإجمالي" class="os-total" dir="ltr">@(r.Quantity > 0 ? N(Math.Round(r.Quantity * r.UnitCost, 2)) : "—")</td>
+                    <td data-label="التاريخ / آخر تحديث" class="os-when">
+                        <span data-os-date>@(r.Date is DateTime d ? RealState.Web.AppCulture.When(d) : "—")</span>
+                        @if (r.UpdatedAt is DateTime u) { <small>آخر تحديث: <span data-os-updated>@RealState.Web.AppCulture.When(u)</span></small> }
+                        else { <small style="display:none;">آخر تحديث: <span data-os-updated></span></small> }
+                    </td>
+                    <td class="os-actions">
+                        @if (locked) { <small class="os-lock" title="@r.Locked">🔒 @r.Locked</small> }
+                        else { <button type="button" class="btn-sm os-save" disabled>💾 حفظ</button> }
+                    </td>
+                </tr>
+            }
+            @if (Model.Rows.Count == 0)
+            {
+                <tr data-skip-search><td colspan="9" style="color:var(--muted)">لا توجد أصناف مخزنية نشطة — أضفها من صفحة الأصناف أولًا.</td></tr>
+            }
+            <tr data-no-results data-skip-search style="display:none;"><td colspan="9" style="color:var(--muted)">لا توجد نتائج.</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="os-footer">
+        <div class="os-summary">
+            <span>أصناف لها رصيد: <b id="osCount">0</b></span>
+            <span>إجمالي القيمة: <b id="osSum" dir="ltr">0.00</b> ج.م</span>
+        </div>
+        <button type="button" class="btn-primary os-submit" id="osSaveAll" disabled>💾 حفظ التعديلات (<span id="osDirty">0</span>)</button>
+    </div>
+    <p class="adj-hint">لكل صنف رصيد افتتاحي واحد في كل مخزن، يُعدَّل من هنا: الحفظ يُرحِّل الكمية للمخزن بالتكلفة المُدخلة ويُسجِّل قيد «مدين المخزون / دائن رصيد افتتاحي»، والتعديل يستبدلهما، و 0 يلغيه. يُقفَل الصنف بعد أول حركة عليه في المخزن بعد تاريخ رصيده.</p>
+</div>
+
+<script src="~/js/opening-stock.js" asp-append-version="true"></script>

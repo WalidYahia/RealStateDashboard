@@ -2,7 +2,7 @@
 @{
     ViewData["Title"] = $"حركات: {Model.SafeName}";
     string N(decimal v) => v.ToString("N0", RealState.Web.AppCulture.Ar);
-    string DT(DateTime d) => d.ToString("yyyy/MM/dd HH:mm");
+    string DT(DateTime d) => RealState.Web.AppCulture.When(d);
     string? F(DateTime? d) => d?.ToString("yyyy-MM-dd");
 }
 <div class="page-head">

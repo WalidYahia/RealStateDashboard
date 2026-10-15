@@ -22,6 +22,7 @@ public interface IApplicationDbContext
     DbSet<Account> Accounts { get; }
     DbSet<JournalEntry> JournalEntries { get; }
     DbSet<JournalLine> JournalLines { get; }
+    DbSet<AccountOpeningBalance> AccountOpeningBalances { get; }
 
     // Inventory module
     DbSet<ProductCategory> ProductCategories { get; }
@@ -29,6 +30,7 @@ public interface IApplicationDbContext
     DbSet<Warehouse> Warehouses { get; }
     DbSet<Product> Products { get; }
     DbSet<InventoryMovement> InventoryMovements { get; }
+    DbSet<ProductOpeningStock> ProductOpeningStocks { get; }
     DbSet<GoodsReceipt> GoodsReceipts { get; }
     DbSet<GoodsReceiptLine> GoodsReceiptLines { get; }
     DbSet<GoodsIssue> GoodsIssues { get; }
@@ -108,6 +110,13 @@ public interface IApplicationDbContext
     DbSet<WorkTask> WorkTasks { get; }
     DbSet<WorkTaskLog> WorkTaskLogs { get; }
     DbSet<WorkTaskAttachment> WorkTaskAttachments { get; }
+    DbSet<FixedAsset> FixedAssets { get; }
+    DbSet<FixedAssetCategory> FixedAssetCategories { get; }
+    DbSet<FixedAssetDepreciation> FixedAssetDepreciations { get; }
+    DbSet<MaterialCustody> MaterialCustodies { get; }
+    DbSet<MaterialCustodyAttachment> MaterialCustodyAttachments { get; }
+    DbSet<FinancialCustody> FinancialCustodies { get; }
+    DbSet<FinancialCustodyMovement> FinancialCustodyMovements { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 

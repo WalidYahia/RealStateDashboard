@@ -1,7 +1,7 @@
 @model LeaveRequestRow
 @{
     Layout = null;
-    string D(DateTime d) => d.ToString("yyyy/MM/dd", System.Globalization.CultureInfo.InvariantCulture);
+    string D(DateTime d) => RealState.Web.AppCulture.When(d);   // date + time when it has one
     string H(decimal v) => v.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
 }
 <!DOCTYPE html>
@@ -23,7 +23,7 @@
     @await Component.InvokeAsync("ReportBackground", new { part = "open" })
     <div class="no-print"><button onclick="window.print()">🖨 طباعة / حفظ PDF</button></div>
     <h1>طلب إذن تأخير/انصراف</h1>
-    <div class="sub">@DateTime.Now.ToString("yyyy/MM/dd HH:mm")</div>
+    <div class="sub">@ClientTime.Now.ToString("yyyy/MM/dd HH:mm")</div>
     <table>
         <tr><th>الموظف</th><td>@Model.Employee</td></tr>
         <tr><th>نوع الإذن</th><td>@Model.Type.Ar()</td></tr>

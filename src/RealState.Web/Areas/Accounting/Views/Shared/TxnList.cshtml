@@ -10,7 +10,7 @@
     string N(decimal v) => v.ToString("N0", RealState.Web.AppCulture.Ar);
 
     // Display format
-    string DT(DateTime d) => d.ToString("yyyy/MM/dd HH:mm", inv);
+    string DT(DateTime d) => RealState.Web.AppCulture.When(d);
 
     // datetime-local format (seconds are not needed); null when no value so the input stays empty.
     string DTL(DateTime d) => d.ToString("yyyy-MM-ddTHH:mm", inv);
@@ -178,8 +178,26 @@
 @section Scripts {
     <script>
         // Income/Expense modal: toggle the advance/reward pickers by the chosen "النوع" and auto-fill amount.
+        // «الحساب»: عميل / مورد show their picker; أخرى shows the بند (and its advance / reward pickers).
+        window.txnPartyChange = function (form) {
+            if (!form) return;
+            var picked = form.querySelector('[name="Party"]:checked') || form.querySelector('[name="Party"]');
+            var p = picked ? picked.value : 'Other';
+            var c = form.querySelector('.txn-party-customer'), s = form.querySelector('.txn-party-supplier'), o = form.querySelector('.txn-party-other');
+            if (c) c.style.display = p === 'Customer' ? '' : 'none';
+            if (s) s.style.display = p === 'Supplier' ? '' : 'none';
+            if (o) o.style.display = p === 'Other' ? '' : 'none';
+            if (p === 'Other') { window.txnKindChange(form); return; }
+            // A party voucher is a plain entry: description + editable amount, no advance / reward.
+            ['.txn-advance', '.txn-reward'].forEach(function (sel) { var el = form.querySelector(sel); if (el) el.style.display = 'none'; });
+            var desc = form.querySelector('.txn-desc'), amt = form.querySelector('#txnAmount');
+            if (desc) desc.style.display = '';
+            if (amt) amt.readOnly = false;
+        };
         window.txnKindChange = function (form) {
             if (!form) return;
+            var party = form.querySelector('[name="Party"]:checked');
+            if (party && party.value !== 'Other') { window.txnPartyChange(form); return; }
             // The chosen category (البند) carries data-kind: 0 general, 1 advance, 2 reward.
             var cat = form.querySelector('[name="CategoryId"]');
             var opt = cat ? cat.options[cat.selectedIndex] : null;

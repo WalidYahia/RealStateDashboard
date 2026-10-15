@@ -31,7 +31,7 @@
     <div class="no-print"><button onclick="window.print()">🖨 طباعة / حفظ PDF</button></div>
     <div class="card">
         <h1>إشعار استحقاق قسط</h1>
-        <div class="sub">رقم العقد @contract?.Code · تاريخ الإصدار @DateTime.Now.ToString("yyyy/MM/dd")</div>
+        <div class="sub">رقم العقد @contract?.Code · تاريخ الإصدار @ClientTime.Now.ToString("yyyy/MM/dd")</div>
         @if (overdue) { <div class="flag">⚠ قسط متأخر عن موعد استحقاقه</div> }
 
         <div class="amount">@N(Model.Amount) ج.م</div>

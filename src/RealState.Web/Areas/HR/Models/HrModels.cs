@@ -114,11 +114,11 @@ public class EmployeeListItem
 public class VacationFormModel
 {
     public Guid Id { get; set; }
-    [DataType(DataType.Date)][Display(Name = "تاريخ التقديم")] public DateTime ApplyDate { get; set; } = DateTime.Today;
+    [DataType(DataType.Date)][Display(Name = "تاريخ التقديم")] public DateTime ApplyDate { get; set; } = ClientTime.Today;
     [Required(ErrorMessage = "الموظف مطلوب")][Display(Name = "الموظف")] public Guid? EmployeeId { get; set; }
     [Display(Name = "النوع")] public VacationType Type { get; set; }
-    [Required][DataType(DataType.Date)][Display(Name = "من")] public DateTime FromDate { get; set; } = DateTime.Today;
-    [Required][DataType(DataType.Date)][Display(Name = "إلى")] public DateTime ToDate { get; set; } = DateTime.Today;
+    [Required][DataType(DataType.Date)][Display(Name = "من")] public DateTime FromDate { get; set; } = ClientTime.Today;
+    [Required][DataType(DataType.Date)][Display(Name = "إلى")] public DateTime ToDate { get; set; } = ClientTime.Today;
     public List<SelectListItem> Employees { get; set; } = new();
 }
 
@@ -147,7 +147,7 @@ public class LeaveRequestFormModel
     public Guid Id { get; set; }
     [Required(ErrorMessage = "الموظف مطلوب")][Display(Name = "الموظف")] public Guid? EmployeeId { get; set; }
     [Display(Name = "نوع الإذن")] public LeaveRequestType Type { get; set; }
-    [DataType(DataType.Date)][Display(Name = "التاريخ")] public DateTime Date { get; set; } = DateTime.Today;
+    [DataType(DataType.Date)][Display(Name = "التاريخ")] public DateTime Date { get; set; } = ClientTime.Today;
     [Range(0.01, 24, ErrorMessage = "عدد الساعات بين 0 و 24")][Display(Name = "عدد الساعات")] public decimal Hours { get; set; }
     public List<SelectListItem> Employees { get; set; } = new();
 }
@@ -173,12 +173,12 @@ public class LeaveRequestListVm
 public class AdvanceFormModel
 {
     public Guid Id { get; set; }
-    [DataType(DataType.Date)][Display(Name = "التاريخ")] public DateTime Date { get; set; } = DateTime.Today;
+    [DataType(DataType.Date)][Display(Name = "التاريخ")] public DateTime Date { get; set; } = ClientTime.Today;
     [Required(ErrorMessage = "الموظف مطلوب")][Display(Name = "الموظف")] public Guid? EmployeeId { get; set; }
     [Range(0.01, 999999999999, ErrorMessage = "المبلغ مطلوب")][Display(Name = "المبلغ")] public decimal Amount { get; set; }
     [Display(Name = "طريقة السداد")] public AdvanceRepaymentMethod RepaymentMethod { get; set; }
     [Range(1, 600)][Display(Name = "عدد أقساط الخصم")] public int InstallmentsCount { get; set; } = 1;
-    [DataType(DataType.Date)][Display(Name = "بداية الخصم الشهري")] public DateTime? MonthlyStartDate { get; set; } = DateTime.Today;
+    [DataType(DataType.Date)][Display(Name = "بداية الخصم الشهري")] public DateTime? MonthlyStartDate { get; set; } = ClientTime.Today;
     [Display(Name = "ملاحظات")] public string? Notes { get; set; }
     public List<SelectListItem> Employees { get; set; } = new();
 }
@@ -208,7 +208,7 @@ public class AdvanceListVm
 public class RewardFormModel
 {
     public Guid Id { get; set; }
-    [DataType(DataType.Date)][Display(Name = "التاريخ")] public DateTime Date { get; set; } = DateTime.Today;
+    [DataType(DataType.Date)][Display(Name = "التاريخ")] public DateTime Date { get; set; } = ClientTime.Today;
     [Required(ErrorMessage = "الموظف مطلوب")][Display(Name = "الموظف")] public Guid? EmployeeId { get; set; }
     [Range(0.01, 999999999999, ErrorMessage = "المبلغ مطلوب")][Display(Name = "المبلغ")] public decimal Amount { get; set; }
     [Display(Name = "طريقة الصرف")] public RewardPayVia PayVia { get; set; }

@@ -74,12 +74,12 @@
         </div>
         <div>
             <label asp-for="TotalPrice" class="form-label"></label>
-            <input asp-for="TotalPrice" class="form-control" type="number" step="0.01" min="0" dir="ltr" readonly="@ro" />
+            <input asp-for="TotalPrice" class="form-control" type="number" step="any" min="0" dir="ltr" readonly="@ro" />
             <span asp-validation-for="TotalPrice" class="field-validation-error"></span>
         </div>
         <div>
             <label asp-for="DownPayment" class="form-label"></label>
-            <input asp-for="DownPayment" class="form-control" type="number" step="0.01" min="0" dir="ltr" readonly="@ro" />
+            <input asp-for="DownPayment" class="form-control" type="number" step="any" min="0" dir="ltr" readonly="@ro" />
             <span asp-validation-for="DownPayment" class="field-validation-error"></span>
         </div>
 
@@ -119,7 +119,7 @@
                     <tr>
                         <td class="sched-no">@(i + 1)</td>
                         <td><input type="date" name="ManualDates" class="form-control" dir="ltr" value="@d?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)" readonly="@ro" required /></td>
-                        <td><input type="number" name="ManualAmounts" class="form-control" dir="ltr" step="0.01" min="0.01" inputmode="decimal" value="@a?.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)" readonly="@ro" required /></td>
+                        <td><input type="number" name="ManualAmounts" class="form-control" dir="ltr" step="any" min="0.01" inputmode="decimal" value="@a?.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)" readonly="@ro" required /></td>
                         @if (!lockFin) { <td><button type="button" class="btn-sm btn-danger" data-sched-del title="حذف الصف" aria-label="حذف الصف">✕</button></td> }
                     </tr>
                 }

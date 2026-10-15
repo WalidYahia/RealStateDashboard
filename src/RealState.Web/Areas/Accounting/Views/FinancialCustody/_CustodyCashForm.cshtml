@@ -1,0 +1,38 @@
+@model CustodyCashModel
+@{
+    var isReturn = Model.Kind == CustodyMovementKind.Return;
+    string N(decimal v) => v.ToString("N2", RealState.Web.AppCulture.Ar);
+}
+<form id="appModalForm" asp-area="Accounting" asp-controller="FinancialCustody" asp-action="Cash" method="post">
+    @Html.AntiForgeryToken()
+    <input type="hidden" asp-for="CustodyId" />
+    <input type="hidden" asp-for="Kind" />
+    <div class="status-message" style="background:var(--surface-2);border-color:var(--border);color:var(--text-secondary);">
+        العهدة FC-@Model.Number · الرصيد لدى الموظف: <strong style="color:@(Model.Balance < 0 ? "var(--critical)" : "var(--text-strong)")">@N(Model.Balance) ج.م</strong>
+        @if (Model.Balance < 0) { <span> (مستحق له)</span> }
+    </div>
+    <div class="form-grid">
+        <div>
+            <label asp-for="Amount" class="form-label"></label>
+            <input asp-for="Amount" class="form-control" type="number" step="any" min="0.01" inputmode="decimal" dir="ltr" />
+            <span asp-validation-for="Amount" class="field-validation-error"></span>
+        </div>
+        <div>
+            <label asp-for="Date" class="form-label"></label>
+            <input asp-for="Date" class="form-control" type="date" dir="ltr" />
+        </div>
+        <div class="full">
+            <label asp-for="SafeId" class="form-label">@(isReturn ? "تُورَّد إلى خزنة" : "تُصرف من خزنة")</label>
+            <select asp-for="SafeId" class="form-control" asp-items="Model.Safes"><option value="">— اختر الخزنة —</option></select>
+            <span asp-validation-for="SafeId" class="field-validation-error"></span>
+        </div>
+        <div class="full">
+            <label asp-for="Description" class="form-label"></label>
+            <input asp-for="Description" class="form-control" placeholder="@(isReturn ? "رد النقدية المتبقية" : "صرف إضافي / تعويض مصروفات زائدة")" />
+        </div>
+    </div>
+    <p style="color:var(--muted);font-size:12px;margin-top:8px;">
+        @(isReturn ? "يُسجَّل سند قبض في الخزنة وقيد: من ح/ الخزنة إلى ح/ العُهد المالية (الموظف)." : "يُسجَّل سند صرف من الخزنة وقيد: من ح/ العُهد المالية (الموظف) إلى ح/ الخزنة.")
+    </p>
+    <button type="submit" class="btn-primary" style="margin-top:8px;">@(isReturn ? "📥 استلام النقدية" : "💵 صرف المبلغ")</button>
+</form>

@@ -30,7 +30,7 @@ public sealed class WorkspaceKpiService : IWorkspaceKpiService
         var k = new Dictionary<string, NavKpi>();
         bool Has(string key) => shown.Contains(key);
         static string N(int n) => n.ToString("N0");
-        var today = DateTime.Today;
+        var today = ClientTime.Today;
 
         if (Has("my-tasks") && _user.UserId is Guid uid)
         {

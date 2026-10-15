@@ -176,7 +176,45 @@
     };
 
     // Modal init hook (data-modal-init="pdInit"): stock cells + totals for the rendered rows.
+    // Invoice payment type (نقدي / آجل): [data-pay-type] radios enable the safe ([data-pay-safe] — always shown,
+    // disabled for آجل, so it isn't posted). The party select
+    // ([data-pay-party], data-cash-id = the built-in «عميل نقدي» / «مورد نقدي») offers the cash party only for نقدي —
+    // picking نقدي selects it (the user can change it); آجل drops it and clears it if it was selected.
+    window.invPayInit = function () {
+        var form = document.querySelector('#appModalBody #appModalForm');
+        if (!form) return;
+        var radios = form.querySelectorAll('[data-pay-type]');
+        if (!radios.length) return;
+        var party = form.querySelector('[data-pay-party]'), safe = form.querySelector('[data-pay-safe]');
+        var cashId = party ? (party.getAttribute('data-cash-id') || '').toLowerCase() : '';
+        var cashOpt = party && cashId ? Array.prototype.find.call(party.options, function (o) { return o.value.toLowerCase() === cashId; }) : null;
+        function syncText() {
+            var wrap = party.closest('.ss-wrap'), input = wrap && wrap.querySelector('.ss-input');
+            if (!input) return;
+            var o = party.options[party.selectedIndex];
+            input.value = o && o.value ? o.textContent : '';
+        }
+        function apply(userChange) {
+            var picked = form.querySelector('[data-pay-type]:checked');
+            var isCash = !!picked && picked.value === 'Cash';
+            var safeSel = safe ? safe.querySelector('select') : null;
+            if (safeSel) safeSel.disabled = !isCash;
+            if (!party || !cashOpt) return;
+            if (isCash) {
+                if (!cashOpt.parentNode) party.insertBefore(cashOpt, party.options[1] || null);   // right after «— اختر —»
+                if (userChange) party.value = cashOpt.value;
+            } else {
+                if (party.value === cashOpt.value) party.value = '';
+                if (cashOpt.parentNode) cashOpt.parentNode.removeChild(cashOpt);
+            }
+            syncText();
+        }
+        radios.forEach(function (r) { r.addEventListener('change', function () { apply(true); }); });
+        apply(false);
+    };
+
     window.pdInit = function () {
+        window.invPayInit();
         var tb = body(); if (!tb) return;
         tb.querySelectorAll('tr').forEach(function (tr) {
             var us = tr.querySelector('[data-pd-unit]');

@@ -142,11 +142,29 @@ public static class PermissionNames
     public const string AccountsView = "Accounts.View";     // view chart of accounts + general ledger
     public const string AccountsManage = "Accounts.Manage"; // add/edit/delete/reorder chart of accounts
     public const string AccountsPostJournal = "Accounts.PostJournal"; // add/edit/delete manual journal entries (قيد يدوي)
+    public const string AccountsOpeningBalances = "Accounts.OpeningBalances"; // set the accounts' opening balances (الأرصدة الافتتاحية)
+
+    // ----- Fixed assets (الأصول الثابتة) — the items physical custodies are handed over from -----
+    public const string FixedAssetsView = "FixedAssets.View";
+    public const string FixedAssetsManage = "FixedAssets.Manage";   // add / edit / activate-deactivate
+    public const string FixedAssetsDelete = "FixedAssets.Delete";
+    public const string FixedAssetsDepreciate = "FixedAssets.Depreciate";   // run / undo monthly depreciation
+    public const string FixedAssetsDispose = "FixedAssets.Dispose";         // sell / write off (and undo)
+
+    // ----- Custodies (العُهد) -----
+    public const string MaterialCustodyView = "MaterialCustody.View";       // view the physical custody register
+    public const string MaterialCustodyManage = "MaterialCustody.Manage";   // hand over / edit / receive back + attachments
+    public const string MaterialCustodyDelete = "MaterialCustody.Delete";
+    public const string FinancialCustodyView = "FinancialCustody.View";     // view cash custodies and their statements
+    public const string FinancialCustodyCreate = "FinancialCustody.Create"; // open a custody + disburse cash from a safe
+    public const string FinancialCustodySettle = "FinancialCustody.Settle"; // the accountant: approve expenses, receive cash back, close
+    public const string FinancialCustodyDelete = "FinancialCustody.Delete"; // delete a custody / reverse a movement
 
     // ----- Inventory (المخزون) -----
     public const string InventoryView = "Inventory.View";           // view inventory pages
     public const string InventoryManage = "Inventory.Manage";       // manage masters (products/categories/UOM/warehouses) + posting profile
     public const string InventoryUpdateCost = "Inventory.UpdateCost";   // تحديث تكلفة الأصناف (revalues stock; posts to the GL)
+    public const string InventoryOpeningStock = "Inventory.OpeningStock"; // الرصيد الافتتاحي للأصناف (adds stock; posts to the GL)
     public const string InventoryDocuments = "Inventory.Documents"; // create/post/reverse inventory documents (IN/OUT/transfer/adjust/count)
     public const string InventoryReports = "Inventory.Reports";     // inventory reports
 
@@ -186,6 +204,8 @@ public static class PermissionNames
     private const string GSuppliers = "المشتريات";
     private const string GContracting = "المقاولات";
     private const string GAccounting = "المحاسبة";
+    private const string GCustody = "العُهد";
+    private const string GFixedAssets = "الأصول الثابتة";
     private const string GInventory = "المخزون";
     private const string GReports = "التقارير";
     private const string GTasks = "إدارة المهام";
@@ -287,10 +307,26 @@ public static class PermissionNames
         new PermissionInfo(AccountsView,   "عرض دليل الحسابات ودفتر الأستاذ", GAccounting),
         new PermissionInfo(AccountsManage, "إدارة دليل الحسابات (إضافة/تعديل/ترتيب)", GAccounting),
         new PermissionInfo(AccountsPostJournal, "تسجيل القيود اليدوية (إضافة/تعديل/حذف)", GAccounting),
+        new PermissionInfo(AccountsOpeningBalances, "تعديل الأرصدة الافتتاحية للحسابات", GAccounting),
+
+        new PermissionInfo(FixedAssetsView,   "عرض الأصول الثابتة", GFixedAssets),
+        new PermissionInfo(FixedAssetsManage, "إضافة وتعديل الأصول الثابتة وفئاتها", GFixedAssets),
+        new PermissionInfo(FixedAssetsDelete, "حذف الأصول الثابتة (بلا سجل عُهد أو إهلاك)", GFixedAssets),
+        new PermissionInfo(FixedAssetsDepreciate, "احتساب إهلاك الأصول وإلغاؤه", GFixedAssets),
+        new PermissionInfo(FixedAssetsDispose, "بيع / استبعاد الأصول الثابتة", GFixedAssets),
+
+        new PermissionInfo(MaterialCustodyView,   "عرض العُهد العينية", GCustody),
+        new PermissionInfo(MaterialCustodyManage, "تسليم واستلام العُهد العينية وتعديلها ومرفقاتها", GCustody),
+        new PermissionInfo(MaterialCustodyDelete, "إلغاء العُهد العينية المسجَّلة بالخطأ", GCustody),
+        new PermissionInfo(FinancialCustodyView,   "عرض العُهد المالية وكشوفها", GCustody),
+        new PermissionInfo(FinancialCustodyCreate, "فتح عهدة مالية وصرف نقدية لها من خزنة", GCustody),
+        new PermissionInfo(FinancialCustodySettle, "تسوية العُهد المالية (اعتماد المصروفات، رد النقدية، الإقفال)", GCustody),
+        new PermissionInfo(FinancialCustodyDelete, "حذف العُهد المالية وحركاتها", GCustody),
 
         new PermissionInfo(InventoryView,      "عرض المخزون", GInventory),
         new PermissionInfo(InventoryManage,    "إدارة الأصناف والتصنيفات ووحدات القياس والمخازن والإعدادات", GInventory),
         new PermissionInfo(InventoryDocuments, "إنشاء وترحيل مستندات المخزون (استلام/صرف/تحويل/تسوية/جرد)", GInventory),
+        new PermissionInfo(InventoryOpeningStock, "إدخال الرصيد الافتتاحي للأصناف (حفظ وترحيل)", GInventory),
         new PermissionInfo(InventoryUpdateCost, "تحديث تكلفة الأصناف (إعادة تقييم المخزون)", GInventory),
         new PermissionInfo(InventoryReports,   "عرض تقارير المخزون", GInventory),
 
@@ -334,11 +370,13 @@ public static class PermissionNames
     public static IReadOnlyDictionary<string, string> InheritedFrom { get; } = new Dictionary<string, string>
     {
         [PurchaseInvoicesView] = SuppliersView,
+        [AccountsOpeningBalances] = AccountsManage,
         [PurchaseInvoicesCreate] = SuppliersCreate,
         [PurchaseInvoicesEdit] = SuppliersEdit,
         [PurchaseInvoicesDelete] = SuppliersDelete,
         [SafesTransfer] = SafesEdit,
         [InventoryUpdateCost] = InventoryManage,
+        [InventoryOpeningStock] = InventoryDocuments,   // opening stock used to be an adjustment document
         [SalesReturnsView] = SalesInvoicesView,
         [SalesReturnsCreate] = SalesInvoicesCreate,
         [SalesReturnsDelete] = SalesInvoicesDelete,

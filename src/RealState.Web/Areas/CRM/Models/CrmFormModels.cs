@@ -47,7 +47,7 @@ public class CustomerLogFormModel
 {
     public Guid Id { get; set; }
     public Guid CustomerId { get; set; }
-    [DataType(DataType.Date)][Display(Name = "التاريخ")] public DateTime Date { get; set; } = DateTime.Today;
+    [DataType(DataType.Date)][Display(Name = "التاريخ")] public DateTime Date { get; set; } = ClientTime.Today;
     [Required(ErrorMessage = "الوصف مطلوب")][Display(Name = "الوصف")] public string Description { get; set; } = string.Empty;
 }
 
@@ -143,7 +143,7 @@ public class CustomerFormModel
 
     /// <summary>Creation date, editable when creating a lead (defaults to today).</summary>
     [DataType(DataType.Date)][Display(Name = "تاريخ الإنشاء")]
-    public DateTime CreatedOn { get; set; } = DateTime.Today;
+    public DateTime CreatedOn { get; set; } = ClientTime.Today;
 
     [Required(ErrorMessage = "اسم العميل مطلوب")]
     [Display(Name = "اسم العميل")]

@@ -7,7 +7,7 @@
     var invoices = ViewBag.Invoices as List<InvoiceListItem> ?? new();
     string N(decimal v) => v.ToString("N2", RealState.Web.AppCulture.Ar);
     string Q(decimal v) => v.ToString("0.####", System.Globalization.CultureInfo.InvariantCulture);
-    string D(DateTime d) => d.ToString("yyyy/MM/dd", System.Globalization.CultureInfo.InvariantCulture);
+    string D(DateTime d) => RealState.Web.AppCulture.When(d);   // date + time when it has one
     string PI(int n) => "PI-" + n;
     var total = Model.Items.Sum(i => i.LineTotal);   // legacy orders only
     var totalQty = Model.Items.Sum(i => i.Quantity);
@@ -16,6 +16,7 @@
 <div class="page-head">
     <div>
         <h1>أمر توريد <span class="proj-code">PO-@Model.Number.ToString("D4")</span></h1>
+    <partial name="_AuditStamp" model="RealState.Web.Models.AuditStampVm.Of(Model)" />
         <p style="color:var(--muted);margin:2px 0 0;">@(Model.Project?.Name ?? "بدون مشروع") · @D(Model.OrderDate)</p>
     </div>
     <div style="display:flex;gap:8px;">
@@ -104,7 +105,7 @@
                         @PI(i.Number)
                     }
                 </td>
-                <td dir="ltr" style="text-align:right;">@D(i.InvoiceDate)</td>
+                <td dir="ltr" style="text-align:right;">@RealState.Web.AppCulture.When(i.InvoiceDate)</td>
                 <td>@i.Supplier</td>
                 <td>@i.ItemCount</td>
                 <td>@N(i.Total)</td>

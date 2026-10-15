@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
+using RealState.Application.Accounting;
 using RealState.Application.Common;
 using RealState.Application.Entities;
 using RealState.Application.Enums;
@@ -60,22 +61,6 @@ public class CustomersController : Controller
         // Campaign-import details attached to this lead/customer (most recent first).
         ViewBag.CampaignLeads = await _db.CampaignLeads.Where(c => c.CustomerId == id)
             .OrderByDescending(c => c.CreatedTime).ToListAsync(ct);
-        // Product sales invoices (separate from the real-estate contracts statement above).
-        if (!customer.IsLead && Can(PermissionNames.SalesInvoicesView))
-        {
-            var invs = await _db.ProductSalesInvoices.Where(i => i.CustomerId == id).OrderByDescending(i => i.InvoiceDate).ThenByDescending(i => i.Number)
-                .Select(i => new { i.Id, i.Number, i.InvoiceDate }).ToListAsync(ct);
-            var invIds = invs.Select(i => i.Id).ToList();
-            var totals = await _db.ProductSalesInvoiceItems.Where(x => invIds.Contains(x.SalesInvoiceId)).GroupBy(x => x.SalesInvoiceId)
-                .Select(g => new { g.Key, Sum = g.Sum(x => x.LineTotal) }).ToDictionaryAsync(x => x.Key, x => x.Sum, ct);
-            var collected = await _db.SalesInvoiceCollections.Where(x => invIds.Contains(x.SalesInvoiceId)).GroupBy(x => x.SalesInvoiceId)
-                .Select(g => new { g.Key, Sum = g.Sum(x => x.Amount) }).ToDictionaryAsync(x => x.Key, x => x.Sum, ct);
-            // Net of sales returns, and of the cash refunded through them.
-            var returns = await RealState.Application.Accounting.InvoiceReturns.SalesAsync(_db, invIds, ct);
-            ViewBag.SalesInvoices = invs.Select(i => (i.Id, i.Number, i.InvoiceDate,
-                Total: totals.GetValueOrDefault(i.Id) - returns.GetValueOrDefault(i.Id).Returned,
-                Collected: collected.GetValueOrDefault(i.Id) - returns.GetValueOrDefault(i.Id).Refunded)).ToList();
-        }
         return View(vm);
     }
 
@@ -133,6 +118,207 @@ public class CustomersController : Controller
         ViewBag.Customer = contract is null ? null : await _db.Customers.FirstOrDefaultAsync(c => c.Id == contract.CustomerId, ct);
         ViewBag.TenantId = _currentUser.TenantId;
         return View("PrintNotice", inst);
+    }
+
+    // ---------- Running-balance account statement (كشف حساب — same layout as the supplier's) ----------
+    [Authorize(Policy = PermissionNames.CustomersView)]
+    public async Task<IActionResult> Statement(Guid id, DateTime? from, DateTime? to, CancellationToken ct)
+    {
+        var customer = await _db.Customers.FirstOrDefaultAsync(c => c.Id == id && !c.IsLead, ct);
+        if (customer is null) return NotFound();
+        (from, to) = DateFilterDefaults.TodayIfFresh(Request, from, to);
+        // «فواتير المبيعات» / «تحصيل دفعة» are for customers without contracts (contracts collect through installments).
+        var noContracts = !await HasContractsAsync(customer.Id, ct);
+        ViewData["ShowInvoiceActions"] = noContracts;
+        ViewData["HasOpenInvoices"] = noContracts && User.Can(PermissionNames.SalesInvoicesCollect) && (await OpenInvoicesAsync(customer.Id, ct)).Count > 0;
+        return View(await BuildLedgerAsync(customer, from, to, ct));
+    }
+
+    [HttpGet]
+    [Authorize(Policy = PermissionNames.CustomersView)]
+    public async Task<IActionResult> PrintLedger(Guid id, DateTime? from, DateTime? to, CancellationToken ct)
+    {
+        var customer = await _db.Customers.FirstOrDefaultAsync(c => c.Id == id && !c.IsLead, ct);
+        if (customer is null) return NotFound();
+        ViewBag.TenantId = _currentUser.TenantId;
+        return View("PrintLedger", await BuildLedgerAsync(customer, from, to, ct));
+    }
+
+    // ---------- Collect from the statement (customers without contracts): pick an open sales invoice ----------
+    // A contract customer pays through the installments (التحصيلات), so the statement offers this only to customers
+    // with no contract. The picker posts to the existing Sales/SalesInvoices/Collect — the usual voucher, receipt and entry.
+    [HttpGet]
+    [Authorize(Policy = PermissionNames.SalesInvoicesCollect)]
+    public async Task<IActionResult> CollectForm(Guid id, CancellationToken ct)
+    {
+        var customer = await _db.Customers.FirstOrDefaultAsync(c => c.Id == id && !c.IsLead, ct);
+        if (customer is null || await HasContractsAsync(customer.Id, ct)) return NotFound();
+        return PartialView("_CollectPicker", new CustomerCollectPickerModel
+        {
+            CustomerId = customer.Id,
+            CustomerName = customer.FullName,
+            Documents = await OpenInvoicesAsync(customer.Id, ct),
+            Safes = await _db.Safes.Where(s => s.IsActive).OrderBy(s => s.Name)
+                .Select(s => new SelectListItem { Value = s.Id.ToString(), Text = s.Name }).ToListAsync(ct),
+        });
+    }
+
+    private Task<bool> HasContractsAsync(Guid customerId, CancellationToken ct)
+        => _db.SaleContracts.AnyAsync(c => c.CustomerId == customerId, ct);
+
+    /// <summary>The customer's sales invoices with a remaining balance (after collections and returns), oldest first.</summary>
+    private async Task<List<CollectableOption>> OpenInvoicesAsync(Guid customerId, CancellationToken ct)
+    {
+        var invoices = await _db.ProductSalesInvoices.Where(i => i.CustomerId == customerId)
+            .OrderBy(i => i.InvoiceDate).ThenBy(i => i.Number)
+            .Select(i => new { i.Id, i.Number, i.InvoiceDate }).ToListAsync(ct);
+        var ids = invoices.Select(i => i.Id).ToList();
+        var totals = await _db.ProductSalesInvoiceItems.Where(x => ids.Contains(x.SalesInvoiceId)).GroupBy(x => x.SalesInvoiceId)
+            .Select(g => new { g.Key, Sum = g.Sum(x => x.LineTotal) }).ToDictionaryAsync(x => x.Key, x => x.Sum, ct);
+        var collected = await _db.SalesInvoiceCollections.Where(c => ids.Contains(c.SalesInvoiceId)).GroupBy(c => c.SalesInvoiceId)
+            .Select(g => new { g.Key, Sum = g.Sum(x => x.Amount) }).ToDictionaryAsync(x => x.Key, x => x.Sum, ct);
+        var returns = await InvoiceReturns.SalesAsync(_db, ids, ct);
+        return invoices
+            .Select(i => (i, Remaining: InvoiceReturns.Remaining(totals.GetValueOrDefault(i.Id), collected.GetValueOrDefault(i.Id),
+                returns.GetValueOrDefault(i.Id, ReturnTotals.None))))
+            .Where(x => x.Remaining > 0)
+            .Select(x => new CollectableOption(x.i.Id, $"فاتورة مبيعات SI-{x.i.Number} ({RealState.Web.AppCulture.Day(x.i.InvoiceDate)}) — متبقٍ {x.Remaining:N2} ج.م", x.Remaining))
+            .ToList();
+    }
+
+    /// <summary>
+    /// Everything the customer owes (+: contracts, sales invoices, refunds paid back to them) and everything that settles
+    /// it (−: installment / invoice collections, sales returns) as one chronological ledger with a running balance —
+    /// computed over ALL rows so each row's balance is right even when the list is date-filtered.
+    /// </summary>
+    private async Task<CustomerLedgerVm> BuildLedgerAsync(Customer customer, DateTime? from, DateTime? to, CancellationToken ct)
+    {
+        var rows = new List<CustomerLedgerRow>();
+        var projNames = await _db.Projects.ToDictionaryAsync(p => p.Id, p => p.Name, ct);
+        var unitNames = await _db.ProjectUnits.ToDictionaryAsync(u => u.Id, u => u.Name + (string.IsNullOrEmpty(u.Number) ? "" : $" ({u.Number})"), ct);
+
+        // Real-estate contracts and their collections.
+        var contracts = await _db.SaleContracts.Where(c => c.CustomerId == customer.Id).ToListAsync(ct);
+        var contractIds = contracts.Select(c => c.Id).ToList();
+        var contractCode = contracts.ToDictionary(c => c.Id, c => c.Code);
+        rows.AddRange(contracts.Select(c => new CustomerLedgerRow
+        {
+            Kind = CustomerLedgerKind.Contract, Id = c.Id, Source = $"عقد بيع {c.Code}", Date = c.ContractDate,
+            Statement = $"{projNames.GetValueOrDefault(c.ProjectId, "—")} / {unitNames.GetValueOrDefault(c.UnitId, "—")}", Amount = c.TotalPrice
+        }));
+
+        var installments = await _db.Installments.Where(i => contractIds.Contains(i.SaleContractId)).ToListAsync(ct);
+        var instIds = installments.Select(i => i.Id).ToList();
+        var collections = await _db.SafeTransactions
+            .Where(t => t.Source == TxnSource.Collection && t.InstallmentId != null && instIds.Contains(t.InstallmentId.Value)).ToListAsync(ct);
+        var collectedByInst = collections.GroupBy(t => t.InstallmentId!.Value).ToDictionary(g => g.Key, g => g.Sum(t => t.Amount));
+        foreach (var i in installments)
+        {
+            var phrase = $"تحصيل {ArabicLabels.InstPhrase(i.Number)} — عقد {contractCode.GetValueOrDefault(i.SaleContractId, "—")}";
+            rows.AddRange(collections.Where(t => t.InstallmentId == i.Id).Select(t => new CustomerLedgerRow
+            {
+                Kind = CustomerLedgerKind.InstallmentCollection, Id = i.SaleContractId, VoucherId = t.Id,
+                Source = $"سند قبض رقم {t.Serial}", Date = t.OccurredAt, Statement = phrase, Amount = t.Amount
+            }));
+            // Older collections recorded on the installment without a voucher still count.
+            var missing = i.PaidAmount - collectedByInst.GetValueOrDefault(i.Id);
+            if (missing > 0)
+                rows.Add(new CustomerLedgerRow
+                {
+                    Kind = CustomerLedgerKind.InstallmentCollection, Id = i.SaleContractId,
+                    Source = i.ReceiptNo is int r ? $"إيصال رقم {r}" : "تحصيل", Date = i.PaidDate ?? i.DueDate, Statement = phrase, Amount = missing
+                });
+        }
+
+        // Product sales invoices, their collections, returns and refunds.
+        var invoices = await _db.ProductSalesInvoices.Where(i => i.CustomerId == customer.Id).ToListAsync(ct);
+        var invIds = invoices.Select(i => i.Id).ToList();
+        var invNo = invoices.ToDictionary(i => i.Id, i => i.Number);
+        var invTotals = await _db.ProductSalesInvoiceItems.Where(x => invIds.Contains(x.SalesInvoiceId)).GroupBy(x => x.SalesInvoiceId)
+            .Select(g => new { g.Key, Sum = g.Sum(x => x.LineTotal) }).ToDictionaryAsync(x => x.Key, x => x.Sum, ct);
+        rows.AddRange(invoices.Select(i => new CustomerLedgerRow
+        {
+            Kind = CustomerLedgerKind.Invoice, Id = i.Id, Source = $"فاتورة مبيعات SI-{i.Number}", Date = i.InvoiceDate,
+            Statement = string.IsNullOrWhiteSpace(i.Notes) ? "فاتورة مبيعات أصناف" : i.Notes!, Amount = invTotals.GetValueOrDefault(i.Id)
+        }));
+
+        var invCollections = await _db.SalesInvoiceCollections.Where(c => c.CustomerId == customer.Id).ToListAsync(ct);
+        var voucherSerials = await _db.SafeTransactions
+            .Where(t => t.Source == TxnSource.SalesInvoiceCollection || t.Source == TxnSource.SalesReturnRefund)
+            .Select(t => new { t.Id, t.Serial }).ToDictionaryAsync(t => t.Id, t => t.Serial, ct);
+        rows.AddRange(invCollections.Select(c => new CustomerLedgerRow
+        {
+            Kind = CustomerLedgerKind.InvoiceCollection, Id = c.SalesInvoiceId, VoucherId = c.SafeTransactionId,
+            Source = c.SafeTransactionId is Guid v && voucherSerials.TryGetValue(v, out var sn) ? $"سند قبض رقم {sn}" : "تحصيل",
+            Date = c.CollectedDate, Statement = $"تحصيل فاتورة مبيعات SI-{invNo.GetValueOrDefault(c.SalesInvoiceId)}", Amount = c.Amount
+        }));
+
+        var returns = await _db.ProductSalesReturns.Where(r => r.CustomerId == customer.Id).ToListAsync(ct);
+        var retIds = returns.Select(r => r.Id).ToList();
+        var retTotals = await _db.ProductSalesReturnItems.Where(x => retIds.Contains(x.SalesReturnId)).GroupBy(x => x.SalesReturnId)
+            .Select(g => new { g.Key, Sum = g.Sum(x => x.LineTotal) }).ToDictionaryAsync(x => x.Key, x => x.Sum, ct);
+        rows.AddRange(returns.Select(r => new CustomerLedgerRow
+        {
+            Kind = CustomerLedgerKind.Return, Id = r.Id, Source = $"مرتجع مبيعات SR-{r.Number}", Date = r.ReturnDate,
+            Statement = $"مرتجع على الفاتورة SI-{invNo.GetValueOrDefault(r.SalesInvoiceId)}" + (string.IsNullOrWhiteSpace(r.Notes) ? "" : $" — {r.Notes}"),
+            Amount = retTotals.GetValueOrDefault(r.Id)
+        }));
+        rows.AddRange(returns.Where(r => r.RefundAmount > 0).Select(r => new CustomerLedgerRow
+        {
+            Kind = CustomerLedgerKind.Refund, Id = r.Id, VoucherId = r.RefundTransactionId,
+            Source = r.RefundVoucherNo is long vn ? $"سند صرف رقم {vn}" : "رد نقدية", Date = r.ReturnDate,
+            Statement = $"رد نقدية للعميل عن مرتجع المبيعات SR-{r.Number}", Amount = r.RefundAmount
+        }));
+
+        // The opening balance (الأرصدة الافتتاحية): debit = owed by the customer (+), credit = owed to them (−).
+        var opening = await _db.AccountOpeningBalances.AsNoTracking()
+            .FirstOrDefaultAsync(b => b.Account!.SubKind == "Customer" && b.Account.SubRefId == customer.Id, ct);
+        if (opening is not null)
+            rows.Add(new CustomerLedgerRow
+            {
+                Kind = opening.IsDebit ? CustomerLedgerKind.OpeningDebit : CustomerLedgerKind.OpeningCredit, Id = customer.Id,
+                Source = "رصيد افتتاحي", Date = opening.Date, Amount = opening.Amount,
+                Statement = opening.IsDebit ? "رصيد افتتاحي مدين — مستحق على العميل" : "رصيد افتتاحي دائن — مستحق للعميل"
+            });
+
+        // Vouchers on the customer's account from المصروفات / الإيرادات (سند قبض −, سند صرف +).
+        var accountVouchers = await _db.SafeTransactions.Where(t => t.Source == TxnSource.CustomerAccount && t.CustomerId == customer.Id).ToListAsync(ct);
+        rows.AddRange(accountVouchers.Select(t => new CustomerLedgerRow
+        {
+            Kind = t.Type == TxnType.Income ? CustomerLedgerKind.AccountReceipt : CustomerLedgerKind.AccountPayment,
+            Id = t.Id, VoucherId = t.Id,
+            Source = t.Type == TxnType.Income ? $"سند قبض رقم {t.Serial}" : $"سند صرف رقم {t.Serial}",
+            Date = t.OccurredAt,
+            Statement = (t.Type == TxnType.Income ? "تحصيل على الحساب" : "صرف للعميل على الحساب") + (string.IsNullOrWhiteSpace(t.Description) ? "" : $" — {t.Description}"),
+            Amount = t.Amount
+        }));
+
+        var ordered = rows.Where(r => r.Amount != 0).OrderBy(r => r.Date).ThenBy(r => r.DayOrder).ToList();
+        decimal running = 0;
+        foreach (var r in ordered)
+        {
+            r.BalanceBefore = running;
+            running += r.Decreases ? -r.Amount : r.Amount;
+            r.Balance = running;
+        }
+
+        bool InRange(DateTime d) => (from is null || d >= from) && (to is null || d < to.Value.Date.AddDays(1));
+        var closing = to is null
+            ? running
+            : ordered.Where(r => r.Date < to.Value.Date.AddDays(1)).Select(r => r.Balance).DefaultIfEmpty(0m).Last();
+
+        return new CustomerLedgerVm
+        {
+            Customer = customer, From = from, To = to,
+            TotalObligations = ordered.Where(r => r.Kind is CustomerLedgerKind.Contract or CustomerLedgerKind.Invoice or CustomerLedgerKind.OpeningDebit).Sum(r => r.Amount)
+                               - ordered.Where(r => r.Kind == CustomerLedgerKind.Return).Sum(r => r.Amount),
+            TotalPaid = ordered.Where(r => r.Kind is CustomerLedgerKind.InstallmentCollection or CustomerLedgerKind.InvoiceCollection or CustomerLedgerKind.AccountReceipt or CustomerLedgerKind.OpeningCredit).Sum(r => r.Amount)
+                        - ordered.Where(r => r.Kind is CustomerLedgerKind.Refund or CustomerLedgerKind.AccountPayment).Sum(r => r.Amount),
+            DocumentsCount = contracts.Count + invoices.Count,
+            CollectionsCount = ordered.Count(r => r.Kind is CustomerLedgerKind.InstallmentCollection or CustomerLedgerKind.InvoiceCollection or CustomerLedgerKind.AccountReceipt),
+            Rows = ordered.Where(r => InRange(r.Date)).ToList(),
+            ClosingBalance = closing,
+        };
     }
 
     private async Task<CustomerStatementVm> BuildStatementAsync(Customer customer, CancellationToken ct)
@@ -237,14 +423,14 @@ public class CustomersController : Controller
             };
             // Leads carry an editable creation date (defaults to today); use a real timestamp when it's today.
             if (model.IsLead)
-                c.CreatedAt = model.CreatedOn.Date == DateTime.Today ? DateTime.Now : model.CreatedOn.Date;
+                c.CreatedAt = model.CreatedOn.Date == ClientTime.Today ? ClientTime.Now : model.CreatedOn.Date;
             ApplyChannel(c, model);
             _db.Customers.Add(c);
             if (model.IsLead)
             {
                 _db.CustomerLogs.Add(new CustomerLog
                 {
-                    CustomerId = c.Id, Date = DateTime.Today, Kind = CustomerLogKind.Created,
+                    CustomerId = c.Id, Date = ClientTime.Today, Kind = CustomerLogKind.Created,
                     ByName = CurrentName(), ByUserId = _currentUser.UserId, Description = "تم إنشاء العميل المحتمل"
                 });
             }
@@ -276,13 +462,21 @@ public class CustomersController : Controller
         var c = await _db.Customers.FirstOrDefaultAsync(x => x.Id == id, ct);
         if (c is null) return NotFound();
         if (!CanDeleteEntity(c.IsLead)) return Forbid();
+        if (c.IsDefaultCash)
+        {
+            HttpContext.Items[RealState.Web.Filters.ActivityLogFilter.SkipItem] = true;   // refused — nothing changed
+            TempData["ErrorMessage"] = $"«{c.FullName}» هو العميل النقدي الافتراضي لفواتير المبيعات النقدية — لا يمكن حذفه.";
+            return RedirectToAction(nameof(Details), new { id });
+        }
         // A customer billed by product sales invoices keeps its receivable history — delete the invoices first.
         // …and so does one with real-estate sale contracts (receivable, installments, collections).
-        var hasInvoices = await _db.ProductSalesInvoices.AnyAsync(i => i.CustomerId == id, ct);
+        var hasInvoices = await _db.ProductSalesInvoices.AnyAsync(i => i.CustomerId == id, ct)
+                          || await _db.SafeTransactions.AnyAsync(t => t.Source == TxnSource.CustomerAccount && t.CustomerId == id, ct)
+                          || await _db.AccountOpeningBalances.AnyAsync(b => b.Account!.SubKind == "Customer" && b.Account.SubRefId == id, ct);
         if (hasInvoices || await _db.SaleContracts.AnyAsync(s => s.CustomerId == id, ct))
         {
             TempData["ErrorMessage"] = hasInvoices
-                ? $"لا يمكن حذف العميل «{c.FullName}» لوجود فواتير مبيعات عليه — احذف الفواتير أولًا."
+                ? $"لا يمكن حذف العميل «{c.FullName}» لوجود فواتير مبيعات أو سندات أو رصيد افتتاحي على حسابه — احذفها أولًا."
                 : $"لا يمكن حذف العميل «{c.FullName}» لوجود عقود بيع عليه — احذف العقود أولًا.";
             if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl)) return LocalRedirect(returnUrl);
             return RedirectToAction(nameof(Details), new { id });
@@ -319,7 +513,7 @@ public class CustomersController : Controller
             c.IsLead = false;
             _db.CustomerLogs.Add(new CustomerLog
             {
-                CustomerId = c.Id, Date = DateTime.Today, Kind = CustomerLogKind.Conversion,
+                CustomerId = c.Id, Date = ClientTime.Today, Kind = CustomerLogKind.Conversion,
                 ByName = CurrentName(), ByUserId = _currentUser.UserId, Description = "تم تحويل العميل المحتمل إلى عميل"
             });
             await _db.SaveChangesAsync(ct);
@@ -405,7 +599,7 @@ public class CustomersController : Controller
             var label = model.Interest.HasValue ? model.Interest.Value.Ar() : "بدون";
             _db.CustomerLogs.Add(new CustomerLog
             {
-                CustomerId = c.Id, Date = DateTime.Today, Kind = CustomerLogKind.StatusChange,
+                CustomerId = c.Id, Date = ClientTime.Today, Kind = CustomerLogKind.StatusChange,
                 ByName = CurrentName(), ByUserId = _currentUser.UserId, Description = $"تغيير الحالة إلى: {label}"
             });
             await _db.SaveChangesAsync(ct);

@@ -29,7 +29,7 @@ public class UnitsController : Controller
     public async Task<IActionResult> Excel(CancellationToken ct)
     {
         var (h, rows) = await BuildExportAsync(ct);
-        return RealState.Web.Common.Xlsx.File($"وحدات القياس {DateTime.Now:yyyy-MM-dd}.xlsx", "وحدات القياس", h, rows);
+        return RealState.Web.Common.Xlsx.File($"وحدات القياس {ClientTime.Now:yyyy-MM-dd}.xlsx", "وحدات القياس", h, rows);
     }
 
     [HttpGet]

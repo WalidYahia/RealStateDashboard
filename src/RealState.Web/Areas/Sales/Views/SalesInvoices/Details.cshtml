@@ -11,7 +11,7 @@
     var hasReturns = Model.Returns.Count > 0;
     string N(decimal v) => v.ToString("N2", RealState.Web.AppCulture.Ar);
     string Q(decimal v) => v.ToString("0.####", System.Globalization.CultureInfo.InvariantCulture);
-    string D(DateTime d) => d.ToString("yyyy/MM/dd", System.Globalization.CultureInfo.InvariantCulture);
+    string D(DateTime d) => RealState.Web.AppCulture.When(d);   // date + time when it has one
     string St(InventoryDocStatus s) => s switch { InventoryDocStatus.Posted => "مُرحَّل", InventoryDocStatus.Reversed => "معكوس", _ => "مسودة" };
     var margin = Model.NetTotal > 0 ? Model.GrossProfit / Model.NetTotal * 100 : 0;
     // Something left to return (exact per-line availability is shown on the return form).
@@ -23,9 +23,11 @@
             <button type="button" title="شرح فاتورة المبيعات" onclick="appOpenModal('@Url.Action("Help")', 'شرح فاتورة المبيعات')" style="border:none;background:none;cursor:pointer;font-size:18px;vertical-align:middle;">❓</button>
         </h1>
         <p style="color:var(--muted);margin:2px 0 0;">
-            @Model.Customer · @D(inv.InvoiceDate)
+            @Model.Customer · @RealState.Web.AppCulture.When(inv.InvoiceDate)
+            · <span class="badge-state @inv.PaymentType.BadgeClass()">@inv.PaymentType.Ar()</span>@if (Model.CashSafe is not null) { <text> (خزنة @Model.CashSafe)</text> }
             @if (Model.Warehouse is not null) { <text> · المخزن: @Model.Warehouse</text> }
         </p>
+        <partial name="_AuditStamp" model="RealState.Web.Models.AuditStampVm.Of(inv)" />
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;">
         <a class="btn-sm" asp-action="Index" onclick="if (history.length > 1) { history.back(); return false; }">رجوع</a>
@@ -171,7 +173,11 @@
                 <td>@(c.Description ?? "—")</td>
                 <td style="white-space:nowrap;">
                     <a class="btn-sm" asp-action="CollectionReceipt" asp-route-id="@c.Id" target="_blank">🖨 إيصال استلام نقدية</a>
-                    @if (canDeleteCollection)
+                    @if (c.IsInvoiceCash)
+                    {
+                        <span class="badge-state state-on" title="يتبع الفاتورة النقدية — يتعدّل ويُلغى معها">تحصيل الفاتورة النقدية</span>
+                    }
+                    else if (canDeleteCollection)
                     {
                         <form asp-action="CancelCollection" asp-route-id="@c.Id" method="post" style="display:inline;" data-confirm="إلغاء التحصيل رقم @c.ReceiptNo (@N(c.Amount) ج.م)؟ سيُحذف الإيراد من الخزنة ويعود المبلغ متبقيًا على الفاتورة." data-danger>@Html.AntiForgeryToken()<button type="submit" class="btn-sm btn-danger">🗑 حذف</button></form>
                     }

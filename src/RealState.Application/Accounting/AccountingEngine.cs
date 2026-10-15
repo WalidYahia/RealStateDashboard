@@ -9,7 +9,8 @@ namespace RealState.Application.Accounting;
 public class AccountingEngine : IAccountingEngine
 {
     private readonly IApplicationDbContext _db;
-    public AccountingEngine(IApplicationDbContext db) => _db = db;
+    private readonly IDateTimeProvider _clock;
+    public AccountingEngine(IApplicationDbContext db, IDateTimeProvider clock) { _db = db; _clock = clock; }
 
     public async Task EnsureChartAsync(CancellationToken ct = default)
     {
@@ -40,7 +41,8 @@ public class AccountingEngine : IAccountingEngine
             if (acc is null)
             {
                 await EnsureChartAsync(ct);
-                acc = await _db.Accounts.FirstOrDefaultAsync(a => a.Code == code, ct);
+                acc = await _db.Accounts.FirstOrDefaultAsync(a => a.Code == code, ct)
+                      ?? await AddMissingDefaultAsync(code, ct);
             }
             return acc ?? throw new InvalidOperationException($"الحساب {code} غير موجود في دليل الحسابات.");
         }
@@ -64,6 +66,25 @@ public class AccountingEngine : IAccountingEngine
         };
         _db.Accounts.Add(child);
         return child;
+    }
+
+    /// <summary>
+    /// A chart seeded before an account joined <see cref="LedgerAccounts.Defaults"/> (e.g. «العُهد المالية») lacks it —
+    /// add it under its default parent the first time it's needed. Null when the code isn't a default account.
+    /// </summary>
+    private async Task<Account?> AddMissingDefaultAsync(string code, CancellationToken ct)
+    {
+        var def = LedgerAccounts.Defaults.FirstOrDefault(d => d.Code == code);
+        if (def is null) return null;
+        var parent = def.ParentCode is null ? null : await ResolveAccountAsync(def.ParentCode, null, null, null, ct);
+        var acc = new Account
+        {
+            Code = def.Code, Name = def.Name, Type = def.Type, ParentId = parent?.Id,
+            IsPostable = def.IsPostable, SubKind = def.SubKind, IsActive = true,
+            SortOrder = LedgerAccounts.Defaults.ToList().FindIndex(d => d.Code == code)
+        };
+        _db.Accounts.Add(acc);
+        return acc;
     }
 
     public async Task<JournalEntry> PostAsync(DateTime date, string description, string? sourceType, Guid? sourceId, IReadOnlyList<LedgerLine> lines, CancellationToken ct = default)

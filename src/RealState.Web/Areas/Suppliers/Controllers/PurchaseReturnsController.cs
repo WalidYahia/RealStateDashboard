@@ -134,8 +134,8 @@ public class PurchaseReturnsController : Controller
                 ModelState.AddModelError(string.Empty,
                     $"الكمية المرتجعة من «{it.Name}» ({Q(Qty(l))} {it.Unit}) أكبر من المتاح للإرجاع ({Q(Math.Max(returnable, 0))} {it.Unit} — المُشترى {Q(it.Quantity)}، والمرتجع سابقًا {Q(returnedBefore.GetValueOrDefault(it.Id))}).");
         }
-        if (model.ReturnDate.Date > DateTime.Today) ModelState.AddModelError(nameof(model.ReturnDate), "لا يمكن تسجيل مرتجع بتاريخ مستقبلي.");
-        if (model.ReturnDate.Date < inv.InvoiceDate.Date) ModelState.AddModelError(nameof(model.ReturnDate), "لا يمكن أن يسبق تاريخ المرتجع تاريخ الفاتورة.");
+        if (model.ReturnDate.Date > ClientTime.Today) ModelState.AddModelError(nameof(model.ReturnDate), "لا يمكن تسجيل مرتجع بتاريخ مستقبلي.");
+        if (model.ReturnDate < inv.InvoiceDate) ModelState.AddModelError(nameof(model.ReturnDate), "لا يمكن أن يسبق تاريخ ووقت المرتجع تاريخ ووقت الفاتورة.");
 
         // Stock-tracked lines leave a warehouse — and can't take more than it holds.
         var tracked = lines.Where(l => invItems.TryGetValue(l.InvoiceItemId, out var it) && products.TryGetValue(it.ProductId, out var p) && p.TrackInventory).ToList();
@@ -393,7 +393,7 @@ public class PurchaseReturnsController : Controller
         return new ReturnDetailsVm
         {
             Kind = Kind,
-            Id = ret.Id, Number = ret.Number, Date = ret.ReturnDate, Notes = ret.Notes,
+            Id = ret.Id, Number = ret.Number, Date = ret.ReturnDate, Notes = ret.Notes, Audit = RealState.Web.Models.AuditStampVm.Of(ret),
             InvoiceId = ret.PurchaseInvoiceId,
             InvoiceNumber = await _db.PurchaseInvoices.Where(i => i.Id == ret.PurchaseInvoiceId).Select(i => (int?)i.Number).FirstOrDefaultAsync(ct),
             PartyId = ret.SupplierId, Party = supplier?.Name ?? "—", PartyPhone = supplier?.Phone,
@@ -454,7 +454,7 @@ public class PurchaseReturnsController : Controller
             .Select(i => new SelectListItem
             {
                 Value = i.Id.ToString(),
-                Text = $"{PI(i.Number)} — {supNames.GetValueOrDefault(i.SupplierId, "—")} — {i.InvoiceDate:yyyy/MM/dd}",
+                Text = $"{PI(i.Number)} — {supNames.GetValueOrDefault(i.SupplierId, "—")} — {RealState.Web.AppCulture.Day(i.InvoiceDate)}",
                 Selected = i.Id == model.InvoiceId
             }).ToList();
 

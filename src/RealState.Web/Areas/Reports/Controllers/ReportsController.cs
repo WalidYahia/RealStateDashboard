@@ -23,13 +23,13 @@ public class ReportsController : Controller
 
     // ---------------- Daily report ----------------
     public async Task<IActionResult> Daily(DateTime? date, CancellationToken ct)
-        => View(await BuildDailyAsync(date?.Date ?? DateTime.Today, ct));
+        => View(await BuildDailyAsync(date?.Date ?? ClientTime.Today, ct));
 
     [HttpGet]
     public async Task<IActionResult> DailyPrint(DateTime? date, CancellationToken ct)
     {
         ViewBag.TenantId = _currentUser.TenantId;
-        return View("DailyPrint", await BuildDailyAsync(date?.Date ?? DateTime.Today, ct));
+        return View("DailyPrint", await BuildDailyAsync(date?.Date ?? ClientTime.Today, ct));
     }
 
     private async Task<DailyReportVm> BuildDailyAsync(DateTime day, CancellationToken ct)
@@ -41,13 +41,14 @@ public class ReportsController : Controller
         var supNames = await _db.Suppliers.ToDictionaryAsync(s => s.Id, s => s.Name, ct);
 
         var vm = new DailyReportVm { Date = day };
+        var (dayStart, dayEnd) = ClientTime.DayRange(day, day);   // [start, end) of the picked day
 
         var contracts = await _db.SaleContracts.Where(c => c.ContractDate >= day && c.ContractDate < next).ToListAsync(ct);
         vm.Contracts = contracts.OrderBy(c => c.Code).Select(c => new DailyContractRow(
             c.Code, custNames.GetValueOrDefault(c.CustomerId, "—"), unitNames.GetValueOrDefault(c.UnitId, "—"), c.TotalPrice)).ToList();
 
         // Purchases of the day: purchase invoices, plus legacy orders that still carry a supplier obligation.
-        var invoices = await _db.PurchaseInvoices.Where(i => i.InvoiceDate >= day && i.InvoiceDate < next).ToListAsync(ct);
+        var invoices = await _db.PurchaseInvoices.Where(i => i.InvoiceDate >= dayStart!.Value && i.InvoiceDate < dayEnd!.Value).ToListAsync(ct);
         var invoiceIds = invoices.Select(i => i.Id).ToList();
         var invoiceSums = (await _db.PurchaseInvoiceItems.Where(i => invoiceIds.Contains(i.PurchaseInvoiceId))
             .GroupBy(i => i.PurchaseInvoiceId).Select(g => new { g.Key, Sum = g.Sum(x => x.LineTotal) }).ToListAsync(ct))
@@ -64,7 +65,7 @@ public class ReportsController : Controller
                 $"PO-{o.Number:D4}", supNames.GetValueOrDefault(o.SupplierId!.Value, "—"), Proj(o.ProjectId), itemSums.GetValueOrDefault(o.Id, 0))))
             .ToList();
 
-        var dayTxns = await _db.SafeTransactions.Where(t => t.OccurredAt >= day && t.OccurredAt < next).ToListAsync(ct);
+        var dayTxns = await _db.SafeTransactions.Where(t => t.OccurredAt >= dayStart!.Value && t.OccurredAt < dayEnd!.Value).ToListAsync(ct);
         // Transfers between safes move money but are neither income nor expense (safe balances below still include them).
         vm.Incomes = dayTxns.Where(t => t.Type == TxnType.Income && t.Source != TxnSource.SafeTransfer).OrderBy(t => t.Serial)
             .Select(t => new DailyTxnRow(t.Serial, t.Description, t.Amount)).ToList();
@@ -73,7 +74,7 @@ public class ReportsController : Controller
 
         // Safe balances as of the end of the selected day.
         var safes = await _db.Safes.OrderBy(s => s.Name).ToListAsync(ct);
-        var upToTxns = await _db.SafeTransactions.Where(t => t.OccurredAt < next)
+        var upToTxns = await _db.SafeTransactions.Where(t => t.OccurredAt < dayEnd!.Value)
             .Select(t => new { t.SafeId, t.Type, t.Amount }).ToListAsync(ct);
         vm.Safes = safes.Select(s =>
         {
@@ -109,7 +110,7 @@ public class ReportsController : Controller
             r.Name, r.Phone, r.Contracts, r.ContractsValue, r.RemainingInstallments, r.Collected, r.Residual
         });
         var totals = new object?[] { "الإجمالي", null, vm.TotContracts, vm.TotValue, vm.TotRemInst, vm.TotCollected, vm.TotResidual };
-        return RealState.Web.Common.Xlsx.File($"تقرير العملاء {DateTime.Now:yyyy-MM-dd}.xlsx", "تقرير العملاء", headers, rows, totals);
+        return RealState.Web.Common.Xlsx.File($"تقرير العملاء {ClientTime.Now:yyyy-MM-dd}.xlsx", "تقرير العملاء", headers, rows, totals);
     }
 
     private async Task<CustomerReportVm> BuildCustomersAsync(DateTime? from, DateTime? to, CancellationToken ct)
@@ -169,7 +170,7 @@ public class ReportsController : Controller
             r.Name, r.Phone, r.Orders, r.OrdersValue, r.Paid, r.Residual
         });
         var totals = new object?[] { "الإجمالي", null, vm.TotOrders, vm.TotValue, vm.TotPaid, vm.TotResidual };
-        return RealState.Web.Common.Xlsx.File($"تقرير الموردين {DateTime.Now:yyyy-MM-dd}.xlsx", "تقرير الموردين", headers, rows, totals);
+        return RealState.Web.Common.Xlsx.File($"تقرير الموردين {ClientTime.Now:yyyy-MM-dd}.xlsx", "تقرير الموردين", headers, rows, totals);
     }
 
     private async Task<SupplierReportVm> BuildSuppliersAsync(DateTime? from, DateTime? to, CancellationToken ct)
@@ -179,8 +180,9 @@ public class ReportsController : Controller
         // A supplier's documents: purchase invoices, plus legacy orders that still carry the supplier.
         var invQ = _db.PurchaseInvoices.AsQueryable();
         var ordQ = _db.SupplierOrders.Where(o => o.SupplierId != null);
-        if (from.HasValue) { invQ = invQ.Where(i => i.InvoiceDate >= from.Value); ordQ = ordQ.Where(o => o.OrderDate >= from.Value); }
-        if (to.HasValue) { invQ = invQ.Where(i => i.InvoiceDate < to.Value.Date.AddDays(1)); ordQ = ordQ.Where(o => o.OrderDate < to.Value.Date.AddDays(1)); }
+        var (invFrom, invTo) = ClientTime.DayRange(from, to);   // [from, to) of the picked days
+        if (from.HasValue) { invQ = invQ.Where(i => i.InvoiceDate >= invFrom!.Value); ordQ = ordQ.Where(o => o.OrderDate >= from.Value); }
+        if (to.HasValue) { invQ = invQ.Where(i => i.InvoiceDate < invTo!.Value); ordQ = ordQ.Where(o => o.OrderDate < to.Value.Date.AddDays(1)); }
         var invoices = await invQ.ToListAsync(ct);
         var orders = await ordQ.ToListAsync(ct);
 

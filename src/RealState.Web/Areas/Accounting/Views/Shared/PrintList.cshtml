@@ -8,7 +8,7 @@
     var tenantId = (Guid)ViewBag.TenantId;
 
     string N(decimal v) => v.ToString("N0", RealState.Web.AppCulture.Ar);
-    string DT(DateTime d) => d.ToString("yyyy/MM/dd HH:mm", CultureInfo.InvariantCulture);
+    string DT(DateTime d) => RealState.Web.AppCulture.When(d);
 }
 
 <!DOCTYPE html>
@@ -91,7 +91,7 @@
     <h1>@(isIncome ? "تقرير الإيرادات" : "تقرير المصروفات")</h1>
 
     <div class="sub">
-        <span dir="ltr">@DT(DateTime.Now)</span>
+        <span dir="ltr">@DT(ClientTime.Now)</span>
     </div>
 
     <table>

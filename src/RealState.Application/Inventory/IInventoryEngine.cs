@@ -48,6 +48,16 @@ public interface IInventoryEngine
 
     /// <summary>Reverses a posted document: removes its movements and its GL entry (no self-SaveChanges).</summary>
     Task ReverseAsync(string sourceType, Guid sourceId, CancellationToken ct = default);
+
+    /// <summary>
+    /// (Re)posts a product's opening stock in a warehouse: its previous movement + journal entry are replaced by the
+    /// current quantity / cost / date (none when the quantity is 0 — the caller then removes the row). Refused while
+    /// stock of that product moved in that warehouse after the old or new date (weighted average has no history rewrite).
+    /// </summary>
+    Task PostOpeningStockAsync(ProductOpeningStock row, DateTime? previousDate, CancellationToken ct = default);
+
+    /// <summary>Why a product's opening stock in a warehouse can't change now (stock moved after it), else null.</summary>
+    Task<string?> OpeningStockLockAsync(Guid productId, Guid warehouseId, Guid? rowId, DateTime since, CancellationToken ct = default);
 }
 
 /// <summary>Source-type tags used on movements and journal entries so a document can be reversed.</summary>
@@ -62,4 +72,6 @@ public static class InventorySources
     public const string InventoryAdjustment = "InventoryAdjustment";
     public const string StockCount = "StockCount";
     public const string CostRevaluation = "CostRevaluation";
+    /// <summary>«الرصيد الافتتاحي للأصناف» — one per product per warehouse (ProductOpeningStock).</summary>
+    public const string OpeningStock = "OpeningStock";
 }

@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using RealState.Application.Activity;
@@ -16,6 +17,8 @@ public sealed class ActivityLogFilter : IAsyncActionFilter
     public const string TenantItem = "ActivityLog:TenantId";
     /// <summary>HttpContext.Items key: don't log this request (e.g. deleting a tenant — its log is deleted with it).</summary>
     public const string SkipItem = "ActivityLog:Skip";
+    /// <summary>HttpContext.Items key: the log description of an action that shows no status banner (e.g. inline AJAX saves).</summary>
+    public const string DescriptionItem = "ActivityLog:Description";
 
     public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
     {
@@ -26,8 +29,11 @@ public sealed class ActivityLogFilter : IAsyncActionFilter
 
         if (!HttpMethods.IsPost(req.Method)) return;             // only state changes
         if (executed.Exception != null) return;                  // action failed — not a real "action"
+        if (!executed.ModelState.IsValid) return;                // rejected by validation (form re-shown) — nothing was saved
         if (http.User?.Identity?.IsAuthenticated != true) return;
         if (http.Items.ContainsKey(SkipItem)) return;
+        // [SkipActivityLog] on the action or its controller (navigation bookkeeping: favorites, page visits…).
+        if (context.ActionDescriptor.EndpointMetadata.OfType<SkipActivityLogAttribute>().Any()) return;
         var tenantOverride = http.Items.TryGetValue(TenantItem, out var t) && t is Guid tg ? tg : (Guid?)null;
 
         var rd = context.RouteData.Values;
@@ -51,7 +57,12 @@ public sealed class ActivityLogFilter : IAsyncActionFilter
         // still shows on the next page.
         var tempData = http.RequestServices.GetRequiredService<ITempDataDictionaryFactory>().GetTempData(http);
         var status = tempData.Peek("StatusMessage") as string;
-        var description = !string.IsNullOrWhiteSpace(status)
+        // A refusal changed nothing: only an error message for the next page (e.g. «لا يمكن حذف …»), or a modal's
+        // JSON { ok:false, error }.
+        if (string.IsNullOrWhiteSpace(status) && tempData.Peek("ErrorMessage") is string { Length: > 0 }) return;
+        if (executed.Result is JsonResult { Value: { } json } && json.GetType().GetProperty("ok")?.GetValue(json) is false) return;
+        var description = http.Items[DescriptionItem] is string own && own.Length > 0 ? own
+            : !string.IsNullOrWhiteSpace(status)
             ? status!
             : ActivityActionType.Describe(actionType, controller);
 

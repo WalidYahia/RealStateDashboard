@@ -3,7 +3,7 @@
     ViewData["Title"] = "السلف";
     var canManage = ViewData["CanManage"] as bool? ?? false;
     string N(decimal v) => v.ToString("N0", RealState.Web.AppCulture.Ar);
-    string D(DateTime d) => d.ToString("yyyy/MM/dd", System.Globalization.CultureInfo.InvariantCulture);
+    string D(DateTime d) => RealState.Web.AppCulture.When(d);   // date + time when it has one
     string? F(DateTime? d) => d?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
     string ADV(int n) => "ADV-" + n.ToString("D4");
 }

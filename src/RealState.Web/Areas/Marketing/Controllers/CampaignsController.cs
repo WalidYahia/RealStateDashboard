@@ -129,7 +129,7 @@ public class CampaignsController : Controller
         {
             CampaignId = campaignId,
             CampaignName = c.Name,
-            Date = DateTime.Today,
+            Date = ClientTime.Today,
             LatestDate = latestDate,
             CurrentReach = cur.Reach,
             CurrentLeads = cur.Leads,
@@ -263,7 +263,7 @@ public class CampaignsController : Controller
         wb.SaveAs(ms);
         return File(ms.ToArray(),
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            $"campaigns-{DateTime.Now:yyyyMMdd}.xlsx");
+            $"campaigns-{ClientTime.Now:yyyyMMdd}.xlsx");
     }
 
     // ---------- Print-friendly view (Save as PDF from the browser) ----------

@@ -33,9 +33,7 @@ public class LeadsController : Controller
     public async Task<IActionResult> Index(Guid? salespersonId, string? source, DateTime? from, DateTime? to,
         string? campaign, string? platform, string? unitType, string? paymentPlan, CancellationToken ct)
     {
-        // Default the creation-date range to today on a fresh open (no query string).
-        if (Request.Query.Count == 0) { from = DateTime.Today; to = DateTime.Today; }
-
+        // A fresh open shows every lead (no creation-date range) — «الكل» is the default period.
         var allRows = await AllLeadRowsAsync(ct);
         var sourceLabels = allRows.Select(r => r.SourceLabel).Where(s => s != "—").Distinct().OrderBy(s => s).ToList();
 
@@ -205,7 +203,7 @@ public class LeadsController : Controller
         var leadQ = _db.Customers.Where(c => c.IsLead);
         if (await RestrictedSalespersonIdAsync(ct) is Guid myEmpId) leadQ = leadQ.Where(c => c.SalesPersonId == myEmpId);
         var leads = await leadQ.ToListAsync(ct);
-        var monthStart = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
+        var monthStart = new DateTime(ClientTime.Today.Year, ClientTime.Today.Month, 1);
 
         return View(new CrmSummaryVm
         {
@@ -336,7 +334,7 @@ public class LeadsController : Controller
             {
                 ExternalId = extId,
                 CustomerId = customerId,
-                CreatedTime = createdTime ?? DateTime.Now,
+                CreatedTime = createdTime ?? ClientTime.Now,
                 AdId = Nz(Get(row, "ad_id")), AdName = Nz(Get(row, "ad_name")),
                 AdsetId = Nz(Get(row, "adset_id")), AdsetName = Nz(Get(row, "adset_name")),
                 CampaignExternalId = Nz(Get(row, "campaign_id")), CampaignName = Nz(Get(row, "campaign_name")),
@@ -478,9 +476,21 @@ public class LeadsController : Controller
         s.Equals("true", StringComparison.OrdinalIgnoreCase) || s == "1" ||
         s.Equals("yes", StringComparison.OrdinalIgnoreCase) || s.Equals("نعم", StringComparison.Ordinal);
 
+    /// <summary>A lead's time from the import file in the user's local time: with an offset (ISO «…Z» / «+02:00») it is
+    /// converted exactly, otherwise it's read as local time.</summary>
     private static DateTime? ParseDate(string s)
     {
         if (string.IsNullOrWhiteSpace(s)) return null;
+        var inv = System.Globalization.CultureInfo.InvariantCulture;
+        var t = s.Trim();
+        if ((t.EndsWith("Z", StringComparison.OrdinalIgnoreCase) || System.Text.RegularExpressions.Regex.IsMatch(t, @"[+-]\d{2}:?\d{2}$"))
+            && DateTimeOffset.TryParse(t, inv, System.Globalization.DateTimeStyles.None, out var off))
+            return RealState.Application.Common.AppTimeZone.FromUtc(off.UtcDateTime);
+        return ParseLocal(s);
+    }
+
+    private static DateTime? ParseLocal(string s)
+    {
         var inv = System.Globalization.CultureInfo.InvariantCulture;
         string[] formats =
         {

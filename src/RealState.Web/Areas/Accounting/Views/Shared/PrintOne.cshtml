@@ -35,7 +35,7 @@
     <div class="no-print"><button onclick="window.print()">🖨 طباعة / حفظ PDF</button></div>
     <div class="receipt">
         <h1>@title</h1>
-        <div class="sub">رقم @Model.Serial.ToString("D5") · تاريخ الإصدار @DateTime.Now.ToString("yyyy/MM/dd")</div>
+        <div class="sub">رقم @Model.Serial.ToString("D5") · تاريخ الإصدار @ClientTime.Now.ToString("yyyy/MM/dd")</div>
 
         <div class="amount">@N(Model.Amount) ج.م</div>
 
@@ -46,7 +46,8 @@
             }
             <tr><th>عن</th><td>@(about ?? Model.Source.Ar())</td></tr>
             <tr><th>الخزنة</th><td>@(safeName ?? "—")</td></tr>
-            <tr><th>التاريخ</th><td>@Model.OccurredAt.ToString("yyyy/MM/dd HH:mm")</td></tr>
+            <tr><th>التاريخ</th><td dir="ltr">@RealState.Web.AppCulture.When(Model.OccurredAt)</td></tr>
+            <tr><th>تاريخ الإنشاء</th><td dir="ltr">@RealState.Web.AppCulture.When(Model.CreatedAt)@(Model.UpdatedAt is DateTime u ? " · آخر تعديل " + RealState.Web.AppCulture.When(u) : "")</td></tr>
             <tr><th>البيان</th><td>@Model.Description</td></tr>
             <tr><th>المبلغ</th><td>@N(Model.Amount) ج.م</td></tr>
         </table>

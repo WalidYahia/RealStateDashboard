@@ -77,6 +77,10 @@ public class LedgerBackfillService : ILedgerBackfillService
         var rewByExpTxn = (await _db.Rewards.Where(r => r.ExpenseTxnId != null).ToListAsync(ct)).ToDictionary(r => r.ExpenseTxnId!.Value, r => r);
         var srByTxn = (await _db.ProductSalesReturns.Where(r => r.RefundTransactionId != null).ToListAsync(ct)).ToDictionary(r => r.RefundTransactionId!.Value, r => r);
         var prByTxn = (await _db.PurchaseReturns.Where(r => r.RefundTransactionId != null).ToListAsync(ct)).ToDictionary(r => r.RefundTransactionId!.Value, r => r);
+        var custodyEmpByTxn = (await _db.FinancialCustodyMovements.Where(m => m.SafeTransactionId != null)
+                .Join(_db.FinancialCustodies, m => m.FinancialCustodyId, c => c.Id, (m, c) => new { Txn = m.SafeTransactionId!.Value, c.EmployeeId })
+                .ToListAsync(ct))
+            .GroupBy(x => x.Txn).ToDictionary(g => g.Key, g => g.First().EmployeeId);
 
         foreach (var t in await _db.SafeTransactions.OrderBy(t => t.OccurredAt).ThenBy(t => t.Serial).ToListAsync(ct))
         {
@@ -96,6 +100,8 @@ public class LedgerBackfillService : ILedgerBackfillService
                     break;
                 case TxnSource.SafeTransfer:
                     continue;   // posted once per transfer (Dr to-safe / Cr from-safe), not per movement
+                case TxnSource.FixedAssetSale:
+                    continue;   // its cash line is part of the asset's disposal entry
                 case TxnSource.SupplierPayment:
                     if (supPayByReceipt.TryGetValue(t.Serial, out var sp)) supplierId = sp.SupplierId;
                     break;
@@ -119,6 +125,10 @@ public class LedgerBackfillService : ILedgerBackfillService
                     break;
                 case TxnSource.PurchaseReturnRefund:
                     if (prByTxn.TryGetValue(t.Id, out var pr)) supplierId = pr.SupplierId;
+                    break;
+                case TxnSource.CustodyDisbursement:
+                case TxnSource.CustodyReturn:
+                    if (custodyEmpByTxn.TryGetValue(t.Id, out var custodian)) employeeId = custodian;
                     break;
             }
             await _accounting.PostCashSettlementAsync(t, projectId, customerId, supplierId, contractorId, employeeId, unitId, t.CategoryId, ct);

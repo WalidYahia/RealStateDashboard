@@ -172,7 +172,7 @@ public class EmployeesController : Controller
             FullName = model.FullName,
             TenantId = _currentUser.TenantId,
             IsActive = true,
-            CreatedAt = DateTime.UtcNow
+            CreatedAt = ClientTime.Now
         };
         var result = await _userManager.CreateAsync(user, AppConstants.DefaultEmployeePassword);
         return (result.Succeeded ? user.Id : (Guid?)null, null); // no permission claims are granted
@@ -196,9 +196,10 @@ public class EmployeesController : Controller
         var e = await _db.Employees.FirstOrDefaultAsync(x => x.Id == id, ct);
         if (e is null) return NotFound();
         if (await _db.Advances.AnyAsync(a => a.EmployeeId == id, ct) || await _db.Rewards.AnyAsync(r => r.EmployeeId == id, ct)
-            || await _db.Vacations.AnyAsync(v => v.EmployeeId == id, ct))
+            || await _db.Vacations.AnyAsync(v => v.EmployeeId == id, ct)
+            || await _db.MaterialCustodies.AnyAsync(c => c.EmployeeId == id, ct) || await _db.FinancialCustodies.AnyAsync(c => c.EmployeeId == id, ct))
         {
-            TempData["ErrorMessage"] = "لا يمكن حذف موظف لديه إجازات أو سلف أو مكافآت.";
+            TempData["ErrorMessage"] = "لا يمكن حذف موظف لديه إجازات أو سلف أو مكافآت أو عُهد.";
             return RedirectToAction(nameof(Index));
         }
         var atts = await _db.EmployeeAttachments.Where(a => a.EmployeeId == id).ToListAsync(ct);
@@ -227,6 +228,34 @@ public class EmployeesController : Controller
         ViewBag.Attachments = await _db.EmployeeAttachments.Where(a => a.EmployeeId == id).OrderBy(a => a.Kind).ToListAsync(ct);
         ViewBag.LinkedUser = e.UserId is not null ? await _userManager.FindByIdAsync(e.UserId.Value.ToString()) : null;
         ViewData["CanManage"] = CanManage();
+
+        // «العُهد» section — each list only for users who may view that custody register.
+        if (User.HasClaim("permission", PermissionNames.FinancialCustodyView))
+        {
+            var custodies = await _db.FinancialCustodies.Where(c => c.EmployeeId == id).OrderByDescending(c => c.Number).ToListAsync(ct);
+            var ids = custodies.Select(c => c.Id).ToList();
+            var sums = (await _db.FinancialCustodyMovements.Where(m => ids.Contains(m.FinancialCustodyId))
+                    .GroupBy(m => new { m.FinancialCustodyId, m.Kind }).Select(g => new { g.Key.FinancialCustodyId, g.Key.Kind, Sum = g.Sum(x => x.Amount) })
+                    .ToListAsync(ct))
+                .ToLookup(x => x.FinancialCustodyId);
+            decimal Sum(Guid cid, CustodyMovementKind k) => sums[cid].Where(x => x.Kind == k).Sum(x => x.Sum);
+            ViewBag.FinancialCustodies = custodies.Select(c => new RealState.Web.Areas.Accounting.Models.FinancialCustodyRow
+            {
+                Id = c.Id, Number = c.Number, Date = c.Date, Employee = e.FullName, Purpose = c.Purpose, Status = c.Status,
+                Disbursed = Sum(c.Id, CustodyMovementKind.Disbursement), Spent = Sum(c.Id, CustodyMovementKind.Expense),
+                Returned = Sum(c.Id, CustodyMovementKind.Return)
+            }).ToList();
+        }
+        if (User.HasClaim("permission", PermissionNames.MaterialCustodyView))
+        {
+            ViewBag.MaterialCustodies = (await _db.MaterialCustodies.Where(c => c.EmployeeId == id).OrderByDescending(c => c.Number).ToListAsync(ct))
+                .Select(c => new RealState.Web.Areas.Accounting.Models.MaterialCustodyRow
+                {
+                    Id = c.Id, Number = c.Number, ItemName = c.ItemName, ItemType = c.ItemType, SerialNumber = c.SerialNumber,
+                    Quantity = c.Quantity, Value = c.Value, EmployeeId = c.EmployeeId, Employee = e.FullName,
+                    HandoverDate = c.HandoverDate, ExpectedReturnDate = c.ExpectedReturnDate, ReturnDate = c.ReturnDate, Status = c.Status
+                }).ToList();
+        }
         return View(e);
     }
 

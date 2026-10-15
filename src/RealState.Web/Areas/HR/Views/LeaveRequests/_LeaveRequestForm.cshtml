@@ -19,7 +19,7 @@
         <div><label asp-for="Date" class="form-label"></label><input asp-for="Date" class="form-control" type="date" dir="ltr" /></div>
         <div>
             <label asp-for="Hours" class="form-label"></label>
-            <input asp-for="Hours" class="form-control" type="number" step="0.25" min="0" max="24" dir="ltr" />
+            <input asp-for="Hours" class="form-control" type="number" step="any" min="0" max="24" dir="ltr" />
             <span asp-validation-for="Hours" class="field-validation-error"></span>
         </div>
     </div>

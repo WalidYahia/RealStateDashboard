@@ -13,7 +13,7 @@
             <select asp-for="EmployeeId" class="form-control" asp-items="Model.Employees"><option value="">— اختر الموظف —</option></select>
             <span asp-validation-for="EmployeeId" class="field-validation-error"></span>
         </div>
-        <div><label asp-for="Amount" class="form-label"></label><input asp-for="Amount" class="form-control" type="number" step="0.01" min="0" dir="ltr" /><span asp-validation-for="Amount" class="field-validation-error"></span></div>
+        <div><label asp-for="Amount" class="form-label"></label><input asp-for="Amount" class="form-control" type="number" step="any" min="0" dir="ltr" /><span asp-validation-for="Amount" class="field-validation-error"></span></div>
         <div><label asp-for="Date" class="form-label"></label><input asp-for="Date" class="form-control" type="date" dir="ltr" /></div>
         <div>
             <label asp-for="RepaymentMethod" class="form-label"></label>

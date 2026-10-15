@@ -2,7 +2,7 @@
 @{
     Layout = null;
     string N(decimal v) => v.ToString("N2", RealState.Web.AppCulture.Ar);
-    string D(DateTime d) => d.ToString("yyyy/MM/dd", System.Globalization.CultureInfo.InvariantCulture);
+    string D(DateTime d) => RealState.Web.AppCulture.When(d);   // date + time when it has one
     var total = Model.Sum(r => r.Total);
     var collected = Model.Sum(r => r.Collected);
 }
@@ -25,24 +25,24 @@
     @await Component.InvokeAsync("ReportBackground", new { part = "open" })
     <div class="no-print"><button onclick="window.print()">🖨 طباعة / حفظ PDF</button></div>
     <h1>فواتير المبيعات</h1>
-    <div class="sub">@DateTime.Now.ToString("yyyy/MM/dd HH:mm")</div>
+    <div class="sub">@ClientTime.Now.ToString("yyyy/MM/dd HH:mm")</div>
 
     <table>
-        <thead><tr><th>الرقم</th><th>التاريخ</th><th>العميل</th><th>الإجمالي</th><th>المحصَّل</th><th>المتبقي</th></tr></thead>
+        <thead><tr><th>الرقم</th><th>التاريخ</th><th>العميل</th><th>الدفع</th><th>الإجمالي</th><th>المحصَّل</th><th>المتبقي</th></tr></thead>
         <tbody>
         @foreach (var i in Model)
         {
             <tr>
-                <td>SI-@i.Number</td><td>@D(i.InvoiceDate)</td><td>@i.Customer</td>
+                <td>SI-@i.Number</td><td>@RealState.Web.AppCulture.When(i.InvoiceDate)</td><td>@i.Customer</td><td>@i.PaymentType.Ar()</td>
                 <td>@N(i.Total)</td><td>@N(i.Collected)</td><td>@N(i.Remaining)</td>
             </tr>
         }
         @if (Model.Count == 0)
         {
-            <tr><td colspan="6">لا توجد فواتير مبيعات.</td></tr>
+            <tr><td colspan="7">لا توجد فواتير مبيعات.</td></tr>
         }
         </tbody>
-        <tfoot><tr><th colspan="3">الإجمالي</th><th>@N(total)</th><th>@N(collected)</th><th>@N(total - collected)</th></tr></tfoot>
+        <tfoot><tr><th colspan="4">الإجمالي</th><th>@N(total)</th><th>@N(collected)</th><th>@N(total - collected)</th></tr></tfoot>
     </table>
 
     <script>window.addEventListener('load', function () { setTimeout(function () { window.print(); }, 400); });</script>

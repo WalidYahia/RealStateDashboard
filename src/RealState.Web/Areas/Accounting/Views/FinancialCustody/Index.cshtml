@@ -1,0 +1,71 @@
+@model FinancialCustodyListVm
+@{
+    ViewData["Title"] = "العُهد المالية";
+    var canCreate = ViewData["CanCreate"] as bool? ?? false;
+    string N(decimal v) => v.ToString("N2", RealState.Web.AppCulture.Ar);
+    string D(DateTime d) => RealState.Web.AppCulture.When(d);   // date + time when it has one
+    string? F(DateTime? d) => d?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+    var status = Model.Status.HasValue ? ((int)Model.Status).ToString() : null;
+    var employeeId = Model.EmployeeId?.ToString();
+}
+<div class="page-head">
+    <h1>العُهد المالية</h1>
+    @if (canCreate)
+    {
+        <button type="button" class="btn-new-tenant" data-quick-new onclick="appOpenModal('@Url.Action("Form")', 'فتح عهدة مالية')">➕ عهدة مالية</button>
+    }
+</div>
+
+@if (TempData["StatusMessage"] is string msg)
+{
+    <div class="status-message">@msg</div>
+}
+
+<div class="kpi-grid" style="grid-template-columns: repeat(3, 1fr);">
+    <div class="kpi k-tasks"><div class="kpi-label">عُهد مفتوحة</div><div class="kpi-value">@Model.OpenCount</div><div class="kpi-foot">لم تُسوَّ بعد</div></div>
+    <div class="kpi k-collect"><div class="kpi-label">نقدية لدى الموظفين</div><div class="kpi-value">@N(Model.HeldByEmployees) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">رصيد «العُهد المالية»</div></div>
+    <div class="kpi k-alerts"><div class="kpi-label">مستحق للموظفين</div><div class="kpi-value">@N(Model.OwedToEmployees) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">مصروفات زادت عن المصروف لهم</div></div>
+</div>
+
+@{
+    var filter = FilterBarVm.For(Url.Action("Index"))
+        .DateRange(F(Model.From), F(Model.To), "تاريخ العهدة", new[] { FilterPresets.All() }.Concat(FilterPresets.Standard()))
+        .Select("employeeId", "صاحب العهدة", Model.Employees, employeeId)
+        .Select("status", "الحالة", ArabicLabels.FinancialCustodyStatusOptions(), status)
+        .Text("q", "بحث (الرقم / اسم العهدة / الموظف)", Model.Q, "FC-… أو جزء من اسم العهدة")
+        .Print(Url.Action("PrintList", new { from = F(Model.From), to = F(Model.To), employeeId, status, q = Model.Q }));
+}
+<partial name="_FilterBar" model="filter" />
+
+<div class="card-tile">
+    <div class="card-head">
+        <h3>العُهد</h3>
+        <span class="pill">العدد: <span data-live-count="#fcTable">@Model.Rows.Count</span></span>
+    </div>
+    <div class="list-search-bar"><input class="form-control list-search" data-target="#fcTable" placeholder="🔍 بحث في القائمة..." /></div>
+    <table class="rs-table" id="fcTable">
+        <thead><tr><th>الرقم</th><th>اسم العهدة</th><th>التاريخ</th><th>صاحب العهدة</th><th>المصروف للموظف</th><th>المصروفات المعتمدة</th><th>المردود</th><th>الرصيد</th><th>الحالة</th><th></th></tr></thead>
+        <tbody>
+        @foreach (var r in Model.Rows)
+        {
+            <tr>
+                <td dir="ltr" style="text-align:right;white-space:nowrap;"><a asp-action="Details" asp-route-id="@r.Id" style="color:var(--series-1);font-weight:600;text-decoration:none;">FC-@r.Number</a></td>
+                <td><a asp-action="Details" asp-route-id="@r.Id" style="color:inherit;text-decoration:none;font-weight:600;">@r.Purpose</a></td>
+                <td dir="ltr" style="text-align:right;">@D(r.Date)</td>
+                <td>@r.Employee</td>
+                <td>@N(r.Disbursed)</td>
+                <td>@N(r.Spent)</td>
+                <td>@N(r.Returned)</td>
+                <td style="font-weight:700;white-space:nowrap;color:@(r.Balance < 0 ? "var(--critical)" : r.Balance > 0 ? "var(--warning)" : "var(--good)");">@N(r.Balance)</td>
+                <td><span class="badge-state @r.Status.BadgeClass()">@r.Status.Ar()</span></td>
+                <td><a class="btn-sm" asp-action="Details" asp-route-id="@r.Id">التفاصيل والتسوية</a></td>
+            </tr>
+        }
+        @if (Model.Rows.Count == 0)
+        {
+            <tr data-skip-search><td colspan="10" style="color:var(--muted)">لا توجد عُهد مطابقة.</td></tr>
+        }
+        <tr data-no-results data-skip-search style="display:none;"><td colspan="10" style="color:var(--muted)">لا توجد نتائج مطابقة للبحث.</td></tr>
+        </tbody>
+    </table>
+</div>

@@ -1,7 +1,7 @@
 @model LeaveRequestListVm
 @{
     Layout = null;
-    string D(DateTime d) => d.ToString("yyyy/MM/dd", System.Globalization.CultureInfo.InvariantCulture);
+    string D(DateTime d) => RealState.Web.AppCulture.When(d);   // date + time when it has one
     string H(decimal v) => v.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
     var i = 1;
 }
@@ -26,7 +26,7 @@
     <h1>أذونات التأخير/الانصراف</h1>
     <div class="sub">
         @if (Model.From.HasValue || Model.To.HasValue) { <text>الفترة @D(Model.From ?? DateTime.MinValue) — @D(Model.To ?? DateTime.MaxValue) · </text> }
-        العدد: @Model.Rows.Count · @DateTime.Now.ToString("yyyy/MM/dd HH:mm")
+        العدد: @Model.Rows.Count · @ClientTime.Now.ToString("yyyy/MM/dd HH:mm")
     </div>
     <table>
         <thead><tr><th>#</th><th>الموظف</th><th>نوع الإذن</th><th>التاريخ</th><th>عدد الساعات</th></tr></thead>

@@ -39,9 +39,12 @@ public class DocLineVm
 public abstract class DocFormBase
 {
     public Guid Id { get; set; }
+    /// <summary>CreationTime / LastUpdateTime of a saved document (display only).</summary>
+    public RealState.Web.Models.AuditStampVm? Audit { get; set; }
     public int Number { get; set; }
     public InventoryDocStatus Status { get; set; } = InventoryDocStatus.Draft;
-    [Display(Name = "التاريخ")] public DateTime Date { get; set; } = DateTime.Today;
+    /// <summary>Date + time of the document, entered by the user (default: now) — auto-created records take it.</summary>
+    [Display(Name = "التاريخ والوقت")] public DateTime Date { get; set; } = ClientTime.Now;
     [Display(Name = "ملاحظات")] public string? Notes { get; set; }
     public List<DocLineVm> ExistingLines { get; set; } = new();
     public List<SelectListItem> Warehouses { get; set; } = new();
@@ -74,6 +77,33 @@ public class AdjustmentFormModel : DocFormBase
 {
     [Display(Name = "المخزن")] public Guid WarehouseId { get; set; }
     [Display(Name = "السبب")] public AdjustmentReason Reason { get; set; } = AdjustmentReason.Correction;
+}
+
+/// <summary>«الرصيد الافتتاحي للأصناف» (OpeningStockController): a warehouse's stock products, one opening stock each.</summary>
+public class OpeningStockVm
+{
+    /// <summary>Date + time a row is saved with, entered by the user (default: now).</summary>
+    [Display(Name = "التاريخ والوقت")] public DateTime Date { get; set; } = ClientTime.Now;
+    [Display(Name = "المخزن")] public Guid WarehouseId { get; set; }
+    public List<SelectListItem> Warehouses { get; set; } = new();
+    public List<OpeningStockRow> Rows { get; set; } = new();
+}
+
+/// <summary>A product row of the opening-stock page — quantity / unit cost in the row's unit (0 = no opening stock).</summary>
+public class OpeningStockRow
+{
+    public Guid ProductId { get; set; }
+    public string Sku { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string Category { get; set; } = string.Empty;
+    public UnitSelectVm Unit { get; set; } = new(null, 0);
+    public decimal Quantity { get; set; }
+    public decimal UnitCost { get; set; }
+    /// <summary>The saved opening stock's date and LastUpdateTime (null = none yet).</summary>
+    public DateTime? Date { get; set; }
+    public DateTime? UpdatedAt { get; set; }
+    /// <summary>Why it can't be edited here (stock moved after it / posted as an older adjustment), else null.</summary>
+    public string? Locked { get; set; }
 }
 
 public class CountFormModel : DocFormBase

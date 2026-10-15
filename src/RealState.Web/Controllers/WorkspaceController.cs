@@ -48,6 +48,26 @@ public class WorkspaceController : Controller
         });
     }
 
+    // ---------------- Group workspace (a group card inside a module: its nested groups + pages) ----------------
+    public async Task<IActionResult> Group(string id, CancellationToken ct)
+    {
+        var nav = Nav;
+        var group = nav.Group(id);
+        if (group is null) return NotFound();   // unknown, or nothing in it the user may see
+        if (!group.CanOpen)
+        {
+            ViewData["Title"] = group.Title;
+            ViewData["BackText"] = group.ParentKey is null ? nav.Module(group.ModuleKey)?.Title : nav.Group(group.ParentKey)?.Title;
+            ViewData["BackUrl"] = (group.ParentKey is null ? nav.Module(group.ModuleKey)?.Url : nav.Group(group.ParentKey)?.Url);
+            return View("~/Views/Shared/ComingSoon.cshtml");
+        }
+        var module = nav.Module(group.ModuleKey)!;
+        var favs = (await FavoritePagesAsync(nav, ct)).Select(f => f.Key).ToHashSet();
+        // KPIs are computed per page: reuse the module service over this group's pages.
+        var scope = module with { Pages = group.Pages };
+        return View(new WorkspaceGroupVm { Nav = nav, Module = module, Group = group, Kpis = await _kpis.GetAsync(scope, ct), FavoriteKeys = favs });
+    }
+
     // ---------------- Module workspace ----------------
     public async Task<IActionResult> Module(string id, CancellationToken ct)
     {
@@ -79,7 +99,7 @@ public class WorkspaceController : Controller
         }
         _db.UserNavItems.Add(new UserNavItem
         {
-            UserKey = UserKey, Kind = UserNavItemKind.Favorite, Key = key, Title = page.Title, Url = page.Url, LastUsedAt = DateTime.UtcNow
+            UserKey = UserKey, Kind = UserNavItemKind.Favorite, Key = key, Title = page.Title, Url = page.Url, LastUsedAt = ClientTime.Now
         });
         await _db.SaveChangesAsync(ct);
         return Json(new { ok = true, on = true });
@@ -103,8 +123,8 @@ public class WorkspaceController : Controller
         var key = UserKey;
         var row = await _db.UserNavItems.FirstOrDefaultAsync(x => x.UserKey == key && x.Kind == UserNavItemKind.Recent && x.Key == url, ct);
         if (row is null)
-            _db.UserNavItems.Add(new UserNavItem { UserKey = key, Kind = UserNavItemKind.Recent, Key = url, Url = url, Title = title, LastUsedAt = DateTime.UtcNow });
-        else { row.Title = title; row.LastUsedAt = DateTime.UtcNow; }
+            _db.UserNavItems.Add(new UserNavItem { UserKey = key, Kind = UserNavItemKind.Recent, Key = url, Url = url, Title = title, LastUsedAt = ClientTime.Now });
+        else { row.Title = title; row.LastUsedAt = ClientTime.Now; }
         await _db.SaveChangesAsync(ct);
 
         // Keep only the latest few (hard delete — these are disposable shortcuts).
@@ -163,11 +183,11 @@ public class WorkspaceController : Controller
             if (Can(PermissionNames.SalesInvoicesView))
                 Add("فواتير المبيعات", "receipt", (await _db.ProductSalesInvoices.Where(i => i.Number.ToString().Contains(digits))
                     .OrderByDescending(i => i.Number).Take(5).Select(i => new { i.Id, i.Number, i.InvoiceDate }).ToListAsync(ct))
-                    .Select(i => ($"SI-{i.Number}", (string?)i.InvoiceDate.ToString("yyyy/MM/dd"), Url.Action("Details", "SalesInvoices", new { area = "Sales", id = i.Id })!)));
+                    .Select(i => ($"SI-{i.Number}", (string?)RealState.Web.AppCulture.Day(i.InvoiceDate), Url.Action("Details", "SalesInvoices", new { area = "Sales", id = i.Id })!)));
             if (Can(PermissionNames.PurchaseInvoicesView))
                 Add("فواتير المشتريات", "cart", (await _db.PurchaseInvoices.Where(i => i.Number.ToString().Contains(digits))
                     .OrderByDescending(i => i.Number).Take(5).Select(i => new { i.Id, i.Number, i.InvoiceDate }).ToListAsync(ct))
-                    .Select(i => ($"PI-{i.Number}", (string?)i.InvoiceDate.ToString("yyyy/MM/dd"), Url.Action("Details", "PurchaseInvoices", new { area = "Suppliers", id = i.Id })!)));
+                    .Select(i => ($"PI-{i.Number}", (string?)RealState.Web.AppCulture.Day(i.InvoiceDate), Url.Action("Details", "PurchaseInvoices", new { area = "Suppliers", id = i.Id })!)));
             if (Can(PermissionNames.SuppliersView))
                 Add("أوامر التوريد", "clipboard", (await _db.SupplierOrders.Where(o => o.Number.ToString().Contains(digits))
                     .OrderByDescending(o => o.Number).Take(5).Select(o => new { o.Id, o.Number, o.OrderDate }).ToListAsync(ct))
@@ -182,7 +202,7 @@ public class WorkspaceController : Controller
     {
         var keys = await _db.UserNavItems.Where(x => x.UserKey == UserKey && x.Kind == UserNavItemKind.Favorite)
             .OrderBy(x => x.CreatedAt).Select(x => x.Key).ToListAsync(ct);
-        return keys.Select(nav.Page).Where(p => p is not null).Select(p => p!).ToList();
+        return keys.Select(nav.Page).Where(p => p is not null && p.CanOpen).Select(p => p!).ToList();
     }
 
     /// <summary>
@@ -195,7 +215,7 @@ public class WorkspaceController : Controller
             .OrderByDescending(x => x.LastUsedAt).Take(8).ToListAsync(ct);
         string Prefix(string? area, string controller) => ("/" + (string.IsNullOrEmpty(area) ? "" : area + "/") + controller).ToLowerInvariant();
         var known = NavigationCatalog.Pages.GroupBy(p => Prefix(p.Area, p.Controller))
-            .ToDictionary(g => g.Key, g => g.Any(p => nav.Page(p.Key) is not null));
+            .ToDictionary(g => g.Key, g => g.Any(p => nav.Page(p.Key) is { CanOpen: true }));
         var list = new List<RecentItemVm>();
         foreach (var r in rows)
         {
@@ -216,6 +236,15 @@ public sealed class WorkspaceHomeVm
     public AuthorizedNavigation Nav { get; init; } = new();
     public List<NavPageVm> Favorites { get; init; } = new();
     public List<RecentItemVm> Recent { get; init; } = new();
+}
+
+public sealed class WorkspaceGroupVm
+{
+    public AuthorizedNavigation Nav { get; init; } = new();
+    public NavModuleVm Module { get; init; } = default!;
+    public NavGroupVm Group { get; init; } = default!;
+    public Dictionary<string, NavKpi> Kpis { get; init; } = new();
+    public HashSet<string> FavoriteKeys { get; init; } = new();
 }
 
 public sealed class WorkspaceModuleVm

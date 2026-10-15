@@ -94,6 +94,7 @@ public class EntryLineVm
 
 public class EntryVm
 {
+    public RealState.Web.Models.AuditStampVm? Audit { get; set; }
     public Guid Id { get; set; }
     public int Number { get; set; }
     public DateTime Date { get; set; }
@@ -119,8 +120,9 @@ public class ManualEntryModel
 {
     public Guid Id { get; set; }
 
-    [DataType(DataType.Date)][Display(Name = "التاريخ")]
-    public DateTime Date { get; set; } = DateTime.Today;
+    /// <summary>Date + time of the document, entered by the user (default: now) — auto-created records take it.</summary>
+    [DataType(DataType.DateTime)][Display(Name = "التاريخ والوقت")]
+    public DateTime Date { get; set; } = ClientTime.Now;
 
     [Required(ErrorMessage = "البيان مطلوب")]
     [Display(Name = "البيان")]

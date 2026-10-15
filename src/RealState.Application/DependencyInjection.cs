@@ -13,6 +13,8 @@ public static class DependencyInjection
         services.AddScoped<Accounting.IAccountingEngine, Accounting.AccountingEngine>();
         services.AddScoped<Accounting.ILedgerBackfillService, Accounting.LedgerBackfillService>();
         services.AddScoped<Accounting.ISafeBalanceGuard, Accounting.SafeBalanceGuard>();
+        services.AddScoped<Accounting.IFixedAssetAccounting, Accounting.FixedAssetAccounting>();
+        services.AddScoped<Accounting.IOpeningBalanceService, Accounting.OpeningBalanceService>();
         services.AddScoped<Inventory.IInventoryEngine, Inventory.InventoryEngine>();
         services.AddScoped<Activity.IActivityLogger, Activity.ActivityLogger>();
         return services;

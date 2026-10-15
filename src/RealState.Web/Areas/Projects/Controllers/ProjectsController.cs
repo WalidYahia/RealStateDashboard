@@ -79,7 +79,7 @@ public class ProjectsController : Controller
     public async Task<IActionResult> Index(DateTime? from, DateTime? to, CancellationToken ct)
     {
         // Projects are long-lived — on a fresh open default to the last year; explicit filters are respected.
-        if (Request.Query.Count == 0) { from = DateTime.Today.AddYears(-1); to = DateTime.Today.AddDays(1).AddMinutes(-1); }
+        if (Request.Query.Count == 0) { from = ClientTime.Today.AddYears(-1); to = ClientTime.Today.AddDays(1).AddMinutes(-1); }
         var pq = _db.Projects.AsQueryable();
         if (from.HasValue) pq = pq.Where(p => p.CreatedAt >= from.Value.Date);
         if (to.HasValue) pq = pq.Where(p => p.CreatedAt < to.Value.Date.AddDays(1));
@@ -185,7 +185,7 @@ public class ProjectsController : Controller
         }).ToList();
 
         // Current stage: an in-progress stage (actual start passed, not yet ended), else the last started, else the earliest planned.
-        var today = DateTime.Today;
+        var today = ClientTime.Today;
         vm.CurrentStage =
             vm.Stages.Where(s => s.ActualStartDate.HasValue && s.ActualStartDate.Value.Date <= today
                                  && (!s.ActualEndDate.HasValue || s.ActualEndDate.Value.Date >= today))

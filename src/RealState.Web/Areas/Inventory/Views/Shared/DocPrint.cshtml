@@ -32,7 +32,7 @@
     @await Component.InvokeAsync("ReportBackground", new { part = "open" })
     <div class="no-print"><button onclick="window.print()">🖨 طباعة / حفظ PDF</button></div>
     <h1>@Model.Title رقم @Model.Number</h1>
-    <div class="sub">تاريخ الطباعة: @DateTime.Now.ToString("yyyy/MM/dd HH:mm")</div>
+    <div class="sub">تاريخ الطباعة: @ClientTime.Now.ToString("yyyy/MM/dd HH:mm")</div>
 
     <h2>البيانات</h2>
     <table class="kv">

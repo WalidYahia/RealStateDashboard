@@ -3,7 +3,7 @@
     ViewData["Title"] = $"كشف حساب {Model.Supplier.Name}";
     var canPay = ViewData["CanPay"] as bool? ?? false;
     string N(decimal v) => v.ToString("N0", RealState.Web.AppCulture.Ar);
-    string D(DateTime d) => d.ToString("yyyy/MM/dd", System.Globalization.CultureInfo.InvariantCulture);
+    string D(DateTime d) => RealState.Web.AppCulture.When(d);   // date + time when it has one
     string? F(DateTime? d) => d?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
 }
 <div class="page-head">
@@ -84,6 +84,14 @@
                     @if (r.Kind == SupplierLedgerKind.Payment)
                     {
                         <a class="btn-sm" asp-controller="Payments" asp-action="Receipt" asp-route-id="@r.Id" target="_blank" style="margin-inline-start:8px;">🖨 طباعة</a>
+                    }
+                    else if (r.Kind == SupplierLedgerKind.AccountPayment && User.Can(PermissionNames.ExpensesView))
+                    {
+                        <a class="btn-sm" asp-area="Accounting" asp-controller="Expenses" asp-action="PrintOne" asp-route-id="@r.Id" target="_blank" style="margin-inline-start:8px;">🖨 طباعة</a>
+                    }
+                    else if (r.Kind == SupplierLedgerKind.AccountReceipt && User.Can(PermissionNames.IncomesView))
+                    {
+                        <a class="btn-sm" asp-area="Accounting" asp-controller="Incomes" asp-action="PrintOne" asp-route-id="@r.Id" target="_blank" style="margin-inline-start:8px;">🖨 طباعة</a>
                     }
                     else if (r.Kind == SupplierLedgerKind.Refund && User.Can(PermissionNames.PurchaseReturnsView))
                     {

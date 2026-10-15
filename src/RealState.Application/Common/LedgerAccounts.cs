@@ -16,6 +16,12 @@ public static class LedgerAccounts
     public const string CashAndBanks = "1100";          // safes are postable children (SubKind=Safe)
     public const string AccountsReceivable = "1200";    // customers (SubKind=Customer)
     public const string EmployeeAdvances = "1300";      // employees (SubKind=Employee)
+    public const string FinancialCustody = "1350";      // cash custodies / imprest funds — custodians (SubKind=Custodian)
+    public const string FixedAssetsCost = "1500";       // fixed assets at cost — one child per asset category (SubKind=AssetCategory)
+    public const string AccumulatedDepreciation = "1590"; // contra-asset — one child per asset category (SubKind=AssetCategoryDepreciation)
+    public const string DepreciationExpense = "5600";   // مصروف الإهلاك
+    public const string AssetDisposalGain = "4960";     // أرباح استبعاد الأصول
+    public const string AssetDisposalLoss = "5960";     // خسائر استبعاد الأصول
     public const string AccountsPayable = "2100";       // suppliers (SubKind=Supplier)
     public const string ContractorsPayable = "2200";    // contractors (SubKind=Contractor)
 
@@ -48,7 +54,7 @@ public static class LedgerAccounts
     /// <summary>Control accounts whose children are per-entity subsidiaries — added only from their own
     /// pages (customers / suppliers / contractors / safes / employees), never hand-added in the chart.</summary>
     public static readonly IReadOnlyList<string> SubsidiaryControls =
-        new[] { CashAndBanks, AccountsReceivable, EmployeeAdvances, AccountsPayable, ContractorsPayable, GoodsInventory };
+        new[] { CashAndBanks, AccountsReceivable, EmployeeAdvances, FinancialCustody, AccountsPayable, ContractorsPayable, GoodsInventory };
 
     public static readonly IReadOnlyList<AccountDef> Defaults = new List<AccountDef>
     {
@@ -57,7 +63,10 @@ public static class LedgerAccounts
         new(CashAndBanks, "النقدية والبنوك", AccountType.Asset, "1000", false),
         new(AccountsReceivable, "العملاء (ذمم مدينة)", AccountType.Asset, "1000", false),
         new(EmployeeAdvances, "سلف الموظفين", AccountType.Asset, "1000", false),
+        new(FinancialCustody, "العُهد المالية", AccountType.Asset, "1000", false),
         new(RealEstateInventory, "مخزون العقارات", AccountType.Asset, "1000", true),
+        new(FixedAssetsCost, "الأصول الثابتة", AccountType.Asset, "1000", false),
+        new(AccumulatedDepreciation, "مجمع إهلاك الأصول الثابتة", AccountType.Asset, "1000", false),
         new(GoodsInventory, "المخزون", AccountType.Asset, "1000", false),   // control; per-warehouse subsidiaries
 
         // Liabilities
@@ -77,6 +86,7 @@ public static class LedgerAccounts
         new(GoodsSalesRevenue, "إيرادات مبيعات البضائع", AccountType.Revenue, "4000", true),
         new(SalesReturns, "مردودات المبيعات", AccountType.Revenue, "4000", true),
         new(InventoryCostGain, "أرباح تسوية تكلفة المخزون", AccountType.Revenue, "4000", true),
+        new(AssetDisposalGain, "أرباح استبعاد الأصول", AccountType.Revenue, "4000", true),
         new(OtherRevenue, "إيرادات أخرى", AccountType.Revenue, "4000", true),
 
         // Expenses
@@ -87,6 +97,8 @@ public static class LedgerAccounts
         new(PurchaseReturns, "مردودات المشتريات", AccountType.Expense, "5000", true),
         new(ContractingCosts, "أعمال المقاولات", AccountType.Expense, "5000", true),
         new(SalariesAndRewards, "رواتب ومكافآت", AccountType.Expense, "5000", true),
+        new(DepreciationExpense, "مصروف الإهلاك", AccountType.Expense, "5000", true),
+        new(AssetDisposalLoss, "خسائر استبعاد الأصول", AccountType.Expense, "5000", true),
         new(InventoryCostLoss, "خسائر تسوية تكلفة المخزون", AccountType.Expense, "5000", true),
         new(GeneralExpenses, "مصروفات عامة", AccountType.Expense, "5000", true),
     };

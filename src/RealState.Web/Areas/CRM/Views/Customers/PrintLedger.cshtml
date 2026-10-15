@@ -1,0 +1,67 @@
+@model CustomerLedgerVm
+@{
+    Layout = null;
+    string N(decimal v) => v.ToString("N0", RealState.Web.AppCulture.Ar);
+    string D(DateTime d) => RealState.Web.AppCulture.When(d);   // date + time when it has one
+}
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="utf-8" />
+    <title>كشف حساب عميل @Model.Customer.FullName</title>
+    <style>
+        body { font-family: "Segoe UI", Tahoma, sans-serif; padding: 24px; color: #111; }
+        h1 { font-size: 19px; text-align: center; margin: 4px 0; }
+        .sub { text-align: center; color: #666; font-size: 12px; margin-bottom: 12px; }
+        .summary { text-align: center; font-size: 13px; margin-bottom: 14px; }
+        table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+        th, td { border: 1px solid #ccc; padding: 6px 8px; text-align: start; unicode-bidi: plaintext; }
+        th { background: #f2f2f2; }
+        tfoot td { font-weight: 700; background: #fafafa; }
+        .no-print { margin-bottom: 12px; } @@media print { .no-print { display: none; } }
+    </style>
+</head>
+<body>
+    @await Component.InvokeAsync("ReportBackground", new { part = "open" })
+    <div class="no-print"><button onclick="window.print()">🖨 طباعة / حفظ PDF</button></div>
+    <h1>كشف حساب عميل — @Model.Customer.FullName</h1>
+    <div class="sub">
+        <span dir="ltr">@Model.Customer.Phone</span>
+        @if (Model.From.HasValue || Model.To.HasValue)
+        {
+            <text>· الفترة @(Model.From.HasValue ? D(Model.From.Value) : "البداية") — @(Model.To.HasValue ? D(Model.To.Value) : "اليوم")</text>
+        }
+        · تاريخ الطباعة @ClientTime.Now.ToString("yyyy/MM/dd HH:mm")
+    </div>
+    <div class="summary">
+        إجمالي المستحقات @N(Model.TotalObligations) ج.م · المحصَّل @N(Model.TotalPaid) ج.م · المتبقي @N(Model.TotalRemaining) ج.م
+    </div>
+
+    <table>
+        <thead><tr><th>المصدر</th><th>التاريخ</th><th>البيان</th><th>رصيد قبل</th><th>المبلغ</th><th>الرصيد</th></tr></thead>
+        <tbody>
+        @foreach (var r in Model.Rows)
+        {
+            <tr>
+                <td>@r.Source</td>
+                <td>@D(r.Date)</td>
+                <td>@r.Statement</td>
+                <td>@N(r.BalanceBefore)</td>
+                <td>@(r.Decreases ? "−" : "+")@N(r.Amount)</td>
+                <td>@N(r.Balance)</td>
+            </tr>
+        }
+        @if (!Model.HasEntries)
+        {
+            <tr><td colspan="6">لا توجد حركات في هذه الفترة.</td></tr>
+        }
+        </tbody>
+        <tfoot>
+            <tr><td colspan="5">الرصيد الختامي للفترة</td><td>@N(Model.ClosingBalance) ج.م</td></tr>
+        </tfoot>
+    </table>
+
+    <script>window.addEventListener('load', function () { setTimeout(function () { window.print(); }, 400); });</script>
+    @await Component.InvokeAsync("ReportBackground", new { part = "close" })
+</body>
+</html>

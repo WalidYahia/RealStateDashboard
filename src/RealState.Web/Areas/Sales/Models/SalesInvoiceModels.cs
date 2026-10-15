@@ -24,11 +24,23 @@ public class SalesInvoiceFormModel
     [Display(Name = "المخزن (صرف الأصناف المخزنية)")]
     public Guid? WarehouseId { get; set; }
 
-    [Required][DataType(DataType.Date)][Display(Name = "تاريخ الفاتورة")]
-    public DateTime InvoiceDate { get; set; } = DateTime.Today;
+    /// <summary>Date + time of the document, entered by the user (default: now) — auto-created records take it.</summary>
+    [Required][DataType(DataType.DateTime)][Display(Name = "تاريخ ووقت الفاتورة")]
+    public DateTime InvoiceDate { get; set; } = ClientTime.Now;
 
     [Display(Name = "ملاحظات")]
     public string? Notes { get; set; }
+
+    /// <summary>نقدي: collected in full into <see cref="CashSafeId"/> on save (an automatic collection); آجل (default): owed.</summary>
+    [Display(Name = "طريقة الدفع")]
+    public InvoicePaymentType PaymentType { get; set; } = InvoicePaymentType.Credit;
+    [Display(Name = "الخزنة (التحصيل النقدي)")]
+    public Guid? CashSafeId { get; set; }
+    public List<SelectListItem> Safes { get; set; } = new();
+    /// <summary>The tenant's «عميل نقدي» — preselected for نقدي and not allowed on آجل.</summary>
+    public Guid? CashCustomerId { get; set; }
+    /// <summary>نقدي records a collection — offered only with the invoice-collect permission.</summary>
+    public bool CanCash { get; set; }
 
     /// <summary>Lines — <see cref="DocItemInput.Cost"/> holds the unit selling price (سعر البيع).</summary>
     public List<DocItemInput> Items { get; set; } = new();
@@ -46,6 +58,7 @@ public class SalesInvoiceListItem
     public DateTime InvoiceDate { get; set; }
     public Guid CustomerId { get; set; }
     public string Customer { get; set; } = string.Empty;
+    public InvoicePaymentType PaymentType { get; set; }
     public decimal Total { get; set; }
     public int ItemCount { get; set; }
     public decimal Collected { get; set; }
@@ -70,6 +83,8 @@ public class SalesInvoiceDetailsVm
     public string Customer { get; set; } = "—";
     public string? CustomerPhone { get; set; }
     public string? Warehouse { get; set; }
+    /// <summary>The safe a cash (نقدي) invoice was collected into.</summary>
+    public string? CashSafe { get; set; }
     /// <summary>The invoice's automatic goods issues — the current (posted) one plus any reversed by edits.</summary>
     public List<SalesInvoiceIssueRef> Issues { get; set; } = new();
     /// <summary>Sales returns against the invoice (credit notes), oldest first.</summary>
@@ -107,8 +122,9 @@ public class SalesCollectFormModel
     [Display(Name = "الخزنة")]
     public Guid? SafeId { get; set; }
 
-    [Required][DataType(DataType.Date)][Display(Name = "تاريخ التحصيل")]
-    public DateTime CollectedDate { get; set; } = DateTime.Today;
+    /// <summary>Date + time of the document, entered by the user (default: now) — auto-created records take it.</summary>
+    [Required][DataType(DataType.DateTime)][Display(Name = "تاريخ ووقت التحصيل")]
+    public DateTime CollectedDate { get; set; } = ClientTime.Now;
 
     [Display(Name = "ملاحظات")]
     public string? Description { get; set; }

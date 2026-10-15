@@ -84,3 +84,20 @@ public class JournalLine : AuditableEntity, ITenantEntity
     public Guid? EmployeeId { get; set; }
     public Guid? UnitId { get; set; }
 }
+
+/// <summary>
+/// The opening balance (الرصيد الافتتاحي) of a postable account — one per account, dated the tenant's opening date. It is
+/// posted as one journal entry against «رصيد افتتاحي» (3200): source <c>OpeningBalance</c>, or <c>SafeOpening</c> for a safe
+/// (whose amount also lives on <see cref="Safe.InitialAmount"/>). LastUpdateTime = the audit UpdatedAt / CreatedAt.
+/// </summary>
+public class AccountOpeningBalance : AuditableEntity, ITenantEntity
+{
+    public Guid TenantId { get; set; }
+    public Guid AccountId { get; set; }
+    public Account? Account { get; set; }
+    /// <summary>Always positive; the side is <see cref="IsDebit"/>.</summary>
+    public decimal Amount { get; set; }
+    public bool IsDebit { get; set; }
+    /// <summary>The opening date (the same for every account of the tenant).</summary>
+    public DateTime Date { get; set; }
+}

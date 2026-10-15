@@ -9,7 +9,7 @@
     string WO(int n) => "WO-" + n;
     string N(decimal v) => v.ToString("N2", RealState.Web.AppCulture.Ar);
     string P(decimal v) => v.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture) + "%";
-    string D(DateTime d) => d.ToString("yyyy/MM/dd", System.Globalization.CultureInfo.InvariantCulture);
+    string D(DateTime d) => RealState.Web.AppCulture.When(d);   // date + time when it has one
     string? F(DateTime? d) => d?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
     var wfrom = ViewBag.From as DateTime?;
     var wto = ViewBag.To as DateTime?;

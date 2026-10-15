@@ -1,6 +1,6 @@
 @model List<TaskRow>
 @{
-    string D(DateTime? d) => d?.ToString("yyyy/MM/dd", System.Globalization.CultureInfo.InvariantCulture) ?? "—";
+    string D(DateTime? d) => RealState.Web.AppCulture.When(d);   // date + time when it has one
     string Trunc(string s) => s.Length > 50 ? s[..50] + "…" : s;
 }
 <table class="rs-table">

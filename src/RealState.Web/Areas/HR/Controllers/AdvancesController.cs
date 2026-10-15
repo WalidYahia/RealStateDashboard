@@ -62,7 +62,7 @@ public class AdvancesController : Controller
         {
             Id = a.Id, Date = a.Date, EmployeeId = a.EmployeeId, Amount = a.Amount,
             RepaymentMethod = a.RepaymentMethod, InstallmentsCount = a.InstallmentsCount == 0 ? 1 : a.InstallmentsCount,
-            MonthlyStartDate = a.MonthlyStartDate ?? DateTime.Today, Notes = a.Notes
+            MonthlyStartDate = a.MonthlyStartDate ?? ClientTime.Today, Notes = a.Notes
         }, ct));
     }
 
@@ -191,7 +191,7 @@ public class AdvancesController : Controller
                 return RedirectToAction(nameof(Details), new { id = advanceId });
             }
             r.Status = r.Status == PayStatus.Paid ? PayStatus.NotPaid : PayStatus.Paid;
-            r.PaidDate = r.Status == PayStatus.Paid ? DateTime.Today : null;
+            r.PaidDate = r.Status == PayStatus.Paid ? ClientTime.Today : null;
             // Dr رواتب ومكافآت / Cr سلف الموظفين while paid; removed when un-marked.
             await _accounting.SyncAdvanceSalaryDeductionAsync(r, adv, ct);
             await _db.SaveChangesAsync(ct);

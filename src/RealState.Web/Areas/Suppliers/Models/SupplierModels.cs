@@ -79,8 +79,9 @@ public class OrderFormModel
     [Display(Name = "المشروع")]
     public Guid? ProjectId { get; set; }
 
-    [Required][DataType(DataType.Date)][Display(Name = "تاريخ الأمر")]
-    public DateTime OrderDate { get; set; } = DateTime.Today;
+    /// <summary>Date + time of the document, entered by the user (default: now) — auto-created records take it.</summary>
+    [Required][DataType(DataType.DateTime)][Display(Name = "تاريخ ووقت الأمر")]
+    public DateTime OrderDate { get; set; } = ClientTime.Now;
 
     [Display(Name = "ملاحظات")]
     public string? Notes { get; set; }
@@ -130,11 +131,23 @@ public class InvoiceFormModel
     [Display(Name = "المخزن (استلام الأصناف المخزنية)")]
     public Guid? WarehouseId { get; set; }
 
-    [Required][DataType(DataType.Date)][Display(Name = "تاريخ الفاتورة")]
-    public DateTime InvoiceDate { get; set; } = DateTime.Today;
+    /// <summary>Date + time of the document, entered by the user (default: now) — auto-created records take it.</summary>
+    [Required][DataType(DataType.DateTime)][Display(Name = "تاريخ ووقت الفاتورة")]
+    public DateTime InvoiceDate { get; set; } = ClientTime.Now;
 
     [Display(Name = "ملاحظات")]
     public string? Notes { get; set; }
+
+    /// <summary>نقدي: paid in full from <see cref="CashSafeId"/> on save (an automatic payment); آجل (default): owed.</summary>
+    [Display(Name = "طريقة الدفع")]
+    public InvoicePaymentType PaymentType { get; set; } = InvoicePaymentType.Credit;
+    [Display(Name = "الخزنة (السداد النقدي)")]
+    public Guid? CashSafeId { get; set; }
+    public List<SelectListItem> Safes { get; set; } = new();
+    /// <summary>The tenant's «مورد نقدي» — preselected for نقدي and not allowed on آجل.</summary>
+    public Guid? CashSupplierId { get; set; }
+    /// <summary>نقدي records a payment — offered only with the supplier-pay permission.</summary>
+    public bool CanCash { get; set; }
 
     public List<DocItemInput> Items { get; set; } = new();
 
@@ -152,6 +165,7 @@ public class InvoiceListItem
     public int Number { get; set; }
     public DateTime InvoiceDate { get; set; }
     public string Supplier { get; set; } = string.Empty;
+    public InvoicePaymentType PaymentType { get; set; }
     public string Project { get; set; } = "—";
     public Guid? OrderId { get; set; }
     public int? OrderNumber { get; set; }
@@ -178,6 +192,8 @@ public class InvoiceDetailsVm
     public string? Project { get; set; }
     public int? OrderNumber { get; set; }
     public string? Warehouse { get; set; }
+    /// <summary>The safe a cash (نقدي) invoice was paid from.</summary>
+    public string? CashSafe { get; set; }
     /// <summary>The invoice's automatic goods receipts — the current (posted) one plus any reversed by edits.</summary>
     public List<InvoiceReceiptRef> Receipts { get; set; } = new();
     /// <summary>Purchase returns against the invoice (debit notes), oldest first.</summary>
@@ -196,7 +212,7 @@ public class InvoiceDetailsVm
 // ---------- Supplier account statement (كشف الحساب) ----------
 /// <summary>Order / Invoice raise what's owed to the supplier; Payment and Return (a purchase return — debit note) lower
 /// it; Refund (cash the supplier paid back through a return) raises it again.</summary>
-public enum SupplierLedgerKind { Order, Invoice, Payment, Return, Refund }
+public enum SupplierLedgerKind { Order, Invoice, Payment, Return, Refund, AccountPayment, AccountReceipt, OpeningCredit, OpeningDebit }
 
 /// <summary>One row of the running-balance supplier ledger (an invoice / legacy order obligation, or a payment).</summary>
 public class SupplierLedgerRow
@@ -212,9 +228,14 @@ public class SupplierLedgerRow
     public decimal Balance { get; set; }            // running amount owed after this row
     public bool IsObligation => Kind is SupplierLedgerKind.Order or SupplierLedgerKind.Invoice;
     /// <summary>Lowers what's owed to the supplier (shown as −).</summary>
-    public bool Decreases => Kind is SupplierLedgerKind.Payment or SupplierLedgerKind.Return;
+    public bool Decreases => Kind is SupplierLedgerKind.Payment or SupplierLedgerKind.Return or SupplierLedgerKind.AccountPayment or SupplierLedgerKind.OpeningDebit;
     /// <summary>Same-day order: what's owed first, then payments, returns, refunds.</summary>
-    public int DayOrder => Kind switch { SupplierLedgerKind.Payment => 1, SupplierLedgerKind.Return => 2, SupplierLedgerKind.Refund => 3, _ => 0 };
+    public int DayOrder => Kind switch
+    {
+        SupplierLedgerKind.OpeningCredit or SupplierLedgerKind.OpeningDebit => -1,   // the opening balance comes first
+        SupplierLedgerKind.Payment or SupplierLedgerKind.AccountPayment => 1, SupplierLedgerKind.Return => 2,
+        SupplierLedgerKind.Refund or SupplierLedgerKind.AccountReceipt => 3, _ => 0
+    };
 }
 
 public class SupplierStatementVm
@@ -270,8 +291,9 @@ public class SupplierPayFormModel
     [Display(Name = "الخزنة")]
     public Guid? SafeId { get; set; }
 
-    [Required][DataType(DataType.Date)][Display(Name = "تاريخ الدفع")]
-    public DateTime PaidDate { get; set; } = DateTime.Today;
+    /// <summary>Date + time of the document, entered by the user (default: now) — auto-created records take it.</summary>
+    [Required][DataType(DataType.DateTime)][Display(Name = "تاريخ ووقت الدفع")]
+    public DateTime PaidDate { get; set; } = ClientTime.Now;
 
     [Display(Name = "ملاحظات")]
     public string? Description { get; set; }

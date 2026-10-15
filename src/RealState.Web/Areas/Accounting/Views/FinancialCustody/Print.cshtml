@@ -1,0 +1,79 @@
+@model FinancialCustodyDetailsVm
+@{
+    Layout = null;
+    var c = Model.Custody;
+    string N(decimal v) => v.ToString("N2", RealState.Web.AppCulture.Ar);
+    string D(DateTime? d) => RealState.Web.AppCulture.When(d);   // date + time when it has one
+}
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="utf-8" />
+    <title>كشف عهدة مالية FC-@c.Number</title>
+    <style>
+        body { font-family: "Segoe UI", Tahoma, sans-serif; padding: 24px; color: #111; }
+        h1 { font-size: 19px; text-align: center; margin: 4px 0; }
+        .sub { text-align: center; color: #666; font-size: 12px; margin-bottom: 14px; }
+        .info { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 14px; }
+        .info td { padding: 4px 8px; }
+        .info td.k { color: #555; width: 16%; }
+        table.mv { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+        .mv th, .mv td { border: 1px solid #ccc; padding: 6px 8px; text-align: start; unicode-bidi: plaintext; }
+        .mv th { background: #f2f2f2; }
+        .mv tfoot td { font-weight: 700; background: #fafafa; }
+        .totals { display: flex; gap: 12px; justify-content: space-between; margin: 14px 0; font-size: 13px; }
+        .totals div { flex: 1; border: 1px solid #ccc; border-radius: 6px; padding: 8px; text-align: center; }
+        .signs { display: flex; justify-content: space-between; gap: 24px; margin-top: 40px; font-size: 13px; }
+        .signs div { flex: 1; text-align: center; }
+        .signs .line { border-top: 1px solid #555; margin-top: 46px; padding-top: 4px; }
+        .no-print { margin-bottom: 12px; } @@media print { .no-print { display: none; } }
+    </style>
+</head>
+<body>
+    @await Component.InvokeAsync("ReportBackground", new { part = "open" })
+    <div class="no-print"><button onclick="window.print()">🖨 طباعة / حفظ PDF</button></div>
+    <h1>كشف وتسوية عهدة مالية</h1>
+    <div class="sub">رقم العهدة FC-@c.Number · الحالة: @c.Status.Ar() · تاريخ الطباعة @ClientTime.Now.ToString("yyyy/MM/dd HH:mm")</div>
+
+    <table class="info">
+        <tr><td class="k">صاحب العهدة</td><td>@(Model.Employee?.FullName ?? "—")</td><td class="k">القسم</td><td>@(Model.Department ?? "—")</td></tr>
+        <tr><td class="k">اسم العهدة</td><td>@c.Purpose</td><td class="k">تاريخ العهدة</td><td>@D(c.Date)@(c.ClosedAt is DateTime closed ? $" — أُقفلت {RealState.Web.AppCulture.When(closed)}" : "")</td></tr>
+    </table>
+
+    <table class="mv">
+        <thead><tr><th>التاريخ</th><th>الحركة</th><th>البيان</th><th>البند / المشروع</th><th>الخزنة / السند</th><th>المبلغ</th><th>الرصيد</th></tr></thead>
+        <tbody>
+        @foreach (var m in Model.Movements)
+        {
+            <tr>
+                <td>@D(m.Date)</td>
+                <td>@m.Kind.Ar()</td>
+                <td>@m.Description@(m.ReceiptFileName is null ? "" : " 📎")</td>
+                <td>@(m.Category is null ? "—" : m.Category + (m.Project is null ? "" : " / " + m.Project))</td>
+                <td>@(m.Safe ?? "—")@(m.VoucherSerial is long sn ? $" — سند {sn}" : "")</td>
+                <td>@(m.Increases ? "+" : "−")@N(m.Amount)</td>
+                <td>@N(m.Balance)</td>
+            </tr>
+        }
+        @if (Model.Movements.Count == 0) { <tr><td colspan="7">لا توجد حركات.</td></tr> }
+        </tbody>
+        <tfoot><tr><td colspan="6">الرصيد لدى الموظف</td><td>@N(Model.Balance) ج.م</td></tr></tfoot>
+    </table>
+
+    <div class="totals">
+        <div>المصروف للموظف<br /><strong>@N(Model.Disbursed)</strong></div>
+        <div>المصروفات المعتمدة<br /><strong>@N(Model.Spent)</strong></div>
+        <div>المردود للخزنة<br /><strong>@N(Model.Returned)</strong></div>
+        <div>الرصيد<br /><strong>@N(Model.Balance)</strong></div>
+    </div>
+
+    <div class="signs">
+        <div>صاحب العهدة<div class="line">الاسم والتوقيع</div></div>
+        <div>المحاسب<div class="line">الاسم والتوقيع</div></div>
+        <div>المدير المالي<div class="line">الاعتماد</div></div>
+    </div>
+
+    <script>window.addEventListener('load', function () { setTimeout(function () { window.print(); }, 400); });</script>
+    @await Component.InvokeAsync("ReportBackground", new { part = "close" })
+</body>
+</html>

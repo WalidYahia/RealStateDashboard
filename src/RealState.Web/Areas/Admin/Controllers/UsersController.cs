@@ -118,7 +118,7 @@ public class UsersController : Controller
             FullName = model.DisplayName,          // display "user name" (not a login handle)
             TenantId = model.TenantId,
             IsActive = true,
-            CreatedAt = DateTime.UtcNow
+            CreatedAt = ClientTime.Now
         };
 
         var result = await _userManager.CreateAsync(user, model.Password);

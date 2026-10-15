@@ -5,7 +5,7 @@
     var canEdit = ViewData["CanEdit"] as bool? ?? false;
     var canViewOrders = User.Can(PermissionNames.SuppliersView);
     string N(decimal v) => v.ToString("N2", RealState.Web.AppCulture.Ar);
-    string D(DateTime d) => d.ToString("yyyy/MM/dd", System.Globalization.CultureInfo.InvariantCulture);
+    string D(DateTime d) => RealState.Web.AppCulture.When(d);   // date + time when it has one
     string? F(DateTime? d) => d?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
     string PI(int n) => "PI-" + n;
     string PO(int n) => "PO-" + n.ToString("D4");
@@ -37,32 +37,35 @@
     var projList = ViewBag.Projects as List<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem> ?? new();
     var ordList = ViewBag.Orders as List<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem> ?? new();
     var fFrom = F((DateTime?)ViewBag.From); var fTo = F((DateTime?)ViewBag.To);
+    var payment = ViewBag.Payment as InvoicePaymentType?;
     var filter = FilterBarVm.For(Url.Action("Index"))
         .DateRange(fFrom, fTo, "تاريخ الفاتورة")
         .Select("supplierId", "المورد", supList, supId)
         .Select("projectId", "المشروع", projList, projId)
         .Select("orderId", "أمر التوريد", ordList, ordId)
-        .Print(Url.Action("PrintList", new { from = fFrom, to = fTo, supplierId = supId, projectId = projId, orderId = ordId }));
+        .Select("payment", "طريقة الدفع", ArabicLabels.InvoicePaymentTypeOptions(payment), payment?.ToString())
+        .Print(Url.Action("PrintList", new { from = fFrom, to = fTo, supplierId = supId, projectId = projId, orderId = ordId, payment }));
 }
 <partial name="_FilterBar" model="filter" />
 
 <div class="card-tile">
     <div class="card-head">
         <h3>الفواتير</h3>
-        <span class="pill">الفواتير: <span data-live-count="#invTable">@Model.Count</span> · الإجمالي: <span data-live-sum="#invTable:5">@N(total)</span> ج.م · المتبقي: <span data-live-sum="#invTable:8">@N(remaining)</span> ج.م</span>
+        <span class="pill">الفواتير: <span data-live-count="#invTable">@Model.Count</span> · الإجمالي: <span data-live-sum="#invTable:6">@N(total)</span> ج.م · المتبقي: <span data-live-sum="#invTable:9">@N(remaining)</span> ج.م</span>
     </div>
     <div class="list-search-bar"><input class="form-control list-search" data-target="#invTable" placeholder="🔍 بحث في القائمة..." /></div>
     <table class="rs-table" id="invTable">
         <thead>
-            <tr><th>الرقم</th><th>التاريخ</th><th>المورد</th><th>المشروع</th><th>أمر التوريد</th><th>الإجمالي</th><th>المرتجعات</th><th>المسدَّد</th><th>المتبقي</th><th></th></tr>
+            <tr><th>الرقم</th><th>التاريخ</th><th>المورد</th><th>الدفع</th><th>المشروع</th><th>أمر التوريد</th><th>الإجمالي</th><th>المرتجعات</th><th>المسدَّد</th><th>المتبقي</th><th></th></tr>
         </thead>
         <tbody>
         @foreach (var i in Model)
         {
             <tr>
                 <td style="white-space:nowrap;"><a asp-action="Details" asp-route-id="@i.Id" dir="ltr" style="color:var(--series-1);text-decoration:none;font-weight:600;">@PI(i.Number)</a></td>
-                <td dir="ltr" style="text-align:right;">@D(i.InvoiceDate)</td>
+                <td dir="ltr" style="text-align:right;">@RealState.Web.AppCulture.When(i.InvoiceDate)</td>
                 <td>@i.Supplier</td>
+                <td><span class="badge-state @i.PaymentType.BadgeClass()">@i.PaymentType.Ar()</span></td>
                 <td>@i.Project</td>
                 <td style="white-space:nowrap;">
                     @if (i.OrderId.HasValue && i.OrderNumber.HasValue && canViewOrders)
@@ -93,9 +96,9 @@
         }
         @if (Model.Count == 0)
         {
-            <tr data-skip-search><td colspan="10" style="color:var(--muted)">لا توجد فواتير مشتريات.</td></tr>
+            <tr data-skip-search><td colspan="11" style="color:var(--muted)">لا توجد فواتير مشتريات.</td></tr>
         }
-        <tr data-no-results data-skip-search style="display:none;"><td colspan="10" style="color:var(--muted)">لا توجد نتائج مطابقة للبحث.</td></tr>
+        <tr data-no-results data-skip-search style="display:none;"><td colspan="11" style="color:var(--muted)">لا توجد نتائج مطابقة للبحث.</td></tr>
         </tbody>
     </table>
 </div>

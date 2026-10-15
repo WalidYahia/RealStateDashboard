@@ -90,7 +90,7 @@ public class OrdersController : Controller
         if (id is null)
             return PartialView("_OrderForm", await FillAsync(new OrderFormModel
             {
-                Number = await NextNumberAsync(DateTime.Today.Year, ct),
+                Number = await NextNumberAsync(ClientTime.Today.Year, ct),
                 Items = { new DocItemInput() }
             }, ct));
 
@@ -172,6 +172,7 @@ public class OrdersController : Controller
                 }
             }
             _db.SupplierOrderItems.RemoveRange(await _db.SupplierOrderItems.Where(i => i.SupplierOrderId == order.Id).ToListAsync(ct));
+            order.UpdatedAt = ClientTime.Now;   // only the lines changed — the document still counts as updated (LastUpdateTime)
         }
 
         order.OrderDate = model.OrderDate;

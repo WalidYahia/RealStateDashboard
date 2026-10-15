@@ -2,8 +2,8 @@
 @{
     Layout = null;
     var tenantId = (Guid)ViewBag.TenantId;
-    string D(DateTime? d) => d?.ToString("yyyy/MM/dd", System.Globalization.CultureInfo.InvariantCulture) ?? "—";
-    string DT(DateTime? d) => d?.ToString("yyyy/MM/dd HH:mm", System.Globalization.CultureInfo.InvariantCulture) ?? "—";
+    string D(DateTime? d) => RealState.Web.AppCulture.When(d);   // date + time when it has one
+    string DT(DateTime? d) => RealState.Web.AppCulture.When(d);
 }
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -32,7 +32,7 @@
     <h1>قائمة المهام@(Model.WithLog ? " — مع سجل المهام" : "")</h1>
     <div class="sub">
         @if (Model.From.HasValue || Model.To.HasValue) { <text>الفترة @D(Model.From) — @D(Model.To) · </text> }
-        العدد: @Model.Rows.Count · طُبع @DateTime.Now.ToString("yyyy/MM/dd HH:mm")
+        العدد: @Model.Rows.Count · طُبع @ClientTime.Now.ToString("yyyy/MM/dd HH:mm")
     </div>
 
     @if (!Model.WithLog)

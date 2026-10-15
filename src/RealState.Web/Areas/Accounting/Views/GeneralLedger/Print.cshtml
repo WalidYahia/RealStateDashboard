@@ -6,7 +6,7 @@
 @{
     Layout = null;
     string N(decimal v) => v.ToString("N2", RealState.Web.AppCulture.Ar);
-    string D(DateTime d) => d.ToString("yyyy/MM/dd", System.Globalization.CultureInfo.InvariantCulture);
+    string D(DateTime d) => RealState.Web.AppCulture.When(d);   // entries carry date + time
     var side = Model.IsDebitNormal ? "مدين" : "دائن";
     var title = Model.IsAll ? "دفتر اليومية — كل الحسابات" : $"دفتر الأستاذ — {Model.AccountCode} {Model.AccountName}";
     var preBalance = 5 + (Model.IsGroup ? 1 : 0);   // date, number, [account], statement, debit, credit
@@ -35,7 +35,7 @@
     <div class="sub">
         @if (Model.From.HasValue || Model.To.HasValue) { <text>الفترة @D(Model.From ?? DateTime.MinValue) — @D(Model.To ?? DateTime.MaxValue) · </text> }
         @if (!Model.IsAll) { <text>الطبيعة: @side@(Model.IsGroup ? " · شامل الحسابات الفرعية" : "") · </text> }
-        طُبع @DateTime.Now.ToString("yyyy/MM/dd HH:mm")
+        طُبع @ClientTime.Now.ToString("yyyy/MM/dd HH:mm")
     </div>
 
     @if (Model.IsAll)

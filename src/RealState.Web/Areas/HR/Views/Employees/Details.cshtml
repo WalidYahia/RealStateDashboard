@@ -4,7 +4,7 @@
     var canManage = ViewData["CanManage"] as bool? ?? false;
     var attachments = ViewBag.Attachments as List<EmployeeAttachment> ?? new();
     string N(decimal v) => v.ToString("N0", RealState.Web.AppCulture.Ar);
-    string D(DateTime? d) => d?.ToString("yyyy/MM/dd") ?? "—";
+    string D(DateTime? d) => RealState.Web.AppCulture.When(d);   // date + time when it has one
     string YN(bool b) => b ? "نعم" : "لا";
 }
 <div class="page-head">
@@ -83,6 +83,81 @@
         <p style="color:var(--muted);">لا يوجد حساب دخول مرتبط بهذا الموظف.</p>
     }
 </div>
+
+@{
+    var finCustodies = ViewBag.FinancialCustodies as List<RealState.Web.Areas.Accounting.Models.FinancialCustodyRow>;
+    var matCustodies = ViewBag.MaterialCustodies as List<RealState.Web.Areas.Accounting.Models.MaterialCustodyRow>;
+    string N2(decimal v) => v.ToString("N2", RealState.Web.AppCulture.Ar);
+    const string Link = "color:var(--series-1);font-weight:600;text-decoration:none;";
+}
+@if (finCustodies is not null || matCustodies is not null)
+{
+    <div class="card-tile" style="margin-bottom:16px;">
+        <div class="card-head">
+            <h3>العُهد</h3>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                @if (finCustodies is not null)
+                {
+                    var openBalance = finCustodies.Where(c => c.Status == FinancialCustodyStatus.Open).Sum(c => c.Balance);
+                    <span class="pill">رصيد العُهد المالية المفتوحة: @N2(openBalance) ج.م</span>
+                }
+                @if (matCustodies is not null)
+                {
+                    <span class="pill">عُهد عينية لدى الموظف: @matCustodies.Count(c => c.Status == MaterialCustodyStatus.HandedOver)</span>
+                }
+            </div>
+        </div>
+
+        @if (finCustodies is not null)
+        {
+            <h4 class="emp-custody-title">العُهد المالية</h4>
+            <table class="rs-table">
+                <thead><tr><th>الرقم</th><th>اسم العهدة</th><th>التاريخ</th><th>المصروف للموظف</th><th>المصروفات المعتمدة</th><th>المردود</th><th>الرصيد</th><th>الحالة</th></tr></thead>
+                <tbody>
+                @foreach (var c in finCustodies)
+                {
+                    <tr>
+                        <td dir="ltr" style="text-align:right;white-space:nowrap;"><a asp-area="Accounting" asp-controller="FinancialCustody" asp-action="Details" asp-route-id="@c.Id" style="@Link">FC-@c.Number</a></td>
+                        <td>@c.Purpose</td>
+                        <td dir="ltr" style="text-align:right;">@D(c.Date)</td>
+                        <td>@N2(c.Disbursed)</td>
+                        <td>@N2(c.Spent)</td>
+                        <td>@N2(c.Returned)</td>
+                        <td style="font-weight:700;white-space:nowrap;color:@(c.Balance < 0 ? "var(--critical)" : c.Balance > 0 ? "var(--warning)" : "var(--good)");">@N2(c.Balance)</td>
+                        <td><span class="badge-state @c.Status.BadgeClass()">@c.Status.Ar()</span></td>
+                    </tr>
+                }
+                @if (finCustodies.Count == 0) { <tr><td colspan="8" style="color:var(--muted)">لا توجد عُهد مالية لهذا الموظف.</td></tr> }
+                </tbody>
+            </table>
+        }
+
+        @if (matCustodies is not null)
+        {
+            <h4 class="emp-custody-title">العُهد العينية</h4>
+            <table class="rs-table">
+                <thead><tr><th>الرقم</th><th>الصنف</th><th>النوع</th><th>الرقم التسلسلي</th><th>الكمية</th><th>التسليم</th><th>الإرجاع المتوقع</th><th>الاستلام</th><th>الحالة</th></tr></thead>
+                <tbody>
+                @foreach (var c in matCustodies)
+                {
+                    <tr>
+                        <td dir="ltr" style="text-align:right;white-space:nowrap;"><a asp-area="Accounting" asp-controller="MaterialCustody" asp-action="Details" asp-route-id="@c.Id" style="@Link">MC-@c.Number</a></td>
+                        <td>@c.ItemName</td>
+                        <td>@(c.ItemType ?? "—")</td>
+                        <td dir="ltr" style="text-align:right;">@(c.SerialNumber ?? "—")</td>
+                        <td>@c.Quantity</td>
+                        <td dir="ltr" style="text-align:right;">@D(c.HandoverDate)</td>
+                        <td dir="ltr" style="text-align:right;@(c.IsOverdue ? "color:var(--critical);font-weight:700;" : "")">@D(c.ExpectedReturnDate)@(c.IsOverdue ? " ⚠" : "")</td>
+                        <td dir="ltr" style="text-align:right;">@D(c.ReturnDate)</td>
+                        <td><span class="badge-state @c.Status.BadgeClass()">@c.Status.Ar()</span></td>
+                    </tr>
+                }
+                @if (matCustodies.Count == 0) { <tr><td colspan="9" style="color:var(--muted)">لا توجد عُهد عينية لهذا الموظف.</td></tr> }
+                </tbody>
+            </table>
+        }
+    </div>
+}
 
 <div class="card-tile">
     <div class="card-head"><h3>المرفقات</h3></div>

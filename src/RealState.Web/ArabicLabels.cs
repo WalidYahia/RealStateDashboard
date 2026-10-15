@@ -244,7 +244,62 @@ public static class ArabicLabels
         TxnSource.SalesInvoiceCollection => "تحصيل فاتورة مبيعات",
         TxnSource.SalesReturnRefund => "رد نقدية مرتجع مبيعات",
         TxnSource.PurchaseReturnRefund => "استرداد نقدية مرتجع مشتريات",
+        TxnSource.CustodyDisbursement => "صرف عهدة مالية",
+        TxnSource.CustodyReturn => "رد نقدية عهدة مالية",
+        TxnSource.FixedAssetPurchase => "شراء أصل ثابت",
+        TxnSource.FixedAssetSale => "بيع أصل ثابت",
+        TxnSource.CustomerAccount => "حساب عميل",
+        TxnSource.SupplierAccount => "حساب مورد",
         _ => s.ToString()
+    };
+
+    // ----- Invoices: نقدي / آجل -----
+    public static string Ar(this InvoicePaymentType t) => t == InvoicePaymentType.Cash ? "نقدي" : "آجل";
+    public static string BadgeClass(this InvoicePaymentType t) => t == InvoicePaymentType.Cash ? "state-on" : "state-warn";
+    public static List<SelectListItem> InvoicePaymentTypeOptions(InvoicePaymentType? selected) => new()
+    {
+        new("نقدي", "Cash", selected == InvoicePaymentType.Cash),
+        new("آجل", "Credit", selected == InvoicePaymentType.Credit),
+    };
+
+    // ----- Custodies (العُهد) -----
+    public static string Ar(this MaterialCustodyStatus s) => s switch
+    {
+        MaterialCustodyStatus.HandedOver => "لدى الموظف",
+        MaterialCustodyStatus.Returned => "مُستلمة",
+        MaterialCustodyStatus.Damaged => "تالفة",
+        MaterialCustodyStatus.Lost => "مفقودة",
+        MaterialCustodyStatus.Transferred => "حُوِّلت لموظف آخر",
+        MaterialCustodyStatus.Cancelled => "أُلغيت",
+        _ => s.ToString()
+    };
+
+    public static string BadgeClass(this MaterialCustodyStatus s) => s switch
+    {
+        MaterialCustodyStatus.HandedOver => "state-warn",
+        MaterialCustodyStatus.Returned or MaterialCustodyStatus.Transferred => "state-on",
+        MaterialCustodyStatus.Cancelled => "badge-role",
+        _ => "state-off"
+    };
+
+    /// <summary>Statuses a custody can be received back in: مُستلمة / تالفة / مفقودة.</summary>
+    public static List<SelectListItem> MaterialCustodyReturnOptions(MaterialCustodyStatus? s = null) =>
+        Options<MaterialCustodyStatus>(Ar, s).Where(o => o.Value is "1" or "2" or "3").ToList();
+
+    public static List<SelectListItem> MaterialCustodyStatusOptions(MaterialCustodyStatus? s = null) => Options<MaterialCustodyStatus>(Ar, s);
+
+    public static string Ar(this AssetAcquisitionMethod m) => m == AssetAcquisitionMethod.Cash ? "شراء نقدي من خزنة" : "رصيد افتتاحي (أصل مملوك)";
+
+    public static string Ar(this FinancialCustodyStatus s) => s == FinancialCustodyStatus.Closed ? "مُقفلة" : "مفتوحة";
+    public static string BadgeClass(this FinancialCustodyStatus s) => s == FinancialCustodyStatus.Closed ? "state-on" : "state-warn";
+    public static List<SelectListItem> FinancialCustodyStatusOptions(FinancialCustodyStatus? s = null) => Options<FinancialCustodyStatus>(Ar, s);
+
+    public static string Ar(this CustodyMovementKind k) => k switch
+    {
+        CustodyMovementKind.Disbursement => "صرف للموظف",
+        CustodyMovementKind.Expense => "مصروف مُعتمد",
+        CustodyMovementKind.Return => "رد نقدية للخزنة",
+        _ => k.ToString()
     };
 
     public static string Ar(this SafeType t) => t switch

@@ -1,0 +1,100 @@
+@model DepreciationVm
+@{
+    ViewData["Title"] = "إهلاك الأصول الثابتة";
+    var canRun = ViewData["CanRun"] as bool? ?? false;
+    string N(decimal v) => v.ToString("N2", RealState.Web.AppCulture.Ar);
+    var month = Model.Period.ToString("yyyy-MM");
+}
+<div class="page-head">
+    <h1>إهلاك الأصول الثابتة</h1>
+    <a class="btn-sm" asp-controller="FixedAssets" asp-action="Index">📦 الأصول الثابتة</a>
+</div>
+
+@if (TempData["StatusMessage"] is string msg)
+{
+    <div class="status-message">@msg</div>
+}
+
+<div class="card-tile">
+    <div class="card-head">
+        <h3>احتساب الإهلاك حتى شهر</h3>
+        <form method="get" asp-action="Index" class="dep-month">
+            <input type="month" name="month" value="@month" class="form-control" dir="ltr" data-dep-month />
+            <input type="hidden" name="period" value="@Model.Period.ToString("yyyy-MM-dd")" />
+        </form>
+    </div>
+    <p style="color:var(--muted);font-size:13px;margin-top:0;">
+        قسط ثابت شهري لكل أصل: (التكلفة − القيمة التخريدية − الإهلاك السابق) ÷ العمر الإنتاجي. يُرحَّل كل شهر مستحق حتى الشهر المختار (بما فيها الأشهر الفائتة) بقيد لكل أصل:
+        من ح/ مصروف الإهلاك إلى ح/ مجمع الإهلاك.
+        @if (Model.SkippedUnposted > 0) { <span style="color:var(--warning);">@Model.SkippedUnposted أصل لا يُهلك الآن (غير مُرحَّل محاسبيًا أو بلا تاريخ بداية).</span> }
+    </p>
+    <table class="rs-table">
+        <thead><tr><th>الأصل</th><th>الفئة</th><th>الأشهر المستحقة</th><th>الإهلاك</th><th>القيمة الدفترية بعد الترحيل</th></tr></thead>
+        <tbody>
+        @foreach (var d in Model.Due)
+        {
+            <tr>
+                <td><a asp-controller="FixedAssets" asp-action="Details" asp-route-id="@d.AssetId" style="color:var(--series-1);font-weight:600;text-decoration:none;" dir="ltr">FA-@d.Number</a> — @d.Name</td>
+                <td>@(d.Category ?? "—")</td>
+                <td>@d.Months</td>
+                <td>@N(d.Amount)</td>
+                <td>@N(d.BookValueAfter)</td>
+            </tr>
+        }
+        @if (Model.Due.Count == 0) { <tr><td colspan="5" style="color:var(--muted)">لا يوجد إهلاك مستحق حتى @Model.Period.ToString("yyyy/MM").</td></tr> }
+        </tbody>
+        @if (Model.Due.Count > 0)
+        {
+            <tfoot><tr><td colspan="3" style="font-weight:700;">الإجمالي</td><td style="font-weight:800;">@N(Model.DueTotal) ج.م</td><td></td></tr></tfoot>
+        }
+    </table>
+    @if (canRun && Model.Due.Count > 0)
+    {
+        <form asp-action="Run" method="post" style="margin-top:12px;" data-confirm="ترحيل إهلاك @Model.Due.Count أصل حتى @Model.Period.ToString("yyyy/MM") بإجمالي @N(Model.DueTotal) ج.م؟">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="period" value="@Model.Period.ToString("yyyy-MM-dd")" />
+            <button type="submit" class="btn-primary" style="width:auto;">📉 ترحيل الإهلاك</button>
+        </form>
+    }
+</div>
+
+<div class="card-tile" style="margin-top:16px;">
+    <div class="card-head">
+        <h3>الأشهر المُرحَّلة</h3>
+        @if (canRun && Model.LastPostedPeriod is DateTime last)
+        {
+            <form asp-action="UndoLast" method="post" data-confirm="إلغاء إهلاك شهر @last.ToString("yyyy/MM") لكل الأصول وعكس قيوده؟" data-danger>
+                @Html.AntiForgeryToken()<button type="submit" class="btn-sm btn-danger">↺ إلغاء آخر شهر (@last.ToString("yyyy/MM"))</button>
+            </form>
+        }
+    </div>
+    <table class="rs-table">
+        <thead><tr><th>الشهر</th><th>عدد الأصول</th><th>إجمالي الإهلاك</th></tr></thead>
+        <tbody>
+        @foreach (var h in Model.History)
+        {
+            <tr><td dir="ltr" style="text-align:right;">@h.Period.ToString("yyyy/MM")</td><td>@h.Assets</td><td>@N(h.Amount)</td></tr>
+        }
+        @if (Model.History.Count == 0) { <tr><td colspan="3" style="color:var(--muted)">لم يُرحَّل إهلاك بعد.</td></tr> }
+        </tbody>
+    </table>
+</div>
+
+@section Scripts {
+    <script>
+        // Reload for the picked month once the user stops changing it: typing / scrolling the month or year fires
+        // «change» per segment, and submitting on each one aborted the previous request mid-query.
+        (function () {
+            var input = document.querySelector('[data-dep-month]'), timer;
+            if (!input) return;
+            input.addEventListener('change', function () {
+                clearTimeout(timer);
+                if (!/^\d{4}-\d{2}$/.test(input.value)) return;
+                timer = setTimeout(function () {
+                    input.form.period.value = input.value + '-01';
+                    input.form.submit();
+                }, 700);
+            });
+        })();
+    </script>
+}

@@ -74,7 +74,7 @@ public class InventoryReportsController : Controller
         var headers = new[] { "الكود", "الصنف", "المخزن", "الكمية (الوحدة الصغرى)", "الوحدة", "بالوحدات", "متوسط التكلفة للوحدة الصغرى", "القيمة" };
         var rows = vm.Rows.Select(r => (IReadOnlyList<object?>)new object?[] { r.Sku, r.Product, r.Warehouse, r.Quantity, r.Unit, r.Breakdown, r.AvgCost, r.Value });
         var totals = new object?[] { "الإجمالي", null, null, null, null, null, null, vm.TotalValue };
-        return RealState.Web.Common.Xlsx.File($"أرصدة المخزون {DateTime.Now:yyyy-MM-dd}.xlsx", "أرصدة المخزون", headers, rows, totals);
+        return RealState.Web.Common.Xlsx.File($"أرصدة المخزون {ClientTime.Now:yyyy-MM-dd}.xlsx", "أرصدة المخزون", headers, rows, totals);
     }
 
     [HttpGet]
@@ -86,7 +86,7 @@ public class InventoryReportsController : Controller
     {
         var vm = await BuildBalanceAsync(asOf, true, ct);
         var (h, rows, totals) = BalanceExport(vm);
-        return RealState.Web.Common.Xlsx.File($"تقييم المخزون {DateTime.Now:yyyy-MM-dd}.xlsx", "تقييم المخزون", h, rows, totals);
+        return RealState.Web.Common.Xlsx.File($"تقييم المخزون {ClientTime.Now:yyyy-MM-dd}.xlsx", "تقييم المخزون", h, rows, totals);
     }
 
     [HttpGet]
@@ -109,7 +109,7 @@ public class InventoryReportsController : Controller
 
     private async Task<StockBalanceVm> BuildBalanceAsync(DateTime? asOf, bool byProductOnly, CancellationToken ct)
     {
-        var cutoff = (asOf ?? DateTime.Today).Date;
+        var cutoff = (asOf ?? ClientTime.Today).Date;
         var moves = await _db.InventoryMovements.Where(m => m.Date < cutoff.AddDays(1))
             .GroupBy(m => new { m.ProductId, m.WarehouseId })
             .Select(g => new
@@ -165,7 +165,7 @@ public class InventoryReportsController : Controller
         var headers = new[] { "التاريخ", "النوع", "المرجع", "الصنف", "المخزن", "الوحدة", "وارد", "منصرف" };
         var rows = vm.Rows.Select(r => (IReadOnlyList<object?>)new object?[] { r.Date.ToString("yyyy-MM-dd"), r.TypeAr, r.Reference, r.Product, r.Warehouse, r.Unit, r.In, r.Out });
         var totals = new object?[] { "الإجمالي", null, null, null, null, null, null, null };
-        return RealState.Web.Common.Xlsx.File($"حركة المخزون {DateTime.Now:yyyy-MM-dd}.xlsx", "حركة المخزون", headers, rows, totals);
+        return RealState.Web.Common.Xlsx.File($"حركة المخزون {ClientTime.Now:yyyy-MM-dd}.xlsx", "حركة المخزون", headers, rows, totals);
     }
 
     // ---------------- Stock Card ----------------
@@ -191,7 +191,7 @@ public class InventoryReportsController : Controller
     public async Task<IActionResult> StockCardExcel(Guid? productId, Guid? warehouseId, DateTime? from, DateTime? to, CancellationToken ct)
     {
         var (h, rows, totals) = await StockCardExportAsync(productId, warehouseId, from, to, ct);
-        return RealState.Web.Common.Xlsx.File($"بطاقة الصنف {DateTime.Now:yyyy-MM-dd}.xlsx", "بطاقة الصنف", h, rows, totals);
+        return RealState.Web.Common.Xlsx.File($"بطاقة الصنف {ClientTime.Now:yyyy-MM-dd}.xlsx", "بطاقة الصنف", h, rows, totals);
     }
 
     [HttpGet]
@@ -263,7 +263,7 @@ public class InventoryReportsController : Controller
     {
         if (!IsTabRequest) return Tab("reconciliation", "", new());
         await _engine.EnsureDefaultsAsync(ct);
-        var cutoff = (asOf ?? DateTime.Today).Date;
+        var cutoff = (asOf ?? ClientTime.Today).Date;
         var profile = await _db.InventoryPostingProfiles.FirstAsync(ct);
 
         var subledger = await _db.InventoryMovements.Where(m => m.Date < cutoff.AddDays(1))
@@ -281,9 +281,11 @@ public class InventoryReportsController : Controller
             void Collect(Guid id) { if (ids.Add(id)) foreach (var c in byParent[id]) Collect(c.Id); }
             Collect(acc.Id);
 
+            var cutoffEnd = ClientTime.DayRange(null, cutoff).To!.Value;   // [start, end) of the picked day
+
             gl = await (from l in _db.JournalLines
                         join e in _db.JournalEntries on l.JournalEntryId equals e.Id
-                        where ids.Contains(l.AccountId) && e.Date < cutoff.AddDays(1)
+                        where ids.Contains(l.AccountId) && e.Date < cutoffEnd
                         select (decimal?)(l.Debit - l.Credit)).SumAsync(ct) ?? 0m;
         }
 

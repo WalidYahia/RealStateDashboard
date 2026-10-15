@@ -29,20 +29,22 @@ public class PurchaseInvoicesController : Controller
     private readonly ICurrentUserService _currentUser;
     private readonly IAccountingService _accounting;
     private readonly IInventoryEngine _inventory;
+    private readonly ISafeBalanceGuard _guard;
 
     public PurchaseInvoicesController(IApplicationDbContext db, ICurrentUserService currentUser,
-        IAccountingService accounting, IInventoryEngine inventory)
+        IAccountingService accounting, IInventoryEngine inventory, ISafeBalanceGuard guard)
     {
         _db = db;
         _currentUser = currentUser;
         _accounting = accounting;
         _inventory = inventory;
+        _guard = guard;
     }
 
     private bool Can(string permission) => User.HasClaim("permission", permission);
 
     // ---------- Invoices list ----------
-    public async Task<IActionResult> Index(DateTime? from, DateTime? to, Guid? supplierId, Guid? projectId, Guid? orderId, CancellationToken ct)
+    public async Task<IActionResult> Index(DateTime? from, DateTime? to, Guid? supplierId, Guid? projectId, Guid? orderId, InvoicePaymentType? payment, CancellationToken ct)
     {
         (from, to) = DateFilterDefaults.TodayIfFresh(Request, from, to);
         ViewData["CanCreate"] = Can(PermissionNames.PurchaseInvoicesCreate);
@@ -52,21 +54,24 @@ public class PurchaseInvoicesController : Controller
         ViewBag.SupplierId = supplierId;
         ViewBag.ProjectId = projectId;
         ViewBag.OrderId = orderId;
+        ViewBag.Payment = payment;
         ViewBag.Suppliers = await SuppliersAsync(_db, ct);
         ViewBag.Projects = await ProjectsAsync(_db, ct);
         ViewBag.Orders = await OrdersAsync(_db, ct);
-        return View(await BuildRowsAsync(ct, from, to, supplierId, projectId, orderId));
+        return View(await BuildRowsAsync(ct, from, to, supplierId, projectId, orderId, payment));
     }
 
     private async Task<List<InvoiceListItem>> BuildRowsAsync(CancellationToken ct, DateTime? from = null, DateTime? to = null,
-        Guid? supplierId = null, Guid? projectId = null, Guid? orderId = null)
+        Guid? supplierId = null, Guid? projectId = null, Guid? orderId = null, InvoicePaymentType? payment = null)
     {
         var q = _db.PurchaseInvoices.AsQueryable();
-        if (from.HasValue) q = q.Where(i => i.InvoiceDate >= from.Value.Date);
-        if (to.HasValue) q = q.Where(i => i.InvoiceDate < to.Value.Date.AddDays(1));
+        var (fromAt, toAt) = ClientTime.DayRange(from, to);   // [from, to) of the picked days
+        if (fromAt.HasValue) q = q.Where(i => i.InvoiceDate >= fromAt.Value);
+        if (toAt.HasValue) q = q.Where(i => i.InvoiceDate < toAt.Value);
         if (supplierId.HasValue) q = q.Where(i => i.SupplierId == supplierId.Value);
         if (projectId.HasValue) q = q.Where(i => i.ProjectId == projectId.Value);
         if (orderId.HasValue) q = q.Where(i => i.PurchaseOrderId == orderId.Value);
+        if (payment.HasValue) q = q.Where(i => i.PaymentType == payment.Value);
         var invoices = await q.OrderByDescending(i => i.Number).ToListAsync(ct);
         var ids = invoices.Select(i => i.Id).ToList();
         var supNames = await _db.Suppliers.ToDictionaryAsync(s => s.Id, s => s.Name, ct);
@@ -89,6 +94,7 @@ public class PurchaseInvoicesController : Controller
                 Number = i.Number,
                 InvoiceDate = i.InvoiceDate,
                 Supplier = supNames.GetValueOrDefault(i.SupplierId, "—"),
+                PaymentType = i.PaymentType,
                 Project = i.ProjectId.HasValue ? projNames.GetValueOrDefault(i.ProjectId.Value, "—") : "—",
                 OrderId = i.PurchaseOrderId,
                 OrderNumber = i.PurchaseOrderId.HasValue && orderNumbers.TryGetValue(i.PurchaseOrderId.Value, out var n) ? n : null,
@@ -110,7 +116,7 @@ public class PurchaseInvoicesController : Controller
         {
             var model = new InvoiceFormModel
             {
-                Number = await NextNumberAsync(DateTime.Today.Year, ct),
+                Number = await NextNumberAsync(ClientTime.Today.Year, ct),
                 WarehouseId = await _db.Warehouses.Where(w => w.IsDefault && w.IsActive).Select(w => (Guid?)w.Id).FirstOrDefaultAsync(ct)
             };
             // Opened from an order: pre-select it and copy its product lines + project.
@@ -142,6 +148,8 @@ public class PurchaseInvoicesController : Controller
             WarehouseId = inv.WarehouseId,
             InvoiceDate = inv.InvoiceDate,
             Notes = inv.Notes,
+            PaymentType = inv.PaymentType,
+            CashSafeId = inv.CashSafeId,
             Items = items.Select(i => new DocItemInput { ProductId = i.ProductId, Cost = i.Cost, Quantity = i.Quantity, UnitLevel = i.UnitLevel }).ToList()
         }, ct));
     }
@@ -160,6 +168,7 @@ public class PurchaseInvoicesController : Controller
         var total = items.Sum(i => i.LineTotal);
         var units = await ProductUnits.LoadAsync(_db, productIds, ct);   // each line's unit + its factor to the smallest unit
         decimal BaseQty(DocItemInput i) => i.Quantity * ResolveUnit(units, i.ProductId!.Value, i.UnitLevel).Factor;
+        if (model.InvoiceDate.Date > ClientTime.Today) ModelState.AddModelError(nameof(model.InvoiceDate), "لا يمكن إصدار فاتورة بتاريخ مستقبلي.");
 
         if (items.Count == 0) ModelState.AddModelError(string.Empty, "أضف صنفًا واحدًا على الأقل.");
         if (items.Any(i => i.Cost <= 0)) ModelState.AddModelError(string.Empty, "أدخل تكلفة الوحدة (أكبر من صفر) لكل صنف.");
@@ -171,6 +180,19 @@ public class PurchaseInvoicesController : Controller
             ModelState.AddModelError(nameof(model.WarehouseId), "اختر المخزن الذي تُستلم فيه الأصناف المخزنية.");
         if (model.SupplierId is null || !await _db.Suppliers.AnyAsync(s => s.Id == model.SupplierId, ct))
             ModelState.AddModelError(nameof(model.SupplierId), "المورد غير موجود.");
+
+        // نقدي / آجل: a cash invoice is paid in full from a safe on save (needs the supplier-pay permission); the
+        // built-in «مورد نقدي» sells for cash only.
+        var cashSupplierId = await CashSupplierIdAsync(ct);
+        if (model.PaymentType == InvoicePaymentType.Cash)
+        {
+            if (!Can(PermissionNames.SuppliersPay))
+                ModelState.AddModelError(nameof(model.PaymentType), "لا تملك صلاحية السداد للموردين — لا يمكن إصدار فاتورة نقدية.");
+            if (model.CashSafeId is null || !await _db.Safes.AnyAsync(s => s.Id == model.CashSafeId && s.IsActive, ct))
+                ModelState.AddModelError(nameof(model.CashSafeId), "اختر الخزنة التي يُدفع منها ثمن الفاتورة النقدية.");
+        }
+        else if (model.SupplierId is Guid sid && sid == cashSupplierId)
+            ModelState.AddModelError(nameof(model.SupplierId), $"«{CashParties.SupplierName}» للفواتير النقدية فقط — اختر موردًا آخر للفاتورة الآجلة.");
         if (model.ProjectId.HasValue && !await _db.Projects.AnyAsync(p => p.Id == model.ProjectId, ct))
             ModelState.AddModelError(nameof(model.ProjectId), "المشروع غير موجود.");
         if (model.PurchaseOrderId.HasValue)
@@ -210,12 +232,27 @@ public class PurchaseInvoicesController : Controller
             // Returns are tied to the invoice's lines, quantities and costs — editing under them would unbalance them.
             if (await _db.PurchaseReturns.AnyAsync(r => r.PurchaseInvoiceId == inv.Id, ct))
                 ModelState.AddModelError(string.Empty, HasReturnsMessage(inv.Number, "تعديل"));
-            var payments = await _db.SupplierPayments.Where(p => p.PurchaseInvoiceId == inv.Id).ToListAsync(ct);
+            // The automatic payment of a cash invoice follows the invoice; only the other payments bind it.
+            var payments = await _db.SupplierPayments.Where(p => p.PurchaseInvoiceId == inv.Id && !p.IsInvoiceCash).ToListAsync(ct);
             var alreadyPaid = payments.Sum(p => p.Amount);
             if (payments.Count > 0 && model.SupplierId != inv.SupplierId)
                 ModelState.AddModelError(nameof(model.SupplierId), "لا يمكن تغيير مورد فاتورة عليها مدفوعات.");
             if (total < alreadyPaid)
                 ModelState.AddModelError(string.Empty, $"لا يمكن أن يقل إجمالي الفاتورة ({total:N2}) عن المبلغ المسدَّد عليها ({alreadyPaid:N2}).");
+            if (inv.PaymentType == InvoicePaymentType.Cash && model.PaymentType != InvoicePaymentType.Cash && !Can(PermissionNames.SuppliersPay))
+                ModelState.AddModelError(nameof(model.PaymentType), "لا تملك صلاحية السداد للموردين — لا يمكن تحويل الفاتورة النقدية إلى آجلة.");
+        }
+
+        // The cash payment takes money out of a safe: a new / raised / moved one may not overdraw it.
+        if (ModelState.IsValid)
+        {
+            var oldAuto = isNew ? null : await _db.SupplierPayments.AsNoTracking().FirstOrDefaultAsync(p => p.PurchaseInvoiceId == inv!.Id && p.IsInvoiceCash, ct);
+            var manual = isNew ? 0m : await _db.SupplierPayments.Where(p => p.PurchaseInvoiceId == inv!.Id && !p.IsInvoiceCash).SumAsync(p => (decimal?)p.Amount, ct) ?? 0m;
+            var changes = new List<(Guid, decimal)>();
+            if (oldAuto is not null) changes.Add((oldAuto.SafeId, oldAuto.Amount));
+            if (model.PaymentType == InvoicePaymentType.Cash && total - manual > 0) changes.Add((model.CashSafeId!.Value, -(total - manual)));
+            if (await _guard.CheckChangesAsync(changes, ct) is string overdraw)
+                ModelState.AddModelError(nameof(model.CashSafeId), overdraw);
         }
 
         if (!ModelState.IsValid) return PartialView("_InvoiceForm", await FillAsync(model, ct));
@@ -231,14 +268,17 @@ public class PurchaseInvoicesController : Controller
         else
         {
             _db.PurchaseInvoiceItems.RemoveRange(await _db.PurchaseInvoiceItems.Where(i => i.PurchaseInvoiceId == inv.Id).ToListAsync(ct));
+            inv.UpdatedAt = ClientTime.Now;   // only the lines changed — the document still counts as updated (LastUpdateTime)
         }
 
-        inv.InvoiceDate = model.InvoiceDate;
+        inv.InvoiceDate = model.InvoiceDate;   // date + time entered by the user
         inv.SupplierId = model.SupplierId!.Value;
         inv.ProjectId = model.ProjectId;
         inv.PurchaseOrderId = model.PurchaseOrderId;
         inv.WarehouseId = model.WarehouseId;
         inv.Notes = model.Notes;
+        inv.PaymentType = model.PaymentType;
+        inv.CashSafeId = model.PaymentType == InvoicePaymentType.Cash ? model.CashSafeId : null;
         var newItems = items.Select(it =>
         {
             var p = products[it.ProductId!.Value];
@@ -266,6 +306,9 @@ public class PurchaseInvoicesController : Controller
             return PartialView("_InvoiceForm", await FillAsync(model, ct));
         }
 
+        // نقدي: Dr الموردون / Cr الخزنة for what the other payments haven't covered — kept in step with the total.
+        var cashPart = await SyncCashPaymentAsync(inv, total, ct);
+
         try { await _db.SaveChangesAsync(ct); }
         catch (DbUpdateException)
         {
@@ -279,10 +322,65 @@ public class PurchaseInvoicesController : Controller
             _ => ""
         };
         TempData["StatusMessage"] = isNew
-            ? $"تم إنشاء فاتورة المشتريات {PI(inv.Number)} بإجمالي {total:N2} ج.م{receiptPart}."
-            : $"تم تعديل فاتورة المشتريات {PI(inv.Number)}{receiptPart}.";
+            ? $"تم إنشاء فاتورة المشتريات {PI(inv.Number)} ({inv.PaymentType.Ar()}) بإجمالي {total:N2} ج.م{receiptPart}{cashPart}."
+            : $"تم تعديل فاتورة المشتريات {PI(inv.Number)} ({inv.PaymentType.Ar()}){receiptPart}{cashPart}.";
         return Json(new { ok = true, redirect = Url.Action(nameof(Details), new { id = inv.Id }) });
     }
+
+    /// <summary>
+    /// Keeps a cash (نقدي) invoice's automatic payment in step with it: the part of the total the other payments don't
+    /// cover, from the invoice's safe, dated the invoice date. The voucher (and its receipt number) is kept and re-posted
+    /// when it changes; it's removed when the invoice turns آجل or nothing is left to pay. Adds to the unit of work only.
+    /// Returns the phrase for the status message.
+    /// </summary>
+    private async Task<string> SyncCashPaymentAsync(PurchaseInvoice inv, decimal total, CancellationToken ct)
+    {
+        var auto = await _db.SupplierPayments.FirstOrDefaultAsync(p => p.PurchaseInvoiceId == inv.Id && p.IsInvoiceCash, ct);
+        // A supplier payment's voucher is the expense movement carrying its receipt number.
+        var txn = auto is null ? null : await _db.SafeTransactions.FirstOrDefaultAsync(
+            t => t.Type == TxnType.Expense && t.Source == TxnSource.SupplierPayment && t.Serial == auto.ReceiptNo, ct);
+        var manual = await _db.SupplierPayments.Where(p => p.PurchaseInvoiceId == inv.Id && !p.IsInvoiceCash).SumAsync(p => (decimal?)p.Amount, ct) ?? 0m;
+        var amount = inv.PaymentType == InvoicePaymentType.Cash ? total - manual : 0m;
+
+        if (amount <= 0)
+        {
+            if (auto is null) return "";
+            if (txn is not null) await _accounting.RemoveTransactionAsync(txn, ct);
+            _db.SupplierPayments.Remove(auto);
+            return $" — وأُلغي السداد النقدي (سند صرف رقم {auto.ReceiptNo})";
+        }
+
+        var supName = await _db.Suppliers.Where(s => s.Id == inv.SupplierId).Select(s => s.Name).FirstOrDefaultAsync(ct) ?? "—";
+        var desc = $"سداد نقدي لفاتورة المشتريات {PI(inv.Number)} — {supName}";
+        if (auto is null || txn is null)
+        {
+            if (auto is not null) _db.SupplierPayments.Remove(auto);   // a payment that lost its voucher is rebuilt
+            txn = await _accounting.AddTransactionAsync(inv.CashSafeId!.Value, TxnType.Expense, TxnSource.SupplierPayment,
+                amount, inv.InvoiceDate, desc, projectId: inv.ProjectId, supplierId: inv.SupplierId, ct: ct);
+            txn.Description = $"{desc} (إيصال صرف نقدية رقم {txn.Serial:D5})";
+            _db.SupplierPayments.Add(new SupplierPayment
+            {
+                SupplierId = inv.SupplierId, PurchaseInvoiceId = inv.Id, Amount = amount, PaidDate = inv.InvoiceDate,
+                SafeId = inv.CashSafeId.Value, ReceiptNo = txn.Serial, IsInvoiceCash = true, Description = "سداد تلقائي — فاتورة نقدية"
+            });
+            return $" — وسُدِّد نقدًا {amount:N2} ج.م (سند صرف رقم {txn.Serial})";
+        }
+
+        if (auto.Amount == amount && auto.SafeId == inv.CashSafeId && auto.SupplierId == inv.SupplierId && txn.OccurredAt == inv.InvoiceDate
+            && txn.ProjectId == inv.ProjectId)
+            return "";
+        // Same voucher, new amount / safe / date / supplier / project: re-post its entry.
+        txn.Amount = amount; txn.SafeId = inv.CashSafeId!.Value; txn.OccurredAt = inv.InvoiceDate; txn.SupplierId = inv.SupplierId; txn.ProjectId = inv.ProjectId;
+        txn.Description = $"{desc} (إيصال صرف نقدية رقم {txn.Serial:D5})";
+        await _accounting.RemoveObligationAsync("SafeTransaction", txn.Id, ct);
+        await _accounting.PostCashSettlementAsync(txn, projectId: inv.ProjectId, supplierId: inv.SupplierId, ct: ct);
+        auto.Amount = amount; auto.SafeId = inv.CashSafeId.Value; auto.SupplierId = inv.SupplierId; auto.PaidDate = inv.InvoiceDate;
+        return $" — وعُدِّل السداد النقدي إلى {amount:N2} ج.م (سند صرف رقم {txn.Serial})";
+    }
+
+    /// <summary>The tenant's built-in «مورد نقدي».</summary>
+    private Task<Guid?> CashSupplierIdAsync(CancellationToken ct)
+        => _db.Suppliers.Where(s => s.IsDefaultCash).Select(s => (Guid?)s.Id).FirstOrDefaultAsync(ct);
 
     /// <summary>What <see cref="SyncReceiptAsync"/> did: the receipt it posted, the one it reversed, or the one it kept unchanged.</summary>
     private sealed record ReceiptSync(GoodsReceipt? Posted, GoodsReceipt? Reversed, GoodsReceipt? Kept);
@@ -299,7 +397,7 @@ public class PurchaseInvoicesController : Controller
             .FirstOrDefaultAsync(r => r.PurchaseInvoiceId == inv.Id && r.Status == InventoryDocStatus.Posted, ct);
 
         if (current is not null && stockLines.Count > 0
-            && current.WarehouseId == inv.WarehouseId && current.Date.Date == inv.InvoiceDate.Date
+            && current.WarehouseId == inv.WarehouseId && current.Date == inv.InvoiceDate
             && current.Lines.Count == stockLines.Count
             && stockLines.All(l => current.Lines.Any(x => x.ProductId == l.ProductId && x.Quantity == l.Quantity * l.UnitFactor
                                                           && x.TotalCost == l.LineTotal && x.UnitFactor == l.UnitFactor)))
@@ -318,7 +416,7 @@ public class PurchaseInvoicesController : Controller
         var receipt = new GoodsReceipt
         {
             Number = await _inventory.NextNumberAsync(_db.GoodsReceipts.Select(x => x.Number), _db.GoodsReceipts.Local.Select(x => x.Number), inv.InvoiceDate.Year, ct),
-            Date = inv.InvoiceDate,
+            Date = inv.InvoiceDate,   // the invoice's date/time
             WarehouseId = inv.WarehouseId!.Value,
             SupplierId = inv.SupplierId,
             PurchaseInvoiceId = inv.Id,
@@ -343,11 +441,13 @@ public class PurchaseInvoicesController : Controller
     {
         var inv = await _db.PurchaseInvoices.FirstOrDefaultAsync(x => x.Id == id, ct);
         if (inv is null) return NotFound();
-        if (await _db.SupplierPayments.AnyAsync(p => p.PurchaseInvoiceId == id, ct))
+        if (await _db.SupplierPayments.AnyAsync(p => p.PurchaseInvoiceId == id && !p.IsInvoiceCash, ct))
         {
             TempData["ErrorMessage"] = $"لا يمكن حذف فاتورة المشتريات {PI(inv.Number)} لوجود مدفوعات عليها.";
             return RedirectToAction(nameof(Details), new { id });
         }
+        // A cash invoice takes its automatic payment with it (the money goes back into the safe).
+        var cashPayment = await _db.SupplierPayments.FirstOrDefaultAsync(p => p.PurchaseInvoiceId == id && p.IsInvoiceCash, ct);
         if (await _db.PurchaseReturns.AnyAsync(r => r.PurchaseInvoiceId == id, ct))
         {
             TempData["ErrorMessage"] = HasReturnsMessage(inv.Number, "حذف");
@@ -364,6 +464,13 @@ public class PurchaseInvoicesController : Controller
                 return RedirectToAction(nameof(Details), new { id });
             }
             receipt.Status = InventoryDocStatus.Reversed;
+        }
+        if (cashPayment is not null)
+        {
+            var cashTxn = await _db.SafeTransactions.FirstOrDefaultAsync(
+                t => t.Type == TxnType.Expense && t.Source == TxnSource.SupplierPayment && t.Serial == cashPayment.ReceiptNo, ct);
+            if (cashTxn is not null) await _accounting.RemoveTransactionAsync(cashTxn, ct);   // the expense voucher + its entry
+            _db.SupplierPayments.Remove(cashPayment);
         }
         _db.PurchaseInvoiceItems.RemoveRange(await _db.PurchaseInvoiceItems.Where(i => i.PurchaseInvoiceId == id).ToListAsync(ct));
         await _accounting.RemoveObligationAsync(AccountingSources.PurchaseInvoice, id, ct);   // reverse the purchase entry
@@ -388,6 +495,12 @@ public class PurchaseInvoicesController : Controller
         if (p is null) return NotFound();
         var invId = p.PurchaseInvoiceId!.Value;
         var invNo = await _db.PurchaseInvoices.Where(i => i.Id == invId).Select(i => i.Number).FirstOrDefaultAsync(ct);
+        if (p.IsInvoiceCash)
+        {
+            HttpContext.Items[RealState.Web.Filters.ActivityLogFilter.SkipItem] = true;   // refused — nothing changed
+            TempData["ErrorMessage"] = $"سند الصرف رقم {p.ReceiptNo} هو سداد الفاتورة النقدية {PI(invNo)} — عدّل الفاتورة إلى «آجل» أو احذفها.";
+            return RedirectToAction(nameof(Details), new { id = invId });
+        }
         // Cash the supplier refunded through returns came out of what was paid — paid can't be left below it.
         var refunded = (await InvoiceReturns.ForPurchaseInvoiceAsync(_db, invId, ct)).Refunded;
         var paid = await _db.SupplierPayments.Where(x => x.PurchaseInvoiceId == invId).SumAsync(x => x.Amount, ct);
@@ -434,10 +547,10 @@ public class PurchaseInvoicesController : Controller
     }
 
     [HttpGet]
-    public async Task<IActionResult> PrintList(DateTime? from, DateTime? to, Guid? supplierId, Guid? projectId, Guid? orderId, CancellationToken ct)
+    public async Task<IActionResult> PrintList(DateTime? from, DateTime? to, Guid? supplierId, Guid? projectId, Guid? orderId, InvoicePaymentType? payment, CancellationToken ct)
     {
         ViewBag.TenantId = _currentUser.TenantId;
-        return View("PrintList", await BuildRowsAsync(ct, from, to, supplierId, projectId, orderId));
+        return View("PrintList", await BuildRowsAsync(ct, from, to, supplierId, projectId, orderId, payment));
     }
 
     /// <summary>A purchase order's product lines + project as JSON — the invoice form copies them when an order is picked.</summary>
@@ -498,6 +611,9 @@ public class PurchaseInvoicesController : Controller
             Warehouse = inv.WarehouseId.HasValue
                 ? await _db.Warehouses.Where(w => w.Id == inv.WarehouseId.Value).Select(w => w.Name).FirstOrDefaultAsync(ct)
                 : null,
+            CashSafe = inv.CashSafeId.HasValue
+                ? await _db.Safes.Where(s => s.Id == inv.CashSafeId.Value).Select(s => s.Name).FirstOrDefaultAsync(ct)
+                : null,
             Receipts = (await _db.GoodsReceipts.Where(r => r.PurchaseInvoiceId == id).OrderByDescending(r => r.Number)
                     .Select(r => new { r.Id, r.Number, r.Date, r.Status }).ToListAsync(ct))
                 .Select(r => new InvoiceReceiptRef(r.Id, r.Number, r.Date, r.Status)).ToList(),
@@ -526,6 +642,9 @@ public class PurchaseInvoicesController : Controller
     private async Task<InvoiceFormModel> FillAsync(InvoiceFormModel model, CancellationToken ct)
     {
         model.Suppliers = await SuppliersAsync(_db, ct);
+        model.CashSupplierId = await CashSupplierIdAsync(ct);
+        model.CanCash = Can(PermissionNames.SuppliersPay);
+        model.Safes = await SafesAsync(_db, ct);
         model.Projects = await ProjectsAsync(_db, ct);
         // Only orders with something left to bill (plus the invoice's own order when editing).
         model.Orders = await OpenOrdersAsync(_db, model.Id == Guid.Empty ? null : model.Id, model.PurchaseOrderId, ct);

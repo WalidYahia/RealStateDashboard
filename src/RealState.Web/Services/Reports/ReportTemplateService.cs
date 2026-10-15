@@ -105,7 +105,7 @@ public class ReportTemplateService : IReportTemplateService
             FileSize = file.Length,
             PageCount = pageCount,
             IsActive = true,
-            UploadedAt = DateTime.UtcNow,
+            UploadedAt = ClientTime.Now,
             UploadedByUserId = _currentUser.UserId
         });
         await _db.SaveChangesAsync(ct);

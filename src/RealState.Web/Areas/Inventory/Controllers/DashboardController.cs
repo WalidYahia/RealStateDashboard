@@ -1,6 +1,5 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using RealState.Application.Common;
 using RealState.Application.Interfaces;
@@ -17,19 +16,16 @@ public class DashboardController : Controller
     private readonly IInventoryEngine _engine;
     public DashboardController(IApplicationDbContext db, IInventoryEngine engine) { _db = db; _engine = engine; }
 
-    public async Task<IActionResult> Index(Guid? categoryId, DateTime? asOf, CancellationToken ct)
+    /// <summary>The stock as it stands now: KPI tiles, value per warehouse (bar chart) and the products that need attention.</summary>
+    public async Task<IActionResult> Index(CancellationToken ct)
     {
         await _engine.EnsureDefaultsAsync(ct);
-        var cutoff = (asOf ?? DateTime.Today).Date;
-
-        var vm = new InventoryDashboardVm { AsOf = cutoff, CategoryId = categoryId };
-        vm.Categories = await _db.ProductCategories.OrderBy(c => c.Name)
-            .Select(c => new SelectListItem { Value = c.Id.ToString(), Text = c.Name, Selected = c.Id == categoryId }).ToListAsync(ct);
+        var cutoff = ClientTime.Today;
+        var vm = new InventoryDashboardVm { AsOf = cutoff };
 
         // Products in scope (only stock-tracked ones carry inventory).
-        var prodQ = _db.Products.Where(p => p.IsActive && p.TrackInventory);
-        if (categoryId is Guid cid) prodQ = prodQ.Where(p => p.CategoryId == cid);
-        var products = await prodQ.Select(p => new { p.Id, p.Sku, p.Name, p.ReorderLevel }).ToListAsync(ct);
+        var products = await _db.Products.Where(p => p.IsActive && p.TrackInventory)
+            .Select(p => new { p.Id, p.Sku, p.Name, p.ReorderLevel }).ToListAsync(ct);
         var ids = products.Select(p => p.Id).ToList();
         var units = await ProductUnits.LoadAsync(_db, ids, ct);   // quantities are kept in each product's smallest unit
 
@@ -72,8 +68,7 @@ public class DashboardController : Controller
         // Worst first: negative, then out, then low — and smallest quantity first within each.
         vm.Alerts = vm.Alerts
             .OrderBy(a => a.State == "سالب" ? 0 : a.State == "نفد" ? 1 : 2)
-            .ThenBy(a => a.Quantity)
-            .Take(15).ToList();
+            .ThenBy(a => a.Quantity).ToList();
 
         // ---- value by warehouse ----
         vm.ByWarehouse = agg.GroupBy(a => a.WarehouseId)

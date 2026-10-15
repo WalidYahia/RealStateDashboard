@@ -8,7 +8,7 @@
     var canConvert = User.Can(PermissionNames.LeadsConvert);
     var canImport = User.Can(PermissionNames.LeadsImport);
     var canAssign = User.Can(PermissionNames.LeadsAssign);
-    string D(DateTime d) => d.ToString("yyyy/MM/dd", System.Globalization.CultureInfo.InvariantCulture);
+    string D(DateTime d) => RealState.Web.AppCulture.When(d);   // date + time when it has one
     string? F(DateTime? d) => d?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
     // Current filtered URL — threaded through row actions so returning here (after view/delete) keeps the filter.
     var returnUrl = Url.Action("Index", "Leads", new { salespersonId = Model.SalespersonId, source = Model.Source, from = F(Model.From), to = F(Model.To), campaign = Model.Campaign, platform = Model.Platform, unitType = Model.UnitType, paymentPlan = Model.PaymentPlan });
@@ -35,7 +35,7 @@
 
 @{
     var filter = FilterBarVm.For(Url.Action("Index"))
-        .DateRange(F(Model.From), F(Model.To))
+        .DateRange(F(Model.From), F(Model.To), "تاريخ الإنشاء", new[] { FilterPresets.All() }.Concat(FilterPresets.Standard()), autoSubmitPresets: true)
         .Select("salespersonId", "المندوب", Model.Salespersons, Model.SalespersonId)
         .Select("source", "المصدر", Model.Sources, Model.Source)
         .Select("campaign", "الحملة", Model.Campaigns, Model.Campaign)

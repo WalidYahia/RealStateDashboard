@@ -21,7 +21,7 @@
         </div>
         <div>
             <label asp-for="InitialAmount" class="form-label"></label>
-            <input asp-for="InitialAmount" class="form-control" type="number" step="0.01" min="0" dir="ltr" />
+            <input asp-for="InitialAmount" class="form-control" type="number" step="any" min="0" dir="ltr" />
             <span asp-validation-for="InitialAmount" class="field-validation-error"></span>
         </div>
         <div class="full">

@@ -70,8 +70,9 @@ public class ReturnFormModel
     [Display(Name = "الفاتورة")]
     public Guid? InvoiceId { get; set; }
 
-    [DataType(DataType.Date)][Display(Name = "تاريخ المرتجع")]
-    public DateTime ReturnDate { get; set; } = DateTime.Today;
+    /// <summary>Date + time of the document, entered by the user (default: now) — auto-created records take it.</summary>
+    [DataType(DataType.DateTime)][Display(Name = "تاريخ ووقت المرتجع")]
+    public DateTime ReturnDate { get; set; } = ClientTime.Now;
 
     [Display(Name = "المخزن")]
     public Guid? WarehouseId { get; set; }
@@ -134,6 +135,7 @@ public sealed record ReturnStockDocRef(Guid Id, int Number, DateTime Date, Inven
 
 public class ReturnDetailsVm
 {
+    public AuditStampVm? Audit { get; set; }
     public ReturnKind Kind { get; set; } = ReturnKind.Sales;
     public Guid Id { get; set; }
     public int Number { get; set; }
@@ -157,4 +159,10 @@ public class ReturnDetailsVm
     public ReturnInvoicePosition? Invoice { get; set; }
     public bool CanDelete { get; set; }
     public bool CanDeleteRefund { get; set; }
+}
+
+/// <summary>A document's CreationTime / LastUpdateTime (Views/Shared/_AuditStamp).</summary>
+public record AuditStampVm(DateTime CreatedAt, string? CreatedBy, DateTime? UpdatedAt, string? UpdatedBy)
+{
+    public static AuditStampVm Of(RealState.Application.Common.AuditableEntity e) => new(e.CreatedAt, e.CreatedBy, e.UpdatedAt, e.UpdatedBy);
 }

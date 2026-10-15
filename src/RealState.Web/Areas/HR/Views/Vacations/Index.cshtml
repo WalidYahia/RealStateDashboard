@@ -2,7 +2,7 @@
 @{
     ViewData["Title"] = "الإجازات";
     var canManage = ViewData["CanManage"] as bool? ?? false;
-    string D(DateTime d) => d.ToString("yyyy/MM/dd", System.Globalization.CultureInfo.InvariantCulture);
+    string D(DateTime d) => RealState.Web.AppCulture.When(d);   // date + time when it has one
     string? F(DateTime? d) => d?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
 }
 <div class="page-head">

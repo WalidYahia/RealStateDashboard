@@ -1,0 +1,11 @@
+@model RealState.Web.Models.AuditStampVm
+@*
+    CreationTime / LastUpdateTime of a document — saved automatically (UTC, shown in the user's time zone), never entered.
+*@
+<p class="audit-stamp">
+    تاريخ الإنشاء: <span dir="ltr">@RealState.Web.AppCulture.When(Model.CreatedAt)</span>@if (!string.IsNullOrEmpty(Model.CreatedBy)) { <text> (@Model.CreatedBy)</text> }
+    @if (Model.UpdatedAt is DateTime u)
+    {
+        <text> · آخر تعديل: </text><span dir="ltr">@RealState.Web.AppCulture.When(u)</span>@if (!string.IsNullOrEmpty(Model.UpdatedBy)) { <text> (@Model.UpdatedBy)</text> }
+    }
+</p>

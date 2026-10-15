@@ -1,24 +1,17 @@
 @model InventoryDashboardVm
+@using System.Text.Json
 @{
     ViewData["Title"] = "لوحة المخزون";
     var ar = RealState.Web.AppCulture.Ar;
-    string N(decimal v) => v.ToString("N2", ar);
     string N0(decimal v) => v.ToString("N0", ar);
-    string D(DateTime d) => d.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
-    var max = Model.MaxWarehouseValue;
+    var whLabels = Model.ByWarehouse.Select(w => w.Warehouse).ToList();
+    var whValues = Model.ByWarehouse.Select(w => Math.Round(w.Value, 2)).ToList();
+    var whQty = Model.ByWarehouse.Select(w => N0(w.Quantity)).ToList();
 }
 <div class="page-head">
     <h1>لوحة المخزون</h1>
     <span style="color:var(--muted);font-size:13px;">الأرصدة كما في @Model.AsOf.ToString("yyyy/MM/dd")</span>
 </div>
-
-@{
-    var filter = FilterBarVm.For(Url.Action("Index"))
-        .SubmitLabel("عرض")
-        .Date("asOf", "حتى تاريخ", D(Model.AsOf))
-        .Select("categoryId", "التصنيف", Model.Categories, Model.Categories.FirstOrDefault(i => i.Selected)?.Value, "— كل التصنيفات —");
-}
-<partial name="_FilterBar" model="filter" />
 
 @* ---------------- KPI tiles ---------------- *@
 <div class="kpi-grid">
@@ -54,58 +47,92 @@
     </div>
 </div>
 
-@* ---------------- value by warehouse ---------------- *@
-<div class="card-tile" style="margin-bottom:12px;">
-    <div class="card-head">
-        <h3>قيمة المخزون حسب المخزن</h3>
-        <a class="btn-sm" asp-controller="InventoryReports" asp-action="Index" asp-route-tab="balance">تفاصيل الأرصدة</a>
-    </div>
-    @if (Model.ByWarehouse.Count == 0)
-    {
-        <p style="color:var(--muted);margin:0;">لا توجد أرصدة لعرضها.</p>
-    }
-    else
-    {
-        <div style="display:flex;flex-direction:column;gap:12px;">
-            @foreach (var w in Model.ByWarehouse)
-            {
-                var pct = max > 0 ? (double)(Math.Abs(w.Value) / max) * 100 : 0;
-                <div>
-                    <div style="display:flex;justify-content:space-between;gap:10px;font-size:13px;margin-bottom:6px;">
-                        <span>@w.Warehouse <span style="color:var(--muted);" title="مجموع كميات الأصناف بوحداتها الصغرى">· @N0(w.Quantity) وحدة صغرى</span></span>
-                        <strong>@N0(w.Value) ج.م</strong>
-                    </div>
-                    <div class="bar"><span style="width:@pct.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)%;"></span></div>
-                </div>
-            }
+<div class="grid-row inv-dash-row">
+    @* ---------------- value by warehouse (bar chart) ---------------- *@
+    <div class="card-tile inv-dash-card">
+        <div class="card-head">
+            <h3>قيمة المخزون حسب المخزن</h3>
+            <a class="btn-sm" asp-controller="InventoryReports" asp-action="Index" asp-route-tab="balance">تفاصيل الأرصدة</a>
         </div>
-    }
+        @if (Model.ByWarehouse.Count == 0)
+        {
+            <p class="inv-dash-empty">لا توجد أرصدة لعرضها.</p>
+        }
+        else
+        {
+            <div class="inv-dash-chart"><canvas id="whChart" aria-label="قيمة المخزون حسب المخزن"></canvas></div>
+        }
+    </div>
+
+    @* ---------------- products that need attention ---------------- *@
+    <div class="card-tile inv-dash-card">
+        <div class="card-head">
+            <h3>أصناف تحتاج انتباه @if (Model.Alerts.Count > 0) { <span class="pill">@Model.Alerts.Count</span> }</h3>
+            <a class="btn-sm" asp-controller="InventoryReports" asp-action="Index" asp-route-tab="balance">كل الأرصدة</a>
+        </div>
+        @if (Model.Alerts.Count > 7)
+        {
+            <div class="list-search-bar"><input class="form-control list-search" data-target="#alertsTable" placeholder="🔍 بحث بالكود أو الصنف أو الحالة..." /></div>
+        }
+        <div class="inv-dash-scroll">
+            <table class="rs-table inv-alerts" id="alertsTable" data-no-grid>
+                <thead><tr><th>الكود</th><th>الصنف</th><th>الرصيد</th><th>حد إعادة الطلب</th><th>الحالة</th></tr></thead>
+                <tbody>
+                @foreach (var a in Model.Alerts)
+                {
+                    var color = a.State == "سالب" || a.State == "نفد" ? "var(--critical)" : "var(--gold)";
+                    <tr data-alert>
+                        <td dir="ltr" style="text-align:right;" class="al-sku">@a.Sku</td>
+                        <td class="al-name">@a.Product</td>
+                        <td style="font-weight:600;" class="al-qty" data-label="الرصيد">@a.QuantityText</td>
+                        <td class="al-reorder" data-label="حد إعادة الطلب">@a.ReorderText</td>
+                        <td class="al-state"><span class="badge-role" style="color:@color;">@a.State</span></td>
+                    </tr>
+                }
+                @if (Model.Alerts.Count == 0)
+                {
+                    <tr data-skip-search><td colspan="5" style="color:var(--good,#199e70);">✔ كل الأصناف ضمن الحدود الآمنة.</td></tr>
+                }
+                <tr data-no-results data-skip-search style="display:none;"><td colspan="5" style="color:var(--muted)">لا توجد نتائج.</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
 </div>
 
-@* ---------------- alerts ---------------- *@
-<div class="card-tile">
-    <div class="card-head">
-        <h3>أصناف تحتاج انتباه</h3>
-        <a class="btn-sm" asp-controller="InventoryReports" asp-action="Index" asp-route-tab="balance">كل الأرصدة</a>
-    </div>
-    <table class="rs-table" data-no-grid>
-        <thead><tr><th>الكود</th><th>الصنف</th><th>الرصيد</th><th>حد إعادة الطلب</th><th>الحالة</th></tr></thead>
-        <tbody>
-        @foreach (var a in Model.Alerts)
-        {
-            var color = a.State == "سالب" || a.State == "نفد" ? "var(--critical)" : "var(--gold)";
-            <tr>
-                <td dir="ltr" style="text-align:right;">@a.Sku</td>
-                <td>@a.Product</td>
-                <td style="font-weight:600;">@a.QuantityText</td>
-                <td>@a.ReorderText</td>
-                <td><span class="badge-role" style="color:@color;">@a.State</span></td>
-            </tr>
-        }
-        @if (Model.Alerts.Count == 0)
-        {
-            <tr><td colspan="5" style="color:var(--good,#199e70);">✔ كل الأصناف ضمن الحدود الآمنة.</td></tr>
-        }
-        </tbody>
-    </table>
-</div>
+@section Scripts {
+    <script>
+        // Value per warehouse — one bar each; the tooltip adds the quantity held (in smallest units).
+        (function () {
+            var el = document.getElementById('whChart');
+            if (!el || !window.Chart) return;
+            var css = function (v, fb) { return (window.appThemeColor && window.appThemeColor(v)) || fb; };
+            var palette = [css('--series-1', '#3987e5'), css('--aqua', '#199e70'), css('--violet', '#9085e9'), css('--gold', '#c98500'), '#e5484d', '#14b8a6', '#f472b6', '#64748b'];
+            var values = @Html.Raw(JsonSerializer.Serialize(whValues)), qty = @Html.Raw(JsonSerializer.Serialize(whQty));
+            var money = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 });
+            var tick = function (v) { return Math.abs(v) >= 1000000 ? (v / 1000000) + 'M' : Math.abs(v) >= 1000 ? (v / 1000) + 'k' : v; };
+            Chart.defaults.color = css('--text-secondary', '#c3c2b7');
+            new Chart(el, {
+                type: 'bar',
+                data: {
+                    labels: @Html.Raw(JsonSerializer.Serialize(whLabels)),
+                    datasets: [{ data: values, backgroundColor: values.map(function (_, i) { return palette[i % palette.length]; }), borderRadius: 6, maxBarThickness: 64 }]
+                },
+                options: {
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: { rtl: true, callbacks: {
+                            label: function (c) { return ' ' + money.format(c.parsed.y) + ' ج.م'; },
+                            afterLabel: function (c) { return ' ' + qty[c.dataIndex] + ' وحدة صغرى'; }
+                        } }
+                    },
+                    scales: {
+                        y: { position: 'right', beginAtZero: true, ticks: { callback: tick }, grid: { color: css('--chart-grid', 'rgba(255,255,255,.06)') } },
+                        x: { reverse: true, grid: { display: false } }
+                    }
+                }
+            });
+        })();
+    </script>
+}

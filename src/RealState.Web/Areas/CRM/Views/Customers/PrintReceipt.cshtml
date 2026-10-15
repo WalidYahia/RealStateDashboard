@@ -29,7 +29,7 @@
     <div class="no-print"><button onclick="window.print()">🖨 طباعة / حفظ PDF</button></div>
     <div class="receipt">
         <h1>إيصال سداد</h1>
-        <div class="sub">إيصال رقم @(Model.ReceiptNo.HasValue ? $"C-{Model.ReceiptNo.Value:D5}" : "—") · رقم العقد @contract?.Code · تاريخ الإصدار @DateTime.Now.ToString("yyyy/MM/dd")</div>
+        <div class="sub">إيصال رقم @(Model.ReceiptNo.HasValue ? $"C-{Model.ReceiptNo.Value:D5}" : "—") · رقم العقد @contract?.Code · تاريخ الإصدار @ClientTime.Now.ToString("yyyy/MM/dd")</div>
 
         <div class="amount">@N(Model.PaidAmount) ج.م</div>
 

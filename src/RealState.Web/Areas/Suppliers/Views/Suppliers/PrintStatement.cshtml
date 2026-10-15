@@ -3,7 +3,7 @@
     Layout = null;
     var tenantId = (Guid)ViewBag.TenantId;
     string N(decimal v) => v.ToString("N0", RealState.Web.AppCulture.Ar);
-    string D(DateTime d) => d.ToString("yyyy/MM/dd", System.Globalization.CultureInfo.InvariantCulture);
+    string D(DateTime d) => RealState.Web.AppCulture.When(d);   // date + time when it has one
 }
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -33,7 +33,7 @@
         {
             <text>· الفترة @D(Model.From ?? DateTime.MinValue) — @D(Model.To ?? DateTime.MaxValue)</text>
         }
-        · تاريخ الطباعة @DateTime.Now.ToString("yyyy/MM/dd HH:mm")
+        · تاريخ الطباعة @ClientTime.Now.ToString("yyyy/MM/dd HH:mm")
     </div>
 
     <table>

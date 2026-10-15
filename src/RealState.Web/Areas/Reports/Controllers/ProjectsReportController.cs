@@ -41,7 +41,7 @@ public class ProjectsReportController : Controller
             r.Code, r.Name, r.TypeName, r.UnitsTotal, r.UnitsSold, r.UnitsUnsold, r.Expenses, r.Incomes, r.InventoryValue
         });
         var totals = new object?[] { "الإجمالي", null, null, vm.TotUnits, vm.TotSold, vm.TotUnsold, vm.TotExpenses, vm.TotIncomes, vm.TotInventory };
-        return RealState.Web.Common.Xlsx.File($"تقرير المشاريع {DateTime.Now:yyyy-MM-dd}.xlsx", "تقرير المشاريع", headers, rows, totals);
+        return RealState.Web.Common.Xlsx.File($"تقرير المشاريع {ClientTime.Now:yyyy-MM-dd}.xlsx", "تقرير المشاريع", headers, rows, totals);
     }
 
     private async Task<ProjectReportVm> BuildAsync(CancellationToken ct)

@@ -1,0 +1,18 @@
+@model FinancialCustodyEditModel
+<form id="appModalForm" asp-area="Accounting" asp-controller="FinancialCustody" asp-action="Edit" method="post">
+    @Html.AntiForgeryToken()
+    <input type="hidden" asp-for="Id" />
+    <div class="form-grid">
+        <div class="full">
+            <label asp-for="Purpose" class="form-label"></label>
+            <input asp-for="Purpose" class="form-control" />
+            <span asp-validation-for="Purpose" class="field-validation-error"></span>
+        </div>
+        <div class="full">
+            <label asp-for="Notes" class="form-label"></label>
+            <textarea asp-for="Notes" class="form-control" rows="3"></textarea>
+        </div>
+    </div>
+    <p style="color:var(--muted);font-size:12px;margin-top:8px;">المبالغ تُعدَّل من حركات العهدة (حذف الحركة وإعادة تسجيلها).</p>
+    <button type="submit" class="btn-primary" style="margin-top:8px;">💾 حفظ</button>
+</form>

@@ -3,7 +3,7 @@
     Layout = null;
     var tenantId = (Guid)ViewBag.TenantId;
     string N(decimal v) => v.ToString("N0", RealState.Web.AppCulture.Ar);
-    string D(DateTime d) => d.ToString("yyyy/MM/dd", System.Globalization.CultureInfo.InvariantCulture);
+    string D(DateTime d) => RealState.Web.AppCulture.When(d);   // date + time when it has one
 }
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -29,7 +29,7 @@
     @await Component.InvokeAsync("ReportBackground", new { part = "open" })
     <div class="no-print"><button onclick="window.print()">🖨 طباعة / حفظ PDF</button></div>
     <h1>التقرير اليومي</h1>
-    <div class="sub">يوم @D(Model.Date) · طُبع @DateTime.Now.ToString("yyyy/MM/dd HH:mm")</div>
+    <div class="sub">يوم @D(Model.Date) · طُبع @ClientTime.Now.ToString("yyyy/MM/dd HH:mm")</div>
 
     <div class="cards">
         <div class="card">عقود البيع: <strong>@N(Model.ContractsTotal)</strong> (@Model.Contracts.Count)</div>

@@ -62,7 +62,7 @@ public class GoodsReceiptsController : Controller
     public async Task<IActionResult> Excel(DateTime? from, DateTime? to, CancellationToken ct)
     {
         var (h, rows) = await BuildExportAsync(from, to, ct);
-        return RealState.Web.Common.Xlsx.File($"أذون الاستلام {DateTime.Now:yyyy-MM-dd}.xlsx", "أذون الاستلام", h, rows);
+        return RealState.Web.Common.Xlsx.File($"أذون الاستلام {ClientTime.Now:yyyy-MM-dd}.xlsx", "أذون الاستلام", h, rows);
     }
 
     [HttpGet]
@@ -104,7 +104,7 @@ public class GoodsReceiptsController : Controller
         if (d is null) return NotFound();
         if (d.PurchaseInvoiceId is not null || d.SalesReturnId is not null) return FromInvoice();
         if (d.Status != InventoryDocStatus.Draft) { TempData["ErrorMessage"] = "لا يمكن تعديل مستند مُرحَّل."; return RedirectToAction(nameof(Index)); }
-        var model = new ReceiptFormModel { Id = d.Id, Number = d.Number, Date = d.Date, WarehouseId = d.WarehouseId, SupplierId = d.SupplierId, Notes = d.Notes, Status = d.Status };
+        var model = new ReceiptFormModel { Id = d.Id, Number = d.Number, Date = d.Date, WarehouseId = d.WarehouseId, SupplierId = d.SupplierId, Notes = d.Notes, Status = d.Status, Audit = RealState.Web.Models.AuditStampVm.Of(d) };
         await FillAsync(model, ct);
         // Shown in the unit each line was entered in; the unit cost comes back exact from the line total.
         model.ExistingLines = await LinesVmAsync(d.Lines.Select(l =>
@@ -139,6 +139,7 @@ public class GoodsReceiptsController : Controller
             if (d.PurchaseInvoiceId is not null || d.SalesReturnId is not null) return FromInvoice();
             if (d.Status != InventoryDocStatus.Draft) { TempData["ErrorMessage"] = "لا يمكن تعديل مستند مُرحَّل."; return RedirectToAction(nameof(Index)); }
             _db.GoodsReceiptLines.RemoveRange(await _db.GoodsReceiptLines.Where(l => l.GoodsReceiptId == d.Id).ToListAsync(ct));
+            d.UpdatedAt = ClientTime.Now;   // only the lines changed — the document still counts as updated (LastUpdateTime)
         }
         d.Date = model.Date; d.WarehouseId = model.WarehouseId; d.SupplierId = model.SupplierId; d.Notes = model.Notes; d.Status = InventoryDocStatus.Draft;
         foreach (var l in lines)

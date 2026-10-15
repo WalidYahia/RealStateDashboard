@@ -168,7 +168,7 @@ public static class FilterPresets
     /// <summary>اليوم · آخر أسبوع · آخر شهر — the system-wide default.</summary>
     public static IEnumerable<FilterPreset> Standard()
     {
-        var t = DateTime.Today;
+        var t = ClientTime.Today;
         yield return new("اليوم", D(t), D(t));
         yield return new("آخر أسبوع", D(t.AddDays(-7)), D(t));
         yield return new("آخر شهر", D(t.AddMonths(-1)), D(t));
@@ -176,14 +176,14 @@ public static class FilterPresets
 
     public static FilterPreset LastYear()
     {
-        var t = DateTime.Today;
+        var t = ClientTime.Today;
         return new("آخر سنة", D(t.AddYears(-1)), D(t));
     }
 
     /// <summary>Clears both dates (no date filter).</summary>
     public static FilterPreset All(string label = "الكل") => new(label, "", "");
 
-    public static FilterPreset ThisYear() { var t = DateTime.Today; return new("هذا العام", $"{t.Year}-01-01", D(t)); }
-    public static FilterPreset PreviousYear() { var y = DateTime.Today.Year - 1; return new("العام السابق", $"{y}-01-01", $"{y}-12-31"); }
-    public static FilterPreset ThisMonth() { var t = DateTime.Today; return new("هذا الشهر", D(new DateTime(t.Year, t.Month, 1)), D(t)); }
+    public static FilterPreset ThisYear() { var t = ClientTime.Today; return new("هذا العام", $"{t.Year}-01-01", D(t)); }
+    public static FilterPreset PreviousYear() { var y = ClientTime.Today.Year - 1; return new("العام السابق", $"{y}-01-01", $"{y}-12-31"); }
+    public static FilterPreset ThisMonth() { var t = ClientTime.Today; return new("هذا الشهر", D(new DateTime(t.Year, t.Month, 1)), D(t)); }
 }

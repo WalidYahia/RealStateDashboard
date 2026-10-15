@@ -3,7 +3,7 @@
     var project = (Project)ViewBag.Project;
     var activities = ViewBag.Activities as List<StageActivity> ?? new();
     ViewData["Title"] = $"مرحلة: {Model.Name}";
-    string D(DateTime? d) => d?.ToString("yyyy/MM/dd") ?? "—";
+    string D(DateTime? d) => RealState.Web.AppCulture.When(d);   // date + time when it has one
     bool Delayed(DateTime? p, DateTime? a) => p.HasValue && a.HasValue && a.Value.Date > p.Value.Date;
     (string L, string C) Status(ProjectStage s) =>
         s.ActualEndDate.HasValue ? ("مكتملة", "var(--good)")

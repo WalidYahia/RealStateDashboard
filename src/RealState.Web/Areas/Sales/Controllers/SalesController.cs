@@ -65,7 +65,7 @@ public class SalesController : Controller
             .TakeLast(6).ToList();
 
         // Month-over-month figures (current vs previous calendar month).
-        var now = DateTime.Today;
+        var now = ClientTime.Today;
         var thisStart = new DateTime(now.Year, now.Month, 1);
         var nextStart = thisStart.AddMonths(1);
         var prevStart = thisStart.AddMonths(-1);

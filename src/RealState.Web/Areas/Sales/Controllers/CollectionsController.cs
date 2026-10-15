@@ -33,7 +33,7 @@ public class CollectionsController : Controller
         var rows = await BuildRowsAsync(ct);
         ViewBag.Safes = await _db.Safes.Where(s => s.IsActive)
             .OrderBy(s => s.Name).Select(s => new { id = s.Id, name = s.Name }).ToListAsync(ct);
-        var today = DateTime.Today;
+        var today = ClientTime.Today;
         var monthStart = new DateTime(today.Year, today.Month, 1);
 
         var outstanding = rows.Where(r => r.Status != InstallmentStatus.Paid).ToList();
@@ -52,7 +52,7 @@ public class CollectionsController : Controller
     // Currently due = unpaid & due today or earlier.
     public async Task<IActionResult> DueNow(CancellationToken ct)
     {
-        var today = DateTime.Today;
+        var today = ClientTime.Today;
         var rows = (await BuildRowsAsync(ct))
             .Where(r => r.Status != InstallmentStatus.Paid && r.DueDate.Date <= today)
             .OrderBy(r => r.DueDate).ToList();
@@ -63,7 +63,7 @@ public class CollectionsController : Controller
     // Due within the next 7 days (not yet due today).
     public async Task<IActionResult> DueThisWeek(CancellationToken ct)
     {
-        var today = DateTime.Today;
+        var today = ClientTime.Today;
         var end = today.AddDays(7);
         var rows = (await BuildRowsAsync(ct))
             .Where(r => r.Status != InstallmentStatus.Paid && r.DueDate.Date > today && r.DueDate.Date <= end)
@@ -117,7 +117,7 @@ public class CollectionsController : Controller
         if (pay > remaining) pay = remaining;   // never collect more than what's left
 
         inst.PaidAmount += pay;
-        inst.PaidDate = DateTime.Today;
+        inst.PaidDate = ClientTime.Today;
         // Year rule: C-{year}{5-digit seq} (202600001 … 202700001) by the collection date.
         var year = inst.PaidDate.Value.Year;
         long lo = YearSerial.Base(year, 5), hi = YearSerial.End(year, 5);
@@ -135,7 +135,7 @@ public class CollectionsController : Controller
         var label = inst.Number <= 0 ? "المقدم" : $"قسط رقم {inst.Number}";
         var partial = inst.Number <= 0 && pay < inst.Amount ? " (دفعة جزئية)" : "";
         await _accounting.AddTransactionAsync(safeId, TxnType.Income, TxnSource.Collection, pay,
-            DateTime.Now, $"تحصيل {label}{partial} — {custName}",
+            ClientTime.Now, $"تحصيل {label}{partial} — {custName}",
             installmentId: inst.Id, projectId: contract?.ProjectId, customerId: contract?.CustomerId, unitId: contract?.UnitId, ct: ct);
 
         await _db.SaveChangesAsync(ct);

@@ -138,7 +138,7 @@ public class ActivityFormModel
     public string Activity { get; set; } = string.Empty;
 
     [Required][DataType(DataType.Date)][Display(Name = "التاريخ")]
-    public DateTime Date { get; set; } = DateTime.Today;
+    public DateTime Date { get; set; } = ClientTime.Today;
 }
 
 public class ExpenseFormModel
@@ -147,7 +147,7 @@ public class ExpenseFormModel
     public Guid StageId { get; set; }
 
     [Required][DataType(DataType.Date)][Display(Name = "التاريخ")]
-    public DateTime Date { get; set; } = DateTime.Today;
+    public DateTime Date { get; set; } = ClientTime.Today;
 
     [Display(Name = "الوقت")]
     public TimeSpan Time { get; set; }
@@ -172,7 +172,7 @@ public class ProjectExpenseFormModel
     public Guid ProjectId { get; set; }
 
     [DataType(DataType.Date)][Display(Name = "التاريخ")]
-    public DateTime Date { get; set; } = DateTime.Today;
+    public DateTime Date { get; set; } = ClientTime.Today;
 
     [Range(0.01, 999999999999, ErrorMessage = "قيمة غير صالحة")]
     [Display(Name = "القيمة (ج.م)")]
@@ -206,7 +206,7 @@ public class StageStateModel
     public bool IsEnd { get; set; }
 
     [Required][DataType(DataType.Date)][Display(Name = "التاريخ")]
-    public DateTime Date { get; set; } = DateTime.Today;
+    public DateTime Date { get; set; } = ClientTime.Today;
 }
 
 public class ProjectListItem

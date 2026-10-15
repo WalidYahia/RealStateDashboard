@@ -1,0 +1,112 @@
+@model FixedAssetFormModel
+@{
+    var isEdit = Model.Id != Guid.Empty;
+    var fin = Model.FinancialsLocked;
+    var sched = Model.ScheduleLocked;
+    string? ro(bool locked) => locked ? "readonly" : null;
+    var lives = System.Text.Json.JsonSerializer.Serialize(Model.CategoryLives.ToDictionary(k => k.Key.ToString(), v => v.Value));
+}
+<form id="appModalForm" asp-area="Accounting" asp-controller="FixedAssets" asp-action="Form" method="post" data-modal-init="faFormInit" data-lives="@lives">
+    @Html.AntiForgeryToken()
+    <div asp-validation-summary="ModelOnly" class="validation-summary-errors"></div>
+    <input type="hidden" asp-for="Id" />
+    @if (Model.Categories.Count == 0)
+    {
+        <div class="status-message" style="background:rgba(250,178,25,.12);border-color:var(--warning);color:var(--warning);">
+            أضف فئة أصول أولًا من صفحة «فئات الأصول الثابتة» — حسابات القيد تأتي من الفئة.
+        </div>
+    }
+    @if (fin)
+    {
+        <div class="status-message" style="background:var(--surface-2);border-color:var(--border);color:var(--text-secondary);">
+            الأصل مُرحَّل محاسبيًا — لا تُعدَّل الفئة والكمية والتكلفة وطريقة الاقتناء. @(sched ? "وجدول الإهلاك ثابت لوجود إهلاك مُرحَّل." : "")
+        </div>
+    }
+    <div class="form-grid">
+        <div class="full">
+            <label asp-for="Name" class="form-label"></label>
+            <input asp-for="Name" class="form-control" placeholder="مثال: لابتوب Dell Latitude 5440" autocomplete="off" />
+            <span asp-validation-for="Name" class="field-validation-error"></span>
+        </div>
+        <div>
+            <label asp-for="CategoryId" class="form-label"></label>
+            <select asp-for="CategoryId" class="form-control" asp-items="Model.Categories" disabled="@fin" data-fa-category><option value="">— اختر الفئة —</option></select>
+            @if (fin) { <input type="hidden" asp-for="CategoryId" /> }
+            <span asp-validation-for="CategoryId" class="field-validation-error"></span>
+        </div>
+        <div>
+            <label asp-for="SerialNumber" class="form-label"></label>
+            <input asp-for="SerialNumber" class="form-control" dir="ltr" autocomplete="off" />
+        </div>
+        <div>
+            <label asp-for="Quantity" class="form-label"></label>
+            <input asp-for="Quantity" class="form-control" type="number" min="1" inputmode="numeric" dir="ltr" readonly="@ro(fin)" />
+            <span asp-validation-for="Quantity" class="field-validation-error"></span>
+        </div>
+        <div>
+            <label asp-for="UnitCost" class="form-label"></label>
+            <input asp-for="UnitCost" class="form-control" type="number" step="any" min="0" inputmode="decimal" dir="ltr" readonly="@ro(fin)" />
+            <span asp-validation-for="UnitCost" class="field-validation-error"></span>
+        </div>
+        <div>
+            <label asp-for="PurchaseDate" class="form-label"></label>
+            <input asp-for="PurchaseDate" class="form-control" type="date" dir="ltr" readonly="@ro(fin)" />
+        </div>
+        <div>
+            <label asp-for="Location" class="form-label"></label>
+            <input asp-for="Location" class="form-control" placeholder="المخزن، المكتب الرئيسي…" />
+        </div>
+
+        @if (!isEdit)
+        {
+            <div class="full fa-section">الاقتناء (يُرحَّل قيده عند الحفظ)</div>
+            <div class="full">
+                <div class="sched-mode">
+                    <label><input type="radio" name="AcquisitionMethod" value="Cash" checked="@(Model.AcquisitionMethod == AssetAcquisitionMethod.Cash)" data-fa-method /> شراء نقدي من خزنة</label>
+                    <label><input type="radio" name="AcquisitionMethod" value="OpeningBalance" checked="@(Model.AcquisitionMethod == AssetAcquisitionMethod.OpeningBalance)" data-fa-method /> أصل مملوك مسبقًا (رصيد افتتاحي)</label>
+                </div>
+            </div>
+            <div class="full" data-fa-cash>
+                <label asp-for="SafeId" class="form-label"></label>
+                <select asp-for="SafeId" class="form-control" asp-items="Model.Safes"><option value="">— اختر الخزنة —</option></select>
+                <span asp-validation-for="SafeId" class="field-validation-error"></span>
+                <span style="color:var(--muted);font-size:12px;">قيد: من ح/ الأصول الثابتة (الفئة) إلى ح/ الخزنة — مع سند صرف.</span>
+            </div>
+            <div class="full" data-fa-opening>
+                <label asp-for="OpeningAccumulatedDepreciation" class="form-label"></label>
+                <input asp-for="OpeningAccumulatedDepreciation" class="form-control" type="number" step="any" min="0" inputmode="decimal" dir="ltr" />
+                <span asp-validation-for="OpeningAccumulatedDepreciation" class="field-validation-error"></span>
+                <span style="color:var(--muted);font-size:12px;">قيد: من ح/ الأصول الثابتة إلى ح/ مجمع الإهلاك (الإهلاك السابق) و ح/ رصيد افتتاحي (الصافي).</span>
+            </div>
+        }
+
+        <div class="full fa-section">الإهلاك (قسط ثابت شهري)</div>
+        <div>
+            <label asp-for="UsefulLifeMonths" class="form-label"></label>
+            <input asp-for="UsefulLifeMonths" class="form-control" type="number" min="0" max="1200" inputmode="numeric" dir="ltr" readonly="@ro(sched)" data-fa-life />
+            <span asp-validation-for="UsefulLifeMonths" class="field-validation-error"></span>
+        </div>
+        <div>
+            <label asp-for="SalvageValue" class="form-label"></label>
+            <input asp-for="SalvageValue" class="form-control" type="number" step="any" min="0" inputmode="decimal" dir="ltr" readonly="@ro(sched)" />
+            <span asp-validation-for="SalvageValue" class="field-validation-error"></span>
+        </div>
+        <div>
+            <label asp-for="DepreciationStartDate" class="form-label"></label>
+            <input asp-for="DepreciationStartDate" class="form-control" type="date" dir="ltr" readonly="@ro(sched)" />
+            <span style="color:var(--muted);font-size:12px;">فارغ = تاريخ الاقتناء. 0 شهر = لا يُهلك (مثل الأراضي).</span>
+        </div>
+
+        <div class="full">
+            <label asp-for="Notes" class="form-label"></label>
+            <textarea asp-for="Notes" class="form-control" rows="2"></textarea>
+        </div>
+        <div class="full">
+            <label style="display:inline-flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;">
+                <input asp-for="IsActive" type="checkbox" /> @Html.DisplayNameFor(m => m.IsActive)
+            </label>
+            <span asp-validation-for="IsActive" class="field-validation-error"></span>
+        </div>
+    </div>
+    <button type="submit" class="btn-primary" style="margin-top:12px;" disabled="@(Model.Categories.Count == 0)">@(isEdit ? "💾 حفظ التعديلات" : "💾 إضافة الأصل وترحيل قيده")</button>
+</form>

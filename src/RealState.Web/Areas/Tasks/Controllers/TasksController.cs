@@ -267,7 +267,7 @@ public class TasksController : Controller
                 AssignedByUserId = _currentUser.UserId, AssignedByName = CurrentName()
             };
             _db.WorkTasks.Add(t);
-            _db.WorkTaskLogs.Add(new WorkTaskLog { WorkTaskId = t.Id, At = DateTime.Now, ByName = CurrentName(), ByUserId = _currentUser.UserId, Text = "تم إنشاء المهمة." });
+            _db.WorkTaskLogs.Add(new WorkTaskLog { WorkTaskId = t.Id, At = ClientTime.Now, ByName = CurrentName(), ByUserId = _currentUser.UserId, Text = "تم إنشاء المهمة." });
             await SaveAttachmentsAsync(t.Id, files, ct);
             await _db.SaveChangesAsync(ct);
             TempData["StatusMessage"] = $"تم إسناد المهمة T-{number}.";
@@ -451,7 +451,7 @@ public class TasksController : Controller
 
     /// <summary>Adds a log entry by the current user (saved with the caller's SaveChanges).</summary>
     private void AddLog(Guid taskId, string text) =>
-        _db.WorkTaskLogs.Add(new WorkTaskLog { WorkTaskId = taskId, At = DateTime.Now, ByName = CurrentName(), ByUserId = _currentUser.UserId, Text = text });
+        _db.WorkTaskLogs.Add(new WorkTaskLog { WorkTaskId = taskId, At = ClientTime.Now, ByName = CurrentName(), ByUserId = _currentUser.UserId, Text = text });
 
     /// <summary>Adds the (non-empty, size-limited) files to the task; returns the saved file names.</summary>
     private async Task<List<string>> SaveAttachmentsAsync(Guid taskId, List<IFormFile>? files, CancellationToken ct)

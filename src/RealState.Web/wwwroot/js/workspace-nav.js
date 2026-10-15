@@ -59,6 +59,17 @@
         });
     });
 
+    // ---------------- «قريبًا» cards (.ws-soon-link): no navigation, just a message ----------------
+    // (A class, not a data attribute: Razor renders data-* attributes even when their value is null.)
+    document.addEventListener('click', function (e) {
+        var c = e.target.closest ? e.target.closest('.ws-soon-link') : null;
+        if (!c) return;
+        e.preventDefault();
+        var msg = '«' + (c.getAttribute('data-title') || '') + '» قيد الإعداد وستتوفر قريبًا.';
+        if (window.Swal) Swal.fire({ icon: 'info', title: 'قريبًا', html: esc(msg), confirmButtonText: 'حسنًا', confirmButtonColor: '#3987e5' });
+        else window.alert(msg);
+    });
+
     // ---------------- top-bar menus ----------------
     function closeMenus(except) {
         document.querySelectorAll('.tb-menu').forEach(function (m) {

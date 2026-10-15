@@ -232,6 +232,29 @@ public class InventoryAdjustment : AuditableEntity, ITenantEntity
     public List<InventoryAdjustmentLine> Lines { get; set; } = new();
 }
 
+/// <summary>
+/// «الرصيد الافتتاحي للأصناف»: a product's opening stock in a warehouse — one per product per warehouse, editable.
+/// It owns one Opening movement and one journal entry (Dr المخزون / Cr رصيد افتتاحي), source
+/// <see cref="Inventory.InventorySources.OpeningStock"/> + this row's Id; editing replaces both (while no stock has moved after it).
+/// Quantities and costs are kept per the smallest unit; the unit it was entered in is kept for display and editing.
+/// </summary>
+public class ProductOpeningStock : AuditableEntity, ITenantEntity
+{
+    public Guid TenantId { get; set; }
+    public Guid ProductId { get; set; }
+    public Product? Product { get; set; }
+    public Guid WarehouseId { get; set; }
+    public Warehouse? Warehouse { get; set; }
+    /// <summary>Date + time of the opening stock (entered on the page, default now).</summary>
+    public DateTime Date { get; set; }
+    public decimal Quantity { get; set; }
+    public decimal UnitCost { get; set; }
+    public decimal TotalCost { get; set; }
+    public byte UnitLevel { get; set; } = 1;
+    public decimal UnitFactor { get; set; } = 1m;
+    public string? UnitName { get; set; }
+}
+
 public class InventoryAdjustmentLine : AuditableEntity, ITenantEntity
 {
     public Guid TenantId { get; set; }

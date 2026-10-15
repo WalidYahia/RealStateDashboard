@@ -60,17 +60,18 @@ public class SafeTransfersController : Controller
         var headers = new[] { "رقم التحويل", "التاريخ/الوقت", "من خزنة", "إلى خزنة", "المبلغ", "ملاحظات", "بواسطة" };
         var rows = vm.Rows.Select(r => (IReadOnlyList<object?>)new object?[]
         {
-            SF(r.Number), r.OccurredAt.ToString("yyyy-MM-dd HH:mm", inv), r.FromSafe, r.ToSafe, r.Amount, r.Notes, r.CreatedBy
+            SF(r.Number), RealState.Web.AppCulture.When(r.OccurredAt), r.FromSafe, r.ToSafe, r.Amount, r.Notes, r.CreatedBy
         });
         var totals = new object?[] { "الإجمالي", null, null, null, vm.Total, null, null };
-        return RealState.Web.Common.Xlsx.File($"التحويلات بين الخزائن {DateTime.Now:yyyy-MM-dd}.xlsx", "التحويلات", headers, rows, totals);
+        return RealState.Web.Common.Xlsx.File($"التحويلات بين الخزائن {ClientTime.Now:yyyy-MM-dd}.xlsx", "التحويلات", headers, rows, totals);
     }
 
     private async Task<SafeTransferListVm> BuildListAsync(DateTime? from, DateTime? to, Guid? safeId, string? q, CancellationToken ct)
     {
         var query = _db.SafeTransfers.AsQueryable();
-        if (from.HasValue) query = query.Where(t => t.OccurredAt >= from.Value.Date);
-        if (to.HasValue) query = query.Where(t => t.OccurredAt < to.Value.Date.AddDays(1));
+        var (fromAt, toAt) = ClientTime.DayRange(from, to);   // [from, to) of the picked days
+        if (fromAt.HasValue) query = query.Where(t => t.OccurredAt >= fromAt.Value);
+        if (toAt.HasValue) query = query.Where(t => t.OccurredAt < toAt.Value);
         // One safe filter: transfers where the safe is either the source or the destination.
         if (safeId.HasValue) query = query.Where(t => t.FromSafeId == safeId.Value || t.ToSafeId == safeId.Value);
         var list = await query.OrderByDescending(t => t.Number).ToListAsync(ct);
@@ -99,7 +100,7 @@ public class SafeTransfersController : Controller
     {
         if (!CanTransfer()) return Forbid();
         if (id is null)
-            return PartialView("_TransferForm", await FillAsync(new SafeTransferFormModel { Number = await NextNumberAsync(DateTime.Today.Year, ct) }, ct));
+            return PartialView("_TransferForm", await FillAsync(new SafeTransferFormModel { Number = await NextNumberAsync(ClientTime.Today.Year, ct) }, ct));
 
         var t = await _db.SafeTransfers.FirstOrDefaultAsync(x => x.Id == id, ct);
         if (t is null) return NotFound();
@@ -134,8 +135,8 @@ public class SafeTransfersController : Controller
             var err = await CheckBalancesAsync(old, model.FromSafeId!.Value, model.ToSafeId!.Value, model.Amount, ct);
             if (err is not null) ModelState.AddModelError(nameof(model.Amount), err);
         }
+        if (model.OccurredAt.Date > ClientTime.Today) ModelState.AddModelError(nameof(model.OccurredAt), "لا يمكن التحويل بتاريخ مستقبلي.");
         if (!ModelState.IsValid) return PartialView("_TransferForm", await FillAsync(model, ct));
-
 
         SafeTransfer tr;
         SafeTransaction outTxn, inTxn;
@@ -160,7 +161,7 @@ public class SafeTransfersController : Controller
         tr.FromSafeId = model.FromSafeId!.Value;
         tr.ToSafeId = model.ToSafeId!.Value;
         tr.Amount = model.Amount;
-        tr.OccurredAt = model.OccurredAt;
+        tr.OccurredAt = model.OccurredAt;   // date + time entered by the user (the transfer legs and entry take it)
         tr.Notes = model.Notes;
 
         var names = await _db.Safes.Where(s => s.Id == tr.FromSafeId || s.Id == tr.ToSafeId).ToDictionaryAsync(s => s.Id, s => s.Name, ct);

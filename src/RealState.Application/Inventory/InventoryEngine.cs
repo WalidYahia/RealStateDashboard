@@ -11,7 +11,8 @@ public class InventoryEngine : IInventoryEngine
 {
     private readonly IApplicationDbContext _db;
     private readonly IAccountingEngine _accounting;
-    public InventoryEngine(IApplicationDbContext db, IAccountingEngine accounting) { _db = db; _accounting = accounting; }
+    private readonly IDateTimeProvider _clock;
+    public InventoryEngine(IApplicationDbContext db, IAccountingEngine accounting, IDateTimeProvider clock) { _db = db; _accounting = accounting; _clock = clock; }
 
     // ================================ defaults / chart ================================
 
@@ -416,7 +417,7 @@ public class InventoryEngine : IInventoryEngine
         var p = await ProfileAsync(ct);
         RequireLines(doc.Lines.Count);
         RequireUniqueProducts(doc.Lines.Select(l => l.ProductId));
-        if (doc.Date.Date > DateTime.Today) throw new InvalidOperationException("لا يمكن ترحيل مستند بتاريخ مستقبلي.");
+        if (doc.Date.Date > _clock.Today) throw new InvalidOperationException("لا يمكن ترحيل مستند بتاريخ مستقبلي.");
 
         var warehouses = await _db.Warehouses.Select(w => new { w.Id, w.Name, w.IsDefault }).ToListAsync(ct);
         var gainByWh = new Dictionary<Guid, decimal>();   // + value increase, − decrease, per warehouse
@@ -489,11 +490,11 @@ public class InventoryEngine : IInventoryEngine
                     $"لا يمكن عكس المستند: الكمية المطلوب سحبها ({net:N2}) أكبر من المتاح حاليًا ({stock.Quantity:N2}) — تم صرفها أو تحويلها بالفعل.");
         }
 
-        var today = DateTime.Today;
+        var now = _clock.Now;   // a reversal happens now (the user's local time)
         foreach (var m in originals)
             _db.InventoryMovements.Add(new InventoryMovement
             {
-                ProductId = m.ProductId, WarehouseId = m.WarehouseId, Date = today, MovementType = m.MovementType,
+                ProductId = m.ProductId, WarehouseId = m.WarehouseId, Date = now, MovementType = m.MovementType,
                 ReferenceType = sourceType, ReferenceId = sourceId, ReferenceNumber = m.ReferenceNumber, IsReversal = true,
                 QuantityIn = m.QuantityOut, QuantityOut = m.QuantityIn,   // swapped
                 UnitCost = m.UnitCost, TotalCost = m.TotalCost, Memo = "عكس مستند"
@@ -508,9 +509,52 @@ public class InventoryEngine : IInventoryEngine
             var els = await _db.JournalLines.Where(l => l.JournalEntryId == e.Id)
                 .Select(l => new { l.AccountId, l.Debit, l.Credit, l.Memo }).ToListAsync(ct);
             if (els.Count < 2) continue;
-            await _accounting.PostByIdsAsync(today, $"عكس {e.Description}", reversalType,
+            await _accounting.PostByIdsAsync(now, $"عكس {e.Description}", reversalType,
                 els.Select(l => (l.AccountId, l.Credit, l.Debit, l.Memo)).ToList(), ct, sourceId);
         }
+    }
+
+    public async Task<string?> OpeningStockLockAsync(Guid productId, Guid warehouseId, Guid? rowId, DateTime since, CancellationToken ct = default)
+    {
+        var later = await _db.InventoryMovements
+            .Where(m => m.ProductId == productId && m.WarehouseId == warehouseId && m.Date > since && !m.IsReversal
+                        && !(m.ReferenceType == InventorySources.OpeningStock && m.ReferenceId == rowId))
+            .OrderBy(m => m.Date).Select(m => (DateTime?)m.Date).FirstOrDefaultAsync(ct);
+        return later is DateTime d
+            ? $"توجد حركة على الصنف في هذا المخزن بعد تاريخ الرصيد الافتتاحي ({d:yyyy/MM/dd HH:mm}) — لا يمكن تعديله الآن؛ استخدم تسوية مخزون."
+            : null;
+    }
+
+    public async Task PostOpeningStockAsync(ProductOpeningStock row, DateTime? previousDate, CancellationToken ct = default)
+    {
+        if (row.Date.Date > _clock.Today) throw new InvalidOperationException("لا يمكن أن يكون تاريخ الرصيد الافتتاحي في المستقبل.");
+        if (row.Quantity < 0) throw new InvalidOperationException("كمية الرصيد الافتتاحي موجبة فقط.");
+        if (row.Quantity > 0 && row.UnitCost <= 0) throw new InvalidOperationException("أدخل تكلفة الوحدة — بدونها لا يُنشأ قيد.");
+        var since = previousDate is DateTime old && old < row.Date ? old : row.Date;
+        if (await OpeningStockLockAsync(row.ProductId, row.WarehouseId, row.Id, since, ct) is string locked)
+            throw new InvalidOperationException(locked);
+
+        // Replace the previous posting — nothing has moved after it, so no later cost depends on it.
+        _db.InventoryMovements.RemoveRange(await _db.InventoryMovements
+            .Where(m => m.ReferenceType == InventorySources.OpeningStock && m.ReferenceId == row.Id).ToListAsync(ct));
+        await _accounting.RemoveBySourceAsync(InventorySources.OpeningStock, row.Id, ct);
+        if (row.Quantity == 0) return;
+
+        var p = await ProfileAsync(ct);
+        var product = await _db.Products.Where(x => x.Id == row.ProductId).Select(x => x.Sku + " — " + x.Name).FirstOrDefaultAsync(ct) ?? "";
+        var wh = await WhNameAsync(row.WarehouseId, ct);
+        _db.InventoryMovements.Add(new InventoryMovement
+        {
+            ProductId = row.ProductId, WarehouseId = row.WarehouseId, Date = row.Date, MovementType = InventoryMovementType.Opening,
+            ReferenceType = InventorySources.OpeningStock, ReferenceId = row.Id,
+            QuantityIn = row.Quantity, UnitCost = row.UnitCost, TotalCost = row.TotalCost, Memo = "رصيد افتتاحي"
+        });
+        var desc = $"رصيد افتتاحي للصنف {product} — {wh}";
+        await _accounting.PostAsync(row.Date, desc, InventorySources.OpeningStock, row.Id, new[]
+        {
+            InvLine(p.InventoryCode, row.WarehouseId, wh, row.TotalCost, 0, "رصيد افتتاحي للمخزون"),
+            new LedgerLine(LedgerAccounts.OpeningBalanceEquity, 0, row.TotalCost, desc)
+        }, ct);
     }
 
     /// <summary>Source-type tag used on the reversing journal entry of a document.</summary>
@@ -573,12 +617,12 @@ public class InventoryEngine : IInventoryEngine
     /// </summary>
     private async Task GuardDateAsync(DateTime date, IEnumerable<Guid> productIds, IReadOnlyList<Guid> warehouseIds, CancellationToken ct)
     {
-        if (date.Date > DateTime.Today)
+        if (date.Date > _clock.Today)
             throw new InvalidOperationException("لا يمكن ترحيل مستند بتاريخ مستقبلي.");
 
         var ids = productIds.Distinct().ToList();
         var hasLater = await _db.InventoryMovements
-            .AnyAsync(m => ids.Contains(m.ProductId) && warehouseIds.Contains(m.WarehouseId) && m.Date > date.Date, ct);
+            .AnyAsync(m => ids.Contains(m.ProductId) && warehouseIds.Contains(m.WarehouseId) && m.Date > date && !m.IsReversal, ct);   // later movements (reversals — corrections dated when made — don't count)
         if (hasLater)
             throw new InvalidOperationException(
                 "توجد حركات لاحقة لهذا التاريخ على نفس الأصناف/المخازن — الترحيل بتاريخ سابق يفسد حساب متوسط التكلفة. استخدم تاريخًا لا يسبق آخر حركة.");

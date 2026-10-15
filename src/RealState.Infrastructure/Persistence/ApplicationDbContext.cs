@@ -41,12 +41,14 @@ public class ApplicationDbContext
     public DbSet<Account> Accounts => Set<Account>();
     public DbSet<JournalEntry> JournalEntries => Set<JournalEntry>();
     public DbSet<JournalLine> JournalLines => Set<JournalLine>();
+    public DbSet<AccountOpeningBalance> AccountOpeningBalances => Set<AccountOpeningBalance>();
 
     public DbSet<ProductCategory> ProductCategories => Set<ProductCategory>();
     public DbSet<UnitOfMeasure> UnitsOfMeasure => Set<UnitOfMeasure>();
     public DbSet<Warehouse> Warehouses => Set<Warehouse>();
     public DbSet<Product> Products => Set<Product>();
     public DbSet<InventoryMovement> InventoryMovements => Set<InventoryMovement>();
+    public DbSet<ProductOpeningStock> ProductOpeningStocks => Set<ProductOpeningStock>();
     public DbSet<GoodsReceipt> GoodsReceipts => Set<GoodsReceipt>();
     public DbSet<GoodsReceiptLine> GoodsReceiptLines => Set<GoodsReceiptLine>();
     public DbSet<GoodsIssue> GoodsIssues => Set<GoodsIssue>();
@@ -126,10 +128,26 @@ public class ApplicationDbContext
     public DbSet<WorkTask> WorkTasks => Set<WorkTask>();
     public DbSet<WorkTaskLog> WorkTaskLogs => Set<WorkTaskLog>();
     public DbSet<WorkTaskAttachment> WorkTaskAttachments => Set<WorkTaskAttachment>();
+    public DbSet<FixedAsset> FixedAssets => Set<FixedAsset>();
+    public DbSet<FixedAssetCategory> FixedAssetCategories => Set<FixedAssetCategory>();
+    public DbSet<FixedAssetDepreciation> FixedAssetDepreciations => Set<FixedAssetDepreciation>();
+    public DbSet<MaterialCustody> MaterialCustodies => Set<MaterialCustody>();
+    public DbSet<MaterialCustodyAttachment> MaterialCustodyAttachments => Set<MaterialCustodyAttachment>();
+    public DbSet<FinancialCustody> FinancialCustodies => Set<FinancialCustody>();
+    public DbSet<FinancialCustodyMovement> FinancialCustodyMovements => Set<FinancialCustodyMovement>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
+
+        // Every date/time is stored in UTC and handled in code in the user's time zone (AppTimeZone): converted on save,
+        // on load, and for values compared in queries. Code never sees UTC.
+        var utc = new Microsoft.EntityFrameworkCore.Storage.ValueConversion.ValueConverter<DateTime, DateTime>(
+            v => AppTimeZone.ToUtc(v), v => AppTimeZone.FromUtc(v));
+        foreach (var property in builder.Model.GetEntityTypes()
+                     .SelectMany(t => t.GetProperties())
+                     .Where(p => p.ClrType == typeof(DateTime) || p.ClrType == typeof(DateTime?)))
+            property.SetValueConverter(utc);
 
         // Money precision for all decimal properties.
         foreach (var property in builder.Model.GetEntityTypes()
@@ -170,7 +188,10 @@ public class ApplicationDbContext
         builder.Entity<Account>().HasIndex(a => new { a.TenantId, a.Code }).IsUnique().HasFilter("[IsDeleted] = 0");
         builder.Entity<Account>().HasIndex(a => new { a.TenantId, a.SubKind, a.SubRefId });
         builder.Entity<Account>().HasOne(a => a.Parent).WithMany().HasForeignKey(a => a.ParentId).OnDelete(DeleteBehavior.Restrict);
-        builder.Entity<JournalEntry>().HasIndex(e => new { e.TenantId, e.Number }).IsUnique().HasFilter("[IsDeleted] = 0");
+        builder.Entity<JournalEntry>().HasIndex(e => new { e.TenantId, e.Number }).IsUnique().HasFilter("[IsDeleted] = 0");
+        // One opening balance per account.
+        builder.Entity<AccountOpeningBalance>().HasIndex(b => new { b.TenantId, b.AccountId }).IsUnique().HasFilter("[IsDeleted] = 0");
+        builder.Entity<AccountOpeningBalance>().HasOne(b => b.Account).WithMany().HasForeignKey(b => b.AccountId).OnDelete(DeleteBehavior.Restrict);
         builder.Entity<JournalEntry>().HasIndex(e => new { e.SourceType, e.SourceId });
         builder.Entity<JournalLine>().HasOne(l => l.Entry).WithMany(e => e.Lines).HasForeignKey(l => l.JournalEntryId).OnDelete(DeleteBehavior.Cascade);
         builder.Entity<JournalLine>().HasOne(l => l.Account).WithMany().HasForeignKey(l => l.AccountId).OnDelete(DeleteBehavior.Restrict);
@@ -186,6 +207,12 @@ public class ApplicationDbContext
         builder.Entity<GoodsIssueLine>().Property(l => l.UnitCost).HasPrecision(18, 6);
         builder.Entity<StockTransferLine>().Property(l => l.Quantity).HasPrecision(18, 4);
         builder.Entity<StockTransferLine>().Property(l => l.UnitCost).HasPrecision(18, 6);
+        builder.Entity<ProductOpeningStock>().Property(o => o.Quantity).HasPrecision(18, 4);
+        builder.Entity<ProductOpeningStock>().Property(o => o.UnitCost).HasPrecision(18, 6);
+        builder.Entity<ProductOpeningStock>().Property(o => o.UnitFactor).HasPrecision(18, 6);
+        builder.Entity<ProductOpeningStock>().HasIndex(o => new { o.TenantId, o.ProductId, o.WarehouseId }).IsUnique().HasFilter("[IsDeleted] = 0");
+        builder.Entity<ProductOpeningStock>().HasOne(o => o.Product).WithMany().HasForeignKey(o => o.ProductId).OnDelete(DeleteBehavior.Restrict);
+        builder.Entity<ProductOpeningStock>().HasOne(o => o.Warehouse).WithMany().HasForeignKey(o => o.WarehouseId).OnDelete(DeleteBehavior.Restrict);
         builder.Entity<InventoryAdjustmentLine>().Property(l => l.QuantityDelta).HasPrecision(18, 4);
         builder.Entity<InventoryAdjustmentLine>().Property(l => l.UnitCost).HasPrecision(18, 6);
         builder.Entity<StockCountLine>().Property(l => l.SystemQty).HasPrecision(18, 4);
@@ -362,6 +389,21 @@ public class ApplicationDbContext
         builder.Entity<WorkTaskLog>().HasOne(l => l.Task).WithMany(t => t.Logs).HasForeignKey(l => l.WorkTaskId).OnDelete(DeleteBehavior.Cascade);
         builder.Entity<WorkTaskAttachment>().HasOne(a => a.Task).WithMany(t => t.Attachments).HasForeignKey(a => a.WorkTaskId).OnDelete(DeleteBehavior.Cascade);
 
+        // Custodies — the employee is restricted (an employee holding custody can't be deleted); attachments and
+        // movements go with their custody. Numbers are unique per tenant.
+        builder.Entity<MaterialCustody>().HasOne(c => c.Employee).WithMany().HasForeignKey(c => c.EmployeeId).OnDelete(DeleteBehavior.Restrict);
+        builder.Entity<MaterialCustody>().HasIndex(c => new { c.TenantId, c.Number });
+        // An asset with custody history can't be deleted (handled in code — it's deactivated instead).
+        builder.Entity<MaterialCustody>().HasOne(c => c.FixedAsset).WithMany().HasForeignKey(c => c.FixedAssetId).OnDelete(DeleteBehavior.Restrict);
+        builder.Entity<FixedAsset>().HasIndex(a => new { a.TenantId, a.Number });
+        builder.Entity<FixedAsset>().HasOne(a => a.Category).WithMany().HasForeignKey(a => a.CategoryId).OnDelete(DeleteBehavior.Restrict);
+        builder.Entity<FixedAssetDepreciation>().HasOne(d => d.Asset).WithMany().HasForeignKey(d => d.FixedAssetId).OnDelete(DeleteBehavior.Restrict);
+        builder.Entity<FixedAssetDepreciation>().HasIndex(d => new { d.FixedAssetId, d.Period });
+        builder.Entity<MaterialCustodyAttachment>().HasOne(a => a.Custody).WithMany(c => c.Attachments).HasForeignKey(a => a.MaterialCustodyId).OnDelete(DeleteBehavior.Cascade);
+        builder.Entity<FinancialCustody>().HasOne(c => c.Employee).WithMany().HasForeignKey(c => c.EmployeeId).OnDelete(DeleteBehavior.Restrict);
+        builder.Entity<FinancialCustody>().HasIndex(c => new { c.TenantId, c.Number });
+        builder.Entity<FinancialCustodyMovement>().HasOne(m => m.Custody).WithMany(c => c.Movements).HasForeignKey(m => m.FinancialCustodyId).OnDelete(DeleteBehavior.Cascade);
+
         // Project references its settings-defined type (restrict — a type in use can't be deleted);
         // unit attachments cascade with their unit.
         builder.Entity<Project>().HasOne(p => p.ProjectTypeRef).WithMany().HasForeignKey(p => p.ProjectTypeId).OnDelete(DeleteBehavior.Restrict);
@@ -414,7 +456,7 @@ public class ApplicationDbContext
 
     private void ApplyAuditAndTenant()
     {
-        var now = _clock.UtcNow;
+        var now = _clock.Now;   // CreationTime / LastUpdateTime: the user's local now, stored in UTC by the converter
         var user = _currentUser.UserName ?? "system";
         var tenantId = _currentUser.TenantId;
 

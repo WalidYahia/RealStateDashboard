@@ -4,7 +4,7 @@
     var canCreate = ViewData["CanCreate"] as bool? ?? false;
     var canEdit = ViewData["CanEdit"] as bool? ?? false;
     var canDelete = ViewData["CanDelete"] as bool? ?? false;
-    string D(DateTime? d) => d?.ToString("yyyy/MM/dd", System.Globalization.CultureInfo.InvariantCulture) ?? "—";
+    string D(DateTime? d) => RealState.Web.AppCulture.When(d);   // date + time when it has one
     string? F(DateTime? d) => d?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
     string Trunc(string s) => s.Length > 60 ? s[..60] + "…" : s;
 }

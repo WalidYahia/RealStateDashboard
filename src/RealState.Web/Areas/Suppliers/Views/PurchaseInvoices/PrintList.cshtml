@@ -2,7 +2,7 @@
 @{
     Layout = null;
     string N(decimal v) => v.ToString("N2", RealState.Web.AppCulture.Ar);
-    string D(DateTime d) => d.ToString("yyyy/MM/dd", System.Globalization.CultureInfo.InvariantCulture);
+    string D(DateTime d) => RealState.Web.AppCulture.When(d);   // date + time when it has one
     var total = Model.Sum(r => r.Total);
     var paid = Model.Sum(r => r.Paid);
 }
@@ -25,25 +25,25 @@
     @await Component.InvokeAsync("ReportBackground", new { part = "open" })
     <div class="no-print"><button onclick="window.print()">🖨 طباعة / حفظ PDF</button></div>
     <h1>فواتير المشتريات</h1>
-    <div class="sub">@DateTime.Now.ToString("yyyy/MM/dd HH:mm")</div>
+    <div class="sub">@ClientTime.Now.ToString("yyyy/MM/dd HH:mm")</div>
 
     <table>
-        <thead><tr><th>الرقم</th><th>التاريخ</th><th>المورد</th><th>المشروع</th><th>أمر التوريد</th><th>الإجمالي</th><th>المسدَّد</th><th>المتبقي</th></tr></thead>
+        <thead><tr><th>الرقم</th><th>التاريخ</th><th>المورد</th><th>الدفع</th><th>المشروع</th><th>أمر التوريد</th><th>الإجمالي</th><th>المسدَّد</th><th>المتبقي</th></tr></thead>
         <tbody>
         @foreach (var i in Model)
         {
             <tr>
-                <td>PI-@i.Number</td><td>@D(i.InvoiceDate)</td><td>@i.Supplier</td><td>@i.Project</td>
+                <td>PI-@i.Number</td><td>@RealState.Web.AppCulture.When(i.InvoiceDate)</td><td>@i.Supplier</td><td>@i.PaymentType.Ar()</td><td>@i.Project</td>
                 <td>@(i.OrderNumber.HasValue ? "PO-" + i.OrderNumber.Value.ToString("D4") : "—")</td>
                 <td>@N(i.Total)</td><td>@N(i.Paid)</td><td>@N(i.Remaining)</td>
             </tr>
         }
         @if (Model.Count == 0)
         {
-            <tr><td colspan="8">لا توجد فواتير مشتريات.</td></tr>
+            <tr><td colspan="9">لا توجد فواتير مشتريات.</td></tr>
         }
         </tbody>
-        <tfoot><tr><th colspan="5">الإجمالي</th><th>@N(total)</th><th>@N(paid)</th><th>@N(total - paid)</th></tr></tfoot>
+        <tfoot><tr><th colspan="6">الإجمالي</th><th>@N(total)</th><th>@N(paid)</th><th>@N(total - paid)</th></tr></tfoot>
     </table>
 
     <script>window.addEventListener('load', function () { setTimeout(function () { window.print(); }, 400); });</script>

@@ -372,6 +372,32 @@ body {
         font-family: sans-serif;
     }
 .badge-role { background: var(--surface-2); border: 1px solid var(--border); color: var(--text-secondary); padding: 3px 9px; border-radius: 8px; font-size: 12px; margin-inline-end: 4px; display: inline-block; }
+/* Custodies (Accounting/FinancialCustody + MaterialCustody). */
+.settle-line { border: 1px solid var(--border); border-radius: 12px; padding: 12px; margin-bottom: 10px; background: var(--surface-2); }
+.settle-line-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+/* Inputs stand out from the card while idle; on focus they take the app's normal focus style (light field, dark text). */
+.settle-line .form-control:not(:focus) { background: var(--surface-1, var(--page)); }
+.settle-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.settle-total { font-size: 13px; font-weight: 700; }
+.settle-total.ok { color: var(--good); }
+.settle-total.off { color: var(--warning); }
+.emp-custody-title { font-size: 14px; font-weight: 700; margin: 14px 0 8px; color: var(--text-secondary); }
+.emp-custody-title:first-of-type { margin-top: 4px; }
+.fa-section { font-size: 13px; font-weight: 700; color: var(--text-secondary); border-top: 1px solid var(--border); padding-top: 10px; margin-top: 4px; }
+.dep-month { display: flex; gap: 8px; align-items: center; }
+.dep-month .form-control { margin: 0; width: auto; min-width: 170px; }
+.mc-asset-info { color: var(--muted); font-size: 12px; margin-top: 6px; min-height: 1em; }
+.mc-upload { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
+.mc-upload .form-control { flex: 1 1 260px; margin: 0; }
+@media (max-width: 720px) {
+    .settle-foot .btn-sm { flex: 1 1 100%; min-height: 40px; }
+    .settle-total { flex: 1 1 100%; text-align: center; }
+    .mc-upload .btn-sm { flex: 1 1 100%; min-height: 40px; }
+}
+@media (hover: none) and (pointer: coarse) {
+    .settle-line .form-control { font-size: 16px; }   /* no iOS zoom on focus */
+}
+
 /* Contract form: installment schedule mode + manual (date, amount) table (Sales/_SaleForm). */
 .sched-mode { display: flex; flex-wrap: wrap; gap: 8px 18px; }
 .sched-mode label { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-primary); cursor: pointer; }
@@ -431,6 +457,7 @@ body {
 .badge-state { padding: 3px 10px; border-radius: 8px; font-size: 12px; font-weight: 700; }
 .state-on { background: rgba(12,163,12,.15); color: var(--good); }
 .state-off { background: rgba(208,59,59,.15); color: var(--critical); }
+.state-warn { background: rgba(214,150,10,.15); color: var(--warning); }
 .btn-sm { padding: 6px 12px; border-radius: 8px; font-size: 12px; font-weight: 600; text-decoration: none; border: 1px solid var(--border); background: var(--surface-2); color: var(--text-primary); cursor: pointer; }
 .btn-sm:hover { background: var(--hover-bg); color: var(--text-strong); }
 .btn-danger { border-color: rgba(208,59,59,.4); color: var(--critical); background: rgba(208,59,59,.08); }
@@ -449,6 +476,8 @@ body {
 .form-grid .form-label { margin-bottom: 6px; }
 .form-grid .form-control { margin-bottom: 0; width: 100%; }
 .form-grid .full { grid-column: 1 / -1; }
+.form-grid.form-grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.form-grid-3 .sched-mode { min-height: 42px; align-items: center; }
 .logo-preview { max-height: 70px; border: 1px solid var(--border); border-radius: 8px; padding: 6px; background: var(--surface-2); margin-bottom: 12px; }
 .checks { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 8px; }
 .checks label { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-secondary); background: var(--surface-2); border: 1px solid var(--border); padding: 8px 10px; border-radius: 8px; }
@@ -649,6 +678,8 @@ select.form-control { appearance: auto; }
     border-radius: 10px; padding: 11px 13px; margin-bottom: 14px; font-size: 14px;
 }
 .form-control:focus { outline: none; border-color: var(--series-1); }
+/* Locked fields keep the theme (Bootstrap's light disabled background clashes with the dark theme). */
+.form-control:disabled { background: var(--surface-1); color: var(--text-secondary); border-style: dashed; opacity: 1; cursor: not-allowed; }
 
 /* Inline list-search header: a full-width search bar at the top of a list card. */
 .list-search-bar { margin-bottom: 12px; }
@@ -716,6 +747,7 @@ select.form-control { appearance: auto; }
     .kpi-value { font-size: 20px; }
     .grid-row, .content [style*="grid-template-columns"]:not(.kpi-grid) { grid-template-columns: minmax(0, 1fr) !important; }
     .form-grid { grid-template-columns: minmax(0, 1fr); }
+    .form-grid.form-grid-3 { grid-template-columns: minmax(0, 1fr); }
     /* Page header: title on its own line, actions wrap under it. */
     .page-head { flex-wrap: wrap; align-items: flex-start; gap: 10px; }
     .page-head > div:last-child:not(:first-child) { display: flex; flex-wrap: wrap; gap: 6px; max-width: 100%; }
@@ -1020,6 +1052,8 @@ kbd { font-family: inherit; font-size: 11px; padding: 2px 7px; border-radius: 6p
 .ws-soon .ws-card-link:hover { transform: none; box-shadow: none; border-color: var(--border); }
 .ws-soon .ws-card-link:hover::before { opacity: 0; }
 .ws-soon .ws-card-link:hover .ws-card-icon { background: var(--accent-soft); color: var(--series-1); box-shadow: none; }
+/* Group cards (a module's sections — open their own page of cards) */
+.ws-group-card .ws-meta { margin-top: 8px; }
 
 /* Favorites / recent panels */
 .ws-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 26px; }
@@ -1089,3 +1123,105 @@ kbd { font-family: inherit; font-size: 11px; padding: 2px 7px; border-radius: 6p
 .pal-text small { color: var(--muted); font-size: 11.5px; unicode-bidi: plaintext; }
 .pal-empty { color: var(--muted); font-size: 13px; padding: 14px 10px; }
 :root.pal-open { overflow: hidden; }
+
+/* CreationTime / LastUpdateTime of a document (Views/Shared/_AuditStamp) */
+.audit-stamp { margin: 2px 0 0; font-size: 12px; color: var(--muted); }
+
+/* الأرصدة الافتتاحية — inline-editable table; on phones each account is a card */
+.ob-date { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin: 0 0 14px; }
+.ob-date-form { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.ob-date-form .form-label { margin: 0; }
+.ob-date-form .form-control { width: auto; margin: 0; }
+.ob-tabs { overflow-x: auto; scrollbar-width: none; }
+.ob-tabs .subtab { white-space: nowrap; }
+.ob-tabs .pill { font-size: 11px; margin-inline-start: 4px; }
+.ob-table .ob-amount { width: 150px; margin: 0; }
+.ob-table .ob-side { width: 100px; margin: 0; }
+.ob-table .ob-code { color: var(--muted); font-size: 12px; margin-inline-end: 4px; }
+.ob-table .ob-parent { color: var(--text-secondary); font-size: 13px; }
+.ob-table .ob-updated { color: var(--muted); font-size: 12px; white-space: nowrap; }
+.ob-table tr.ob-dirty td { background: rgba(250,178,25,.06); }
+.ob-table .ob-save:disabled { opacity: .4; cursor: default; }
+.ob-table .ob-source { display: block; color: var(--muted); font-size: 11.5px; }
+.ob-table tr.ob-saved td { background: rgba(25,158,112,.12); transition: background .3s; }
+@media (max-width: 720px) {
+    .ob-table thead { display: none; }
+    .ob-table, .ob-table tbody, .ob-table tr, .ob-table td { display: block; width: 100%; }
+    .ob-table tr[data-target] { border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; margin-bottom: 10px; background: var(--surface-1); }
+    .ob-table td { border: none !important; padding: 4px 0 !important; }
+    .ob-table td[data-label]::before { content: attr(data-label); display: block; font-size: 11.5px; color: var(--muted); margin-bottom: 2px; }
+    .ob-table td:first-child { font-weight: 700; }
+    .ob-table td.grid-idx, .ob-table th.grid-idx { display: none !important; }
+    .ob-table .ob-amount, .ob-table .ob-side { width: 100%; }
+    .ob-table .ob-actions { padding-top: 8px !important; }
+    .ob-table .ob-actions .btn-sm { width: 100%; justify-content: center; }
+}
+
+/* ---- تسوية مخزون: tabs + opening-stock table (Areas/Inventory/Views/Adjustments/Form) ---- */
+.adj-hint { display: block; color: var(--muted); font-size: 12px; margin-top: 6px; }
+.adj-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin: 16px 0 10px; }
+.adj-toolbar .list-search { flex: 1 1 260px; margin: 0; }
+.adj-sort { display: flex; align-items: center; gap: 8px; margin: 0; color: var(--muted); font-size: 13px; white-space: nowrap; }
+.adj-sort .form-control { width: auto; margin: 0; }
+.os-wrap { overflow-x: auto; }
+.os-table .os-sku { color: var(--muted); font-size: 12.5px; white-space: nowrap; }
+.os-table .os-cat { color: var(--text-secondary); font-size: 13px; }
+.os-table .os-qty, .os-table .os-cost { width: 120px; margin: 0; }
+.os-table select[data-inv-unit] { margin: 0; }
+.os-table .os-total { white-space: nowrap; text-align: right; }
+.os-table tr.os-filled td { background: rgba(25,158,112,.07); }
+.os-table tr.os-missing-cost .os-cost { border-color: var(--warning); }
+.os-table tr.os-dirty td { background: rgba(250,178,25,.07); }
+.os-table tr.os-saved td { background: rgba(25,158,112,.16); transition: background .3s; }
+.os-table .os-when { font-size: 12.5px; white-space: nowrap; }
+.os-table .os-when small { display: block; color: var(--muted); font-size: 11px; margin-top: 2px; }
+.os-table .os-save:disabled { opacity: .4; cursor: default; }
+.os-table .os-lock { display: block; max-width: 230px; color: var(--muted); font-size: 11.5px; line-height: 1.5; white-space: normal; }
+.os-footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin: 14px 0 8px; }
+.os-summary { display: flex; flex-wrap: wrap; gap: 8px 24px; color: var(--text-secondary); font-size: 13.5px; }
+.os-submit { width: auto; margin: 0; }
+.os-submit:disabled { opacity: .45; cursor: default; box-shadow: none; }
+@media (max-width: 720px) {
+    .os-table thead { display: none; }
+    .os-table, .os-table tbody, .os-table tr, .os-table td { display: block; width: 100%; }
+    .os-table tr[data-sku] { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 10px; border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; margin-bottom: 10px; background: var(--surface-1); }
+    .os-table tr[data-sku] td { border: none !important; padding: 0 !important; background: none !important; }
+    .os-table tr.os-filled { border-color: rgba(25,158,112,.55) !important; }
+    .os-table td.os-sku, .os-table td.os-name { grid-column: 1 / -1; }
+    .os-table td.os-name { font-weight: 700; margin-top: -4px; }
+    .os-table td.os-sku::before, .os-table td.os-name::before { display: none !important; }
+    .os-table td[data-label]::before { content: attr(data-label); display: block; font-size: 11.5px; color: var(--muted); margin-bottom: 2px; }
+    .os-table .os-qty, .os-table .os-cost, .os-table select[data-inv-unit] { width: 100% !important; }
+    .os-table .os-total { text-align: start; }
+    .os-table td.os-when, .os-table td.os-actions { grid-column: 1 / -1; }
+    .os-table .os-save { width: 100%; justify-content: center; }
+    .os-table .os-lock { max-width: none; }
+    .adj-sort { width: 100%; }
+    .os-footer { position: sticky; bottom: 0; z-index: 5; margin: 10px -12px 8px; padding: 10px 12px; background: var(--surface-1); border-top: 1px solid var(--border); }
+    .os-submit { width: 100%; justify-content: center; }
+    .adj-sort .form-control { flex: 1; }
+}
+
+/* ---- لوحة المخزون: chart + attention table side by side (Areas/Inventory/Views/Dashboard) ---- */
+.inv-dash-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: stretch; }
+.inv-dash-card { display: flex; flex-direction: column; min-width: 0; margin: 0; }
+.inv-dash-chart { position: relative; height: 340px; }
+.inv-dash-empty { color: var(--muted); margin: 0; padding: 24px 0; text-align: center; }
+.inv-dash-scroll { max-height: 340px; overflow: auto; }
+.inv-dash-scroll thead th { position: sticky; top: 0; z-index: 1; background: var(--surface-1); }
+@media (max-width: 720px) {
+    .inv-dash-chart { height: 260px; }
+    .inv-dash-scroll { max-height: 420px; }
+    /* Attention table → one compact card per product: code + name, status, then quantity and reorder level. */
+    .inv-alerts thead { display: none; }
+    .inv-alerts, .inv-alerts tbody { display: block; width: 100%; }
+    .inv-alerts tr[data-alert] { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 12px; padding: 10px 2px; border-bottom: 1px solid var(--border); }
+    .inv-alerts tr[data-alert] td { border: none !important; padding: 0 !important; text-align: start !important; }
+    .inv-alerts .al-sku { grid-column: 1; grid-row: 1; color: var(--muted); font-size: 12px; }
+    .inv-alerts .al-name { grid-column: 1; grid-row: 2; font-weight: 700; }
+    .inv-alerts .al-state { grid-column: 2; grid-row: 1 / span 2; align-self: center; }
+    .inv-alerts .al-qty { grid-column: 1; grid-row: 3; font-size: 13px; }
+    .inv-alerts .al-reorder { grid-column: 2; grid-row: 3; font-size: 13px; color: var(--text-secondary); }
+    .inv-alerts .al-qty::before, .inv-alerts .al-reorder::before { content: attr(data-label) ': '; color: var(--muted); font-weight: 400; }
+    .inv-alerts tr[data-skip-search] { display: block; }
+}

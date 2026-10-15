@@ -123,7 +123,7 @@ public class StagesController : Controller
     [HttpGet]
     [Authorize(Policy = PermissionNames.ProjectsEdit)]
     public IActionResult StateForm(Guid stageId, bool end)
-        => PartialView("_StageStateForm", new StageStateModel { StageId = stageId, IsEnd = end, Date = DateTime.Today });
+        => PartialView("_StageStateForm", new StageStateModel { StageId = stageId, IsEnd = end, Date = ClientTime.Today });
 
     [HttpPost]
     [Authorize(Policy = PermissionNames.ProjectsEdit)]

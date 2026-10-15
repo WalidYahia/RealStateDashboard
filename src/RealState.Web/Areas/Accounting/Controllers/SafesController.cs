@@ -101,7 +101,9 @@ public class SafesController : Controller
             safe.Name = model.Name; safe.Type = model.Type; safe.InitialAmount = model.InitialAmount; safe.IsActive = model.IsActive;
         }
         if (canOverdraft) safe.AllowOverdraft = model.AllowOverdraft;
-        await _accounting.PostSafeOpeningBalanceAsync(safe, ct);   // Dr النقدية / Cr رصيد افتتاحي
+        var openings = HttpContext.RequestServices.GetRequiredService<RealState.Application.Accounting.IOpeningBalanceService>();
+        await _accounting.PostSafeOpeningBalanceAsync(safe, ct, await openings.OpeningDateAsync(ct));   // Dr النقدية / Cr رصيد افتتاحي, on the opening date
+        await openings.SyncSafeAsync(safe, ct);   // «الأرصدة الافتتاحية» row
         await _db.SaveChangesAsync(ct);
         var overdraftPart = safe.AllowOverdraft == overdraftBefore ? ""
             : safe.AllowOverdraft ? " — تم تفعيل السحب على المكشوف" : " — تم إلغاء السحب على المكشوف";
@@ -124,6 +126,8 @@ public class SafesController : Controller
             return RedirectToAction(nameof(Index));
         }
         await _accounting.RemoveObligationAsync("SafeOpening", s.Id, ct);   // its opening-balance entry goes with it
+        var openingRow = await _db.AccountOpeningBalances.FirstOrDefaultAsync(b => b.Account!.SubKind == "Safe" && b.Account.SubRefId == s.Id, ct);
+        if (openingRow is not null) _db.AccountOpeningBalances.Remove(openingRow);
         _db.Safes.Remove(s);
         await _db.SaveChangesAsync(ct);
         TempData["StatusMessage"] = $"تم حذف الخزنة «{s.Name}».";
@@ -160,7 +164,7 @@ public class SafesController : Controller
         var rows = vm.Transactions.Select(t => (IReadOnlyList<object?>)new object?[]
         {
             t.DocNo ?? t.Serial.ToString(inv),
-            t.OccurredAt.ToString("yyyy-MM-dd HH:mm", inv),
+            RealState.Web.AppCulture.When(t.OccurredAt),
             t.IsTransfer ? (t.Type == TxnType.Income ? "تحويل وارد" : "تحويل صادر") : (t.Type == TxnType.Income ? "وارد" : "منصرف"),
             t.Source.Ar(),
             t.Description,
@@ -168,7 +172,7 @@ public class SafesController : Controller
             t.RunningBalance
         });
         var totals = new object?[] { null, null, null, null, "الرصيد الحالي", null, vm.Balance };
-        return RealState.Web.Common.Xlsx.File($"حركات {vm.SafeName} {DateTime.Now:yyyy-MM-dd}.xlsx", "حركات الخزنة", headers, rows, totals);
+        return RealState.Web.Common.Xlsx.File($"حركات {vm.SafeName} {ClientTime.Now:yyyy-MM-dd}.xlsx", "حركات الخزنة", headers, rows, totals);
     }
 
     private async Task<SafeMovementsVm> BuildMovementsAsync(Safe s, DateTime? from, DateTime? to, string? q, CancellationToken ct)
@@ -200,8 +204,9 @@ public class SafesController : Controller
             }
 
         var filtered = all.AsEnumerable();
-        if (from.HasValue) filtered = filtered.Where(t => t.OccurredAt >= from.Value);
-        if (to.HasValue) filtered = filtered.Where(t => t.OccurredAt < to.Value.Date.AddDays(1));
+        var (fromAt, toAt) = ClientTime.DayRange(from, to);   // [from, to) of the picked days
+        if (fromAt.HasValue) filtered = filtered.Where(t => t.OccurredAt >= fromAt.Value);
+        if (toAt.HasValue) filtered = filtered.Where(t => t.OccurredAt < toAt.Value);
         if (!string.IsNullOrWhiteSpace(q)) filtered = filtered.Where(t => t.Description.Contains(q, StringComparison.OrdinalIgnoreCase));
 
         return new SafeMovementsVm

@@ -12,7 +12,7 @@
     var returnable = Model.Returned < Model.Total;
     string N(decimal v) => v.ToString("N2", RealState.Web.AppCulture.Ar);
     string Q(decimal v) => v.ToString("0.####", System.Globalization.CultureInfo.InvariantCulture);
-    string D(DateTime d) => d.ToString("yyyy/MM/dd", System.Globalization.CultureInfo.InvariantCulture);
+    string D(DateTime d) => RealState.Web.AppCulture.When(d);   // date + time when it has one
 }
 <div class="page-head">
     <div>
@@ -20,7 +20,8 @@
             <button type="button" title="شرح فاتورة المشتريات" onclick="appOpenModal('@Url.Action("Help")', 'شرح فاتورة المشتريات')" style="border:none;background:none;cursor:pointer;font-size:18px;vertical-align:middle;">❓</button>
         </h1>
         <p style="color:var(--muted);margin:2px 0 0;">
-            @Model.Supplier · @(Model.Project ?? "بدون مشروع") · @D(inv.InvoiceDate)
+            @Model.Supplier · @(Model.Project ?? "بدون مشروع") · @RealState.Web.AppCulture.When(inv.InvoiceDate)
+            · <span class="badge-state @inv.PaymentType.BadgeClass()">@inv.PaymentType.Ar()</span>@if (Model.CashSafe is not null) { <text> (خزنة @Model.CashSafe)</text> }
             @if (Model.Warehouse is not null) { <text> · المخزن: @Model.Warehouse</text> }
             @if (Model.OrderNumber.HasValue)
             {
@@ -35,6 +36,7 @@
                 }
             }
         </p>
+        <partial name="_AuditStamp" model="RealState.Web.Models.AuditStampVm.Of(inv)" />
     </div>
     <div style="display:flex;gap:8px;">
         <a class="btn-sm" asp-action="Index" onclick="if (history.length > 1) { history.back(); return false; }">رجوع</a>
@@ -181,7 +183,11 @@
                 <td class="tag-up">@N(p.Amount)</td>
                 <td style="white-space:nowrap;">
                     <a class="btn-sm" asp-controller="Payments" asp-action="Receipt" asp-route-id="@p.Id" target="_blank">🖨 إيصال صرف نقدية</a>
-                    @if (canDeletePayment)
+                    @if (p.IsInvoiceCash)
+                    {
+                        <span class="badge-state state-on" title="يتبع الفاتورة النقدية — يتعدّل ويُلغى معها">سداد الفاتورة النقدية</span>
+                    }
+                    else if (canDeletePayment)
                     {
                         <form asp-action="DeletePayment" asp-route-id="@p.Id" method="post" style="display:inline;" data-danger
                               data-confirm="حذف سند الصرف رقم @p.ReceiptNo (@N(p.Amount) ج.م)؟ سيُحذف المصروف وقيده، ويعود المبلغ إلى الخزنة ومستحقًّا على الفاتورة.">

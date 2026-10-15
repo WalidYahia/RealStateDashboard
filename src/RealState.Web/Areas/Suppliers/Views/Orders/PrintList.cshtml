@@ -3,7 +3,7 @@
     Layout = null;
     var tenantId = (Guid)ViewBag.TenantId;
     string Q(decimal v) => v.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
-    string D(DateTime d) => d.ToString("yyyy/MM/dd", System.Globalization.CultureInfo.InvariantCulture);
+    string D(DateTime d) => RealState.Web.AppCulture.When(d);   // date + time when it has one
     string PO(int x) => "PO-" + x.ToString("D4");
     var totalQty = Model.Sum(r => r.TotalQuantity);
 }
@@ -27,7 +27,7 @@
     @await Component.InvokeAsync("ReportBackground", new { part = "open" })
     <div class="no-print"><button onclick="window.print()">🖨 طباعة / حفظ PDF</button></div>
     <h1>أوامر التوريد</h1>
-    <div class="sub">@DateTime.Now.ToString("yyyy/MM/dd HH:mm")</div>
+    <div class="sub">@ClientTime.Now.ToString("yyyy/MM/dd HH:mm")</div>
 
     <table>
         <thead><tr><th>الرقم</th><th>التاريخ</th><th>المشروع</th><th>عدد الأصناف</th><th>إجمالي الكميات</th><th>فواتير المشتريات</th></tr></thead>

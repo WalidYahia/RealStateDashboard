@@ -7,7 +7,8 @@
     var p = Model.Page;
 }
 <div class="ws-card @(p.Soon ? "ws-soon" : "")">
-    <a class="ws-card-link" href="@p.Url">
+    @* A «قريبًا» card doesn't open its page — workspace-nav.js shows a «قريبًا» message (.ws-soon-link). *@
+    <a class="ws-card-link @(p.CanOpen ? "" : "ws-soon-link")" href="@(p.CanOpen ? p.Url : "#")" data-title="@p.Title">
         <span class="ws-card-icon">@NavIcons.Svg(p.Icon, 22)</span>
         <span class="ws-card-body">
             <span class="ws-card-title">@p.Title @if (p.Soon) { <span class="nav-soon">قريبًا</span> }</span>

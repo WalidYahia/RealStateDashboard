@@ -4,7 +4,7 @@
     Layout = null;
     var tenantId = (Guid)ViewBag.TenantId;
     string N(decimal v) => v.ToString("N0", RealState.Web.AppCulture.Ar);
-    string D(DateTime d) => d.ToString("yyyy/MM/dd", CultureInfo.InvariantCulture);
+    string D(DateTime d) => RealState.Web.AppCulture.When(d);   // date + time when it has one
     var range = (Model.From.HasValue || Model.To.HasValue)
         ? $"من {(Model.From.HasValue ? D(Model.From.Value) : "…")} إلى {(Model.To.HasValue ? D(Model.To.Value) : "…")}"
         : "كل الفترات";
@@ -30,7 +30,7 @@
     @await Component.InvokeAsync("ReportBackground", new { part = "open" })
     <div class="no-print"><button onclick="window.print()">🖨 طباعة / حفظ PDF</button></div>
     <h1>تقرير المبيعات (عقود البيع)</h1>
-    <div class="sub">@range · @DateTime.Now.ToString("yyyy/MM/dd HH:mm")</div>
+    <div class="sub">@range · @ClientTime.Now.ToString("yyyy/MM/dd HH:mm")</div>
     <table>
         <thead>
             <tr><th>الكود</th><th>العميل</th><th>المشروع</th><th>الوحدة</th><th>تاريخ العقد</th><th>الإجمالي</th><th>المدفوع</th><th>المتبقي</th></tr>

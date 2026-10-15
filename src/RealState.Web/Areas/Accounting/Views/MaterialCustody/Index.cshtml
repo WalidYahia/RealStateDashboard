@@ -1,0 +1,84 @@
+@model MaterialCustodyListVm
+@{
+    ViewData["Title"] = "العُهد العينية";
+    var canManage = ViewData["CanManage"] as bool? ?? false;
+    string N(decimal v) => v.ToString("N0", RealState.Web.AppCulture.Ar);
+    string D(DateTime? d) => RealState.Web.AppCulture.When(d);   // date + time when it has one
+    string? F(DateTime? d) => d?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+    var status = Model.Status.HasValue ? ((int)Model.Status).ToString() : null;
+    var employeeId = Model.EmployeeId?.ToString();
+}
+<div class="page-head">
+    <h1>العُهد العينية</h1>
+    @if (canManage)
+    {
+        <button type="button" class="btn-new-tenant" data-quick-new onclick="appOpenModal('@Url.Action("Form")', 'تسليم عهدة عينية')">➕ تسليم عهدة</button>
+    }
+</div>
+
+@if (TempData["StatusMessage"] is string msg)
+{
+    <div class="status-message">@msg</div>
+}
+
+<div class="kpi-grid" style="grid-template-columns: repeat(4, 1fr);">
+    <div class="kpi k-tasks"><div class="kpi-label">لدى الموظفين</div><div class="kpi-value">@Model.HeldCount</div><div class="kpi-foot">بقيمة تقديرية @N(Model.HeldValue) ج.م</div></div>
+    <div class="kpi k-alerts"><div class="kpi-label">تجاوزت موعد الإرجاع</div><div class="kpi-value">@Model.OverdueCount</div><div class="kpi-foot">لدى الموظف بعد التاريخ المتوقع</div></div>
+    <div class="kpi k-sales"><div class="kpi-label">مُستلمة</div><div class="kpi-value">@Model.ReturnedCount</div><div class="kpi-foot">أُعيدت سليمة</div></div>
+    <div class="kpi k-collect"><div class="kpi-label">تالفة / مفقودة</div><div class="kpi-value">@Model.IssueCount</div><div class="kpi-foot">تحتاج متابعة</div></div>
+</div>
+
+@{
+    var filter = FilterBarVm.For(Url.Action("Index"))
+        .DateRange(F(Model.From), F(Model.To), "تاريخ التسليم", new[] { FilterPresets.All() }.Concat(FilterPresets.Standard()))
+        .Select("employeeId", "الموظف", Model.Employees, employeeId)
+        .Select("status", "الحالة", ArabicLabels.MaterialCustodyStatusOptions(), status)
+        .Select("itemType", "نوع العهدة", Model.ItemTypes, Model.ItemType)
+        .Text("q", "بحث (الصنف / الرقم التسلسلي / الموظف)", Model.Q, "MC-… أو اسم الصنف")
+        .Print(Url.Action("PrintList", new { from = F(Model.From), to = F(Model.To), employeeId, status, itemType = Model.ItemType, q = Model.Q }));
+}
+<partial name="_FilterBar" model="filter" />
+
+<div class="card-tile">
+    <div class="card-head">
+        <h3>سجل العُهد</h3>
+        <span class="pill">العدد: <span data-live-count="#mcTable">@Model.Rows.Count</span></span>
+    </div>
+    <div class="list-search-bar"><input class="form-control list-search" data-target="#mcTable" placeholder="🔍 بحث في القائمة..." /></div>
+    <table class="rs-table" id="mcTable">
+        <thead><tr><th>الرقم</th><th>الصنف</th><th>النوع</th><th>الرقم التسلسلي</th><th>الكمية</th><th>الموظف</th><th>التسليم</th><th>الإرجاع المتوقع</th><th>الاستلام</th><th>الحالة</th><th></th></tr></thead>
+        <tbody>
+        @foreach (var r in Model.Rows)
+        {
+            <tr>
+                <td dir="ltr" style="text-align:right;white-space:nowrap;"><a asp-action="Details" asp-route-id="@r.Id" style="color:var(--series-1);font-weight:600;text-decoration:none;">MC-@r.Number</a></td>
+                <td>@r.ItemName @if (r.AttachmentsCount > 0) { <span title="@r.AttachmentsCount مرفق" style="color:var(--muted);">📎</span> }@if (r.AssetNumber is int an) { <div style="color:var(--muted);font-size:11px;" dir="ltr">FA-@an</div> }</td>
+                <td>@(r.ItemType ?? "—")</td>
+                <td dir="ltr" style="text-align:right;">@(r.SerialNumber ?? "—")</td>
+                <td>@r.Quantity</td>
+                <td>@r.Employee</td>
+                <td dir="ltr" style="text-align:right;">@D(r.HandoverDate)</td>
+                <td dir="ltr" style="text-align:right;@(r.IsOverdue ? "color:var(--critical);font-weight:700;" : "")">@D(r.ExpectedReturnDate)@(r.IsOverdue ? " ⚠" : "")</td>
+                <td dir="ltr" style="text-align:right;">@D(r.ReturnDate)</td>
+                <td><span class="badge-state @r.Status.BadgeClass()">@r.Status.Ar()</span></td>
+                <td style="white-space:nowrap;">
+                    <a class="btn-sm" asp-action="Details" asp-route-id="@r.Id">التفاصيل</a>
+                    @if (canManage && r.Status == MaterialCustodyStatus.HandedOver)
+                    {
+                        <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("ReturnForm", new { id = r.Id })', 'استلام العهدة MC-@r.Number')">↩ استلام</button>
+                    }
+                </td>
+            </tr>
+        }
+        @if (Model.Rows.Count == 0)
+        {
+            <tr data-skip-search><td colspan="11" style="color:var(--muted)">لا توجد عُهد مطابقة.</td></tr>
+        }
+        <tr data-no-results data-skip-search style="display:none;"><td colspan="11" style="color:var(--muted)">لا توجد نتائج مطابقة للبحث.</td></tr>
+        </tbody>
+    </table>
+</div>
+
+@section Scripts {
+    <script src="~/js/material-custody.js" asp-append-version="true"></script>
+}

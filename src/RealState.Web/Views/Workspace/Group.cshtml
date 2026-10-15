@@ -1,0 +1,39 @@
+@model WorkspaceGroupVm
+@*
+    Group workspace (e.g. المالية والمحاسبة › المحاسبة): the group's nested group cards, then its page cards — only what
+    the user may see. Rendered from the navigation model, like the module workspace.
+*@
+@{
+    var g = Model.Group;
+    ViewData["Title"] = g.Title;
+}
+<div class="ws-hero">
+    <div class="ws-mod-head">
+        <span class="ws-card-icon ws-module-icon ws-hero-icon">@NavIcons.Svg(g.Icon, 26)</span>
+        <div class="ws-hero-text">
+            <h1 class="ws-title">@g.Title @if (g.Soon) { <span class="nav-soon">قريبًا</span> }</h1>
+            <p class="ws-sub">@g.Description</p>
+        </div>
+    </div>
+</div>
+
+@if (g.Groups.Count > 0)
+{
+    <h2 class="ws-h2">الأقسام <span class="ws-count">@g.Groups.Count</span></h2>
+    <div class="ws-grid ws-pages">
+        @foreach (var sub in g.Groups)
+        {
+            <partial name="_GroupCard" model="sub" />
+        }
+    </div>
+}
+@if (g.Pages.Count > 0)
+{
+    <h2 class="ws-h2" style="@(g.Groups.Count > 0 ? "margin-top:22px;" : "")">الصفحات <span class="ws-count">@g.Pages.Count(p => !p.Soon)</span></h2>
+    <div class="ws-grid ws-pages">
+        @foreach (var p in g.Pages)
+        {
+            <partial name="_PageCard" model="(p, Model.Kpis.GetValueOrDefault(p.Key), Model.FavoriteKeys.Contains(p.Key))" />
+        }
+    </div>
+}

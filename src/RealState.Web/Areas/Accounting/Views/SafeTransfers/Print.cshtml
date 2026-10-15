@@ -25,10 +25,10 @@
     @await Component.InvokeAsync("ReportBackground", new { part = "open" })
     <div class="no-print"><button onclick="window.print()">🖨 طباعة / حفظ PDF</button></div>
     <h1>إذن تحويل نقدية رقم SF-@Model.Number</h1>
-    <div class="sub">تاريخ الطباعة: @DateTime.Now.ToString("yyyy/MM/dd HH:mm")</div>
+    <div class="sub">تاريخ الطباعة: @ClientTime.Now.ToString("yyyy/MM/dd HH:mm")</div>
 
     <table>
-        <tr><th>التاريخ والوقت</th><td>@Model.OccurredAt.ToString("yyyy/MM/dd HH:mm")</td></tr>
+        <tr><th>التاريخ والوقت</th><td dir="ltr">@RealState.Web.AppCulture.When(Model.OccurredAt)</td></tr>
         <tr><th>من خزنة</th><td>@Model.FromSafe</td></tr>
         <tr><th>إلى خزنة</th><td>@Model.ToSafe</td></tr>
         <tr><th>المبلغ</th><td class="amount">@N(Model.Amount) ج.م</td></tr>

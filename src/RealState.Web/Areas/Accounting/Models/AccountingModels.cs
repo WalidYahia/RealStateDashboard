@@ -48,8 +48,9 @@ public class SafeTransferFormModel
     [Display(Name = "المبلغ (ج.م)")]
     public decimal Amount { get; set; }
 
+    /// <summary>Date + time of the document, entered by the user (default: now) — auto-created records take it.</summary>
     [Required][Display(Name = "التاريخ والوقت")]
-    public DateTime OccurredAt { get; set; } = DateTime.Now;
+    public DateTime OccurredAt { get; set; } = ClientTime.Now;
 
     [Display(Name = "ملاحظات")]
     public string? Notes { get; set; }
@@ -103,17 +104,35 @@ public class SafeRow
 }
 
 /// <summary>Create/update a manual income or expense (Type is fixed by the controller).</summary>
+/// <summary>Whose account a manual income / expense voucher moves: none (a بند), a customer or a supplier.</summary>
+public enum TxnParty { Other = 0, Customer = 1, Supplier = 2 }
+
 public class TxnFormModel
 {
     public Guid Id { get; set; }
+
+    // --- The account the voucher is on (الحساب): عميل / مورد / أخرى (a بند) ---
+    [Display(Name = "الحساب")]
+    public TxnParty Party { get; set; } = TxnParty.Other;
+    [Display(Name = "العميل")]
+    public Guid? CustomerId { get; set; }
+    [Display(Name = "المورد")]
+    public Guid? SupplierId { get; set; }
+    public List<SelectListItem> Customers { get; set; } = new();
+    public List<SelectListItem> Suppliers { get; set; } = new();
+    /// <summary>The customer / supplier options are offered with the matching view permission.</summary>
+    public bool CanCustomers { get; set; }
+    public bool CanSuppliers { get; set; }
 
     [Range(0.01, 999999999999, ErrorMessage = "المبلغ مطلوب")]
     [Display(Name = "المبلغ (ج.م)")]
     public decimal Amount { get; set; }
 
+    /// <summary>The day only — the time is embedded on save (UTC moment).</summary>
     [Required(ErrorMessage = "التاريخ والوقت مطلوبان")]
+    /// <summary>Date + time of the document, entered by the user (default: now) — auto-created records take it.</summary>
     [Display(Name = "التاريخ والوقت")]
-    public DateTime OccurredAt { get; set; } = DateTime.Now;
+    public DateTime OccurredAt { get; set; } = ClientTime.Now;
 
     [Required(ErrorMessage = "الوصف مطلوب")]
     [Display(Name = "الوصف")]
@@ -185,7 +204,8 @@ public class TxnRow
     /// <summary>Document number shown instead of the serial — e.g. SF-2026000001 for a transfer movement.</summary>
     public string? DocNo { get; set; }
     public bool IsTransfer => Source == TxnSource.SafeTransfer;
-    public bool IsManual => Source == TxnSource.Manual;
+    /// <summary>Entered on this page (a بند, or on a customer / supplier account) — editable and deletable here.</summary>
+    public bool IsManual => Source is TxnSource.Manual or TxnSource.CustomerAccount or TxnSource.SupplierAccount;
     /// <summary>An advance disbursement expense — deletable here to "un-disburse" the advance.</summary>
     public bool IsAdvanceDisbursement => Source == TxnSource.AdvanceDisbursement;
     /// <summary>An advance repayment income (سداد سلفة) — deletable here to reverse that repayment.</summary>

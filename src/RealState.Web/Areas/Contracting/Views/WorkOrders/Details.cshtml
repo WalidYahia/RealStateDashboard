@@ -8,14 +8,15 @@
     var canDeletePayment = ViewData["CanDeletePayment"] as bool? ?? false;
     string N(decimal v) => v.ToString("N2", RealState.Web.AppCulture.Ar);
     string P(decimal v) => v.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture) + "%";
-    string D(DateTime d) => d.ToString("yyyy/MM/dd", System.Globalization.CultureInfo.InvariantCulture);
-    string DT(DateTime d) => d.ToString("yyyy/MM/dd HH:mm", System.Globalization.CultureInfo.InvariantCulture);
+    string D(DateTime d) => RealState.Web.AppCulture.When(d);   // date + time when it has one
+    string DT(DateTime d) => RealState.Web.AppCulture.When(d);
     string LogVal(WorkOrderLog l) => l.Field == WorkOrderField.Deductions ? N(l.Value) + " ج.م" : P(l.Value);
     var remaining = o.ActualTotal - Model.Paid;
 }
 <div class="page-head">
     <div>
         <h1>أمر شغل <span class="proj-code" dir="ltr">WO-@o.Number</span></h1>
+    <partial name="_AuditStamp" model="RealState.Web.Models.AuditStampVm.Of(o)" />
         <p style="color:var(--muted);margin:2px 0 0;">@Model.ContractorName · @Model.ProjectName · @D(o.OrderDate)</p>
     </div>
     <div style="display:flex;gap:8px;">

@@ -1,0 +1,58 @@
+@model CustomerCollectPickerModel
+@*
+    «تحصيل دفعة» from the statement of a customer without contracts: pick an open sales invoice; the form posts to the
+    existing Sales/SalesInvoices/Collect (validation errors come back as that invoice's own collect form).
+*@
+@{
+    var inv = System.Globalization.CultureInfo.InvariantCulture;
+}
+<form id="appModalForm" asp-area="Sales" asp-controller="SalesInvoices" asp-action="Collect" method="post" data-open-tab data-modal-init="custCollectInit">
+    @Html.AntiForgeryToken()
+    <div class="status-message" style="background:var(--surface-2);border-color:var(--border);color:var(--text-secondary);">
+        العميل: <strong>@Model.CustomerName</strong>
+    </div>
+
+    @if (Model.Documents.Count == 0)
+    {
+        <div class="status-message" style="background:rgba(250,178,25,.12);border-color:var(--warning);color:var(--warning);">
+            لا توجد فواتير مبيعات غير محصَّلة بالكامل لهذا العميل.
+        </div>
+    }
+    else if (Model.Safes.Count == 0)
+    {
+        <div class="status-message" style="background:rgba(250,178,25,.12);border-color:var(--warning);color:var(--warning);">
+            لا توجد خزنة نشطة. أضف خزنة من صفحة الخزائن قبل التحصيل.
+        </div>
+    }
+    else
+    {
+        <div class="form-grid">
+            <div class="full">
+                <label class="form-label">الفاتورة</label>
+                <select name="InvoiceId" class="form-control" data-cc-invoice>
+                    @foreach (var d in Model.Documents)
+                    {
+                        <option value="@d.InvoiceId" data-remaining="@d.Remaining.ToString(inv)">@d.Label</option>
+                    }
+                </select>
+            </div>
+            <div>
+                <label class="form-label">المبلغ المحصَّل (ج.م)</label>
+                <input name="Amount" class="form-control" type="number" step="any" min="0.01" dir="ltr" inputmode="decimal" data-cc-amount />
+            </div>
+            <div>
+                <label class="form-label">الخزنة</label>
+                <select name="SafeId" class="form-control" asp-items="Model.Safes"><option value="">— اختر الخزنة —</option></select>
+            </div>
+            <div>
+                <label class="form-label">تاريخ التحصيل</label>
+                <input name="CollectedDate" class="form-control" type="datetime-local" dir="ltr" value="@ClientTime.Now.ToString("yyyy-MM-ddTHH:mm", System.Globalization.CultureInfo.InvariantCulture)" max="@(ClientTime.Today.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture))T23:59" />
+            </div>
+            <div class="full">
+                <label class="form-label">ملاحظات</label>
+                <input name="Description" class="form-control" />
+            </div>
+        </div>
+        <button type="submit" class="btn-primary" style="margin-top:12px;">💵 تسجيل التحصيل وطباعة الإيصال</button>
+    }
+</form>

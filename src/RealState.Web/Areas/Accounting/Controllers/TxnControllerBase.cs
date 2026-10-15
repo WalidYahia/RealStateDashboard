@@ -59,9 +59,11 @@ public abstract class TxnControllerBase : Controller
         if (id is not null)
         {
             var t = await _db.SafeTransactions.FirstOrDefaultAsync(x => x.Id == id, ct);
-            if (t is null || t.Type != TxnType || t.Source != TxnSource.Manual) return NotFound();
+            if (t is null || t.Type != TxnType || !IsPageEntry(t.Source)) return NotFound();
             model.Id = t.Id; model.Amount = t.Amount; model.OccurredAt = t.OccurredAt; model.Description = t.Description; model.SafeId = t.SafeId;
             model.CategoryId = t.CategoryId;
+            model.Party = t.Source switch { TxnSource.CustomerAccount => TxnParty.Customer, TxnSource.SupplierAccount => TxnParty.Supplier, _ => TxnParty.Other };
+            model.CustomerId = t.CustomerId; model.SupplierId = t.SupplierId;
             await LoadCategoriesAsync(model, includeHrKinds: false, ct);   // edit can't switch to an advance/reward
         }
         else
@@ -69,7 +71,33 @@ public abstract class TxnControllerBase : Controller
             await LoadHrOptionsAsync(model, ct); // only new entries can be advances/rewards
             await LoadCategoriesAsync(model, includeHrKinds: true, ct);
         }
+        await LoadPartiesAsync(model, ct);
         return PartialView("_TxnForm", model);
+    }
+
+    /// <summary>Vouchers entered on this page: a بند (Manual) or on a customer / supplier account.</summary>
+    private static bool IsPageEntry(TxnSource s) => s is TxnSource.Manual or TxnSource.CustomerAccount or TxnSource.SupplierAccount;
+
+    /// <summary>
+    /// The customer / supplier pickers (each with its view permission; the voucher's own party stays listed). On the
+    /// incomes page only customers without sale contracts are offered — a contract customer pays through its
+    /// installments (التحصيلات).
+    /// </summary>
+    private async Task LoadPartiesAsync(TxnFormModel model, CancellationToken ct)
+    {
+        model.CanCustomers = Can(PermissionNames.CustomersView);
+        model.CanSuppliers = Can(PermissionNames.SuppliersView);
+        var incomes = TxnType == TxnType.Income;
+        if (model.CanCustomers || model.CustomerId.HasValue)
+            model.Customers = await _db.Customers
+                .Where(c => (!c.IsLead && (!incomes || !_db.SaleContracts.Any(s => s.CustomerId == c.Id))) || c.Id == model.CustomerId)
+                .OrderBy(c => c.FullName)
+                .Select(c => new SelectListItem { Value = c.Id.ToString(), Text = c.Phone != null && c.Phone != "" ? c.FullName + " — " + c.Phone : c.FullName })
+                .ToListAsync(ct);
+        if (model.CanSuppliers || model.SupplierId.HasValue)
+            model.Suppliers = await _db.Suppliers.OrderBy(s => s.Name)
+                .Select(s => new SelectListItem { Value = s.Id.ToString(), Text = s.Phone != null && s.Phone != "" ? s.Name + " — " + s.Phone : s.Name })
+                .ToListAsync(ct);
     }
 
     [HttpPost]
@@ -81,10 +109,40 @@ public abstract class TxnControllerBase : Controller
         model.Safes = await SafesAsync(ct);
         model.IsExpense = TxnType == TxnType.Expense;
         await LoadCategoriesAsync(model, includeHrKinds: isNew, ct);
+        await LoadPartiesAsync(model, ct);
+
+        // On a customer / supplier account: no بند — the voucher moves that party's balance (العملاء / الموردون).
+        string? partyName = null;
+        if (model.Party == TxnParty.Customer)
+        {
+            model.CategoryId = null; model.SupplierId = null;
+            if (!model.CanCustomers) ModelState.AddModelError(nameof(model.Party), "لا تملك صلاحية عرض العملاء.");
+            else if (model.CustomerId is null || (partyName = await _db.Customers.Where(c => c.Id == model.CustomerId && !c.IsLead).Select(c => c.FullName).FirstOrDefaultAsync(ct)) is null)
+                ModelState.AddModelError(nameof(model.CustomerId), "اختر العميل.");
+            else if (TxnType == TxnType.Income && await _db.SaleContracts.AnyAsync(s => s.CustomerId == model.CustomerId, ct)
+                     && !(model.Id != Guid.Empty && await _db.SafeTransactions.AnyAsync(t => t.Id == model.Id && t.CustomerId == model.CustomerId, ct)))
+                ModelState.AddModelError(nameof(model.CustomerId), $"للعميل «{partyName}» عقود بيع — يُحصَّل منه عبر أقساطه (التحصيلات).");
+        }
+        else if (model.Party == TxnParty.Supplier)
+        {
+            model.CategoryId = null; model.CustomerId = null;
+            if (!model.CanSuppliers) ModelState.AddModelError(nameof(model.Party), "لا تملك صلاحية عرض الموردين.");
+            else if (model.SupplierId is null || (partyName = await _db.Suppliers.Where(s => s.Id == model.SupplierId).Select(s => s.Name).FirstOrDefaultAsync(ct)) is null)
+                ModelState.AddModelError(nameof(model.SupplierId), "اختر المورد.");
+        }
+        else { model.CustomerId = null; model.SupplierId = null; }
+        var source = model.Party switch { TxnParty.Customer => TxnSource.CustomerAccount, TxnParty.Supplier => TxnSource.SupplierAccount, _ => TxnSource.Manual };
+        var partyPhrase = model.Party switch
+        {
+            TxnParty.Customer => $" — على حساب العميل «{partyName}»",
+            TxnParty.Supplier => $" — على حساب المورد «{partyName}»",
+            _ => ""
+        };
 
         // The chosen category (بند) decides the behaviour: advance/reward run the HR flow, everything else
         // is a plain manual entry that just carries the category.
-        if (model.CategoryId is Guid catId)
+        if (model.Party != TxnParty.Other) model.Kind = AccountingEntryKind.General;
+        else if (model.CategoryId is Guid catId)
         {
             var cat = await _db.TxnCategories.FirstOrDefaultAsync(c => c.Id == catId && c.Type == TxnType, ct);
             model.Kind = cat?.BuiltInKind ?? AccountingEntryKind.General;
@@ -100,6 +158,7 @@ public abstract class TxnControllerBase : Controller
             return await SaveHrEntryAsync(model, ct);
         }
 
+        if (model.OccurredAt.Date > ClientTime.Today) ModelState.AddModelError(nameof(model.OccurredAt), "لا يمكن التسجيل بتاريخ مستقبلي.");
         if (!ModelState.IsValid) { await LoadHrOptionsAsync(model, ct); return PartialView("_TxnForm", model); }
 
         // «سحب على المكشوف»: a new/raised expense — or an edit that lowers or moves an income — may not overdraw
@@ -122,26 +181,30 @@ public abstract class TxnControllerBase : Controller
         long serial;
         if (model.Id == Guid.Empty)
         {
-            // The category (بند) picks the entry's counter account — a user-defined one posts to its own account.
-            var txn = await _accounting.AddTransactionAsync(model.SafeId!.Value, TxnType, TxnSource.Manual,
-                model.Amount, model.OccurredAt, model.Description, categoryId: model.CategoryId, ct: ct);
+            // The category (بند) picks the entry's counter account — a user-defined one posts to its own account;
+            // on a customer / supplier account the counter is that party's subsidiary of العملاء / الموردون.
+            var txn = await _accounting.AddTransactionAsync(model.SafeId!.Value, TxnType, source,
+                model.Amount, model.OccurredAt, model.Description,
+                customerId: model.CustomerId, supplierId: model.SupplierId, categoryId: model.CategoryId, ct: ct);
             txn.CategoryId = model.CategoryId;
             await _db.SaveChangesAsync(ct);
             serial = txn.Serial;
-            TempData["StatusMessage"] = $"تسجيل {label} رقم {serial:D4}";
+            TempData["StatusMessage"] = $"تسجيل {label} رقم {serial:D4}{partyPhrase}";
         }
         else
         {
             var t = await _db.SafeTransactions.FirstOrDefaultAsync(x => x.Id == model.Id, ct);
-            if (t is null || t.Source != TxnSource.Manual || t.Type != TxnType) return NotFound();
+            if (t is null || !IsPageEntry(t.Source) || t.Type != TxnType) return NotFound();
             t.Amount = model.Amount; t.OccurredAt = model.OccurredAt; t.Description = model.Description; t.SafeId = model.SafeId!.Value;
             t.CategoryId = model.CategoryId;
-            // Re-post its journal entry from the new amount / safe / date / category (the old one is removed first).
+            t.Source = source; t.CustomerId = model.CustomerId; t.SupplierId = model.SupplierId;
+            // Re-post its journal entry from the new amount / safe / date / category / party (the old one is removed first).
             await _accounting.RemoveObligationAsync("SafeTransaction", t.Id, ct);
-            await _accounting.PostCashSettlementAsync(t, projectId: t.ProjectId, categoryId: t.CategoryId, ct: ct);
+            await _accounting.PostCashSettlementAsync(t, projectId: t.ProjectId, customerId: t.CustomerId, supplierId: t.SupplierId,
+                categoryId: t.CategoryId, ct: ct);
             await _db.SaveChangesAsync(ct);
             serial = t.Serial;
-            TempData["StatusMessage"] = $"تعديل {label} رقم {serial:D4}";
+            TempData["StatusMessage"] = $"تعديل {label} رقم {serial:D4}{partyPhrase}";
         }
         return Json(new { ok = true });
     }
@@ -247,10 +310,27 @@ public abstract class TxnControllerBase : Controller
             return RedirectToAction(nameof(Index));
         }
 
-        if (t.Source == TxnSource.Manual)
+        // Custody vouchers belong to their custody's statement — reversed from there so its balance stays right.
+        if (t.Source is TxnSource.FixedAssetPurchase or TxnSource.FixedAssetSale)
         {
-            await _accounting.RemoveTransactionAsync(t, ct);   // also reverses its journal entry
+            TempData["ErrorMessage"] = "هذا السند تابع لأصل ثابت — يُعكس من صفحة الأصل.";
+            HttpContext.Items[RealState.Web.Filters.ActivityLogFilter.SkipItem] = true;   // refused — nothing changed
+            return RedirectToAction(nameof(Index));
+        }
+
+        if (t.Source is TxnSource.CustodyDisbursement or TxnSource.CustodyReturn)
+        {
+            TempData["ErrorMessage"] = "هذا السند تابع لعهدة مالية — احذفه من صفحة العُهد المالية.";
+            HttpContext.Items[RealState.Web.Filters.ActivityLogFilter.SkipItem] = true;   // refused — nothing changed
+            return RedirectToAction(nameof(Index));
+        }
+
+        if (IsPageEntry(t.Source))
+        {
+            await _accounting.RemoveTransactionAsync(t, ct);   // also reverses its journal entry (and the party balance it moved)
             await _db.SaveChangesAsync(ct);
+            TempData["StatusMessage"] = $"تم حذف {(t.Type == TxnType.Expense ? "المصروف" : "الإيراد")} رقم {t.Serial:D4}"
+                + (t.Source == TxnSource.CustomerAccount ? " (حساب عميل)" : t.Source == TxnSource.SupplierAccount ? " (حساب مورد)" : "") + ".";
             return RedirectToAction(nameof(Index));
         }
 
@@ -315,7 +395,7 @@ public abstract class TxnControllerBase : Controller
         var rows = vm.Rows.Select(r => (IReadOnlyList<object?>)new object?[]
         {
             r.Serial,
-            r.OccurredAt.ToString("yyyy-MM-dd HH:mm", inv),
+            RealState.Web.AppCulture.When(r.OccurredAt),
             r.SafeName,
             r.CategoryName ?? r.Source.Ar(),
             r.Description,
@@ -323,7 +403,7 @@ public abstract class TxnControllerBase : Controller
         });
         var totals = new object?[] { null, null, null, null, "الإجمالي", vm.Total };
         var sheet = TxnType == TxnType.Expense ? "المصروفات" : "الإيرادات";
-        return RealState.Web.Common.Xlsx.File($"{sheet} {DateTime.Now:yyyy-MM-dd}.xlsx", sheet, headers, rows, totals);
+        return RealState.Web.Common.Xlsx.File($"{sheet} {ClientTime.Now:yyyy-MM-dd}.xlsx", sheet, headers, rows, totals);
     }
 
     // Printable voucher for a single income/expense transaction (opens in a new tab).
@@ -372,13 +452,40 @@ public abstract class TxnControllerBase : Controller
             ViewBag.Party = await _db.Suppliers.IgnoreQueryFilters().Where(s => s.Id == pr.SupplierId).Select(s => s.Name).FirstOrDefaultAsync(ct);
             ViewBag.About = $"استرداد نقدية عن مرتجع المشتريات PR-{pr.Number}";
         }
+        else if (t.Source is TxnSource.CustodyDisbursement or TxnSource.CustodyReturn
+                 && await _db.FinancialCustodyMovements.FirstOrDefaultAsync(m => m.SafeTransactionId == t.Id, ct) is { } cm
+                 && await _db.FinancialCustodies.FirstOrDefaultAsync(c => c.Id == cm.FinancialCustodyId, ct) is { } fc)
+        {
+            ViewBag.PartyLabel = "صاحب العهدة";
+            ViewBag.Party = await _db.Employees.IgnoreQueryFilters().Where(e => e.Id == fc.EmployeeId).Select(e => e.FullName).FirstOrDefaultAsync(ct);
+            ViewBag.About = (t.Source == TxnSource.CustodyDisbursement ? "صرف عهدة مالية" : "رد نقدية من عهدة مالية") + $" FC-{fc.Number}";
+        }
+        else if (t.Source == TxnSource.CustomerAccount && t.CustomerId is Guid pc)
+        {
+            ViewBag.PartyLabel = "العميل";
+            ViewBag.Party = await _db.Customers.IgnoreQueryFilters().Where(c => c.Id == pc).Select(c => c.FullName).FirstOrDefaultAsync(ct);
+            ViewBag.About = t.Type == TxnType.Income ? "تحصيل على حساب العميل" : "صرف على حساب العميل";
+        }
+        else if (t.Source == TxnSource.SupplierAccount && t.SupplierId is Guid ps)
+        {
+            ViewBag.PartyLabel = "المورد";
+            ViewBag.Party = await _db.Suppliers.IgnoreQueryFilters().Where(s => s.Id == ps).Select(s => s.Name).FirstOrDefaultAsync(ct);
+            ViewBag.About = t.Type == TxnType.Expense ? "سداد على حساب المورد" : "قبض على حساب المورد";
+        }
+        else if (t.Source is TxnSource.FixedAssetPurchase or TxnSource.FixedAssetSale
+                 && await _db.FixedAssets.FirstOrDefaultAsync(a => a.PurchaseTransactionId == t.Id || a.DisposalTransactionId == t.Id, ct) is { } fa)
+        {
+            ViewBag.PartyLabel = "الأصل الثابت";
+            ViewBag.Party = $"FA-{fa.Number} — {fa.Name}";
+            ViewBag.About = t.Source == TxnSource.FixedAssetPurchase ? "شراء أصل ثابت" : "متحصلات بيع أصل ثابت";
+        }
         return View("PrintOne", t);
     }
 
     // System (non-manual) sources per direction — shown in «المصدر» alongside the predefined categories.
     // Manual entries are represented by their category (بند) instead, so Manual is intentionally omitted.
-    private static readonly TxnSource[] IncomeSources = { TxnSource.Collection, TxnSource.SalesInvoiceCollection, TxnSource.PurchaseReturnRefund, TxnSource.AdvanceRepayment };
-    private static readonly TxnSource[] ExpenseSources = { TxnSource.ProjectExpense, TxnSource.SupplierPayment, TxnSource.SalesReturnRefund, TxnSource.ContractorPayment, TxnSource.AdvanceDisbursement, TxnSource.RewardPayment };
+    private static readonly TxnSource[] IncomeSources = { TxnSource.CustomerAccount, TxnSource.SupplierAccount, TxnSource.Collection, TxnSource.SalesInvoiceCollection, TxnSource.PurchaseReturnRefund, TxnSource.AdvanceRepayment, TxnSource.CustodyReturn, TxnSource.FixedAssetSale };
+    private static readonly TxnSource[] ExpenseSources = { TxnSource.SupplierAccount, TxnSource.CustomerAccount, TxnSource.ProjectExpense, TxnSource.SupplierPayment, TxnSource.SalesReturnRefund, TxnSource.ContractorPayment, TxnSource.AdvanceDisbursement, TxnSource.RewardPayment, TxnSource.CustodyDisbursement, TxnSource.FixedAssetPurchase };
 
     private async Task<TxnListVm> BuildListAsync(DateTime? from, DateTime? to, string? q, string? source, CancellationToken ct)
     {
@@ -386,6 +493,17 @@ public abstract class TxnControllerBase : Controller
         var catNames = await _db.TxnCategories.ToDictionaryAsync(c => c.Id, c => c.Name, ct);
         // Transfers between safes are neither income nor expense — they live on the transfers page.
         var txns = await _db.SafeTransactions.Where(t => t.Type == TxnType && t.Source != TxnSource.SafeTransfer).ToListAsync(ct);
+        // On-account vouchers show their party in «المصدر».
+        var custIds = txns.Where(t => t.Source == TxnSource.CustomerAccount && t.CustomerId != null).Select(t => t.CustomerId!.Value).Distinct().ToList();
+        var supIds = txns.Where(t => t.Source == TxnSource.SupplierAccount && t.SupplierId != null).Select(t => t.SupplierId!.Value).Distinct().ToList();
+        var custNames = await _db.Customers.IgnoreQueryFilters().Where(c => custIds.Contains(c.Id)).ToDictionaryAsync(c => c.Id, c => c.FullName, ct);
+        var supNames = await _db.Suppliers.IgnoreQueryFilters().Where(s => supIds.Contains(s.Id)).ToDictionaryAsync(s => s.Id, s => s.Name, ct);
+        string? PartyOf(SafeTransaction t) => t.Source switch
+        {
+            TxnSource.CustomerAccount when t.CustomerId is Guid c => $"حساب عميل — {custNames.GetValueOrDefault(c, "—")}",
+            TxnSource.SupplierAccount when t.SupplierId is Guid s => $"حساب مورد — {supNames.GetValueOrDefault(s, "—")}",
+            _ => null
+        };
 
         // Parse the encoded «المصدر» selection: "c:{guid}" filters by category, "s:{int}" by system source.
         Guid? catFilter = null; TxnSource? srcFilter = null;
@@ -396,8 +514,9 @@ public abstract class TxnControllerBase : Controller
         }
 
         var filtered = txns.AsEnumerable();
-        if (from.HasValue) filtered = filtered.Where(t => t.OccurredAt >= from.Value);
-        if (to.HasValue) filtered = filtered.Where(t => t.OccurredAt < to.Value.Date.AddDays(1));
+        var (fromAt, toAt) = ClientTime.DayRange(from, to);
+        if (fromAt.HasValue) filtered = filtered.Where(t => t.OccurredAt >= fromAt.Value);
+        if (toAt.HasValue) filtered = filtered.Where(t => t.OccurredAt < toAt.Value);
         if (catFilter is Guid cid0) filtered = filtered.Where(t => t.CategoryId == cid0);
         else if (srcFilter is TxnSource src0) filtered = filtered.Where(t => t.Source == src0 && t.CategoryId == null);
         if (!string.IsNullOrWhiteSpace(q)) filtered = filtered.Where(t => t.Description.Contains(q, StringComparison.OrdinalIgnoreCase));
@@ -410,7 +529,7 @@ public abstract class TxnControllerBase : Controller
             {
                 Id = t.Id, Serial = t.Serial, SafeName = safeNames.GetValueOrDefault(t.SafeId, "—"),
                 Type = t.Type, Source = t.Source, Amount = t.Amount, OccurredAt = t.OccurredAt, Description = t.Description,
-                CategoryName = t.CategoryId is Guid cid ? catNames.GetValueOrDefault(cid) : null
+                CategoryName = PartyOf(t) ?? (t.CategoryId is Guid cid ? catNames.GetValueOrDefault(cid) : null)
             }).ToList()
         };
     }

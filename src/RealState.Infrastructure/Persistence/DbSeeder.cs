@@ -30,11 +30,23 @@ public static class DbSeeder
         // One-time data fix: year-prefix advance (ADV) and supplier-order (PO) serials.
         await MigrateAdvanceAndOrderSerialsAsync(db);
 
+        // Every tenant has its «عميل نقدي» / «مورد نقدي» (cash invoices default to them).
+        await SeedCashPartiesAsync(db);
+
         // var userManager = sp.GetRequiredService<UserManager<ApplicationUser>>();
         // var roleManager = sp.GetRequiredService<RoleManager<ApplicationRole>>();
         // await SeedTenantAsync(db);
         // await SeedRoleAndAdminAsync(db, roleManager, userManager);
         // await SeedLookupsAsync(db);
+    }
+
+    /// <summary>Adds the built-in cash customer / supplier to every tenant missing them. Idempotent.</summary>
+    private static async Task SeedCashPartiesAsync(ApplicationDbContext db)
+    {
+        var tenantIds = await db.Tenants.IgnoreQueryFilters().Select(t => t.Id).ToListAsync();
+        var added = false;
+        foreach (var id in tenantIds) added |= await CashParties.EnsureAsync(db, id);
+        if (added) await db.SaveChangesAsync();
     }
 
     private static async Task SeedTenantAsync(ApplicationDbContext db)
@@ -220,7 +232,7 @@ public static class DbSeeder
                 FullName = "مدير النظام",
                 TenantId = AppConstants.DefaultTenantId,
                 IsActive = true,
-                CreatedAt = DateTime.UtcNow,
+                CreatedAt = DateTime.Now,
             };
             await userManager.CreateAsync(admin, AppConstants.DefaultAdminPassword);
         }

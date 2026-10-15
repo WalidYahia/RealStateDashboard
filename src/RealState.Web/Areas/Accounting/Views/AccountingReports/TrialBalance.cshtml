@@ -3,10 +3,10 @@
     ViewData["Title"] = "ميزان المراجعة";
     string M(decimal v) => v == 0 ? "" : v.ToString("N2", RealState.Web.AppCulture.Ar);
     string N(decimal v) => v.ToString("N2", RealState.Web.AppCulture.Ar);
-    string D(DateTime? d) => (d ?? DateTime.Today).ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+    string D(DateTime? d) => (d ?? ClientTime.Today).ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
     var from = Model.From.HasValue ? D(Model.From) : "";
     var to = D(Model.To);
-    var today = DateTime.Today;
+    var today = ClientTime.Today;
 }
 <div class="page-head">
     <h1>ميزان المراجعة</h1>

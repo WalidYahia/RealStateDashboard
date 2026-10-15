@@ -1,0 +1,31 @@
+@model MaterialCustodyTransferModel
+<form id="appModalForm" asp-area="Accounting" asp-controller="MaterialCustody" asp-action="Transfer" method="post">
+    @Html.AntiForgeryToken()
+    <input type="hidden" asp-for="Id" />
+    <div class="status-message" style="background:var(--surface-2);border-color:var(--border);color:var(--text-secondary);">
+        العهدة MC-@Model.Number — <strong>@Model.ItemName</strong> · لدى: <strong>@Model.FromEmployee</strong>
+    </div>
+    <div class="form-grid">
+        <div class="full">
+            <label asp-for="ToEmployeeId" class="form-label"></label>
+            <select asp-for="ToEmployeeId" class="form-control" data-searchable asp-items="Model.Employees"><option value="">— اختر الموظف —</option></select>
+            <span asp-validation-for="ToEmployeeId" class="field-validation-error"></span>
+        </div>
+        <div>
+            <label asp-for="Date" class="form-label"></label>
+            <input asp-for="Date" class="form-control" type="date" dir="ltr" />
+            <span asp-validation-for="Date" class="field-validation-error"></span>
+        </div>
+        <div>
+            <label asp-for="ExpectedReturnDate" class="form-label"></label>
+            <input asp-for="ExpectedReturnDate" class="form-control" type="date" dir="ltr" />
+            <span asp-validation-for="ExpectedReturnDate" class="field-validation-error"></span>
+        </div>
+        <div class="full">
+            <label asp-for="Condition" class="form-label"></label>
+            <input asp-for="Condition" class="form-control" placeholder="الحالة الفعلية للأصل عند التسليم للموظف الجديد" />
+        </div>
+    </div>
+    <p style="color:var(--muted);font-size:12px;margin-top:8px;">تُقفل العهدة الحالية كـ«حُوِّلت لموظف آخر» وتُفتح عهدة جديدة باسم المستلم — السجل كله محفوظ.</p>
+    <button type="submit" class="btn-primary" style="margin-top:8px;">🔁 تحويل الأصل</button>
+</form>

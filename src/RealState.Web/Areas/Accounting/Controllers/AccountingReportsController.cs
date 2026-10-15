@@ -19,6 +19,17 @@ public class AccountingReportsController : Controller
 
     private static string N(decimal v) => v.ToString("N2", RealState.Web.AppCulture.Ar);
 
+    // ======================= الموازنة (Budget) — not built yet =======================
+    [HttpGet]
+    public IActionResult Budget()
+    {
+        ViewData["Title"] = "الموازنة";
+        ViewData["Message"] = "إعداد الموازنة التقديرية للإيرادات والمصروفات ومقارنتها بالفعلي قيد التطوير وستتوفر قريبًا.";
+        ViewData["BackText"] = "قائمة الدخل";
+        ViewData["BackUrl"] = Url.Action(nameof(IncomeStatement));
+        return View("~/Views/Shared/ComingSoon.cshtml");
+    }
+
     // ======================= ميزان المراجعة (Trial Balance) =======================
     public async Task<IActionResult> TrialBalance(DateTime? from, DateTime? to, CancellationToken ct)
         => View(await BuildTrialBalanceAsync(from, to, ct));
@@ -41,22 +52,23 @@ public class AccountingReportsController : Controller
         var totals = new object?[] { "الإجمالي", null, vm.TotOpeningDebit, vm.TotOpeningCredit,
                                      vm.TotPeriodDebit, vm.TotPeriodCredit, vm.TotClosingDebit, vm.TotClosingCredit };
         return RealState.Web.Common.Xlsx.File(
-            $"ميزان المراجعة {(vm.To ?? DateTime.Today):yyyy-MM-dd}.xlsx", "ميزان المراجعة", headers, rows, totals);
+            $"ميزان المراجعة {(vm.To ?? ClientTime.Today):yyyy-MM-dd}.xlsx", "ميزان المراجعة", headers, rows, totals);
     }
 
     private async Task<TrialBalanceVm> BuildTrialBalanceAsync(DateTime? from, DateTime? to, CancellationToken ct)
     {
         await _engine.EnsureChartAsync(ct);
         var f = from?.Date;                       // null → from the beginning (opening = 0)
-        var t = (to ?? DateTime.Today).Date;
+        var t = (to ?? ClientTime.Today).Date;
 
         var accounts = await _db.Accounts
             .Select(a => new AccMeta(a.Id, a.Code, a.Name, a.ParentId, a.IsPostable, a.SortOrder)).ToListAsync(ct);
 
         // Every line up to the end of the period, split into "opening" (before f) and "period" ([f, t]).
+        var (fAt, tAt) = ClientTime.DayRange(f, t);   // [from, to) of the picked days
         var lineData = await (from l in _db.JournalLines
                               join e in _db.JournalEntries on l.JournalEntryId equals e.Id
-                              where e.Date < t.AddDays(1)
+                              where e.Date < tAt!.Value
                               select new { l.AccountId, l.Debit, l.Credit, e.Date }).ToListAsync(ct);
 
         var openNet = new Dictionary<Guid, decimal>();
@@ -64,7 +76,7 @@ public class AccountingReportsController : Controller
         var perCr = new Dictionary<Guid, decimal>();
         foreach (var x in lineData)
         {
-            if (f.HasValue && x.Date < f.Value)
+            if (fAt.HasValue && x.Date < fAt.Value)
                 openNet[x.AccountId] = openNet.GetValueOrDefault(x.AccountId) + (x.Debit - x.Credit);
             else
             {
@@ -149,12 +161,13 @@ public class AccountingReportsController : Controller
     {
         await _engine.EnsureChartAsync(ct);
         // Default period: year-to-date (1 Jan of the current year → today).
-        var f = (from ?? new DateTime(DateTime.Today.Year, 1, 1)).Date;
-        var t = (to ?? DateTime.Today).Date;
+        var f = (from ?? new DateTime(ClientTime.Today.Year, 1, 1)).Date;
+        var t = (to ?? ClientTime.Today).Date;
 
+        var (fAt, tAt) = ClientTime.DayRange(f, t);   // [from, to) of the picked days
         var sums = await (from l in _db.JournalLines
                           join e in _db.JournalEntries on l.JournalEntryId equals e.Id
-                          where e.Date >= f && e.Date < t.AddDays(1)
+                          where e.Date >= fAt!.Value && e.Date < tAt!.Value
                           group l by l.AccountId into g
                           select new { AccountId = g.Key, Debit = g.Sum(x => x.Debit), Credit = g.Sum(x => x.Credit) })
                          .ToListAsync(ct);

@@ -9,6 +9,6 @@ public static class DateFilterDefaults
     /// </summary>
     public static (DateTime? From, DateTime? To) TodayIfFresh(HttpRequest request, DateTime? from, DateTime? to)
         => request.Query.Count == 0
-            ? (DateTime.Today, DateTime.Today.AddDays(1).AddMinutes(-1))
+            ? (ClientTime.Today, ClientTime.Today.AddDays(1).AddMinutes(-1))
             : (from, to);
 }

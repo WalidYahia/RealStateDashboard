@@ -10,7 +10,7 @@
     <div class="form-grid">
         <div>
             <label asp-for="Date" class="form-label"></label>
-            <input asp-for="Date" type="date" value="@F(Model.Date)" class="form-control" dir="ltr" />
+            <input asp-for="Date" class="form-control" type="datetime-local" dir="ltr" asp-format="{0:yyyy-MM-ddTHH:mm}" />
         </div>
         <div class="full">
             <label asp-for="Description" class="form-label"></label>
@@ -33,8 +33,8 @@
                             @foreach (var a in Model.Accounts) { <option value="@a.Value" selected="@(l.AccountId?.ToString() == a.Value)">@a.Text</option> }
                         </select>
                     </td>
-                    <td><input name="Lines[@i].Debit" value="@(l.Debit == 0 ? "" : l.Debit.ToString(System.Globalization.CultureInfo.InvariantCulture))" type="number" step="0.01" min="0" class="form-control ml-dr" dir="ltr" style="width:120px;" oninput="manualRecalc()" /></td>
-                    <td><input name="Lines[@i].Credit" value="@(l.Credit == 0 ? "" : l.Credit.ToString(System.Globalization.CultureInfo.InvariantCulture))" type="number" step="0.01" min="0" class="form-control ml-cr" dir="ltr" style="width:120px;" oninput="manualRecalc()" /></td>
+                    <td><input name="Lines[@i].Debit" value="@(l.Debit == 0 ? "" : l.Debit.ToString(System.Globalization.CultureInfo.InvariantCulture))" type="number" step="any" min="0" class="form-control ml-dr" dir="ltr" style="width:120px;" oninput="manualRecalc()" /></td>
+                    <td><input name="Lines[@i].Credit" value="@(l.Credit == 0 ? "" : l.Credit.ToString(System.Globalization.CultureInfo.InvariantCulture))" type="number" step="any" min="0" class="form-control ml-cr" dir="ltr" style="width:120px;" oninput="manualRecalc()" /></td>
                     <td><input name="Lines[@i].Memo" value="@l.Memo" class="form-control ml-memo" style="min-width:140px;" /></td>
                     <td><button type="button" class="btn-sm btn-danger" title="حذف السطر" onclick="manualRemoveLine(this)">🗑</button></td>
                 </tr>

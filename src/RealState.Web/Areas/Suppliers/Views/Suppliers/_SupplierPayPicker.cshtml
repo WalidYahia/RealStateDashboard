@@ -33,7 +33,7 @@
             </div>
             <div>
                 <label class="form-label">المبلغ المدفوع (ج.م)</label>
-                <input name="Amount" id="supPayAmount" class="form-control" type="number" step="0.01" min="0" dir="ltr" />
+                <input name="Amount" id="supPayAmount" class="form-control" type="number" step="any" min="0" dir="ltr" />
             </div>
             <div>
                 <label class="form-label">الخزنة</label>
@@ -41,7 +41,7 @@
             </div>
             <div>
                 <label class="form-label">تاريخ الدفع</label>
-                <input name="PaidDate" class="form-control" type="date" dir="ltr" value="@DateTime.Today.ToString("yyyy-MM-dd")" />
+                <input name="PaidDate" class="form-control" type="datetime-local" dir="ltr" value="@ClientTime.Now.ToString("yyyy-MM-ddTHH:mm", System.Globalization.CultureInfo.InvariantCulture)" max="@(ClientTime.Today.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture))T23:59" />
             </div>
             <div class="full">
                 <label class="form-label">ملاحظات</label>

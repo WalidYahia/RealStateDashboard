@@ -13,7 +13,45 @@
         </div>
     }
 
-    <div class="form-grid">
+    @if (Model.CanCustomers || Model.CanSuppliers || Model.Party != TxnParty.Other)
+    {
+        @* The account the voucher is on: a customer / supplier (their statement) or a بند. *@
+        <div class="form-grid">
+            <div class="full">
+                <label class="form-label">@Html.DisplayNameFor(m => m.Party)</label>
+                <div class="sched-mode">
+                    @if (Model.CanCustomers || Model.Party == TxnParty.Customer)
+                    {
+                        <label><input type="radio" name="Party" value="Customer" checked="@(Model.Party == TxnParty.Customer)" data-txn-party onchange="txnPartyChange(this.form)" /> عميل</label>
+                    }
+                    @if (Model.CanSuppliers || Model.Party == TxnParty.Supplier)
+                    {
+                        <label><input type="radio" name="Party" value="Supplier" checked="@(Model.Party == TxnParty.Supplier)" data-txn-party onchange="txnPartyChange(this.form)" /> مورد</label>
+                    }
+                    <label><input type="radio" name="Party" value="Other" checked="@(Model.Party == TxnParty.Other)" data-txn-party onchange="txnPartyChange(this.form)" /> أخرى (@(Model.IsExpense ? "بنود المصروفات" : "بنود الإيرادات"))</label>
+                </div>
+                <span asp-validation-for="Party" class="field-validation-error"></span>
+            </div>
+            <div class="full txn-party-customer" style="@(Model.Party == TxnParty.Customer ? "" : "display:none;")">
+                <label asp-for="CustomerId" class="form-label"></label>
+                <select asp-for="CustomerId" class="form-control" data-searchable asp-items="Model.Customers" data-search-placeholder="🔍 ابحث بالاسم أو الهاتف..."><option value="">— اختر العميل —</option></select>
+                <span asp-validation-for="CustomerId" class="field-validation-error"></span>
+                <small style="display:block;margin:4px 0 6px;color:var(--muted);font-size:12px;">@(Model.IsExpense ? "يُضاف المبلغ على رصيد العميل (مدين) ويظهر في كشف حسابه." : "يُخصم المبلغ من رصيد العميل (دائن) ويظهر في كشف حسابه.")</small>
+            </div>
+            <div class="full txn-party-supplier" style="@(Model.Party == TxnParty.Supplier ? "" : "display:none;")">
+                <label asp-for="SupplierId" class="form-label"></label>
+                <select asp-for="SupplierId" class="form-control" data-searchable asp-items="Model.Suppliers" data-search-placeholder="🔍 ابحث بالاسم أو الهاتف..."><option value="">— اختر المورد —</option></select>
+                <span asp-validation-for="SupplierId" class="field-validation-error"></span>
+                <small style="display:block;margin:4px 0 6px;color:var(--muted);font-size:12px;">@(Model.IsExpense ? "يُخصم المبلغ من المستحق للمورد ويظهر في كشف حسابه." : "يُضاف المبلغ على المستحق للمورد ويظهر في كشف حسابه.")</small>
+            </div>
+        </div>
+    }
+    else
+    {
+        <input type="hidden" name="Party" value="Other" />
+    }
+
+    <div class="form-grid txn-party-other" style="@(Model.Party == TxnParty.Other ? "" : "display:none;")">
         <div>
             <label asp-for="CategoryId" class="form-label"></label>
             <select asp-for="CategoryId" class="form-control" data-cascade-init onchange="txnKindChange(this.form)">
@@ -52,12 +90,12 @@
     <div class="form-grid">
         <div>
             <label asp-for="Amount" class="form-label"></label>
-            <input asp-for="Amount" id="txnAmount" class="form-control" type="number" step="0.01" min="0" dir="ltr" />
+            <input asp-for="Amount" id="txnAmount" class="form-control" type="number" step="any" min="0" dir="ltr" />
             <span asp-validation-for="Amount" class="field-validation-error"></span>
         </div>
         <div>
             <label asp-for="OccurredAt" class="form-label"></label>
-            <input asp-for="OccurredAt" class="form-control" type="datetime-local" dir="ltr" />
+            <input asp-for="OccurredAt" class="form-control" type="datetime-local" dir="ltr" asp-format="{0:yyyy-MM-ddTHH:mm}" max="@(ClientTime.Today.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture))T23:59" />
             <span asp-validation-for="OccurredAt" class="field-validation-error"></span>
         </div>
         <div>
