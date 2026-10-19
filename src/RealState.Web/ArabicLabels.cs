@@ -7,9 +7,31 @@ namespace RealState.Web;
 /// <summary>Arabic display labels for domain enums, plus dropdown option helpers.</summary>
 public static class ArabicLabels
 {
-    /// <summary>Installment #0 is the scheduled down payment; others show their number.</summary>
-    public static string InstNo(int number) => number <= 0 ? "المقدم" : number.ToString();
-    public static string InstPhrase(int number) => number <= 0 ? "المقدم" : $"القسط رقم {number}";
+    /// <summary>
+    /// Short label of a schedule row: an installment shows its number; a down payment / maintenance row shows
+    /// its kind (numbered only when the contract has more than one). Legacy down payments are #0.
+    /// </summary>
+    public static string InstNo(int number, InstallmentType type) => type switch
+    {
+        InstallmentType.DownPayment => number <= 1 ? "المقدم" : $"المقدم ({number})",
+        InstallmentType.Maintenance => number <= 1 ? "الصيانة" : $"الصيانة ({number})",
+        _ => number <= 0 ? "المقدم" : number.ToString()
+    };
+    public static string InstPhrase(int number, InstallmentType type) => type switch
+    {
+        InstallmentType.DownPayment => InstNo(number, type),
+        InstallmentType.Maintenance => number <= 1 ? "دفعة الصيانة" : $"دفعة الصيانة رقم {number}",
+        _ => number <= 0 ? "المقدم" : $"القسط رقم {number}"
+    };
+    public static string InstNo(this Installment i) => InstNo(i.Number, i.Type);
+    public static string InstPhrase(this Installment i) => InstPhrase(i.Number, i.Type);
+
+    public static string Ar(this InstallmentType t) => t switch
+    {
+        InstallmentType.DownPayment => "مقدم",
+        InstallmentType.Maintenance => "صيانة",
+        _ => "قسط"
+    };
 
     public static string Ar(this LeadStatus s) => s switch
     {
@@ -250,6 +272,7 @@ public static class ArabicLabels
         TxnSource.FixedAssetSale => "بيع أصل ثابت",
         TxnSource.CustomerAccount => "حساب عميل",
         TxnSource.SupplierAccount => "حساب مورد",
+        TxnSource.ContractCancelRefund => "رد مستحقات عقد مفسوخ",
         _ => s.ToString()
     };
 

@@ -35,7 +35,7 @@
 
         <table>
             <tr><th>العميل</th><td>@customer?.FullName — @customer?.Phone</td></tr>
-            <tr><th>عن</th><td>@ArabicLabels.InstPhrase(Model.Number)</td></tr>
+            <tr><th>عن</th><td>@Model.InstPhrase()</td></tr>
             <tr><th>تاريخ استحقاق القسط</th><td>@Model.DueDate.ToString("yyyy/MM/dd")</td></tr>
             <tr><th>تاريخ السداد</th><td>@(Model.PaidDate?.ToString("yyyy/MM/dd") ?? "—")</td></tr>
             <tr><th>المبلغ المسدَّد</th><td>@N(Model.PaidAmount) ج.م</td></tr>

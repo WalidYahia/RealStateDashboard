@@ -42,7 +42,8 @@ public sealed class WorkspaceKpiService : IWorkspaceKpiService
         if (Has("contracts")) k["contracts"] = new($"{N(await _db.SaleContracts.CountAsync(ct))} عقد");
         if (Has("collections"))
         {
-            var overdue = await _db.Installments.CountAsync(i => i.DueDate < today && i.Amount > 0 && i.PaidAmount < i.Amount, ct);
+            var overdue = await _db.Installments.CountAsync(i => i.DueDate < today && i.Amount > 0 && i.PaidAmount < i.Amount
+                && !_db.SaleContracts.Any(s => s.Id == i.SaleContractId && s.IsCancelled), ct);   // a cancelled contract's schedule is frozen
             k["collections"] = overdue > 0 ? new($"{N(overdue)} قسط متأخر", "danger") : new("لا متأخرات", "ok");
         }
         if (Has("customers")) k["customers"] = new($"{N(await _db.Customers.CountAsync(c => !c.IsLead, ct))} عميل");

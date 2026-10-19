@@ -19,7 +19,16 @@ public class ContractStatement
     public decimal InstallmentsPaid => Installments.Sum(i => i.PaidAmount);
     // Down payment is scheduled as installment #0, so it's part of InstallmentsPaid once collected.
     public decimal Paid => InstallmentsPaid;
-    public decimal Remaining => TotalPrice - Paid;
+    /// <summary>Still owed by the customer — nothing once the contract is cancelled.</summary>
+    public decimal Remaining => IsCancelled ? 0 : TotalPrice - Paid;
+
+    // فسخ التعاقد
+    public bool IsCancelled { get; set; }
+    public decimal CancelFeeAmount { get; set; }
+    /// <summary>Owed back to the customer (paid − fee) and how much of it has been paid back.</summary>
+    public decimal RefundDue { get; set; }
+    public decimal Refunded { get; set; }
+    public decimal RefundRemaining => RefundDue - Refunded;
 }
 
 public class CustomerStatementVm
@@ -36,9 +45,13 @@ public class CustomerStatementVm
     /// <summary>True when the current user may convert this lead to a customer (assigned salesperson or Leads.Convert).</summary>
     public bool CanConvert { get; set; }
 
-    public decimal TotalObligations => Contracts.Sum(c => c.TotalPrice);
-    public decimal TotalPaid => Contracts.Sum(c => c.Paid);
+    // Active (not cancelled) contracts only — a cancelled one is settled by refunding the customer.
+    public decimal TotalObligations => Contracts.Where(c => !c.IsCancelled).Sum(c => c.TotalPrice);
+    public decimal TotalPaid => Contracts.Where(c => !c.IsCancelled).Sum(c => c.Paid);
     public decimal TotalRemaining => Contracts.Sum(c => c.Remaining);
+    /// <summary>Still to be paid back to the customer for cancelled contracts (the customer is دائن by this much).</summary>
+    public decimal TotalOwedToCustomer => Contracts.Where(c => c.IsCancelled).Sum(c => c.RefundRemaining);
+    public int ActiveContracts => Contracts.Count(c => !c.IsCancelled);
     public bool HasContracts => Contracts.Count > 0;
 }
 

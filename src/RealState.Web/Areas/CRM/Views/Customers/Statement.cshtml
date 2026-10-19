@@ -40,7 +40,7 @@
 <div class="kpi-grid" style="grid-template-columns: repeat(3, 1fr);">
     <div class="kpi k-reserve"><div class="kpi-label">إجمالي المستحقات</div><div class="kpi-value">@N(Model.TotalObligations) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">@Model.DocumentsCount عقد / فاتورة</div></div>
     <div class="kpi k-collect"><div class="kpi-label">المحصَّل</div><div class="kpi-value">@N(Model.TotalPaid) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">@Model.CollectionsCount تحصيل</div></div>
-    <div class="kpi k-alerts"><div class="kpi-label">المتبقي</div><div class="kpi-value">@N(Model.TotalRemaining) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">مستحق على العميل</div></div>
+    <div class="kpi k-alerts"><div class="kpi-label">@(Model.TotalRemaining < 0 ? "رصيد دائن" : "المتبقي")</div><div class="kpi-value">@N(Math.Abs(Model.TotalRemaining)) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">@(Model.TotalRemaining < 0 ? "مستحق للعميل (دائن)" : "مستحق على العميل")</div></div>
 </div>
 
 @{
@@ -61,7 +61,7 @@
             var dec = r.Decreases;
             <tr>
                 <td>
-                    @if (r.Kind == CustomerLedgerKind.Contract && canContracts)
+                    @if (r.Kind is CustomerLedgerKind.Contract or CustomerLedgerKind.ContractCancel or CustomerLedgerKind.CancelFee && canContracts)
                     {
                         <a asp-area="Sales" asp-controller="Sales" asp-action="Details" asp-route-id="@r.Id" style="@LinkStyle">@r.Source</a>
                     }
@@ -100,7 +100,7 @@
         <tfoot>
             <tr>
                 <td colspan="5" style="text-align:start;font-weight:700;">الرصيد الختامي للفترة</td>
-                <td style="font-weight:800;white-space:nowrap;">@N(Model.ClosingBalance) ج.م</td>
+                <td style="font-weight:800;white-space:nowrap;">@N(Math.Abs(Model.ClosingBalance)) ج.م @(Model.ClosingBalance < 0 ? "(دائن)" : Model.ClosingBalance > 0 ? "(مدين)" : "")</td>
             </tr>
         </tfoot>
     </table>

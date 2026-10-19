@@ -20,6 +20,8 @@ public static class AccountingSources
     public const string PurchaseReturn = "PurchaseReturn";
     public const string AdvanceSalaryDeduction = "AdvanceSalaryDeduction";
     public const string CustodyExpense = "CustodyExpense";
+    /// <summary>A sale contract's cancellation (فسخ التعاقد) — SourceId = the contract.</summary>
+    public const string SaleContractCancel = "SaleContractCancel";
     /// <summary>An account's opening balance (SourceId = the account) — safes use "SafeOpening".</summary>
     public const string OpeningBalance = "OpeningBalance";
 }
@@ -65,6 +67,15 @@ public interface IAccountingService
 
     /// <summary>Sale contract → Dr العملاء (ذمم مدينة) / Cr إيرادات المبيعات (accrues revenue + receivable).</summary>
     Task PostSaleContractAsync(SaleContract contract, CancellationToken ct = default);
+
+    /// <summary>
+    /// Cancelled sale contract (فسخ التعاقد) → reverses the sale: Dr إيرادات المبيعات / Cr العملاء (the customer) for the
+    /// total price, and Dr مخزون العقارات / Cr تكلفة المبيعات for the unit's cost (back on stock); the fee kept is
+    /// Dr العملاء / Cr إيرادات رسوم فسخ التعاقد. The customer is left owed (دائن) what they paid less the fee, settled
+    /// by <see cref="TxnSource.ContractCancelRefund"/> vouchers. Re-posts (removes old first); posts nothing while the
+    /// contract isn't cancelled. No SaveChanges.
+    /// </summary>
+    Task SyncSaleContractCancellationAsync(SaleContract contract, CancellationToken ct = default);
 
     /// <summary>Legacy supplier order (one that still has a supplier) → Dr المشتريات / Cr الموردون. Re-posts
     /// (removes old first) so edits stay in sync; orders without a supplier post nothing.</summary>

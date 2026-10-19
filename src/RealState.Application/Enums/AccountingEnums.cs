@@ -28,6 +28,7 @@ public enum TxnSource
     FixedAssetSale = 15,        // متحصلات بيع أصل ثابت (وارد — قيده ضمن قيد الاستبعاد)
     CustomerAccount = 16,       // سند قبض / صرف على حساب عميل (من صفحتي الإيرادات / المصروفات) — يحرّك ذمة العميل
     SupplierAccount = 17,       // سند صرف / قبض على حساب مورد (من صفحتي المصروفات / الإيرادات) — يحرّك ذمة المورد
+    ContractCancelRefund = 18,  // رد مستحقات عميل عن عقد بيع مفسوخ (مصروف — يقفل الرصيد الدائن للعميل)
 }
 
 /// <summary>How a sales / purchase invoice is settled (نقدي / آجل).</summary>

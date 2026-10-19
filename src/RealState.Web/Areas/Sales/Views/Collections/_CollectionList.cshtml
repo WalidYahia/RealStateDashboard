@@ -12,13 +12,13 @@
         @foreach (var r in Model)
         {
             var rem = r.Amount - r.PaidAmount;
-            var isDown = r.Number <= 0;
+            var isDown = r.Type == InstallmentType.DownPayment;
             <tr>
                 <td>@r.CustomerName</td>
                 <td>@r.UnitLabel</td>
                 <td>@r.ProjectName</td>
-                <td dir="ltr" style="text-align:right;">@r.ContractCode</td>
-                <td>@ArabicLabels.InstNo(r.Number)</td>
+                <td dir="ltr" style="text-align:right;">@r.ContractCode @if (r.IsCancelledContract) { <span class="badge-state state-off">مفسوخ</span> }</td>
+                <td>@ArabicLabels.InstNo(r.Number, r.Type)</td>
                 <td dir="ltr" style="text-align:right;">@r.DueDate.ToString("yyyy/MM/dd")</td>
                 <td>
                     @N(r.Amount)
@@ -33,7 +33,7 @@
                     {
                         <form class="pay-form" asp-action="Pay" asp-route-id="@r.InstallmentId" method="post" style="display:inline;"
                               data-partial="@(isDown ? "true" : "false")" data-remaining="@RawNum(rem)"
-                              data-msg="@(isDown ? $"تحصيل المقدم من «{r.CustomerName}»" : $"تحصيل القسط رقم {r.Number} من «{r.CustomerName}» بقيمة {N(rem)} ج.م؟")">
+                              data-msg="@(isDown ? $"تحصيل المقدم من «{r.CustomerName}»" : $"تحصيل {ArabicLabels.InstPhrase(r.Number, r.Type)} من «{r.CustomerName}» بقيمة {N(rem)} ج.م؟")">
                             @Html.AntiForgeryToken()
                             <input type="hidden" name="safeId" class="pay-safe" />
                             <input type="hidden" name="amount" class="pay-amount" />

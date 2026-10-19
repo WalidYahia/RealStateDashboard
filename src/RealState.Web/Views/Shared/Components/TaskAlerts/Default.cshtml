@@ -1,5 +1,6 @@
 @model int
-<a class="tb-icon task-bell @(Model > 0 ? "has" : "")" asp-area="Tasks" asp-controller="Tasks" asp-action="Mine" title="مهامي المُسندة إليّ" aria-label="مهامي المُسندة إليّ@(Model > 0 ? $" ({Model})" : "")">
+@* Opens «المُسندة إليّ» with the page defaults: every date, only not-completed tasks. *@
+<a class="tb-icon task-bell @(Model > 0 ? "has" : "")" asp-area="Tasks" asp-controller="Tasks" asp-action="Mine" asp-route-tab="assigned" title="مهامي المُسندة إليّ" aria-label="مهامي المُسندة إليّ@(Model > 0 ? $" ({Model})" : "")">
     @NavIcons.Svg("bell", 19)
     @if (Model > 0)
     {

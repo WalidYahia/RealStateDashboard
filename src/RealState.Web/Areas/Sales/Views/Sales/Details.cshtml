@@ -2,21 +2,51 @@
 @{
     ViewData["Title"] = $"عقد {Model.Code}";
     var installments = ViewBag.Installments as List<Installment> ?? new();
+    var refunds = ViewBag.Refunds as List<SaleRefundRow> ?? new();
     string N(decimal v) => v.ToString("N0", RealState.Web.AppCulture.Ar);
+    string N2(decimal v) => v.ToString("N2", RealState.Web.AppCulture.Ar);
     string D(DateTime? d) => RealState.Web.AppCulture.When(d);   // date + time when it has one
     string? F(DateTime? d) => d?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
     var paid = installments.Sum(i => i.PaidAmount);   // down payment is scheduled as an installment
     var remaining = Model.TotalPrice - paid;
+    var cancelled = Model.IsCancelled;
+    var refunded = refunds.Sum(r => r.Amount);
+    var refundLeft = Model.CancelRefundDue - refunded;
+    // The collections controller needs «عرض التحصيلات» for every action (collecting also needs «تحصيل الأقساط»).
+    var canReceipt = User.Can(PermissionNames.CollectionsView);
+    var canCollect = !cancelled && canReceipt && User.Can(PermissionNames.CollectionsCollect);
+    string RawNum(decimal v) => v.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
 }
 <div class="page-head">
     <div>
-        <h1>عقد بيع <span class="proj-code">@Model.Code</span></h1>
+        <h1>عقد بيع <span class="proj-code">@Model.Code</span> @if (cancelled) { <span class="badge-state state-off contract-state">مفسوخ</span> }</h1>
         <p style="color:var(--muted);margin:2px 0 0;">@Model.Customer?.FullName · @Model.Project?.Name · وحدة @Model.Unit?.Name</p>
     </div>
     <div style="display:flex;gap:8px;">
         <a class="btn-sm" asp-action="Index" asp-route-from="@F((DateTime?)ViewBag.From)" asp-route-to="@F((DateTime?)ViewBag.To)" onclick="if (history.length > 1) { history.back(); return false; }">رجوع</a>
-        <a class="btn-new-tenant" asp-action="Contract" asp-route-id="@Model.Id" target="_blank">🖨 طباعة العقد (PDF)</a>
-        @if (User.Can(PermissionNames.SalesDelete))
+        <span class="print-group">
+            <a class="btn-new-tenant" id="printContract" asp-action="Contract" asp-route-id="@Model.Id" target="_blank">🖨 طباعة العقد (PDF)</a>
+            <label class="print-opt" title="تصغير المسافات وعرض جدول الأقساط في جدولين متجاورين لطباعة العقد في صفحة واحدة">
+                <input type="checkbox" id="printOnePage" checked /> صفحة واحدة
+            </label>
+        </span>
+        @if (cancelled && refundLeft > 0 && User.Can(PermissionNames.SalesRefund))
+        {
+            <button type="button" class="btn-new-tenant" onclick="appOpenModal('@Url.Action("RefundForm", new { id = Model.Id })', 'صرف مستحقات العميل — @Model.Code')">💸 صرف للعميل</button>
+        }
+        @if (cancelled && User.Can(PermissionNames.SalesUncancel))
+        {
+            <form asp-action="UncancelContract" asp-route-id="@Model.Id" method="post" style="display:inline;"
+                  data-confirm="إلغاء فسخ العقد «@Model.Code» وإعادته كما كان قبل الفسخ؟<br>ستعود الوحدة «@Model.Unit?.Name» مباعة للعميل، ويصبح جدول الأقساط مستحقًا من جديد، ويُحذف قيد الفسخ ورسومه.">
+                @Html.AntiForgeryToken()
+                <button type="submit" class="btn-sm">↩ إلغاء الفسخ</button>
+            </form>
+        }
+        @if (!cancelled && User.Can(PermissionNames.SalesCancel))
+        {
+            <button type="button" class="btn-sm btn-danger" onclick="appOpenModal('@Url.Action("CancelForm", new { id = Model.Id })', 'فسخ التعاقد — @Model.Code')">⛔ فسخ التعاقد</button>
+        }
+        @if (!cancelled && User.Can(PermissionNames.SalesDelete))
         {
             <form asp-action="Delete" asp-route-id="@Model.Id" method="post" style="display:inline;" data-confirm="حذف العقد وكل أقساطه وإرجاع الوحدة كمتاحة؟" data-danger>
                 @Html.AntiForgeryToken()
@@ -26,28 +56,167 @@
     </div>
 </div>
 
-<div class="kpi-grid" style="grid-template-columns: repeat(4, 1fr);">
-    <div class="kpi k-tasks"><div class="kpi-label">السعر الإجمالي</div><div class="kpi-value">@N(Model.TotalPrice) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">المقدم @N(Model.DownPayment)</div></div>
-    <div class="kpi k-sales"><div class="kpi-label">المحصّل</div><div class="kpi-value">@N(paid) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">من الأقساط والمقدم</div></div>
-    <div class="kpi k-alerts"><div class="kpi-label">المتبقي</div><div class="kpi-value">@N(remaining) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">@installments.Count(i => !i.IsPaid) قسط متبقٍ</div></div>
-    <div class="kpi k-reserve"><div class="kpi-label">الأقساط</div><div class="kpi-value">@Model.InstallmentsCount</div><div class="kpi-foot">@(Model.IsManualSchedule ? "جدول يدوي" : Model.Step.Ar())</div></div>
-</div>
+@if (TempData["StatusMessage"] is string status) { <div class="status-message">@status</div> }
+
+@if (cancelled)
+{
+    @* Cancelled: the customer is owed what they paid less the fee, refunded part by part. *@
+    <div class="status-message cancel-banner">
+        <strong>تم فسخ هذا العقد</strong> في @D(Model.CancelledAt)@(string.IsNullOrEmpty(Model.CancelledByName) ? "" : $" بواسطة {Model.CancelledByName}") — الوحدة «@Model.Unit?.Name» عادت متاحة للبيع.
+        @if (!string.IsNullOrWhiteSpace(Model.CancelReason)) { <div class="cancel-reason">السبب: @Model.CancelReason</div> }
+    </div>
+
+    <div class="kpi-grid" style="grid-template-columns: repeat(4, 1fr);">
+        <div class="kpi k-tasks"><div class="kpi-label">المدفوع وقت الفسخ</div><div class="kpi-value">@N(Model.CancelPaidAmount) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">من قيمة العقد @N(Model.TotalPrice)</div></div>
+        <div class="kpi k-alerts"><div class="kpi-label">رسوم الفسخ</div><div class="kpi-value">@N(Model.CancelFeeAmount) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">@Model.CancelFeePercent.ToString("0.##")% من المدفوع</div></div>
+        <div class="kpi k-sales"><div class="kpi-label">المصروف للعميل</div><div class="kpi-value">@N(refunded) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">من المستحق @N(Model.CancelRefundDue)</div></div>
+        <div class="kpi k-reserve"><div class="kpi-label">المتبقي للعميل (دائن)</div><div class="kpi-value">@N(refundLeft) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">@(refundLeft > 0 ? "مستحق الصرف" : "تم السداد بالكامل ✓")</div></div>
+    </div>
+
+    <div class="card-tile">
+        <div class="card-head">
+            <h3>دفعات رد المستحقات للعميل</h3>
+            @if (refundLeft > 0 && User.Can(PermissionNames.SalesRefund))
+            {
+                <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("RefundForm", new { id = Model.Id })', 'صرف مستحقات العميل — @Model.Code')">➕ صرف دفعة</button>
+            }
+        </div>
+        <table class="rs-table">
+            <thead><tr><th>سند الصرف</th><th>التاريخ</th><th>الخزنة</th><th>المبلغ</th><th>البيان</th><th></th></tr></thead>
+            <tbody>
+            @foreach (var r in refunds)
+            {
+                <tr>
+                    <td dir="ltr" style="text-align:right;">@r.Serial</td>
+                    <td dir="ltr" style="text-align:right;white-space:nowrap;">@D(r.Date)</td>
+                    <td>@r.SafeName</td>
+                    <td>@N2(r.Amount)</td>
+                    <td>@r.Description</td>
+                    <td style="white-space:nowrap;">
+                        <a class="btn-sm" asp-action="RefundReceipt" asp-route-id="@r.Id" target="_blank">🖨 سند</a>
+                        @if (User.Can(PermissionNames.SalesDeleteRefund))
+                        {
+                            <form asp-action="DeleteRefund" asp-route-id="@r.Id" method="post" style="display:inline;" data-danger
+                                  data-confirm="حذف سند الصرف رقم @r.Serial بقيمة @N2(r.Amount) ج.م؟ يعود المبلغ إلى الخزنة ومستحقًا للعميل.">
+                                @Html.AntiForgeryToken()
+                                <button type="submit" class="btn-sm btn-danger">حذف</button>
+                            </form>
+                        }
+                    </td>
+                </tr>
+            }
+            @if (refunds.Count == 0) { <tr><td colspan="6" style="color:var(--muted)">لم يُصرف للعميل شيء بعد.</td></tr> }
+            </tbody>
+        </table>
+    </div>
+}
+else
+{
+    <div class="kpi-grid" style="grid-template-columns: repeat(4, 1fr);">
+        <div class="kpi k-tasks"><div class="kpi-label">السعر الإجمالي</div><div class="kpi-value">@N(Model.TotalPrice) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">المقدم @N(Model.DownPayment)</div></div>
+        <div class="kpi k-sales"><div class="kpi-label">المحصّل</div><div class="kpi-value">@N(paid) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">من الأقساط والمقدم</div></div>
+        <div class="kpi k-alerts"><div class="kpi-label">المتبقي</div><div class="kpi-value">@N(remaining) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">@installments.Count(i => !i.IsPaid) قسط متبقٍ</div></div>
+        <div class="kpi k-reserve"><div class="kpi-label">الأقساط</div><div class="kpi-value">@Model.InstallmentsCount</div><div class="kpi-foot">@(Model.IsManualSchedule ? "جدول يدوي" : Model.Step.Ar())</div></div>
+    </div>
+}
 
 <div class="card-tile">
-    <div class="card-head"><h3>جدول الأقساط</h3></div>
-    <table class="rs-table">
-        <thead><tr><th>#</th><th>تاريخ الاستحقاق</th><th>القيمة</th><th>المدفوع</th><th>الحالة</th></tr></thead>
+    <div class="card-head">
+        <h3>جدول الأقساط</h3>
+        @if (cancelled) { <span style="color:var(--muted);font-size:13px;">موقوف بالفسخ — محفوظ كما هو ويعود مستحقًا عند إلغاء الفسخ</span> }
+    </div>
+    <table class="rs-table" id="contractInstallments">
+        <thead><tr><th>#</th><th>النوع</th><th>تاريخ الاستحقاق</th><th>القيمة</th><th>المدفوع</th><th>الحالة</th><th></th></tr></thead>
         <tbody>
         @foreach (var i in installments)
         {
+            var rem = i.Amount - i.PaidAmount;
+            var isDown = i.Type == InstallmentType.DownPayment;
             <tr>
-                <td>@ArabicLabels.InstNo(i.Number)</td>
+                <td>@i.InstNo()</td>
+                <td>@i.Type.Ar()</td>
                 <td dir="ltr" style="text-align:right;">@D(i.DueDate)</td>
                 <td>@N(i.Amount)</td>
-                <td>@N(i.PaidAmount)</td>
-                <td><span class="badge-state @i.Status.BadgeClass()">@i.Status.Ar() @(i.Status == InstallmentStatus.Overdue ? "⚠" : "")</span></td>
+                <td>
+                    @N(i.PaidAmount)
+                    @if (i.PaidAmount > 0 && rem > 0) { <div style="color:var(--muted);font-size:12px;">المتبقي: @N(rem)</div> }
+                </td>
+                <td>
+                    @if (cancelled && rem > 0)
+                    {
+                        <span class="badge-state state-off">موقوف بالفسخ</span>
+                    }
+                    else
+                    {
+                        <span class="badge-state @i.Status.BadgeClass()">@i.Status.Ar() @(i.Status == InstallmentStatus.Overdue ? "⚠" : "")</span>
+                    }
+                </td>
+                <td style="white-space:nowrap;">
+                    @if (i.PaidAmount > 0 && canReceipt)
+                    {
+                        <a class="btn-sm" asp-controller="Collections" asp-action="Receipt" asp-route-id="@i.Id" target="_blank">🖨 إيصال</a>
+                    }
+                    @if (rem > 0 && canCollect)
+                    {
+                        @* Same collection as the collections page: pick the safe (and, for a down payment, the amount) → receipt. *@
+                        <form class="pay-form" asp-controller="Collections" asp-action="Pay" asp-route-id="@i.Id" method="post" style="display:inline;"
+                              data-partial="@(isDown ? "true" : "false")" data-remaining="@RawNum(rem)"
+                              data-msg="@(isDown ? $"تحصيل المقدم من «{Model.Customer?.FullName}»" : $"تحصيل {i.InstPhrase()} من «{Model.Customer?.FullName}» بقيمة {N(rem)} ج.م؟")">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="safeId" class="pay-safe" />
+                            <input type="hidden" name="amount" class="pay-amount" />
+                            <button type="submit" class="btn-sm" style="background:var(--aqua);color:#fff;border-color:var(--aqua);">💳 تحصيل</button>
+                        </form>
+                    }
+                </td>
             </tr>
         }
+        @if (installments.Count == 0) { <tr><td colspan="7" style="color:var(--muted)">لا توجد أقساط.</td></tr> }
         </tbody>
     </table>
 </div>
+
+@section Scripts {
+    <script src="~/js/installment-pay.js" asp-append-version="true"></script>
+    <script>
+        // «صفحة واحدة» (ticked by default): the contract print link carries onePage=true while it's ticked.
+        (function () {
+            var link = document.getElementById('printContract'), box = document.getElementById('printOnePage');
+            if (!link || !box) return;
+            var base = link.getAttribute('href');
+            function apply() { link.setAttribute('href', box.checked ? base + (base.indexOf('?') < 0 ? '?' : '&') + 'onePage=true' : base); }
+            box.addEventListener('change', apply);
+            apply();   // the browser may restore the tick when coming back to the page
+        })();
+
+        // Per-installment «تحصيل»: the receipt opens in a new tab; this page then reloads to show the new paid / remaining.
+        window.appBindInstallmentPay(document.getElementById('contractInstallments'),
+            @Html.Raw(Json.Serialize(ViewBag.Safes ?? new object[0])), function () { location.reload(); });
+
+        // فسخ التعاقد popup: live fee / amount-due from the percentage, and a last confirmation before saving.
+        function cancelNums(form) {
+            var paid = parseFloat(form.getAttribute('data-paid') || '0') || 0;
+            var pct = Math.min(100, Math.max(0, parseFloat((form.querySelector('[name="FeePercent"]') || {}).value || '0') || 0));
+            var fee = Math.round(paid * pct) / 100;
+            return { paid: paid, pct: pct, fee: fee, due: Math.round((paid - fee) * 100) / 100 };
+        }
+        function cancelFmt(v) { return v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+        window.saleCancelInit = function () {
+            var form = document.querySelector('#appModalBody .sale-cancel-form');
+            if (!form) return;
+            function refresh() {
+                var n = cancelNums(form);
+                form.querySelector('[data-cancel-fee]').textContent = cancelFmt(n.fee);
+                form.querySelector('[data-cancel-due]').textContent = cancelFmt(n.due);
+            }
+            form.addEventListener('input', function (e) { if (e.target.name === 'FeePercent') refresh(); });
+            refresh();
+        };
+        window.saleCancelWarn = function (form) {
+            var n = cancelNums(form);
+            return 'سيتم فسخ العقد «' + form.getAttribute('data-code') + '» وإرجاع الوحدة متاحة.<br>'
+                + 'رسوم الفسخ: <b>' + cancelFmt(n.fee) + '</b> ج.م (' + n.pct + '%) — المستحق للعميل: <b>' + cancelFmt(n.due) + '</b> ج.م.<br>'
+                + 'يمكن إلغاء الفسخ لاحقًا ما لم يُصرف للعميل شيء. هل تريد المتابعة؟';
+        };
+    </script>
+}

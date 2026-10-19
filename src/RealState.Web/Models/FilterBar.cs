@@ -17,9 +17,9 @@ namespace RealState.Web.Models;
 //      .Excel(Url.Action("Excel", new { ... }));
 // =====================================================================================================
 
-public enum FilterFieldType { Select, Text, Date }
+public enum FilterFieldType { Select, Text, Date, Checks }
 
-/// <summary>One filter input (a select, a free-text box or a single date).</summary>
+/// <summary>One filter input (a select, a free-text box, a single date or a multi-choice checkbox group).</summary>
 public sealed class FilterField
 {
     public string Name { get; init; } = string.Empty;
@@ -27,6 +27,8 @@ public sealed class FilterField
     public FilterFieldType Type { get; init; }
     /// <summary>Current value exactly as the page posts it (e.g. a Guid string, an enum name or an int).</summary>
     public string? Value { get; init; }
+    /// <summary>Checked values of a checkbox group (posted as repeated name=value pairs).</summary>
+    public List<string> Values { get; init; } = new();
     public List<SelectListItem> Options { get; init; } = new();
     /// <summary>Text of the empty ("no filter") option of a select; null = no empty option.</summary>
     public string? AllText { get; init; } = "الكل";
@@ -35,7 +37,10 @@ public sealed class FilterField
     /// <summary>Spans two grid columns (long option texts, e.g. accounts).</summary>
     public bool Wide { get; init; }
 
-    public bool IsActive => !string.IsNullOrEmpty(Value);
+    /// <summary>Applied? A checkbox group with every option ticked filters nothing, so it isn't counted.</summary>
+    public bool IsActive => Type == FilterFieldType.Checks
+        ? Values.Count > 0 && Options.Any(o => !Values.Contains(o.Value))
+        : !string.IsNullOrEmpty(Value);
 }
 
 /// <summary>A quick range button (اليوم، آخر أسبوع …). Empty From/To clear the range (e.g. «الكل»).</summary>
@@ -124,6 +129,20 @@ public sealed class FilterBarVm
         {
             Name = name, Label = label, Type = FilterFieldType.Select, Value = Str(value),
             Options = options.ToList(), AllText = allText, Searchable = searchable, Wide = wide
+        });
+        return this;
+    }
+
+    /// <summary>Multi-choice checkbox group. Nothing chosen = no filter, shown as every option ticked.
+    /// Bind it to a List&lt;T&gt; parameter. Values are pre-formatted to match the option values (e.g. enum ints).</summary>
+    public FilterBarVm Checks(string name, string label, IEnumerable<SelectListItem> options, IEnumerable<string>? values)
+    {
+        var opts = options.ToList();
+        var chosen = values?.ToList() ?? new();
+        Fields.Add(new FilterField
+        {
+            Name = name, Label = label, Type = FilterFieldType.Checks, Options = opts,
+            Values = chosen.Count > 0 ? chosen : opts.Select(o => o.Value).ToList()
         });
         return this;
     }

@@ -27,7 +27,7 @@ public class DashboardService : IDashboardService
         var vm = new DashboardVm();
 
         // --- Sales ---
-        var contracts = await _db.SaleContracts.ToListAsync(ct);
+        var contracts = await _db.SaleContracts.Where(c => !c.IsCancelled).ToListAsync(ct);   // a cancelled (مفسوخ) contract is no longer a sale
         vm.ContractsCount = contracts.Count;
         vm.TodaySales = contracts.Where(c => c.ReceiveDate.Date == today).Sum(c => c.TotalPrice);
         vm.MonthSales = contracts.Where(c => c.ReceiveDate.Date >= monthStart).Sum(c => c.TotalPrice);
@@ -35,7 +35,8 @@ public class DashboardService : IDashboardService
 
         // --- Collections ---
         // The down payment is scheduled as an installment, so collected = paid installments only.
-        var installments = await _db.Installments.ToListAsync(ct);
+        // A cancelled contract's schedule is frozen — it's neither collected sales nor outstanding.
+        var installments = await _db.Installments.Where(i => !_db.SaleContracts.Any(s => s.Id == i.SaleContractId && s.IsCancelled)).ToListAsync(ct);
         var installmentsPaid = installments.Sum(i => i.PaidAmount);
         vm.TotalCollected = installmentsPaid;
         vm.TotalOutstanding = installments.Where(i => i.PaidAmount < i.Amount).Sum(i => i.Amount - i.PaidAmount);

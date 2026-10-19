@@ -318,6 +318,13 @@ public abstract class TxnControllerBase : Controller
             return RedirectToAction(nameof(Index));
         }
 
+        if (t.Source == TxnSource.ContractCancelRefund)
+        {
+            TempData["ErrorMessage"] = "هذا السند رد مستحقات عن عقد بيع مفسوخ — احذفه من صفحة العقد.";
+            HttpContext.Items[RealState.Web.Filters.ActivityLogFilter.SkipItem] = true;   // refused — nothing changed
+            return RedirectToAction(nameof(Index));
+        }
+
         if (t.Source is TxnSource.CustodyDisbursement or TxnSource.CustodyReturn)
         {
             TempData["ErrorMessage"] = "هذا السند تابع لعهدة مالية — احذفه من صفحة العُهد المالية.";
@@ -427,7 +434,7 @@ public abstract class TxnControllerBase : Controller
                 if (contract is not null)
                     ViewBag.Party = await _db.Customers.Where(c => c.Id == contract.CustomerId).Select(c => c.FullName).FirstOrDefaultAsync(ct);
                 ViewBag.PartyLabel = "العميل";
-                ViewBag.About = $"تحصيل {ArabicLabels.InstPhrase(inst.Number)}";
+                ViewBag.About = $"تحصيل {inst.InstPhrase()}";
             }
         }
         else if (t.Source == TxnSource.SalesInvoiceCollection
@@ -460,6 +467,13 @@ public abstract class TxnControllerBase : Controller
             ViewBag.Party = await _db.Employees.IgnoreQueryFilters().Where(e => e.Id == fc.EmployeeId).Select(e => e.FullName).FirstOrDefaultAsync(ct);
             ViewBag.About = (t.Source == TxnSource.CustodyDisbursement ? "صرف عهدة مالية" : "رد نقدية من عهدة مالية") + $" FC-{fc.Number}";
         }
+        else if (t.Source == TxnSource.ContractCancelRefund && t.CustomerId is Guid rc)
+        {
+            ViewBag.PartyLabel = "العميل";
+            ViewBag.Party = await _db.Customers.IgnoreQueryFilters().Where(c => c.Id == rc).Select(c => c.FullName).FirstOrDefaultAsync(ct);
+            var code = await _db.SaleContracts.Where(s => s.Id == t.SaleContractId).Select(s => s.Code).FirstOrDefaultAsync(ct);
+            ViewBag.About = $"رد مستحقات عن فسخ عقد البيع {code}";
+        }
         else if (t.Source == TxnSource.CustomerAccount && t.CustomerId is Guid pc)
         {
             ViewBag.PartyLabel = "العميل";
@@ -485,7 +499,7 @@ public abstract class TxnControllerBase : Controller
     // System (non-manual) sources per direction — shown in «المصدر» alongside the predefined categories.
     // Manual entries are represented by their category (بند) instead, so Manual is intentionally omitted.
     private static readonly TxnSource[] IncomeSources = { TxnSource.CustomerAccount, TxnSource.SupplierAccount, TxnSource.Collection, TxnSource.SalesInvoiceCollection, TxnSource.PurchaseReturnRefund, TxnSource.AdvanceRepayment, TxnSource.CustodyReturn, TxnSource.FixedAssetSale };
-    private static readonly TxnSource[] ExpenseSources = { TxnSource.SupplierAccount, TxnSource.CustomerAccount, TxnSource.ProjectExpense, TxnSource.SupplierPayment, TxnSource.SalesReturnRefund, TxnSource.ContractorPayment, TxnSource.AdvanceDisbursement, TxnSource.RewardPayment, TxnSource.CustodyDisbursement, TxnSource.FixedAssetPurchase };
+    private static readonly TxnSource[] ExpenseSources = { TxnSource.SupplierAccount, TxnSource.CustomerAccount, TxnSource.ProjectExpense, TxnSource.SupplierPayment, TxnSource.SalesReturnRefund, TxnSource.ContractCancelRefund, TxnSource.ContractorPayment, TxnSource.AdvanceDisbursement, TxnSource.RewardPayment, TxnSource.CustodyDisbursement, TxnSource.FixedAssetPurchase };
 
     private async Task<TxnListVm> BuildListAsync(DateTime? from, DateTime? to, string? q, string? source, CancellationToken ct)
     {

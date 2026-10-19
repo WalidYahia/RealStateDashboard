@@ -2,12 +2,23 @@
 @{
     Layout = null;
     var installments = ViewBag.Installments as List<Installment> ?? new();
-    // The down payment (Number 0) is shown separately under القيمة المالية, not inside the schedule.
-    var schedule = installments.Where(i => i.Number > 0).OrderBy(i => i.Number).ToList();
-    var firstDue = schedule.FirstOrDefault()?.DueDate;
+    // Down payments are summed under القيمة المالية; the schedule lists every other payment (installments, maintenance).
+    var schedule = installments.Where(i => i.Type != InstallmentType.DownPayment).ToList();
+    var maintenance = installments.Where(i => i.Type == InstallmentType.Maintenance).Sum(i => i.Amount);
+    var firstDue = schedule.FirstOrDefault(i => i.Type == InstallmentType.Installment)?.DueDate;
     var tenantId = (Guid)ViewBag.TenantId;
     string N(decimal v) => v.ToString("N0", RealState.Web.AppCulture.Ar);
     string D(DateTime? d) => RealState.Web.AppCulture.When(d);   // date + time when it has one
+    string N2(decimal v) => v.ToString("N2", RealState.Web.AppCulture.Ar);
+    var refunds = ViewBag.Refunds as List<SaleRefundRow> ?? new();
+    var refunded = refunds.Sum(r => r.Amount);
+    // «طباعة في صفحة واحدة»: tighter spacing, the two info tables side by side, the schedule split into two tables
+    // side by side — and, if it still overflows, the whole contract is scaled down to fit one A4 page (script below).
+    var onePage = ViewBag.OnePage as bool? ?? false;
+    var half = (schedule.Count + 1) / 2;
+    var scheduleParts = onePage && schedule.Count > 1
+        ? new List<List<Installment>> { schedule.Take(half).ToList(), schedule.Skip(half).ToList() }
+        : new List<List<Installment>> { schedule };
 }
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -25,18 +36,49 @@
         th, td { border: 1px solid #ccc; padding: 7px 8px; text-align: start;  unicode-bidi: plaintext; }
         th { background: #f2f2f2; }
         .kv th { width: 180px; background: #fafafa; }
-        .sign { display: flex; justify-content: space-between; margin-top: 48px; font-size: 13px; }
+        .sign { display: flex; justify-content: space-between; margin-top: 48px; font-size: 13px; break-inside: avoid; }
+        .contract-body { margin: 0 auto; }
+        /* Printed at A4 with fixed margins, so the layout script can measure it (a letterhead sets its own page box). */
+        @@media print { body { padding: 0; margin: 0; } @@page { size: A4; margin: 12mm; } }
         .sign div { width: 40%; border-top: 1px solid #333; padding-top: 6px; text-align: center; }
         .no-print { margin-bottom: 14px; }
+        .cancelled-mark { text-align: center; margin: 4px 0 14px; }
+        .cancelled-mark span { display: inline-block; border: 2px solid #c62828; color: #c62828; font-weight: 800; padding: 3px 16px; border-radius: 6px; font-size: 15px; }
+        .cancel-section h2 { color: #c62828; border-bottom-color: #e8b4b4; }
         @@media print { .no-print { display: none; } }
+
+        /* ---- one page ---- */
+        .one-page .contract-body { margin: 0 auto; }
+        .one-page h1 { font-size: 16px; margin: 0 0 2px; }
+        .one-page .sub { font-size: 10.5px; margin-bottom: 6px; }
+        .one-page h2 { font-size: 12px; margin: 8px 0 4px; padding-bottom: 2px; }
+        .one-page table { font-size: 10.5px; margin-bottom: 4px; }
+        .one-page th, .one-page td { padding: 3px 5px; }
+        .one-page .kv th { width: 105px; }
+        .one-page p { margin: 2px 0; font-size: 11px; }
+        .one-page .cancelled-mark { margin: 2px 0 6px; }
+        .one-page .cancelled-mark span { font-size: 12px; padding: 2px 12px; }
+        .one-page .kv-pair, .one-page .sched-pair { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0 10px; align-items: start; }
+        .one-page .sign { margin-top: 22px; font-size: 11px; }
+        .one-page .fill-page { display: flex; flex-direction: column; }
+        .one-page .fill-page > .sign { margin-top: auto; padding-top: 22px; }
+        /* Printed without a letterhead: a slim page margin (a letterhead sets its own page box and safe area). */
+        @@media print { .one-page { padding: 0; margin: 0; } @@page { size: A4; margin: 8mm; } }
     </style>
 </head>
-<body>
+<body class="@(onePage ? "one-page" : null)">
     @await Component.InvokeAsync("ReportBackground", new { part = "open" })
     <div class="no-print"><button onclick="window.print()">🖨 طباعة / حفظ PDF</button></div>
+    <div class="contract-body">
     <h1>عقد بيع رقم @Model.Code</h1>
     <div class="sub">تاريخ التحرير: @ClientTime.Now.ToString("yyyy/MM/dd")</div>
+    @if (Model.IsCancelled)
+    {
+        <div class="cancelled-mark"><span>عقد مفسوخ بتاريخ @D(Model.CancelledAt)</span></div>
+    }
 
+    <div class="kv-pair">
+    <div>
     <h2>أطراف العقد والوحدة</h2>
     <table class="kv">
         <tr><th>العميل (المشتري)</th><td>@Model.Customer?.FullName — @Model.Customer?.Phone</td></tr>
@@ -56,29 +98,41 @@
         }
         <tr><th>تاريخ الاستلام</th><td>@D(Model.ReceiveDate)</td></tr>
     </table>
-
+    </div>
+    <div>
     <h2>القيمة المالية</h2>
     <table class="kv">
         <tr><th>السعر الإجمالي</th><td>@N(Model.TotalPrice) ج.م</td></tr>
         <tr><th>المقدم</th><td>@N(Model.DownPayment) ج.م </td></tr>
-        <tr><th>المتبقي على أقساط</th><td>@N(Model.TotalPrice - Model.DownPayment) ج.م على @Model.InstallmentsCount قسط (@(Model.IsManualSchedule ? "جدول يدوي — انظر جدول الأقساط" : Model.Step.Ar()))</td></tr>
+        @if (maintenance > 0)
+        {
+            <tr><th>الصيانة</th><td>@N(maintenance) ج.م</td></tr>
+        }
+        <tr><th>المتبقي على أقساط</th><td>@N(Model.TotalPrice - Model.DownPayment - maintenance) ج.م على @Model.InstallmentsCount قسط (@(Model.IsManualSchedule ? "جدول يدوي — انظر جدول الأقساط" : Model.Step.Ar()))</td></tr>
         @if (firstDue.HasValue)
         {
             <tr><th>تاريخ أول قسط</th><td>@D(firstDue)</td></tr>
         }
     </table>
+    </div>
+    </div>
 
     <h2>جدول الأقساط</h2>
-    <table>
-        <thead><tr><th>#</th><th>تاريخ الاستحقاق</th><th>القيمة (ج.م)</th></tr></thead>
-        <tbody>
-        @foreach (var i in schedule)
-        {
-            <tr><td>@i.Number</td><td>@D(i.DueDate)</td><td>@N(i.Amount)</td></tr>
-        }
-        @if (schedule.Count == 0) { <tr><td colspan="3">لا توجد أقساط (سداد كامل بالمقدم).</td></tr> }
-        </tbody>
-    </table>
+    <div class="sched-pair">
+    @foreach (var part in scheduleParts)
+    {
+        <table>
+            <thead><tr><th>#</th><th>النوع</th><th>تاريخ الاستحقاق</th><th>القيمة (ج.م)</th></tr></thead>
+            <tbody>
+            @foreach (var i in part)
+            {
+                <tr><td>@i.InstNo()</td><td>@i.Type.Ar()</td><td>@D(i.DueDate)</td><td>@N(i.Amount)</td></tr>
+            }
+            @if (part.Count == 0) { <tr><td colspan="4">لا توجد أقساط (سداد كامل بالمقدم).</td></tr> }
+            </tbody>
+        </table>
+    }
+    </div>
 
     @if (!string.IsNullOrEmpty(Model.Notes))
     {
@@ -86,9 +140,84 @@
         <p>@Model.Notes</p>
     }
 
-    <div class="sign"><div>توقيع الطرف الأول (البائع)</div><div>توقيع الطرف الثاني (المشتري)</div></div>
+    @if (Model.IsCancelled)
+    {
+        @* The normal contract above, plus what the cancellation settled. *@
+        <div class="cancel-section">
+            <h2>بيانات الفسخ</h2>
+            <table class="kv">
+                <tr><th>تاريخ الفسخ</th><td>@D(Model.CancelledAt)@(string.IsNullOrEmpty(Model.CancelledByName) ? "" : $" — بواسطة {Model.CancelledByName}")</td></tr>
+                <tr><th>المدفوع من العميل وقت الفسخ</th><td>@N2(Model.CancelPaidAmount) ج.م</td></tr>
+                <tr><th>رسوم الفسخ</th><td>@N2(Model.CancelFeeAmount) ج.م (@Model.CancelFeePercent.ToString("0.##")% من المدفوع)</td></tr>
+                <tr><th>المستحق للعميل</th><td>@N2(Model.CancelRefundDue) ج.م</td></tr>
+                <tr><th>المصروف للعميل</th><td>@N2(refunded) ج.م@(refunds.Count > 0 ? $" — {refunds.Count} دفعة" : "")</td></tr>
+                <tr><th>المتبقي للعميل</th><td>@N2(Model.CancelRefundDue - refunded) ج.م</td></tr>
+                @if (!string.IsNullOrWhiteSpace(Model.CancelReason))
+                {
+                    <tr><th>سبب الفسخ</th><td>@Model.CancelReason</td></tr>
+                }
+            </table>
+            @if (refunds.Count > 0)
+            {
+                <table>
+                    <thead><tr><th>سند الصرف</th><th>التاريخ</th><th>الخزنة</th><th>المبلغ (ج.م)</th></tr></thead>
+                    <tbody>
+                    @foreach (var r in refunds)
+                    {
+                        <tr><td>@r.Serial</td><td>@D(r.Date)</td><td>@r.SafeName</td><td>@N2(r.Amount)</td></tr>
+                    }
+                    </tbody>
+                </table>
+            }
+        </div>
+    }
 
-    <script>window.addEventListener('load', function () { setTimeout(function () { window.print(); }, 500); });</script>
+    <div class="sign"><div>توقيع الطرف الأول (البائع)</div><div>توقيع الطرف الثاني (المشتري)</div></div>
+    </div>
+
+    <script>
+        window.addEventListener('load', function () {
+            layoutPrint(@(onePage ? "true" : "false"));
+            setTimeout(function () { window.print(); }, 500);
+        });
+
+        // Lays the contract out at the printed A4 width so its height can be measured, and keeps the signatures at the
+        // bottom of the (last) page even when the content ends earlier.
+        //  • one page: scale it down (never up) until it fits the printable height, then let it fill that height — the
+        //    signatures sit at its foot (flex, exact);
+        //  • normal: add the space left on the last page above the signatures (estimated — rows don't split and table
+        //    headers repeat across pages, hence the slack).
+        // Printable area: the letterhead's safe area (15mm sides, 40mm top / bottom bands) when it's used, else the page margins.
+        function layoutPrint(onePage) {
+            var MM = 96 / 25.4;   // CSS px per mm
+            var body = document.querySelector('.contract-body');
+            var sign = body && body.querySelector('.sign');
+            if (!body || !sign) return;
+            var letterhead = !!document.querySelector('.rpt-frame');
+            var margin = onePage ? 8 : 12;   // mm — matches the @@page margins above
+            var width = (letterhead ? 210 - 30 : 210 - 2 * margin) - 2;   // 2mm slack
+            var page = (letterhead ? 297 - 80 : 297 - 2 * margin) * MM * 0.98;   // px, a little slack for printer rounding
+            body.style.width = width + 'mm';
+
+            if (onePage) {
+                var z = 1, need = body.scrollHeight;
+                if (need > page) {
+                    z = page / need;
+                    body.style.zoom = z;
+                    body.style.width = (width / z) + 'mm';   // keep the scaled width at the full printable width
+                }
+                body.style.minHeight = (page / z) + 'px';
+                body.classList.add('fill-page');
+                return;
+            }
+
+            var gap = parseFloat(getComputedStyle(sign).marginTop) || 0;
+            var before = sign.getBoundingClientRect().top - body.getBoundingClientRect().top - gap;   // content above the signatures
+            var used = before % page;                                                                 // …on the last page
+            var space = page - used - sign.offsetHeight;
+            if (space > gap) sign.style.marginTop = space + 'px';   // else they flow to the next page as usual
+        }
+    </script>
     @await Component.InvokeAsync("ReportBackground", new { part = "close" })
 </body>
 </html>

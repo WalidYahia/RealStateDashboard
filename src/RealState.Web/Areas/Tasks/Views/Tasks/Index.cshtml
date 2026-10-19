@@ -9,8 +9,10 @@
     string Trunc(string s) => s.Length > 60 ? s[..60] + "…" : s;
 }
 @{
-    string? SInt(WorkTaskStatus? s) => s.HasValue ? ((int)s.Value).ToString() : null;
-    string? VInt(TaskSeverity? v) => v.HasValue ? ((int)v.Value).ToString() : null;
+    var statusValues = Model.Status.Select(s => ((int)s).ToString()).ToList();
+    var severityValues = Model.Severity.Select(v => ((int)v).ToString()).ToList();
+    // Multi-choice filters go on the query string as repeated name=value pairs.
+    var multiQs = string.Concat(statusValues.Select(v => "&status=" + v).Concat(severityValues.Select(v => "&severity=" + v)));
 }
 <div class="page-head">
     <h1>قائمة المهام</h1>
@@ -23,14 +25,14 @@
 
 @{
     var filter = FilterBarVm.For(Url.Action("Index"))
-        .DateRange(F(Model.From), F(Model.To))
+        .DateRange(F(Model.From), F(Model.To), presets: FilterPresets.Standard().Append(FilterPresets.All()))
         .Select("departmentId", "القسم", Model.Departments, Model.DepartmentId)
         .Select("assigneeId", "المُكلَّف", Model.Employees, Model.AssigneeId)
         .Select("assignedBy", "أسندها", Model.Assigners, Model.AssignedBy)
-        .Select("status", "الحالة", Enum.GetValues<WorkTaskStatus>().Select(st => new SelectListItem(st.Ar(), ((int)st).ToString())), SInt(Model.Status))
-        .Select("severity", "الأهمية", Enum.GetValues<TaskSeverity>().Select(sv => new SelectListItem(sv.Ar(), ((int)sv).ToString())), VInt(Model.Severity))
-        .Print(Url.Action("PrintList", new { from = F(Model.From), to = F(Model.To), departmentId = Model.DepartmentId, assigneeId = Model.AssigneeId, assignedBy = Model.AssignedBy, status = SInt(Model.Status), severity = VInt(Model.Severity), withLog = "false" }), "طباعة القائمة")
-        .Print(Url.Action("PrintList", new { from = F(Model.From), to = F(Model.To), departmentId = Model.DepartmentId, assigneeId = Model.AssigneeId, assignedBy = Model.AssignedBy, status = SInt(Model.Status), severity = VInt(Model.Severity), withLog = "true" }), "طباعة مع السجل");
+        .Checks("status", "الحالة", Enum.GetValues<WorkTaskStatus>().Select(st => new SelectListItem(st.Ar(), ((int)st).ToString())), statusValues)
+        .Checks("severity", "الأهمية", Enum.GetValues<TaskSeverity>().Select(sv => new SelectListItem(sv.Ar(), ((int)sv).ToString())), severityValues)
+        .Print(Url.Action("PrintList", new { from = F(Model.From), to = F(Model.To), departmentId = Model.DepartmentId, assigneeId = Model.AssigneeId, assignedBy = Model.AssignedBy, withLog = "false" }) + multiQs, "طباعة القائمة")
+        .Print(Url.Action("PrintList", new { from = F(Model.From), to = F(Model.To), departmentId = Model.DepartmentId, assigneeId = Model.AssigneeId, assignedBy = Model.AssignedBy, withLog = "true" }) + multiQs, "طباعة مع السجل");
 }
 <partial name="_FilterBar" model="filter" />
 

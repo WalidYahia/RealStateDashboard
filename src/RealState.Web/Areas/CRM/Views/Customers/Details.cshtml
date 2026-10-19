@@ -114,9 +114,9 @@
         <a class="btn-sm" asp-action="PrintStatement" asp-route-id="@c.Id" target="_blank">🖨 طباعة التعاقدات والأقساط</a>
     </div>
     <div class="kpi-grid" style="grid-template-columns: repeat(3, 1fr);">
-        <div class="kpi k-tasks"><div class="kpi-label">إجمالي الالتزامات</div><div class="kpi-value">@N(Model.TotalObligations) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">@Model.Contracts.Count عقد</div></div>
+        <div class="kpi k-tasks"><div class="kpi-label">إجمالي الالتزامات</div><div class="kpi-value">@N(Model.TotalObligations) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">@Model.ActiveContracts عقد سارٍ</div></div>
         <div class="kpi k-sales"><div class="kpi-label">المحصّل</div><div class="kpi-value">@N(Model.TotalPaid) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">من الأقساط والمقدمات</div></div>
-        <div class="kpi k-alerts"><div class="kpi-label">المتبقي</div><div class="kpi-value">@N(Model.TotalRemaining) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">رصيد مستحق</div></div>
+        <div class="kpi k-alerts"><div class="kpi-label">المتبقي</div><div class="kpi-value">@N(Model.TotalRemaining) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">@(Model.TotalOwedToCustomer > 0 ? $"العميل دائن بـ {N(Model.TotalOwedToCustomer)} ج.م (عقود مفسوخة)" : "رصيد مستحق")</div></div>
     </div>
 
     @if (!Model.HasContracts)
@@ -127,8 +127,15 @@
     {
         <div class="card-tile" style="margin-bottom:14px;">
             <div class="card-head">
-                <h3>عقد <span class="proj-code">@ct.Code</span> — @ct.ProjectName / @ct.UnitLabel</h3>
-                <span style="color:var(--muted);font-size:13px;">الإجمالي @N(ct.TotalPrice) · المدفوع @N(ct.Paid) · المتبقي @N(ct.Remaining) ج.م</span>
+                <h3>عقد <span class="proj-code">@ct.Code</span> — @ct.ProjectName / @ct.UnitLabel @if (ct.IsCancelled) { <span class="badge-state state-off">مفسوخ</span> }</h3>
+                @if (ct.IsCancelled)
+                {
+                    <span style="color:var(--muted);font-size:13px;">المدفوع @N(ct.Paid) · رسوم الفسخ @N(ct.CancelFeeAmount) · مستحق للعميل @N(ct.RefundDue) · المصروف @N(ct.Refunded) · <strong style="color:var(--series-1);">المتبقي للعميل @N(ct.RefundRemaining) ج.م</strong></span>
+                }
+                else
+                {
+                    <span style="color:var(--muted);font-size:13px;">الإجمالي @N(ct.TotalPrice) · المدفوع @N(ct.Paid) · المتبقي @N(ct.Remaining) ج.م</span>
+                }
             </div>
             <table class="rs-table">
                 <thead><tr><th>#</th><th>تاريخ الاستحقاق</th><th>القيمة</th><th>المدفوع</th><th>الحالة</th><th></th></tr></thead>
@@ -136,17 +143,26 @@
                     @foreach (var i in ct.Installments)
                     {
                         <tr>
-                            <td>@ArabicLabels.InstNo(i.Number)</td>
+                            <td>@i.InstNo()</td>
                             <td dir="ltr" style="text-align:right;">@D(i.DueDate)</td>
                             <td>@N(i.Amount)</td>
                             <td>@N(i.PaidAmount)</td>
-                            <td><span class="badge-state @i.Status.BadgeClass()">@i.Status.Ar() @(i.Status == InstallmentStatus.Overdue ? "⚠" : "")</span></td>
                             <td>
-                                @if (i.Status == InstallmentStatus.Paid)
+                                @if (ct.IsCancelled)
+                                {
+                                    <span class="badge-state state-off">محصّل قبل الفسخ</span>
+                                }
+                                else
+                                {
+                                    <span class="badge-state @i.Status.BadgeClass()">@i.Status.Ar() @(i.Status == InstallmentStatus.Overdue ? "⚠" : "")</span>
+                                }
+                            </td>
+                            <td>
+                                @if (i.Status == InstallmentStatus.Paid || (ct.IsCancelled && i.PaidAmount > 0))
                                 {
                                     <a class="btn-sm" asp-action="PrintReceipt" asp-route-id="@i.Id" target="_blank">🖨 إيصال</a>
                                 }
-                                else
+                                else if (!ct.IsCancelled)
                                 {
                                     <a class="btn-sm" asp-action="PrintNotice" asp-route-id="@i.Id" target="_blank">🖨 إشعار</a>
                                 }

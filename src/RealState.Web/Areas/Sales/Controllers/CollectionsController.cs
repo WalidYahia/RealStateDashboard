@@ -97,6 +97,11 @@ public class CollectionsController : Controller
     {
         var inst = await _db.Installments.FirstOrDefaultAsync(i => i.Id == id, ct);
         if (inst is null) return NotFound();
+        if (await _db.SaleContracts.AnyAsync(s => s.Id == inst.SaleContractId && s.IsCancelled, ct))
+        {
+            TempData["ErrorMessage"] = "العقد مفسوخ — لا يمكن تعديل تحصيلاته (المستحق للعميل يُصرف من صفحة العقد).";
+            return RedirectToAction(nameof(Index));
+        }
         if (safeId == Guid.Empty || !await _db.Safes.AnyAsync(s => s.Id == safeId && s.IsActive, ct))
         {
             TempData["StatusMessage"] = "يجب اختيار خزنة صالحة لاستلام التحصيل.";
@@ -106,9 +111,10 @@ public class CollectionsController : Controller
         var remaining = inst.Amount - inst.PaidAmount;
         if (remaining <= 0) return RedirectToAction(nameof(Receipt), new { id });   // already fully collected
 
-        // The down payment (المقدم, Number 0) may be collected in several parts, each a separate income
+        // A down payment (المقدم) may be collected in several parts, each a separate income
         // receipt; a regular installment (قسط) is always collected in full.
-        var pay = inst.Number <= 0 && amount.HasValue ? amount.Value : remaining;
+        var isDown = inst.Type == InstallmentType.DownPayment;
+        var pay = isDown && amount.HasValue ? amount.Value : remaining;
         if (pay <= 0)
         {
             TempData["StatusMessage"] = "أدخل مبلغًا أكبر من صفر.";
@@ -132,8 +138,8 @@ public class CollectionsController : Controller
             var cust = await _db.Customers.FirstOrDefaultAsync(c => c.Id == contract.CustomerId, ct);
             custName = cust?.FullName ?? "—";
         }
-        var label = inst.Number <= 0 ? "المقدم" : $"قسط رقم {inst.Number}";
-        var partial = inst.Number <= 0 && pay < inst.Amount ? " (دفعة جزئية)" : "";
+        var label = inst.InstPhrase();
+        var partial = isDown && pay < inst.Amount ? " (دفعة جزئية)" : "";
         await _accounting.AddTransactionAsync(safeId, TxnType.Income, TxnSource.Collection, pay,
             ClientTime.Now, $"تحصيل {label}{partial} — {custName}",
             installmentId: inst.Id, projectId: contract?.ProjectId, customerId: contract?.CustomerId, unitId: contract?.UnitId, ct: ct);
@@ -149,6 +155,11 @@ public class CollectionsController : Controller
     {
         var inst = await _db.Installments.FirstOrDefaultAsync(i => i.Id == id, ct);
         if (inst is null) return NotFound();
+        if (await _db.SaleContracts.AnyAsync(s => s.Id == inst.SaleContractId && s.IsCancelled, ct))
+        {
+            TempData["ErrorMessage"] = "العقد مفسوخ — لا يمكن تعديل تحصيلاته (المستحق للعميل يُصرف من صفحة العقد).";
+            return RedirectToAction(nameof(Index));
+        }
         // Cancelling takes the collected money back out of its safe(s) — «سحب على المكشوف» applies.
         var incomes = await _db.SafeTransactions.Where(t => t.InstallmentId == inst.Id && t.Type == TxnType.Income)
             .Select(t => new { t.SafeId, t.Amount }).ToListAsync(ct);
@@ -181,7 +192,7 @@ public class CollectionsController : Controller
         if (contract is not null)
             ViewBag.Party = await _db.Customers.Where(c => c.Id == contract.CustomerId).Select(c => c.FullName).FirstOrDefaultAsync(ct);
         ViewBag.PartyLabel = "العميل";
-        ViewBag.About = $"تحصيل {ArabicLabels.InstPhrase(inst.Number)}";
+        ViewBag.About = $"تحصيل {inst.InstPhrase()}";
         ViewBag.SafeName = await _db.Safes.Where(s => s.Id == txn.SafeId).Select(s => s.Name).FirstOrDefaultAsync(ct);
         ViewBag.TenantId = _currentUser.TenantId;
         return View("~/Areas/Accounting/Views/Shared/PrintOne.cshtml", txn);
@@ -210,11 +221,15 @@ public class CollectionsController : Controller
         var projNames = await _db.Projects.ToDictionaryAsync(p => p.Id, p => p.Name, ct);
         var unitNames = await _db.ProjectUnits.ToDictionaryAsync(u => u.Id, u => u.Name + (string.IsNullOrEmpty(u.Number) ? "" : $" ({u.Number})"), ct);
 
-        return installments.Select(i =>
+        // A cancelled contract's schedule is frozen: its unpaid rows aren't due any more, and what was collected before the
+        // cancellation stays listed as collected (only the paid part).
+        bool Cancelled(Installment i) => contracts.TryGetValue(i.SaleContractId, out var sc) && sc.IsCancelled;
+        return installments.Where(i => !Cancelled(i) || i.PaidAmount > 0).Select(i =>
         {
             contracts.TryGetValue(i.SaleContractId, out var c);
             Customer? cust = null;
             if (c != null) customers.TryGetValue(c.CustomerId, out cust);
+            var frozen = c?.IsCancelled == true;
             return new CollectionRow
             {
                 InstallmentId = i.Id,
@@ -225,12 +240,14 @@ public class CollectionsController : Controller
                 ProjectName = c != null ? projNames.GetValueOrDefault(c.ProjectId, "—") : "—",
                 UnitLabel = c != null ? unitNames.GetValueOrDefault(c.UnitId, "—") : "—",
                 Number = i.Number,
+                Type = i.Type,
+                IsCancelledContract = frozen,
                 DueDate = i.DueDate,
-                Amount = i.Amount,
+                Amount = frozen ? i.PaidAmount : i.Amount,
                 PaidAmount = i.PaidAmount,
                 PaidDate = i.PaidDate,
                 ReceiptNo = i.ReceiptNo,
-                Status = i.Status
+                Status = frozen ? InstallmentStatus.Paid : i.Status
             };
         }).ToList();
     }

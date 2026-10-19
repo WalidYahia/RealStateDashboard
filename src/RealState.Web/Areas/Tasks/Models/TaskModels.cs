@@ -52,8 +52,8 @@ public class TaskListVm
     public Guid? AssigneeId { get; set; }
     public string? AssignedBy { get; set; }
     public Guid? DepartmentId { get; set; }
-    public WorkTaskStatus? Status { get; set; }
-    public TaskSeverity? Severity { get; set; }
+    public List<WorkTaskStatus> Status { get; set; } = new();   // multi-choice; empty = any
+    public List<TaskSeverity> Severity { get; set; } = new();   // multi-choice; empty = any
 
     public List<SelectListItem> Employees { get; set; } = new();
     public List<SelectListItem> Departments { get; set; } = new();
@@ -70,8 +70,8 @@ public class MyTasksVm
     public DateTime? To { get; set; }
     public string? AssignedBy { get; set; }   // tab 1 filter: who assigned to me (by name)
     public Guid? AssignedToId { get; set; }   // tab 2 filter: who I assigned to
-    public WorkTaskStatus? Status { get; set; }
-    public TaskSeverity? Severity { get; set; }
+    public List<WorkTaskStatus> Status { get; set; } = new();   // multi-choice; empty = any
+    public List<TaskSeverity> Severity { get; set; } = new();   // multi-choice; empty = any
 
     public List<SelectListItem> Assigners { get; set; } = new();
     public List<SelectListItem> Assignees { get; set; } = new();

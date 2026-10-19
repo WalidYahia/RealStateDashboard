@@ -41,6 +41,10 @@ public static class PermissionNames
     public const string SalesCreate = "Sales.Create";
     public const string SalesEdit = "Sales.Edit";
     public const string SalesDelete = "Sales.Delete";
+    public const string SalesCancel = "Sales.Cancel";             // فسخ التعاقد — release the unit, reverse the sale, owe the customer
+    public const string SalesUncancel = "Sales.Uncancel";         // إلغاء الفسخ — put a cancelled contract back as it was
+    public const string SalesRefund = "Sales.Refund";             // pay a cancelled contract's refund to the customer (سند صرف)
+    public const string SalesDeleteRefund = "Sales.DeleteRefund"; // delete such a refund voucher
 
     // ----- Product sales invoices (فواتير المبيعات) — products sold to customers, separate from real-estate contracts -----
     public const string SalesInvoicesView = "SalesInvoices.View";
@@ -232,6 +236,10 @@ public static class PermissionNames
         new PermissionInfo(SalesCreate, "إنشاء عقد بيع",  GSales),
         new PermissionInfo(SalesEdit,   "تعديل عقود البيع", GSales),
         new PermissionInfo(SalesDelete, "حذف عقود البيع", GSales),
+        new PermissionInfo(SalesCancel, "فسخ عقود البيع (إرجاع الوحدة متاحة وتحديد رسوم الفسخ)", GSales),
+        new PermissionInfo(SalesUncancel, "إلغاء فسخ عقود البيع (إعادة العقد كما كان قبل الفسخ)", GSales),
+        new PermissionInfo(SalesRefund, "صرف مستحقات العملاء عن العقود المفسوخة", GSales),
+        new PermissionInfo(SalesDeleteRefund, "حذف دفعات رد مستحقات العقود المفسوخة", GSales),
 
         new PermissionInfo(SalesInvoicesView,    "عرض فواتير المبيعات",            GSalesInvoices),
         new PermissionInfo(SalesInvoicesCreate,  "إضافة فاتورة مبيعات",            GSalesInvoices),
@@ -388,6 +396,11 @@ public static class PermissionNames
         [PurchaseInvoicesDeletePayment] = SuppliersPay,
         [SalesReturnsDeleteRefund] = SalesReturnsDelete,
         [PurchaseReturnsDeleteRefund] = PurchaseReturnsDelete,
+        // Contract cancellation: whoever could delete contracts gets it (and its refunds).
+        [SalesCancel] = SalesDelete,
+        [SalesUncancel] = SalesDelete,
+        [SalesRefund] = SalesDelete,
+        [SalesDeleteRefund] = SalesDelete,
     };
 
     /// <summary>Permissions granted to a TenantAdmin: everything except cross-tenant management.</summary>

@@ -3,23 +3,24 @@
     ViewData["Title"] = "مهامي";
     var canCreate = ViewData["CanCreate"] as bool? ?? false;
     string? F(DateTime? d) => d?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
-    string? SInt(WorkTaskStatus? s) => s.HasValue ? ((int)s.Value).ToString() : null;
-    string? VInt(TaskSeverity? v) => v.HasValue ? ((int)v.Value).ToString() : null;
+    var statusValues = Model.Status.Select(s => ((int)s).ToString()).ToList();
+    var severityValues = Model.Severity.Select(v => ((int)v).ToString()).ToList();
     var statusItems = Enum.GetValues<WorkTaskStatus>().Select(st => new SelectListItem(st.Ar(), ((int)st).ToString())).ToList();
     var severityItems = Enum.GetValues<TaskSeverity>().Select(sv => new SelectListItem(sv.Ar(), ((int)sv).ToString())).ToList();
     // One shared filter bar per tab (the hidden «tab» keeps the user on the same tab after searching / resetting).
-    FilterBarVm TabFilter(string tab) => FilterBarVm.For(Url.Action("Mine")).Hide("tab", tab).DateRange(F(Model.From), F(Model.To));
+    FilterBarVm TabFilter(string tab) => FilterBarVm.For(Url.Action("Mine")).Hide("tab", tab)
+        .DateRange(F(Model.From), F(Model.To), presets: FilterPresets.Standard().Append(FilterPresets.All()));
     var assignedFilter = TabFilter("assigned")
         .Select("assignedBy", "أسندها", Model.Assigners, Model.AssignedBy)
-        .Select("status", "الحالة", statusItems, SInt(Model.Status))
-        .Select("severity", "الأهمية", severityItems, VInt(Model.Severity));
+        .Checks("status", "الحالة", statusItems, statusValues)
+        .Checks("severity", "الأهمية", severityItems, severityValues);
     var delegatedFilter = TabFilter("delegated")
         .Select("assignedToId", "المُكلَّف", Model.Assignees, Model.AssignedToId)
-        .Select("status", "الحالة", statusItems, SInt(Model.Status))
-        .Select("severity", "الأهمية", severityItems, VInt(Model.Severity));
+        .Checks("status", "الحالة", statusItems, statusValues)
+        .Checks("severity", "الأهمية", severityItems, severityValues);
     var selfFilter = TabFilter("self")
-        .Select("status", "الحالة", statusItems, SInt(Model.Status))
-        .Select("severity", "الأهمية", severityItems, VInt(Model.Severity));
+        .Checks("status", "الحالة", statusItems, statusValues)
+        .Checks("severity", "الأهمية", severityItems, severityValues);
 }
 <div class="page-head">
     <h1>مهامي</h1>

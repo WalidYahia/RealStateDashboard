@@ -44,6 +44,7 @@ public static class LedgerAccounts
     public const string InventoryCostGain = "4950";    // أرباح تسوية تكلفة المخزون — cost updates that raise stock value
     public const string InventoryCostLoss = "5950";    // خسائر تسوية تكلفة المخزون — cost updates that lower stock value
     public const string OtherRevenue = "4900";
+    public const string ContractCancellationFees = "4910";   // إيرادات رسوم فسخ التعاقد — the fee kept when a sale contract is cancelled
     public const string CostOfSales = "5100";
     public const string ProjectCosts = "5200";
     public const string Purchases = "5300";
@@ -88,6 +89,7 @@ public static class LedgerAccounts
         new(InventoryCostGain, "أرباح تسوية تكلفة المخزون", AccountType.Revenue, "4000", true),
         new(AssetDisposalGain, "أرباح استبعاد الأصول", AccountType.Revenue, "4000", true),
         new(OtherRevenue, "إيرادات أخرى", AccountType.Revenue, "4000", true),
+        new(ContractCancellationFees, "إيرادات رسوم فسخ التعاقد", AccountType.Revenue, "4000", true),
 
         // Expenses
         new("5000", "المصروفات", AccountType.Expense, null, false),

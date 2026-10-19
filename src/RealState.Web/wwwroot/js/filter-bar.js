@@ -51,12 +51,15 @@
         var range = rangeOf(el);
         if (range) { sync(range); return; }
         var field = el.closest('.fb-field');
-        if (field) field.classList.toggle('fb-on', !!el.value);
+        if (field && el.type !== 'checkbox') field.classList.toggle('fb-on', !!el.value);
     });
     document.addEventListener('change', function (e) {
         var el = e.target;
         var field = el && el.closest ? el.closest('.fb-field') : null;
         if (field && el.matches('select')) field.classList.toggle('fb-on', !!el.value);
+        // A checkbox group filters only while some (not all) of its options are ticked.
+        else if (field && el.matches('input[type="checkbox"]'))
+            field.classList.toggle('fb-on', !!field.querySelector('input[type="checkbox"]:checked') && !!field.querySelector('input[type="checkbox"]:not(:checked)'));
     });
 
     // Phones: tapping the header (or its chevron) folds / unfolds the filters; the reset link keeps its own job.

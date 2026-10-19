@@ -161,6 +161,14 @@ html.theme-fading, html.theme-fading *, html.theme-fading *::before, html.theme-
 .fb .form-control.fb-input, .fb .ss-input { margin: 0; min-height: 42px; padding: 8px 12px; }
 .fb .form-control:focus, .fb .ss-input:focus { border-color: var(--series-1); box-shadow: 0 0 0 3px rgba(57,135,229,.18); }
 .fb-on .form-control, .fb-on .ss-input { border-color: rgba(57,135,229,.55); }
+/* checkbox group (multi-choice filter) */
+.fb-checks {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; min-height: 42px; padding: 6px 12px;
+    background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px;
+}
+.fb-on .fb-checks { border-color: rgba(57,135,229,.55); }
+.fb-check { display: inline-flex; align-items: center; gap: 7px; margin: 0; font-size: 13.5px; color: var(--text-primary); cursor: pointer; white-space: nowrap; }
+.fb-check input { width: 16px; height: 16px; margin: 0; accent-color: var(--series-1); cursor: pointer; }
 .fb-text { position: relative; }
 .fb-text-ico { position: absolute; inset-inline-start: 11px; top: 50%; transform: translateY(-50%); font-size: 12px; opacity: .55; pointer-events: none; }
 .fb-text .fb-input { padding-inline-start: 32px; }
@@ -251,6 +259,11 @@ html.theme-fading, html.theme-fading *, html.theme-fading *::before, html.theme-
 .swal2-popup { background: var(--surface-1) !important; color: var(--text-primary) !important; border: 1px solid var(--border); }
 .swal2-title, .swal2-html-container { color: var(--text-primary) !important; }
 .swal2-timer-progress-bar { background: var(--series-1) !important; }
+/* Form fields inside a SweetAlert popup (e.g. the collection's safe / amount) — the app's own inputs, not swal's. */
+.swal2-html-container .swal-field { margin-top: 14px; text-align: start; }
+.swal-field label { display: block; margin-bottom: 6px; font-size: 13px; font-weight: 600; color: var(--text-secondary); }
+.swal-field .form-control { margin: 0; min-height: 42px; font-size: 14px; }
+@media (hover: none) and (pointer: coarse) { .swal-field .form-control { font-size: 16px; } }   /* no iOS zoom on focus */
 
 * { box-sizing: border-box; }
 
@@ -398,16 +411,75 @@ body {
     .settle-line .form-control { font-size: 16px; }   /* no iOS zoom on focus */
 }
 
-/* Contract form: installment schedule mode + manual (date, amount) table (Sales/_SaleForm). */
+/* Contract form: payment schedule — manual (type, date, amount) rows + auto «قسط» rows for the remainder (Sales/_SaleForm). */
 .sched-mode { display: flex; flex-wrap: wrap; gap: 8px 18px; }
 .sched-mode label { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-primary); cursor: pointer; }
-.sched-table .form-control { margin: 0; min-width: 0; }
-.sched-table td { vertical-align: middle; }
 .sched-no { color: var(--muted); text-align: center; }
 .sched-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-top: 10px; }
 .sched-total { font-size: 13px; font-weight: 700; }
 .sched-total.ok { color: var(--good); }
 .sched-total.off { color: var(--warning); }
+.sale-pay-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+.sale-pay-title { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; color: var(--text-primary); }
+/* Payment lists: a grid of compact payment cells, two per line; ≈4 lines show, then it scrolls (header stays put). */
+.sched-scroll { max-height: 236px; overflow-y: auto; border: 1px solid var(--border); border-radius: 10px; }
+.sched-head, .sched-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 14px; padding: 0 10px; }
+.sched-head { position: sticky; top: 0; z-index: 1; background: var(--surface-1); border-bottom: 1px solid var(--border); }
+.sched-item { display: grid; grid-template-columns: 22px 74px minmax(0, 1.3fr) minmax(0, 1fr) 30px; gap: 6px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--border); }
+.sched-grid .sched-item:nth-last-child(-n+2):nth-child(odd), .sched-grid .sched-item:last-child { border-bottom: 0; }
+.sched-head .sched-item { border-bottom: 0; padding: 7px 0; font-size: 12px; font-weight: 700; color: var(--text-secondary); }
+.sched-item .form-control { margin: 0; min-width: 0; width: 100%; min-height: 34px; height: 34px; padding: 4px 7px; font-size: 13px; }
+.sched-item .btn-sm { min-height: 30px; width: 30px; padding: 0 !important; }
+.sched-item .form-control:disabled { opacity: .85; }
+.sale-auto-box .sched-scroll { margin-top: 12px; }
+.sched-tag { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; color: var(--series-1); background: rgba(57,135,229,.12); white-space: nowrap; }
+.sched-empty { padding: 14px; text-align: center; color: var(--muted); font-size: 13px; }
+.sale-auto-box { margin-top: 12px; padding: 12px; border: 1px dashed var(--border); border-radius: 10px; }
+.sale-auto-box > .sale-pay-title { margin-bottom: 10px; }
+.sale-auto-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px 16px; }
+.sale-auto-grid .form-label { margin-bottom: 6px; }
+.sale-auto-grid .form-control { margin: 0; width: 100%; }
+.sale-remaining { min-height: 42px; display: flex; align-items: center; padding: 0 12px; border-radius: 10px; background: var(--surface-2); font-weight: 700; color: var(--text-strong); direction: ltr; justify-content: flex-end; }
+.sale-remaining.off { color: var(--critical); }
+/* Contract page: the print button with its «صفحة واحدة» option. */
+.print-group { display: inline-flex; align-items: center; gap: 8px; flex-wrap: nowrap; }
+.print-opt { display: inline-flex; align-items: center; gap: 4px; margin: 0; padding: 0 7px; min-height: 26px; border: 1px solid var(--border);
+             border-radius: 6px; background: var(--surface-2); font-size: 11px; font-weight: 600; color: var(--text-secondary); cursor: pointer; white-space: nowrap; }
+.print-opt input { width: 12px; height: 12px; margin: 0; accent-color: var(--series-1); cursor: pointer; }
+
+/* فسخ التعاقد (Sales/Details, _CancelForm, the contracts list). */
+.contract-state { font-size: 13px; vertical-align: middle; margin-inline-start: 6px; }
+.cancel-banner { background: rgba(208,59,59,.08); border-color: rgba(208,59,59,.4); color: var(--text-primary); line-height: 1.7; }
+.cancel-banner strong { color: var(--critical); }
+.cancel-reason { margin-top: 4px; color: var(--text-secondary); font-size: 13px; }
+.cancel-calc { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.cancel-calc > div { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--border); }
+.cancel-calc span { font-size: 12px; color: var(--text-secondary); font-weight: 600; }
+.cancel-calc strong { font-size: 16px; color: var(--text-strong); direction: ltr; text-align: end; }
+.cancel-calc .due { border-color: rgba(57,135,229,.55); }
+.cancel-calc .due strong { color: var(--series-1); }
+.cancel-owed { font-size: 12px; color: var(--series-1); font-weight: 600; white-space: nowrap; }
+.row-cancelled td { color: var(--text-secondary); }
+@media (max-width: 720px) {
+    .cancel-calc { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+    .cancel-calc > div { flex-direction: row; justify-content: space-between; align-items: center; }
+    .contract-state { display: inline-block; margin: 4px 0 0; }
+}
+/* Tablets: the contract popup takes the available width (Bootstrap keeps it at 500px below 992px), payments go one
+   per line, and the header fields two per line. */
+@media (min-width: 721px) and (max-width: 991.98px) {
+    #appModal .modal-dialog:has(.sale-form) { max-width: calc(100vw - 32px); }
+    .sale-form .form-grid.form-grid-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .sale-form .form-grid-3 > .sale-pay, .sale-form .form-grid-3 > .full { grid-column: 1 / -1; }
+}
+@media (max-width: 991.98px) {
+    .sale-grid-pad { display: none; }   /* edit mode's spacer that keeps the 3-column desktop rows aligned */
+    .sched-head, .sched-grid { grid-template-columns: minmax(0, 1fr); }
+    .sched-head .sched-item:nth-child(2) { display: none; }
+    .sched-grid .sched-item:nth-last-child(-n+2):nth-child(odd) { border-bottom: 1px solid var(--border); }
+    .sched-grid .sched-item:last-child { border-bottom: 0; }
+    .sale-auto-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
 
 /* Click-to-call / WhatsApp buttons next to a phone number (ContactLinks.Buttons). */
 .phone-cell { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
@@ -438,13 +510,28 @@ body {
     .log-table td.log-body { order: 3; flex: 1 1 100%; min-width: 0; }
     .log-table td[colspan] { flex: 1 1 100%; }
 
-    /* Manual schedule: fixed columns so the table fits the full-width modal without scrolling sideways. */
-    .sched-table { table-layout: fixed; }
-    .sched-table th:first-child { width: 28px !important; }
-    .sched-table th:nth-child(4) { width: 40px !important; }
-    .sched-table th, .sched-table td { padding: 6px 3px !important; }
-    .sched-table .form-control { padding: 8px 6px; }
-    .sched-table .btn-sm { padding: 4px 0 !important; width: 34px; }
+    /* Payment lists: one payment per line on a phone. */
+    /* Contract form: each payment stacks on two lines (# · type · ✕ / date · amount); the header row is dropped
+       (the amount box carries a placeholder). About four payments show, then the list scrolls. */
+    .sched-head { display: none; }
+    .sched-grid { padding: 0 8px; }
+    .sched-item {
+        grid-template-columns: 22px minmax(0, 1fr) minmax(0, 1fr) 36px;
+        grid-template-areas: "no type type del" "no date amt amt";
+        gap: 6px; padding: 8px 0;
+    }
+    .sched-item > :nth-child(1) { grid-area: no; align-self: start; padding-top: 9px; }
+    .sched-item > :nth-child(2) { grid-area: type; }
+    .sched-item > :nth-child(3) { grid-area: date; }
+    .sched-item > :nth-child(4) { grid-area: amt; }
+    .sched-item > :nth-child(5) { grid-area: del; justify-self: end; }
+    .sched-item .btn-sm { min-height: 36px; width: 36px; }
+    .sched-scroll { max-height: 360px; }
+    .sale-pay-head .btn-sm { min-height: 38px; }
+    /* Auto settings: المتبقي and the first date get a full line each; count · period share one. */
+    .sale-auto-box { padding: 10px; }
+    .sale-auto-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px 12px; }
+    .sale-auto-grid > :nth-child(-n+2) { grid-column: 1 / -1; }
     .sched-foot .btn-sm { flex: 1 1 100%; min-height: 40px; }
     .sched-total { flex: 1 1 100%; text-align: center; }
 }
@@ -452,7 +539,7 @@ body {
 @media (hover: none) and (pointer: coarse) {
     .cbtn { width: 36px; height: 36px; }
     .cbtn-lg { width: auto; height: 42px; }
-    .sched-table .form-control { font-size: 16px; }
+    .sched-item .form-control { font-size: 16px; height: 40px; min-height: 40px; }
 }
 .badge-state { padding: 3px 10px; border-radius: 8px; font-size: 12px; font-weight: 700; }
 .state-on { background: rgba(12,163,12,.15); color: var(--good); }

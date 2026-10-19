@@ -94,6 +94,17 @@
                                     }
                                 </select>
                                 break;
+                            case FilterFieldType.Checks:
+                                <div class="fb-checks" role="group" aria-label="@f.Label">
+                                    @foreach (var o in f.Options)
+                                    {
+                                        <label class="fb-check">
+                                            <input type="checkbox" name="@f.Name" value="@o.Value" checked="@(f.Values.Any(v => Same(v, o.Value)))" />
+                                            <span>@o.Text</span>
+                                        </label>
+                                    }
+                                </div>
+                                break;
                             case FilterFieldType.Date:
                                 <input type="date" name="@f.Name" value="@f.Value" class="form-control fb-input" dir="ltr" />
                                 break;

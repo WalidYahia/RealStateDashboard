@@ -110,7 +110,7 @@ public static class NavigationCatalog
         // ---- العملاء والمبيعات ----
         new("contracts-summary", "ملخص التعاقدات", "مؤشرات العقود والتحصيل", "pie", "sales", "Sales", "Sales", "Summary", P(SalesView), AlsoIn: new[] { "reports" }),
         new("contracts", "العقود", "عقود بيع الوحدات وجداول الأقساط", "contract", "sales", "Sales", "Sales", "Index", P(SalesView)),
-        new("collections", "التحصيلات", "الأقساط المستحقة والمحصّلة", "coins", "sales", "Sales", "Collections", "Index", P(CollectionsView)),
+        new("collections", "تحصيلات المشاريع", "الأقساط المستحقة والمحصّلة", "coins", "sales", "Sales", "Collections", "Index", P(CollectionsView), AlsoIn: new[] { "projects" }),
         new("sales-summary", "ملخص المبيعات", "مؤشرات فواتير المبيعات والعملاء", "pie", "sales", "Sales", "SalesInvoices", "Summary", P(SalesInvoicesView), AlsoIn: new[] { "reports" }),
         new("sales-invoices", "فواتير المبيعات", "بيع الأصناف للعملاء والتحصيل", "receipt", "sales", "Sales", "SalesInvoices", "Index", P(SalesInvoicesView)),
         new("sales-returns", "مرتجعات المبيعات", "إرجاع أصناف من العملاء ورد النقدية", "undo", "sales", "Sales", "SalesReturns", "Index", P(SalesReturnsView)),

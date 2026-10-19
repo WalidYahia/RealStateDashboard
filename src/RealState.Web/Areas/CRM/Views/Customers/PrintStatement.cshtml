@@ -37,15 +37,22 @@
 
     @foreach (var ct in Model.Contracts)
     {
-        <h2>عقد @ct.Code — @ct.ProjectName / @ct.UnitLabel</h2>
+        <h2>عقد @ct.Code — @ct.ProjectName / @ct.UnitLabel @(ct.IsCancelled ? "(مفسوخ)" : "")</h2>
         <table>
             <thead><tr><th>#</th><th>تاريخ الاستحقاق</th><th>القيمة</th><th>المدفوع</th><th>الحالة</th></tr></thead>
             <tbody>
                 @foreach (var i in ct.Installments)
                 {
-                    <tr><td>@ArabicLabels.InstNo(i.Number)</td><td>@D(i.DueDate)</td><td>@N(i.Amount)</td><td>@N(i.PaidAmount)</td><td>@i.Status.Ar()</td></tr>
+                    <tr><td>@i.InstNo()</td><td>@D(i.DueDate)</td><td>@N(i.Amount)</td><td>@N(i.PaidAmount)</td><td>@(ct.IsCancelled ? "محصّل قبل الفسخ" : i.Status.Ar())</td></tr>
                 }
-                <tr class="totals"><td colspan="2">إجمالي العقد</td><td>@N(ct.TotalPrice)</td><td>@N(ct.Paid)</td><td>متبقٍ @N(ct.Remaining)</td></tr>
+                @if (ct.IsCancelled)
+                {
+                    <tr class="totals"><td colspan="2">عقد مفسوخ — المدفوع @N(ct.Paid)</td><td>رسوم الفسخ @N(ct.CancelFeeAmount)</td><td>المصروف للعميل @N(ct.Refunded)</td><td>المتبقي للعميل @N(ct.RefundRemaining)</td></tr>
+                }
+                else
+                {
+                    <tr class="totals"><td colspan="2">إجمالي العقد</td><td>@N(ct.TotalPrice)</td><td>@N(ct.Paid)</td><td>متبقٍ @N(ct.Remaining)</td></tr>
+                }
             </tbody>
         </table>
     }
@@ -58,6 +65,10 @@
             <td>المدفوع</td><td>@N(Model.TotalPaid) ج.م</td>
             <td>الرصيد المتبقي</td><td>@N(Model.TotalRemaining) ج.م</td>
         </tr>
+        @if (Model.TotalOwedToCustomer > 0)
+        {
+            <tr class="totals"><td colspan="4">مستحق للعميل عن عقود مفسوخة (دائن)</td><td colspan="2">@N(Model.TotalOwedToCustomer) ج.م</td></tr>
+        }
     </table>
 
     <script>window.addEventListener('load', function () { setTimeout(function () { window.print(); }, 500); });</script>

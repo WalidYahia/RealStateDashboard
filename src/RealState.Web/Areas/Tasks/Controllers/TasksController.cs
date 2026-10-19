@@ -40,7 +40,7 @@ public class TasksController : Controller
     // ---------------- List of all tasks ----------------
     [Authorize(Policy = PermissionNames.TasksView)]
     public async Task<IActionResult> Index(DateTime? from, DateTime? to, Guid? assigneeId, string? assignedBy,
-        Guid? departmentId, WorkTaskStatus? status, TaskSeverity? severity, CancellationToken ct)
+        Guid? departmentId, List<WorkTaskStatus>? status, List<TaskSeverity>? severity, CancellationToken ct)
     {
         (from, to) = DateFilterDefaults.TodayIfFresh(Request, from, to);
         var empNames = await _db.Employees.ToDictionaryAsync(e => e.Id, e => e.FullName, ct);
@@ -54,7 +54,7 @@ public class TasksController : Controller
         {
             Rows = await BuildRowsAsync(tasks, empNames, depNames, ct),
             From = from, To = to, AssigneeId = assigneeId, AssignedBy = assignedBy, DepartmentId = departmentId,
-            Status = status, Severity = severity,
+            Status = status ?? new(), Severity = severity ?? new(),
             Employees = await EmployeeOptionsAsync(ct),
             Departments = await DepartmentOptionsAsync(ct),
             Assigners = await AssignerOptionsAsync(ct)
@@ -77,7 +77,7 @@ public class TasksController : Controller
 
     // Shared filter for the all-tasks list and its print.
     private IQueryable<WorkTask> FilterTasks(DateTime? from, DateTime? to, Guid? assigneeId, string? assignedBy,
-        Guid? departmentId, WorkTaskStatus? status, TaskSeverity? severity)
+        Guid? departmentId, List<WorkTaskStatus>? status, List<TaskSeverity>? severity)
     {
         var q = _db.WorkTasks.AsNoTracking().AsQueryable();
         if (from.HasValue) q = q.Where(t => t.AssignedOn >= from.Value.Date);
@@ -85,8 +85,8 @@ public class TasksController : Controller
         if (assigneeId.HasValue) q = q.Where(t => t.AssigneeEmployeeId == assigneeId.Value);
         if (!string.IsNullOrEmpty(assignedBy)) q = q.Where(t => t.AssignedByName == assignedBy);
         if (departmentId.HasValue) q = q.Where(t => t.DepartmentId == departmentId.Value);
-        if (status.HasValue) q = q.Where(t => t.Status == status.Value);
-        if (severity.HasValue) q = q.Where(t => t.Severity == severity.Value);
+        if (status is { Count: > 0 }) q = q.Where(t => status.Contains(t.Status));
+        if (severity is { Count: > 0 }) q = q.Where(t => severity.Contains(t.Severity));
         return q;
     }
 
@@ -94,7 +94,7 @@ public class TasksController : Controller
     [HttpGet]
     [Authorize(Policy = PermissionNames.TasksView)]
     public async Task<IActionResult> PrintList(DateTime? from, DateTime? to, Guid? assigneeId, string? assignedBy,
-        Guid? departmentId, WorkTaskStatus? status, TaskSeverity? severity, bool withLog, CancellationToken ct)
+        Guid? departmentId, List<WorkTaskStatus>? status, List<TaskSeverity>? severity, bool withLog, CancellationToken ct)
     {
         var empNames = await _db.Employees.ToDictionaryAsync(e => e.Id, e => e.FullName, ct);
         var depNames = await _db.Departments.ToDictionaryAsync(d => d.Id, d => d.Name, ct);
@@ -142,9 +142,15 @@ public class TasksController : Controller
 
     // ---------------- My tasks (three tabs) ----------------
     public async Task<IActionResult> Mine(DateTime? from, DateTime? to, string? assignedBy, Guid? assignedToId,
-        WorkTaskStatus? status, TaskSeverity? severity, string? tab, CancellationToken ct)
+        List<WorkTaskStatus>? status, List<TaskSeverity>? severity, string? tab, CancellationToken ct)
     {
-        (from, to) = DateFilterDefaults.TodayIfFresh(Request, from, to);
+        // Fresh open (nothing but the tab in the query — menus, the bell, «مسح الفلاتر»): every date, only open
+        // tasks (to-do + in progress), any severity. A submitted filter is respected as-is.
+        if (Request.Query.Keys.All(k => k.Equals("tab", StringComparison.OrdinalIgnoreCase)))
+        {
+            from = to = null;
+            status = new() { WorkTaskStatus.Todo, WorkTaskStatus.InProgress };
+        }
         var empNames = await _db.Employees.ToDictionaryAsync(e => e.Id, e => e.FullName, ct);
         var depNames = await _db.Departments.ToDictionaryAsync(d => d.Id, d => d.Name, ct);
         var myEmpIds = await MyEmployeeIdsAsync(ct);
@@ -155,8 +161,8 @@ public class TasksController : Controller
         {
             if (from.HasValue) q = q.Where(t => t.AssignedOn >= from.Value.Date);
             if (to.HasValue) q = q.Where(t => t.AssignedOn < to.Value.Date.AddDays(1));
-            if (status.HasValue) q = q.Where(t => t.Status == status.Value);
-            if (severity.HasValue) q = q.Where(t => t.Severity == severity.Value);
+            if (status is { Count: > 0 }) q = q.Where(t => status.Contains(t.Status));
+            if (severity is { Count: > 0 }) q = q.Where(t => severity.Contains(t.Severity));
             return q;
         }
 
@@ -182,7 +188,7 @@ public class TasksController : Controller
             Assigned = await BuildRowsAsync(assigned, empNames, depNames, ct),
             Delegated = await BuildRowsAsync(delegated, empNames, depNames, ct),
             SelfAssigned = await BuildRowsAsync(self, empNames, depNames, ct),
-            From = from, To = to, AssignedBy = assignedBy, AssignedToId = assignedToId, Status = status, Severity = severity,
+            From = from, To = to, AssignedBy = assignedBy, AssignedToId = assignedToId, Status = status ?? new(), Severity = severity ?? new(),
             Assigners = await AssignerOptionsAsync(ct),
             Assignees = await EmployeeOptionsAsync(ct),
             ActiveTab = tab is "delegated" or "self" ? tab : "assigned"

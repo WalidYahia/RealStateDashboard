@@ -84,4 +84,7 @@ public class SafeTransaction : AuditableEntity, ITenantEntity
     /// sources (collections, payments, refunds) for reference.</summary>
     public Guid? CustomerId { get; set; }
     public Guid? SupplierId { get; set; }
+
+    /// <summary>The cancelled sale contract a <see cref="TxnSource.ContractCancelRefund"/> voucher refunds.</summary>
+    public Guid? SaleContractId { get; set; }
 }

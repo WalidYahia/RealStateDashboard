@@ -52,7 +52,11 @@ public class LedgerBackfillService : ILedgerBackfillService
 
         // 3) Sale contracts (A/R + revenue + COGS)
         foreach (var c in await _db.SaleContracts.ToListAsync(ct))
+        {
             if (!Has("SaleContract", c.Id)) { await _accounting.PostSaleContractAsync(c, ct); sales++; }
+            // …and the reversal of a cancelled one (فسخ التعاقد).
+            if (c.IsCancelled && !Has(AccountingSources.SaleContractCancel, c.Id)) { await _accounting.SyncSaleContractCancellationAsync(c, ct); sales++; }
+        }
 
         // 4) Supplier orders (Dr المشتريات / Cr الموردون)
         var orderVals = (await _db.SupplierOrderItems.GroupBy(i => i.SupplierOrderId)

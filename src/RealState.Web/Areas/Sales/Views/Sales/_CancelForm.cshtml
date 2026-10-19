@@ -1,0 +1,49 @@
+@model SaleCancelFormModel
+@{
+    string N(decimal v) => v.ToString("N2", RealState.Web.AppCulture.Ar);
+    string Raw(decimal v) => v.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+}
+<form id="appModalForm" class="sale-cancel-form" asp-area="Sales" asp-controller="Sales" asp-action="CancelContract" method="post"
+      data-modal-init="saleCancelInit" data-warn-fn="saleCancelWarn" data-paid="@Raw(Model.Paid)" data-code="@Model.Code">
+    @Html.AntiForgeryToken()
+    <div asp-validation-summary="ModelOnly" class="validation-summary-errors"></div>
+    <input type="hidden" asp-for="Id" />
+
+    <div class="status-message" style="background:var(--surface-2);border-color:var(--border);color:var(--text-secondary);">
+        <div style="margin-bottom:6px;font-weight:600;">عقد بيع @Model.Code — @Model.CustomerName — وحدة @Model.UnitName</div>
+        <div style="display:flex;gap:6px 18px;flex-wrap:wrap;">
+            <span>قيمة العقد: <strong>@N(Model.TotalPrice)</strong> ج.م</span>
+            <span>المدفوع من العميل: <strong style="color:var(--good);">@N(Model.Paid)</strong> ج.م</span>
+        </div>
+    </div>
+
+    <div class="status-message" style="background:rgba(208,59,59,.08);border-color:rgba(208,59,59,.4);color:var(--critical);">
+        فسخ التعاقد: تعود الوحدة «متاحة» للبيع، وتتوقف الأقساط غير المحصّلة (تبقى محفوظة كما هي)، ويصبح العميل دائنًا بما دفعه
+        مخصومًا منه رسوم الفسخ — يُصرف له من صفحة العقد على دفعات. يبقى العقد في السجل بحالة «مفسوخ»، ويمكن إلغاء الفسخ لاحقًا.
+    </div>
+
+    <div class="form-grid">
+        <div>
+            <label asp-for="FeePercent" class="form-label"></label>
+            <input asp-for="FeePercent" class="form-control" type="number" step="any" min="0" max="100" dir="ltr" inputmode="decimal" />
+            <span asp-validation-for="FeePercent" class="field-validation-error"></span>
+        </div>
+        <div>
+            <label asp-for="CancelledAt" class="form-label"></label>
+            <input asp-for="CancelledAt" class="form-control" type="datetime-local" dir="ltr" asp-format="{0:yyyy-MM-ddTHH:mm}" />
+            <span asp-validation-for="CancelledAt" class="field-validation-error"></span>
+        </div>
+        <div class="full cancel-calc">
+            <div><span>المدفوع</span><strong>@N(Model.Paid)</strong></div>
+            <div><span>رسوم الفسخ</span><strong data-cancel-fee>0.00</strong></div>
+            <div class="due"><span>المستحق للعميل</span><strong data-cancel-due>@N(Model.Paid)</strong></div>
+        </div>
+        <div class="full">
+            <label asp-for="Reason" class="form-label"></label>
+            <textarea asp-for="Reason" class="form-control" rows="2"></textarea>
+            <span asp-validation-for="Reason" class="field-validation-error"></span>
+        </div>
+    </div>
+
+    <button type="submit" class="btn-primary" style="margin-top:12px;background:var(--critical);border-color:var(--critical);">⛔ فسخ التعاقد</button>
+</form>

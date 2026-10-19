@@ -132,6 +132,11 @@ public class AccountingService : IAccountingService
                 return new LedgerLine(LedgerAccounts.AccountsReceivable, 0, 0,
                     SubKind: "Customer", SubRefId: retCust, SubName: await NameAsync("Customer", retCust), CustomerId: retCust);
 
+            case TxnSource.ContractCancelRefund when customerId is Guid canCust:
+                // Paying back a cancelled contract's balance settles what the cancellation left owed to the customer (Dr العملاء).
+                return new LedgerLine(LedgerAccounts.AccountsReceivable, 0, 0,
+                    SubKind: "Customer", SubRefId: canCust, SubName: await NameAsync("Customer", canCust), CustomerId: canCust, ProjectId: projectId);
+
             case TxnSource.PurchaseReturnRefund when supplierId is Guid retSup:
                 // Cash the supplier paid back for a purchase return settles what the return left them owing (Cr الموردون).
                 return new LedgerLine(LedgerAccounts.AccountsPayable, 0, 0,
@@ -267,6 +272,39 @@ public class AccountingService : IAccountingService
                 ProjectId: c.ProjectId, UnitId: c.UnitId));
         }
         await _engine.PostAsync(c.ContractDate, desc, "SaleContract", c.Id, lines, ct);
+    }
+
+    public async Task SyncSaleContractCancellationAsync(SaleContract c, CancellationToken ct = default)
+    {
+        await _engine.RemoveBySourceAsync(AccountingSources.SaleContractCancel, c.Id, ct);
+        if (!c.IsCancelled || c.TotalPrice <= 0) return;
+        var custName = await _db.Customers.Where(x => x.Id == c.CustomerId).Select(x => x.FullName).FirstOrDefaultAsync(ct);
+        var unitCost = await _db.ProjectUnits.Where(u => u.Id == c.UnitId).Select(u => u.Cost).FirstOrDefaultAsync(ct);
+        var desc = $"فسخ عقد بيع {c.Code}";
+        LedgerLine Customer(decimal dr, decimal cr, string memo) => new(LedgerAccounts.AccountsReceivable, dr, cr, memo,
+            SubKind: "Customer", SubRefId: c.CustomerId, SubName: custName, CustomerId: c.CustomerId, ProjectId: c.ProjectId, UnitId: c.UnitId);
+
+        var lines = new List<LedgerLine>
+        {
+            // Reverse the sale (what PostSaleContractAsync accrued).
+            new(LedgerAccounts.SalesRevenue, c.TotalPrice, 0, desc, CustomerId: c.CustomerId, ProjectId: c.ProjectId, UnitId: c.UnitId),
+            Customer(0, c.TotalPrice, desc),
+        };
+        // The unit goes back on stock.
+        if (unitCost > 0)
+        {
+            lines.Add(new LedgerLine(LedgerAccounts.RealEstateInventory, unitCost, 0, desc, ProjectId: c.ProjectId, UnitId: c.UnitId));
+            lines.Add(new LedgerLine(LedgerAccounts.CostOfSales, 0, unitCost, desc, CustomerId: c.CustomerId, ProjectId: c.ProjectId, UnitId: c.UnitId));
+        }
+        // The cancellation fee is kept out of what's owed back to the customer.
+        if (c.CancelFeeAmount > 0)
+        {
+            var feeDesc = $"رسوم فسخ عقد بيع {c.Code} ({c.CancelFeePercent:0.##}%)";
+            lines.Add(Customer(c.CancelFeeAmount, 0, feeDesc));
+            lines.Add(new LedgerLine(LedgerAccounts.ContractCancellationFees, 0, c.CancelFeeAmount, feeDesc,
+                CustomerId: c.CustomerId, ProjectId: c.ProjectId, UnitId: c.UnitId));
+        }
+        await _engine.PostAsync(c.CancelledAt ?? c.ContractDate, desc, AccountingSources.SaleContractCancel, c.Id, lines, ct);
     }
 
     public async Task SyncUnitInventoryAsync(ProjectUnit unit, CancellationToken ct = default)

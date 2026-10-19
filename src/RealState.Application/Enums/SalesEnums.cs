@@ -9,6 +9,14 @@ public enum InstallmentStep
     Yearly = 3,      // سنوي
 }
 
+/// <summary>What a scheduled contract payment is for. All kinds together make up the contract's total price.</summary>
+public enum InstallmentType
+{
+    Installment = 0,   // قسط
+    DownPayment = 1,   // مقدم
+    Maintenance = 2,   // صيانة
+}
+
 /// <summary>Computed payment state of an installment.</summary>
 public enum InstallmentStatus
 {

@@ -1,0 +1,50 @@
+@model SaleRefundFormModel
+@{
+    string N(decimal v) => v.ToString("N2", RealState.Web.AppCulture.Ar);
+    string Raw(decimal v) => v.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+}
+<form id="appModalForm" asp-area="Sales" asp-controller="Sales" asp-action="Refund" method="post" data-open-tab>
+    @Html.AntiForgeryToken()
+    <div asp-validation-summary="ModelOnly" class="validation-summary-errors"></div>
+    <input type="hidden" asp-for="ContractId" />
+
+    <div class="status-message" style="background:var(--surface-2);border-color:var(--border);color:var(--text-secondary);">
+        <div style="margin-bottom:6px;font-weight:600;">مستحقات العميل «@Model.CustomerName» عن فسخ عقد البيع @Model.Code</div>
+        <div style="display:flex;gap:6px 18px;flex-wrap:wrap;">
+            <span>المستحق: <strong>@N(Model.Due)</strong> ج.م</span>
+            <span>المصروف: <strong style="color:var(--good);">@N(Model.Refunded)</strong> ج.م</span>
+            <span>المتبقي: <strong style="color:var(--critical);">@N(Model.Remaining)</strong> ج.م</span>
+        </div>
+    </div>
+
+    @if (Model.Safes.Count == 0)
+    {
+        <div class="status-message" style="background:rgba(250,178,25,.12);border-color:var(--warning);color:var(--warning);">
+            لا توجد خزنة نشطة. أضف خزنة من صفحة الخزائن قبل الصرف.
+        </div>
+    }
+
+    <div class="form-grid">
+        <div>
+            <label asp-for="Amount" class="form-label"></label>
+            <input asp-for="Amount" class="form-control" type="number" step="any" min="0.01" max="@Raw(Model.Remaining)" dir="ltr" inputmode="decimal" />
+            <span asp-validation-for="Amount" class="field-validation-error"></span>
+        </div>
+        <div>
+            <label asp-for="SafeId" class="form-label"></label>
+            <select asp-for="SafeId" class="form-control" asp-items="Model.Safes"><option value="">— اختر الخزنة —</option></select>
+            <span asp-validation-for="SafeId" class="field-validation-error"></span>
+        </div>
+        <div>
+            <label asp-for="PaidAt" class="form-label"></label>
+            <input asp-for="PaidAt" class="form-control" type="datetime-local" dir="ltr" asp-format="{0:yyyy-MM-ddTHH:mm}" />
+            <span asp-validation-for="PaidAt" class="field-validation-error"></span>
+        </div>
+        <div>
+            <label asp-for="Notes" class="form-label"></label>
+            <input asp-for="Notes" class="form-control" />
+        </div>
+    </div>
+
+    <button type="submit" class="btn-primary" style="margin-top:12px;" disabled="@(Model.Safes.Count == 0)">💸 صرف المبلغ وطباعة سند الصرف</button>
+</form>

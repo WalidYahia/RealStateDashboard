@@ -34,7 +34,7 @@
         · تاريخ الطباعة @ClientTime.Now.ToString("yyyy/MM/dd HH:mm")
     </div>
     <div class="summary">
-        إجمالي المستحقات @N(Model.TotalObligations) ج.م · المحصَّل @N(Model.TotalPaid) ج.م · المتبقي @N(Model.TotalRemaining) ج.م
+        إجمالي المستحقات @N(Model.TotalObligations) ج.م · المحصَّل @N(Model.TotalPaid) ج.م · @(Model.TotalRemaining < 0 ? "رصيد دائن (مستحق للعميل)" : "المتبقي") @N(Math.Abs(Model.TotalRemaining)) ج.م
     </div>
 
     <table>
@@ -57,7 +57,7 @@
         }
         </tbody>
         <tfoot>
-            <tr><td colspan="5">الرصيد الختامي للفترة</td><td>@N(Model.ClosingBalance) ج.م</td></tr>
+            <tr><td colspan="5">الرصيد الختامي للفترة</td><td>@N(Math.Abs(Model.ClosingBalance)) ج.م @(Model.ClosingBalance < 0 ? "(دائن — مستحق للعميل)" : Model.ClosingBalance > 0 ? "(مدين)" : "")</td></tr>
         </tfoot>
     </table>
 

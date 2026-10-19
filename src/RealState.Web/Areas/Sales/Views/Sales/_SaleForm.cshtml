@@ -3,8 +3,12 @@
     var isEdit = Model.Id != Guid.Empty;
     var lockFin = isEdit && Model.LockFinancials;
     string? ro = lockFin ? "readonly" : null;
+    string Iso(DateTime? d) => d?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture) ?? "";
+    string Amt(decimal? a) => a?.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture) ?? "";
+    var types = Enum.GetValues<InstallmentType>();
 }
-<form id="appModalForm" asp-area="Sales" asp-controller="Sales" asp-action="Form" method="post" data-warn-fn="saleInstallmentWarn" data-modal-init="saleFormInit">
+<form id="appModalForm" class="sale-form" asp-area="Sales" asp-controller="Sales" asp-action="Form" method="post" data-modal-init="saleFormInit"
+      data-contract-date="@Iso(Model.ContractDate)">
     @Html.AntiForgeryToken()
     <div asp-validation-summary="ModelOnly" class="validation-summary-errors"></div>
     <input type="hidden" asp-for="Id" />
@@ -22,7 +26,7 @@
         </div>
     }
 
-    <div class="form-grid">
+    <div class="form-grid form-grid-3">
         @if (isEdit)
         {
             <div>
@@ -35,6 +39,7 @@
                 <input class="form-control" value="@Model.UnitName" disabled />
                 <input type="hidden" asp-for="UnitId" />
             </div>
+            <div class="sale-grid-pad"></div>
         }
         else
         {
@@ -77,63 +82,109 @@
             <input asp-for="TotalPrice" class="form-control" type="number" step="any" min="0" dir="ltr" readonly="@ro" />
             <span asp-validation-for="TotalPrice" class="field-validation-error"></span>
         </div>
-        <div>
-            <label asp-for="DownPayment" class="form-label"></label>
-            <input asp-for="DownPayment" class="form-control" type="number" step="any" min="0" dir="ltr" readonly="@ro" />
-            <span asp-validation-for="DownPayment" class="field-validation-error"></span>
-        </div>
 
-        @* Schedule mode: auto (first date + count + period) or a manual (date, amount) table. *@
-        <div class="full">
-            <label class="form-label">@Html.DisplayNameFor(m => m.IsManualSchedule)</label>
-            <div class="sched-mode">
-                <label><input type="radio" name="IsManualSchedule" value="false" checked="@(!Model.IsManualSchedule)" disabled="@lockFin" /> تلقائي (عدد ودورية)</label>
-                <label><input type="radio" name="IsManualSchedule" value="true" checked="@Model.IsManualSchedule" disabled="@lockFin" /> يدوي (تاريخ وقيمة لكل قسط)</label>
-            </div>
-            @if (lockFin) { <input type="hidden" name="IsManualSchedule" value="@(Model.IsManualSchedule ? "true" : "false")" /> }
-        </div>
-
-        <div class="sale-auto">
-            <label asp-for="FirstInstallmentDate" class="form-label"></label>
-            <input asp-for="FirstInstallmentDate" class="form-control" type="date" dir="ltr" readonly="@ro" />
-            <span asp-validation-for="FirstInstallmentDate" class="field-validation-error"></span>
-        </div>
-        <div class="sale-auto">
-            <label asp-for="InstallmentsCount" class="form-label"></label>
-            <input asp-for="InstallmentsCount" class="form-control" type="number" min="0" max="600" dir="ltr" readonly="@ro" />
-            <span asp-validation-for="InstallmentsCount" class="field-validation-error"></span>
-        </div>
-        <div class="sale-auto">
-            <label asp-for="Step" class="form-label"></label>
-            <select asp-for="Step" class="form-control" asp-items="RealState.Web.ArabicLabels.InstallmentStepOptions(Model.Step)" disabled="@lockFin"></select>
-        </div>
-
-        <div class="full sale-manual">
-            <table class="rs-table sched-table">
-                <thead><tr><th style="width:44px;">#</th><th>تاريخ الاستحقاق</th><th>القيمة (ج.م)</th>@if (!lockFin) { <th style="width:44px;"></th> }</tr></thead>
-                <tbody data-sched-rows>
-                @for (var i = 0; i < Math.Max(Model.ManualDates.Count, Model.ManualAmounts.Count); i++)
-                {
-                    var d = i < Model.ManualDates.Count ? Model.ManualDates[i] : null;
-                    var a = i < Model.ManualAmounts.Count ? Model.ManualAmounts[i] : null;
-                    <tr>
-                        <td class="sched-no">@(i + 1)</td>
-                        <td><input type="date" name="ManualDates" class="form-control" dir="ltr" value="@d?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)" readonly="@ro" required /></td>
-                        <td><input type="number" name="ManualAmounts" class="form-control" dir="ltr" step="any" min="0.01" inputmode="decimal" value="@a?.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)" readonly="@ro" required /></td>
-                        @if (!lockFin) { <td><button type="button" class="btn-sm btn-danger" data-sched-del title="حذف الصف" aria-label="حذف الصف">✕</button></td> }
-                    </tr>
-                }
-                </tbody>
-            </table>
-            <div class="sched-foot">
+        @* Payment schedule: hand-entered payments (type, date, amount), then «تلقائي للمتبقي» — the remainder split into
+           auto «قسط» payments in their own table. Both lists show two payments per line (≈4 lines, then they scroll). *@
+        <div class="full sale-pay">
+            <div class="sale-pay-head">
+                <span class="sale-pay-title">السداد — دفعات يدوية</span>
                 @if (!lockFin) { <button type="button" class="btn-sm" data-sched-add>➕ إضافة صف</button> }
-                <span class="sched-total" data-sched-total></span>
             </div>
+            <div class="sched-scroll">
+                <div class="sched-head">
+                    @for (var h = 0; h < 2; h++) { <div class="sched-item"><span>#</span><span>النوع</span><span>تاريخ الاستحقاق</span><span>القيمة (ج.م)</span><span></span></div> }
+                </div>
+                <div class="sched-grid" data-sched-rows>
+                    @if (lockFin)
+                    {
+                        var n = 0;
+                        foreach (var r in Model.LockedSchedule.Where(x => !x.IsAuto))
+                        {
+                            <div class="sched-item">
+                                <span class="sched-no">@(++n)</span>
+                                <select class="form-control" disabled><option>@r.Type.Ar()</option></select>
+                                <input type="date" class="form-control" dir="ltr" value="@Iso(r.DueDate)" disabled />
+                                <input type="number" class="form-control" dir="ltr" value="@Amt(r.Amount)" disabled data-amt />
+                                <span></span>
+                            </div>
+                        }
+                    }
+                    else
+                    {
+                        for (var i = 0; i < Math.Max(Model.ManualDates.Count, Model.ManualAmounts.Count); i++)
+                        {
+                            var d = i < Model.ManualDates.Count ? Model.ManualDates[i] : null;
+                            var a = i < Model.ManualAmounts.Count ? Model.ManualAmounts[i] : null;
+                            var t = (i < Model.ManualTypes.Count ? Model.ManualTypes[i] : null) ?? InstallmentType.Installment;
+                            <div class="sched-item">
+                                <span class="sched-no">@(i + 1)</span>
+                                <select name="ManualTypes" class="form-control">
+                                    @foreach (var ty in types) { <option value="@((int)ty)" selected="@(ty == t)">@ty.Ar()</option> }
+                                </select>
+                                <input type="date" name="ManualDates" class="form-control" dir="ltr" value="@Iso(d)" required />
+                                <input type="number" name="ManualAmounts" class="form-control" dir="ltr" step="any" min="0.01" inputmode="decimal" value="@Amt(a)" placeholder="القيمة (ج.م)" required data-amt />
+                                <button type="button" class="btn-sm btn-danger" data-sched-del title="حذف الصف" aria-label="حذف الصف">✕</button>
+                            </div>
+                        }
+                    }
+                </div>
+                <div class="sched-empty" data-sched-empty>لا توجد دفعات يدوية — أضف صفًا (مقدم / قسط / صيانة).</div>
+            </div>
+
+            <div class="sale-auto-box">
+                <div class="sale-pay-title">تلقائي للمتبقي <span class="sched-tag">قسط</span></div>
+                <div class="sale-auto-grid">
+                    <div>
+                        <label class="form-label">المتبقي (ج.م)</label>
+                        <div class="sale-remaining" data-sched-remaining>0</div>
+                    </div>
+                    <div>
+                        <label asp-for="FirstInstallmentDate" class="form-label"></label>
+                        <input asp-for="FirstInstallmentDate" class="form-control" type="date" dir="ltr" readonly="@ro" />
+                    </div>
+                    <div>
+                        <label asp-for="InstallmentsCount" class="form-label"></label>
+                        <input asp-for="InstallmentsCount" class="form-control" type="number" min="0" max="600" dir="ltr" readonly="@ro" />
+                        <span asp-validation-for="InstallmentsCount" class="field-validation-error"></span>
+                    </div>
+                    <div>
+                        <label asp-for="Step" class="form-label"></label>
+                        <select asp-for="Step" class="form-control" asp-items="RealState.Web.ArabicLabels.InstallmentStepOptions(Model.Step)" disabled="@lockFin"></select>
+                        @if (lockFin) { <input type="hidden" asp-for="Step" /> }
+                    </div>
+                </div>
+
+                <div class="sched-scroll">
+                    <div class="sched-head">
+                        @for (var h = 0; h < 2; h++) { <div class="sched-item"><span>#</span><span>النوع</span><span>تاريخ الاستحقاق</span><span>القيمة (ج.م)</span><span></span></div> }
+                    </div>
+                    <div class="sched-grid" data-sched-auto>
+                        @if (lockFin)
+                        {
+                            var n = 0;
+                            foreach (var r in Model.LockedSchedule.Where(x => x.IsAuto))
+                            {
+                                <div class="sched-item">
+                                    <span class="sched-no">@(++n)</span>
+                                    <select class="form-control" disabled><option>@r.Type.Ar()</option></select>
+                                    <input type="date" class="form-control" dir="ltr" value="@Iso(r.DueDate)" disabled />
+                                    <input type="number" class="form-control" dir="ltr" value="@Amt(r.Amount)" disabled data-amt />
+                                    <span></span>
+                                </div>
+                            }
+                        }
+                    </div>
+                    <div class="sched-empty" data-sched-auto-empty>لا توجد أقساط تلقائية — حدّد عدد الأقساط لتقسيط المتبقي.</div>
+                </div>
+            </div>
+
+            <div class="sched-foot"><span class="sched-total" data-sched-total></span></div>
             @if (ViewData.ModelState.TryGetValue("ManualSchedule", out var schedState) && schedState.Errors.Count > 0)
             {
                 <div class="field-validation-error">@foreach (var e in schedState.Errors) { <div>@e.ErrorMessage</div> }</div>
             }
         </div>
+
         <div class="full">
             <label asp-for="Notes" class="form-label"></label>
             <textarea asp-for="Notes" class="form-control" rows="2"></textarea>

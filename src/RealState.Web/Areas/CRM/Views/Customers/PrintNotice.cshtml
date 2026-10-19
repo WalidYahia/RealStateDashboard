@@ -38,7 +38,7 @@
 
         <table>
             <tr><th>العميل</th><td>@customer?.FullName — @customer?.Phone</td></tr>
-            <tr><th>البند</th><td>@ArabicLabels.InstPhrase(Model.Number)</td></tr>
+            <tr><th>البند</th><td>@Model.InstPhrase()</td></tr>
             <tr><th>تاريخ الاستحقاق</th><td>@Model.DueDate.ToString("yyyy/MM/dd")</td></tr>
             <tr><th>قيمة القسط</th><td>@N(Model.Amount) ج.م</td></tr>
             <tr><th>المدفوع منه</th><td>@N(Model.PaidAmount) ج.م</td></tr>

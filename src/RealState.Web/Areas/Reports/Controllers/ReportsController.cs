@@ -116,7 +116,7 @@ public class ReportsController : Controller
     private async Task<CustomerReportVm> BuildCustomersAsync(DateTime? from, DateTime? to, CancellationToken ct)
     {
         var vm = new CustomerReportVm { From = from, To = to };
-        var contracts = await _db.SaleContracts.ToListAsync(ct);
+        var contracts = await _db.SaleContracts.Where(c => !c.IsCancelled).ToListAsync(ct);   // cancelled contracts owe nothing
         if (from.HasValue) contracts = contracts.Where(c => c.ContractDate >= from.Value).ToList();
         if (to.HasValue) contracts = contracts.Where(c => c.ContractDate < to.Value.Date.AddDays(1)).ToList();
 

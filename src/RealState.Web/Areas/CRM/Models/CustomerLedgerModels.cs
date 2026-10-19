@@ -3,7 +3,9 @@ using RealState.Application.Entities;
 namespace RealState.Web.Areas.CRM.Models;
 
 /// <summary>What a customer-ledger row records.</summary>
-public enum CustomerLedgerKind { Contract, Invoice, InstallmentCollection, InvoiceCollection, Return, Refund, AccountReceipt, AccountPayment, OpeningDebit, OpeningCredit }
+/// <remarks>ContractCancel reverses a cancelled contract (−); CancelFee is the fee kept from its refund (+); paying the refund
+/// back is a <see cref="Refund"/> row.</remarks>
+public enum CustomerLedgerKind { Contract, Invoice, InstallmentCollection, InvoiceCollection, Return, Refund, AccountReceipt, AccountPayment, OpeningDebit, OpeningCredit, ContractCancel, CancelFee }
 
 /// <summary>One row of the running-balance customer ledger («كشف حساب» — same layout as the supplier's).</summary>
 public class CustomerLedgerRow
@@ -21,7 +23,7 @@ public class CustomerLedgerRow
     public decimal Balance { get; set; }
 
     /// <summary>Lowers what the customer owes (shown as −): collections (incl. on-account receipts) and returns.</summary>
-    public bool Decreases => Kind is CustomerLedgerKind.InstallmentCollection or CustomerLedgerKind.InvoiceCollection or CustomerLedgerKind.Return
+    public bool Decreases => Kind is CustomerLedgerKind.InstallmentCollection or CustomerLedgerKind.InvoiceCollection or CustomerLedgerKind.Return or CustomerLedgerKind.ContractCancel
         or CustomerLedgerKind.AccountReceipt or CustomerLedgerKind.OpeningCredit;
     /// <summary>The row's voucher is a سند صرف (printed from المصروفات) rather than a سند قبض.</summary>
     public bool VoucherIsExpense => Kind is CustomerLedgerKind.Refund or CustomerLedgerKind.AccountPayment;
@@ -31,7 +33,7 @@ public class CustomerLedgerRow
         CustomerLedgerKind.OpeningDebit or CustomerLedgerKind.OpeningCredit => -1,   // the opening balance comes first
         CustomerLedgerKind.InstallmentCollection or CustomerLedgerKind.InvoiceCollection or CustomerLedgerKind.AccountReceipt => 1,
         CustomerLedgerKind.AccountPayment => 3,
-        CustomerLedgerKind.Return => 2,
+        CustomerLedgerKind.Return or CustomerLedgerKind.ContractCancel or CustomerLedgerKind.CancelFee => 2,
         CustomerLedgerKind.Refund => 3,
         _ => 0
     };

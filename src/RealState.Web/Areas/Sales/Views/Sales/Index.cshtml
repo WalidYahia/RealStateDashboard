@@ -15,7 +15,7 @@
     <div style="display:flex;gap:8px;">
         @if (User.Can(PermissionNames.SalesCreate))
         {
-            <button type="button" class="btn-new-tenant" data-quick-new onclick="appOpenModal('@Url.Action("Form")', 'عقد بيع جديد')">➕ عقد بيع جديد</button>
+            <button type="button" class="btn-new-tenant" data-quick-new onclick="appOpenModal('@Url.Action("Form")', 'عقد بيع جديد', 'xl')">➕ عقد بيع جديد</button>
         }
     </div>
 </div>
@@ -26,9 +26,19 @@
 }
 
 @{
+    var statusValues = Model.Status.Select(s => ((int)s).ToString()).ToList();
+    var statusItems = new List<SelectListItem>
+    {
+        new("سارية", ((int)SaleContractState.Active).ToString()),
+        new("مفسوخة", ((int)SaleContractState.Cancelled).ToString()),
+    };
+    // Multi-choice filters go on the query string as repeated name=value pairs.
+    var printUrl = Url.Action("PrintList", new { from = F(Model.From), to = F(Model.To) }) ?? "";
+    foreach (var v in statusValues) printUrl += (printUrl.Contains('?') ? "&" : "?") + "status=" + v;
     var filter = FilterBarVm.For(Url.Action("Index"))
         .DateRange(F(Model.From), F(Model.To), "تاريخ العقد")
-        .Print(Url.Action("PrintList", new { from = F(Model.From), to = F(Model.To) }))
+        .Checks("status", "حالة العقد", statusItems, statusValues)
+        .Print(printUrl)
         // Live count / total of the (searched) rows below — kept from the previous filter layout.
         .WithSummary(new Microsoft.AspNetCore.Html.HtmlString(
             $"العقود: <strong data-live-count=\"#saleTable\">{Model.Rows.Count}</strong> · الإجمالي: <strong data-live-sum=\"#saleTable:6\">{N(Model.TotalValue)}</strong> ج.م"));
@@ -55,9 +65,10 @@
         <tbody>
             @foreach (var s in Model.Rows)
             {
-                <tr data-search="@((s.Code + " " + s.Customer + " " + s.Project + " " + s.Unit).ToLower())">
-                    <td dir="ltr" style="text-align:right;">
-                        <a asp-action="Details" asp-route-id="@s.Id" asp-route-from="@F(Model.From)" asp-route-to="@F(Model.To)" style="color:var(--series-1);text-decoration:none;font-weight:600;">@s.Code</a>
+                <tr data-search="@((s.Code + " " + s.Customer + " " + s.Project + " " + s.Unit + (s.IsCancelled ? " مفسوخ" : "")).ToLower())" class="@(s.IsCancelled ? "row-cancelled" : null)">
+                    <td style="text-align:right;white-space:nowrap;">
+                        <a asp-action="Details" asp-route-id="@s.Id" asp-route-from="@F(Model.From)" asp-route-to="@F(Model.To)" dir="ltr" style="color:var(--series-1);text-decoration:none;font-weight:600;">@s.Code</a>
+                        @if (s.IsCancelled) { <span class="badge-state state-off">مفسوخ</span> }
                     </td>
                     <td>@s.Customer</td>
                     <td>@s.Project</td>
@@ -66,12 +77,18 @@
                     <td style="direction:ltr;text-align:right;white-space:nowrap;unicode-bidi:isolate;">@D(s.ReceiveDate)</td>
                     <td>@N(s.TotalPrice)</td>
                     <td class="tag-up">@N(s.Paid)</td>
-                    <td>@N(s.Remaining)</td>
+                    <td>
+                        @N(s.Remaining)
+                        @if (s.IsCancelled && s.RefundRemaining > 0)
+                        {
+                            <div class="cancel-owed">مستحق للعميل: @N(s.RefundRemaining)</div>
+                        }
+                    </td>
                     <td style="white-space:nowrap;">
                         <a class="btn-sm" asp-action="Details" asp-route-id="@s.Id" asp-route-from="@F(Model.From)" asp-route-to="@F(Model.To)">التفاصيل</a>
-                        @if (User.Can(PermissionNames.SalesEdit))
+                        @if (!s.IsCancelled && User.Can(PermissionNames.SalesEdit))
                         {
-                            <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("Form", new { id = s.Id })', 'تعديل عقد البيع @s.Code')">✏️ تعديل</button>
+                            <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("Form", new { id = s.Id })', 'تعديل عقد البيع @s.Code', 'xl')">✏️ تعديل</button>
                         }
                     </td>
                 </tr>
@@ -89,116 +106,131 @@
     <script>
         var SALE_PRICES = @Html.Raw(JsonSerializer.Serialize(unitPrices));
 
-        // When عدد الأقساط = 0, the whole contract value becomes the down payment — confirm before saving.
-        window.saleInstallmentWarn = function (form) {
-            var manual = !!form.querySelector('[name="IsManualSchedule"][value="true"]:checked');
-            var cntEl = form.querySelector('[name="InstallmentsCount"]');
-            var cnt = manual
-                ? Array.prototype.filter.call(form.querySelectorAll('[name="ManualAmounts"]'), function (i) { return !i.disabled; }).length
-                : parseInt((cntEl && cntEl.value) || '0', 10);
-            if (cnt !== 0) return null;
-            var tpEl = form.querySelector('[name="TotalPrice"]');
-            var tp = parseFloat((tpEl && tpEl.value) || '0');
-            var dp = form.querySelector('[name="DownPayment"]');
-            if (dp) dp.value = tp;   // reflect it for the user
-            return 'عدد الأقساط = 0، لذلك سيُعتبر كامل قيمة العقد (' + (tp ? tp.toLocaleString('en-US') : '0') + ' ج.م) مقدمًا يُحصَّل دفعة واحدة. هل تريد المتابعة؟';
-        };
-
-        // Installment schedule: «تلقائي» shows first date / count / period; «يدوي» shows a (date, amount) table
-        // with add/delete rows and a live total against (price − down payment). Switching to manual with an
-        // empty table pre-fills it from the auto settings, splitting like the server does.
+        // Contract payment schedule (Sales/_SaleForm): hand-entered payments (type قسط/مقدم/صيانة, date, amount), and
+        // «تلقائي للمتبقي» — whatever they leave of the total price, split into N auto «قسط» payments from the first
+        // date, one period apart (the last takes the rounding, exactly like the server, which regenerates them).
+        // Auto payments are a read-only preview in their own list; only the manual rows and the auto settings post.
+        // Both lists are grids of .sched-item cells, two per line.
         window.saleFormInit = function () {
             var form = document.querySelector('#appModalBody #appModalForm');
             var body = form && form.querySelector('[data-sched-rows]');
-            if (!body) return;
+            var autoBody = form && form.querySelector('[data-sched-auto]');
+            if (!body || !autoBody) return;
             var locked = !form.querySelector('[data-sched-add]');
             var STEP_MONTHS = { '0': 1, '1': 3, '2': 6, '3': 12 };
+            var TYPES = [['0', 'قسط'], ['1', 'مقدم'], ['2', 'صيانة']];
 
             function num(name) { var el = form.querySelector('[name="' + name + '"]'); return parseFloat((el && el.value) || '0') || 0; }
-            function isManual() {
-                return !!form.querySelector('[name="IsManualSchedule"][value="true"]:checked')
-                    || (locked && !!form.querySelector('input[type=hidden][name="IsManualSchedule"][value="true"]'));
-            }
             function stepMonths() { var el = form.querySelector('[name="Step"]'); return STEP_MONTHS[(el && el.value) || '0'] || 1; }
             function fmt(v) { return v.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 }); }
+            function r2(v) { return Math.round(v * 100) / 100; }
             function iso(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
             function addMonths(d, m) {   // like .NET AddMonths: clamp to the target month's last day
                 var r = new Date(d.getFullYear(), d.getMonth() + m, 1);
                 r.setDate(Math.min(d.getDate(), new Date(r.getFullYear(), r.getMonth() + 1, 0).getDate()));
                 return r;
             }
-
-            function addRow(date, amount) {
-                var tr = document.createElement('tr');
-                tr.innerHTML = '<td class="sched-no"></td>'
-                    + '<td><input type="date" name="ManualDates" class="form-control" dir="ltr" required /></td>'
-                    + '<td><input type="number" name="ManualAmounts" class="form-control" dir="ltr" step="any" min="0.01" inputmode="decimal" required /></td>'
-                    + '<td><button type="button" class="btn-sm btn-danger" data-sched-del title="حذف الصف" aria-label="حذف الصف">✕</button></td>';
-                if (date) tr.querySelector('[name="ManualDates"]').value = date;
-                if (amount != null) tr.querySelector('[name="ManualAmounts"]').value = amount;
-                body.appendChild(tr);
-                return tr;
+            function typeSelect(value, named) {
+                return '<select ' + (named ? 'name="ManualTypes" ' : 'disabled ') + 'class="form-control">'
+                    + TYPES.map(function (t) { return '<option value="' + t[0] + '"' + (t[0] === value ? ' selected' : '') + '>' + t[1] + '</option>'; }).join('')
+                    + '</select>';
             }
-            function renumber() { body.querySelectorAll('.sched-no').forEach(function (td, i) { td.textContent = i + 1; }); }
+            function sumOf(list) {
+                var s = 0;
+                list.querySelectorAll('[data-amt]').forEach(function (i) { s += parseFloat(i.value) || 0; });
+                return r2(s);
+            }
 
-            function refreshTotal() {
+            function addManualRow(type, date) {
+                var item = document.createElement('div');
+                item.className = 'sched-item';
+                item.innerHTML = '<span class="sched-no"></span>'
+                    + typeSelect(type, true)
+                    + '<input type="date" name="ManualDates" class="form-control" dir="ltr" required />'
+                    + '<input type="number" name="ManualAmounts" class="form-control" dir="ltr" step="any" min="0.01" inputmode="decimal" placeholder="القيمة (ج.م)" required data-amt />'
+                    + '<button type="button" class="btn-sm btn-danger" data-sched-del title="حذف الصف" aria-label="حذف الصف">✕</button>';
+                if (date) item.querySelector('[name="ManualDates"]').value = date;
+                body.appendChild(item);
+                return item;
+            }
+
+            // Rebuild the auto «قسط» list from (total − manual payments) ÷ count, then refresh numbers and totals.
+            function regenerate() {
+                var remaining = r2(num('TotalPrice') - sumOf(body));
+                if (!locked) {
+                    autoBody.innerHTML = '';
+                    var cnt = parseInt(num('InstallmentsCount'), 10) || 0;
+                    var first = (form.querySelector('[name="FirstInstallmentDate"]') || {}).value;
+                    if (remaining > 0 && cnt > 0 && first) {
+                        var per = r2(remaining / cnt);
+                        var start = new Date(first + 'T00:00:00');
+                        for (var i = 1; i <= cnt; i++) {
+                            var amount = i === cnt ? r2(remaining - per * (cnt - 1)) : per;
+                            var item = document.createElement('div');
+                            item.className = 'sched-item';
+                            item.innerHTML = '<span class="sched-no"></span>'
+                                + typeSelect('0', false)
+                                + '<input type="date" class="form-control" dir="ltr" disabled value="' + iso(addMonths(start, (i - 1) * stepMonths())) + '" />'
+                                + '<input type="number" class="form-control" dir="ltr" disabled value="' + amount + '" data-amt />'
+                                + '<span></span>';
+                            autoBody.appendChild(item);
+                        }
+                    }
+                }
+                var out = form.querySelector('[data-sched-remaining]');
+                if (out) {
+                    out.textContent = fmt(Math.abs(remaining)) + (remaining < 0 ? ' (زيادة)' : '');
+                    out.classList.toggle('off', remaining < 0);
+                }
+                refresh();
+            }
+
+            function refresh() {
+                [[body, '[data-sched-empty]'], [autoBody, '[data-sched-auto-empty]']].forEach(function (p) {
+                    p[0].querySelectorAll('.sched-no').forEach(function (s, i) { s.textContent = i + 1; });
+                    var empty = form.querySelector(p[1]);
+                    if (empty) empty.style.display = p[0].querySelector('.sched-item') ? 'none' : '';
+                });
                 var out = form.querySelector('[data-sched-total]');
                 if (!out) return;
-                var sum = 0;
-                body.querySelectorAll('[name="ManualAmounts"]').forEach(function (i) { sum += parseFloat(i.value) || 0; });
-                var need = Math.max(0, num('TotalPrice') - num('DownPayment'));
-                var diff = Math.round((need - sum) * 100) / 100;
+                var sum = r2(sumOf(body) + sumOf(autoBody));
+                var need = num('TotalPrice');
+                var diff = r2(need - sum);
                 out.className = 'sched-total ' + (diff === 0 ? 'ok' : 'off');
-                out.textContent = 'المجموع ' + fmt(sum) + ' من ' + fmt(need) + ' ج.م'
-                    + (diff === 0 ? ' ✓' : ' — ' + (diff > 0 ? 'متبقٍ ' : 'زيادة ') + fmt(Math.abs(diff)));
+                out.textContent = 'مجموع الدفعات ' + fmt(sum) + ' من ' + fmt(need) + ' ج.م'
+                    + (diff === 0 ? ' ✓' : ' — ' + (diff > 0 ? 'غير موزّع ' : 'زيادة ') + fmt(Math.abs(diff)));
             }
 
-            // Pre-fill from first date + count + period (the last row takes the rounding remainder).
-            function prefill() {
-                var cnt = parseInt(num('InstallmentsCount'), 10) || 0;
-                var need = num('TotalPrice') - num('DownPayment');
-                var first = (form.querySelector('[name="FirstInstallmentDate"]') || {}).value;
-                if (cnt <= 0 || need <= 0 || !first) { addRow(first || '', null); return; }
-                var per = Math.round(need / cnt * 100) / 100;
-                var start = new Date(first + 'T00:00:00');
-                for (var i = 1; i <= cnt; i++) {
-                    var amount = i === cnt ? Math.round((need - per * (cnt - 1)) * 100) / 100 : per;
-                    addRow(iso(addMonths(start, (i - 1) * stepMonths())), amount);
-                }
-            }
-
-            function applyMode() {
-                var manual = isManual();
-                form.querySelectorAll('.sale-auto').forEach(function (el) { el.style.display = manual ? 'none' : ''; });
-                var box = form.querySelector('.sale-manual');
-                box.style.display = manual ? '' : 'none';
-                if (manual && !locked && !body.querySelector('tr')) prefill();
-                // Hidden rows must neither post nor block the browser's required-field check.
-                box.querySelectorAll('input').forEach(function (i) { i.disabled = !manual; });
-                renumber();
-                refreshTotal();
-            }
-
-            form.querySelectorAll('[name="IsManualSchedule"]').forEach(function (r) { r.addEventListener('change', applyMode); });
             var add = form.querySelector('[data-sched-add]');
             if (add) add.addEventListener('click', function () {
-                // A new row starts one period after the last row's date.
-                var dates = body.querySelectorAll('[name="ManualDates"]');
-                var last = dates.length ? dates[dates.length - 1].value : '';
-                var next = last ? iso(addMonths(new Date(last + 'T00:00:00'), stepMonths())) : '';
-                addRow(next, null).querySelector('[name="ManualAmounts"]').focus();
-                renumber(); refreshTotal();
+                // The first payment defaults to a down payment on the contract date; later ones to an installment
+                // one period after the last hand-entered date.
+                var items = body.querySelectorAll('.sched-item');
+                var type = items.length ? '0' : '1', date = form.getAttribute('data-contract-date') || '';
+                var cd = form.querySelector('[name="ContractDate"]');
+                if (!items.length && cd && cd.value) date = cd.value;
+                if (items.length) {
+                    var last = items[items.length - 1].querySelector('[name="ManualDates"]').value;
+                    if (last) date = iso(addMonths(new Date(last + 'T00:00:00'), stepMonths()));
+                }
+                var item = addManualRow(type, date);
+                regenerate();
+                item.scrollIntoView({ block: 'nearest' });
+                item.querySelector('[name="ManualAmounts"]').focus();
             });
             body.addEventListener('click', function (e) {
                 var del = e.target.closest('[data-sched-del]');
                 if (!del) return;
-                del.closest('tr').remove();
-                renumber(); refreshTotal();
+                del.closest('.sched-item').remove();
+                regenerate();
             });
             form.addEventListener('input', function (e) {
-                if (e.target.matches('[name="ManualAmounts"], [name="TotalPrice"], [name="DownPayment"]')) refreshTotal();
+                if (e.target.matches('[name="ManualAmounts"], [name="TotalPrice"], [name="InstallmentsCount"], [name="FirstInstallmentDate"]')) regenerate();
             });
-            applyMode();
+            form.addEventListener('change', function (e) {
+                if (e.target.matches('[name="Step"], [name="FirstInstallmentDate"]')) regenerate();
+            });
+            regenerate();
         };
 
         // Pre-fill the total price from the selected unit (only if empty or unchanged).

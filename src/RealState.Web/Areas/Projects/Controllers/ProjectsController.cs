@@ -482,6 +482,7 @@ public class ProjectsController : Controller
             {
                 await _accounting.RemoveObligationAsync("SaleContract", c.Id, ct);
                 await _accounting.PostSaleContractAsync(c, ct);
+                await _accounting.SyncSaleContractCancellationAsync(c, ct);   // a cancelled one put the cost back on stock
             }
             await _db.SaveChangesAsync(ct);
         }

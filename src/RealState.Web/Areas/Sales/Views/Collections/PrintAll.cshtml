@@ -37,7 +37,7 @@
             <tbody>
             @foreach (var r in g.OrderBy(x => x.DueDate))
             {
-                <tr><td>@r.ContractCode</td><td>@ArabicLabels.InstNo(r.Number)</td><td>@r.DueDate.ToString("yyyy/MM/dd")</td><td>@N(r.Amount)</td><td>@N(r.PaidAmount)</td><td>@r.Status.Ar()</td></tr>
+                <tr><td>@r.ContractCode</td><td>@ArabicLabels.InstNo(r.Number, r.Type)</td><td>@r.DueDate.ToString("yyyy/MM/dd")</td><td>@N(r.Amount)</td><td>@N(r.PaidAmount)</td><td>@r.Status.Ar()</td></tr>
             }
             </tbody>
         </table>

@@ -114,6 +114,7 @@ public class CustomersController : Controller
         var inst = await _db.Installments.FirstOrDefaultAsync(i => i.Id == id, ct);
         if (inst is null) return NotFound();
         var contract = await _db.SaleContracts.FirstOrDefaultAsync(s => s.Id == inst.SaleContractId, ct);
+        if (contract?.IsCancelled == true) return NotFound();   // a cancelled contract's installments aren't due
         ViewBag.Contract = contract;
         ViewBag.Customer = contract is null ? null : await _db.Customers.FirstOrDefaultAsync(c => c.Id == contract.CustomerId, ct);
         ViewBag.TenantId = _currentUser.TenantId;
@@ -214,7 +215,7 @@ public class CustomersController : Controller
         var collectedByInst = collections.GroupBy(t => t.InstallmentId!.Value).ToDictionary(g => g.Key, g => g.Sum(t => t.Amount));
         foreach (var i in installments)
         {
-            var phrase = $"تحصيل {ArabicLabels.InstPhrase(i.Number)} — عقد {contractCode.GetValueOrDefault(i.SaleContractId, "—")}";
+            var phrase = $"تحصيل {i.InstPhrase()} — عقد {contractCode.GetValueOrDefault(i.SaleContractId, "—")}";
             rows.AddRange(collections.Where(t => t.InstallmentId == i.Id).Select(t => new CustomerLedgerRow
             {
                 Kind = CustomerLedgerKind.InstallmentCollection, Id = i.SaleContractId, VoucherId = t.Id,
@@ -229,6 +230,33 @@ public class CustomersController : Controller
                     Source = i.ReceiptNo is int r ? $"إيصال رقم {r}" : "تحصيل", Date = i.PaidDate ?? i.DueDate, Statement = phrase, Amount = missing
                 });
         }
+
+        // Cancelled contracts (فسخ التعاقد): the contract is reversed, the fee kept is owed, and what's paid back settles
+        // the credit the customer is left with.
+        foreach (var c in contracts.Where(c => c.IsCancelled))
+        {
+            var at = c.CancelledAt ?? c.ContractDate;
+            rows.Add(new CustomerLedgerRow
+            {
+                Kind = CustomerLedgerKind.ContractCancel, Id = c.Id, Source = $"فسخ عقد بيع {c.Code}", Date = at,
+                Statement = $"فسخ التعاقد — {projNames.GetValueOrDefault(c.ProjectId, "—")} / {unitNames.GetValueOrDefault(c.UnitId, "—")}"
+                            + (string.IsNullOrWhiteSpace(c.CancelReason) ? "" : $" — {c.CancelReason}"),
+                Amount = c.TotalPrice
+            });
+            rows.Add(new CustomerLedgerRow
+            {
+                Kind = CustomerLedgerKind.CancelFee, Id = c.Id, Source = $"رسوم فسخ {c.Code}", Date = at,
+                Statement = $"رسوم فسخ التعاقد {c.CancelFeePercent:0.##}% من المدفوع ({c.CancelPaidAmount:N2} ج.م)", Amount = c.CancelFeeAmount
+            });
+        }
+        var cancelRefunds = await _db.SafeTransactions
+            .Where(t => t.Source == TxnSource.ContractCancelRefund && t.SaleContractId != null && contractIds.Contains(t.SaleContractId.Value)).ToListAsync(ct);
+        rows.AddRange(cancelRefunds.Select(t => new CustomerLedgerRow
+        {
+            Kind = CustomerLedgerKind.Refund, Id = t.SaleContractId!.Value, VoucherId = t.Id,
+            Source = $"سند صرف رقم {t.Serial}", Date = t.OccurredAt,
+            Statement = $"رد مستحقات عن فسخ عقد البيع {contractCode.GetValueOrDefault(t.SaleContractId.Value, "—")}", Amount = t.Amount
+        }));
 
         // Product sales invoices, their collections, returns and refunds.
         var invoices = await _db.ProductSalesInvoices.Where(i => i.CustomerId == customer.Id).ToListAsync(ct);
@@ -310,11 +338,11 @@ public class CustomersController : Controller
         return new CustomerLedgerVm
         {
             Customer = customer, From = from, To = to,
-            TotalObligations = ordered.Where(r => r.Kind is CustomerLedgerKind.Contract or CustomerLedgerKind.Invoice or CustomerLedgerKind.OpeningDebit).Sum(r => r.Amount)
-                               - ordered.Where(r => r.Kind == CustomerLedgerKind.Return).Sum(r => r.Amount),
+            TotalObligations = ordered.Where(r => r.Kind is CustomerLedgerKind.Contract or CustomerLedgerKind.Invoice or CustomerLedgerKind.OpeningDebit or CustomerLedgerKind.CancelFee).Sum(r => r.Amount)
+                               - ordered.Where(r => r.Kind is CustomerLedgerKind.Return or CustomerLedgerKind.ContractCancel).Sum(r => r.Amount),
             TotalPaid = ordered.Where(r => r.Kind is CustomerLedgerKind.InstallmentCollection or CustomerLedgerKind.InvoiceCollection or CustomerLedgerKind.AccountReceipt or CustomerLedgerKind.OpeningCredit).Sum(r => r.Amount)
                         - ordered.Where(r => r.Kind is CustomerLedgerKind.Refund or CustomerLedgerKind.AccountPayment).Sum(r => r.Amount),
-            DocumentsCount = contracts.Count + invoices.Count,
+            DocumentsCount = contracts.Count(c => !c.IsCancelled) + invoices.Count,
             CollectionsCount = ordered.Count(r => r.Kind is CustomerLedgerKind.InstallmentCollection or CustomerLedgerKind.InvoiceCollection or CustomerLedgerKind.AccountReceipt),
             Rows = ordered.Where(r => InRange(r.Date)).ToList(),
             ClosingBalance = closing,
@@ -328,9 +356,14 @@ public class CustomersController : Controller
         var unitNames = await _db.ProjectUnits.ToDictionaryAsync(u => u.Id, u => u.Name + (string.IsNullOrEmpty(u.Number) ? "" : $" ({u.Number})"), ct);
 
         var vm = new CustomerStatementVm { Customer = customer };
+        var ids = contracts.Select(c => c.Id).ToList();
+        var refunded = (await _db.SafeTransactions
+                .Where(t => t.Source == TxnSource.ContractCancelRefund && t.SaleContractId != null && ids.Contains(t.SaleContractId.Value))
+                .GroupBy(t => t.SaleContractId!.Value).Select(g => new { g.Key, Sum = g.Sum(x => x.Amount) }).ToListAsync(ct))
+            .ToDictionary(x => x.Key, x => x.Sum);
         foreach (var c in contracts)
         {
-            var insts = await _db.Installments.Where(i => i.SaleContractId == c.Id).OrderBy(i => i.Number).ToListAsync(ct);
+            var insts = await _db.Installments.Where(i => i.SaleContractId == c.Id).OrderBy(i => i.DueDate).ThenBy(i => i.Type).ThenBy(i => i.Number).ToListAsync(ct);
             vm.Contracts.Add(new ContractStatement
             {
                 Code = c.Code,
@@ -339,7 +372,12 @@ public class CustomersController : Controller
                 ReceiveDate = c.ReceiveDate,
                 TotalPrice = c.TotalPrice,
                 DownPayment = c.DownPayment,
-                Installments = insts
+                // A cancelled contract's schedule is frozen: only what was collected before the cancellation is shown.
+                Installments = c.IsCancelled ? insts.Where(i => i.PaidAmount > 0).ToList() : insts,
+                IsCancelled = c.IsCancelled,
+                CancelFeeAmount = c.CancelFeeAmount,
+                RefundDue = c.CancelRefundDue,
+                Refunded = refunded.GetValueOrDefault(c.Id)
             });
         }
         return vm;
