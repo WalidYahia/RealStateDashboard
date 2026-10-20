@@ -2,25 +2,30 @@
 @{
     var inv = Model.Invoice;
     ViewData["Title"] = $"فاتورة مبيعات SI-{inv.Number}";
-    var canCollect = User.Can(PermissionNames.SalesInvoicesCollect);
-    var canDeleteCollection = User.Can(PermissionNames.SalesInvoicesDeleteCollection);
+    // Popup (loaded into a modal): no layout, and read-only — actions that open their own popups stay on the full page.
+    var popup = ViewData["Popup"] as bool? ?? false;
+    if (popup) Layout = null;
+    var canCollect = !popup && User.Can(PermissionNames.SalesInvoicesCollect);
+    var canDeleteCollection = !popup && User.Can(PermissionNames.SalesInvoicesDeleteCollection);
     var canViewCustomers = User.Can(PermissionNames.CustomersView);
-    var canViewInventory = User.Can(PermissionNames.InventoryView);
-    var canReturn = User.Can(PermissionNames.SalesReturnsCreate);
+    var canViewInventory = !popup && User.Can(PermissionNames.InventoryView);
+    var canReturn = !popup && User.Can(PermissionNames.SalesReturnsCreate);
     var canViewReturns = User.Can(PermissionNames.SalesReturnsView);
     var hasReturns = Model.Returns.Count > 0;
     string N(decimal v) => v.ToString("N2", RealState.Web.AppCulture.Ar);
     string Q(decimal v) => v.ToString("0.####", System.Globalization.CultureInfo.InvariantCulture);
     string D(DateTime d) => RealState.Web.AppCulture.When(d);   // date + time when it has one
     string St(InventoryDocStatus s) => s switch { InventoryDocStatus.Posted => "مُرحَّل", InventoryDocStatus.Reversed => "معكوس", _ => "مسودة" };
-    var margin = Model.NetTotal > 0 ? Model.GrossProfit / Model.NetTotal * 100 : 0;
     // Something left to return (exact per-line availability is shown on the return form).
     var returnable = Model.Returned < Model.Total;
 }
 <div class="page-head">
     <div>
         <h1>فاتورة مبيعات <span class="proj-code" dir="ltr">SI-@inv.Number</span>
-            <button type="button" title="شرح فاتورة المبيعات" onclick="appOpenModal('@Url.Action("Help")', 'شرح فاتورة المبيعات')" style="border:none;background:none;cursor:pointer;font-size:18px;vertical-align:middle;">❓</button>
+            @if (!popup)
+            {
+                <button type="button" title="شرح فاتورة المبيعات" onclick="appOpenModal('@Url.Action("Help")', 'شرح فاتورة المبيعات')" style="border:none;background:none;cursor:pointer;font-size:18px;vertical-align:middle;">❓</button>
+            }
         </h1>
         <p style="color:var(--muted);margin:2px 0 0;">
             @Model.Customer · @RealState.Web.AppCulture.When(inv.InvoiceDate)
@@ -30,7 +35,14 @@
         <partial name="_AuditStamp" model="RealState.Web.Models.AuditStampVm.Of(inv)" />
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;">
-        <a class="btn-sm" asp-action="Index" onclick="if (history.length > 1) { history.back(); return false; }">رجوع</a>
+        @if (popup)
+        {
+            <a class="btn-sm" asp-action="Details" asp-route-id="@inv.Id">↗ فتح صفحة الفاتورة</a>
+        }
+        else
+        {
+            <a class="btn-sm" asp-action="Index" onclick="if (history.length > 1) { history.back(); return false; }">رجوع</a>
+        }
         @if (canViewCustomers)
         {
             <a class="btn-sm" asp-area="CRM" asp-controller="Customers" asp-action="Details" asp-route-id="@inv.CustomerId">ملف العميل</a>
@@ -45,11 +57,11 @@
             <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("Form", "SalesReturns", new { invoiceId = inv.Id })', 'مرتجع مبيعات جديد', 'xl')">↩ مرتجع</button>
         }
         @* An invoice with returns is locked: they're tied to its lines, quantities and prices. *@
-        @if (User.Can(PermissionNames.SalesInvoicesEdit) && !hasReturns)
+        @if (!popup && User.Can(PermissionNames.SalesInvoicesEdit) && !hasReturns)
         {
             <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("Form", new { id = inv.Id })', 'تعديل فاتورة المبيعات', 'xl')">✏️ تعديل</button>
         }
-        @if (User.Can(PermissionNames.SalesInvoicesDelete) && !hasReturns)
+        @if (!popup && User.Can(PermissionNames.SalesInvoicesDelete) && !hasReturns)
         {
             <form asp-action="Delete" asp-route-id="@inv.Id" method="post" style="display:inline;" data-confirm="حذف فاتورة المبيعات SI-@inv.Number؟ سيتم عكس قيدها المحاسبي وعكس إذن الصرف (إرجاع الأصناف للمخزن)." data-danger>@Html.AntiForgeryToken()<button type="submit" class="btn-sm btn-danger">🗑 حذف الفاتورة</button></form>
         }
@@ -61,12 +73,10 @@
     <div class="status-message">@status</div>
 }
 
-<div class="kpi-grid" style="grid-template-columns: repeat(4, 1fr);">
+<div class="kpi-grid" style="grid-template-columns: repeat(3, 1fr);">
     <div class="kpi k-reserve"><div class="kpi-label">إجمالي الفاتورة</div><div class="kpi-value">@N(Model.NetTotal) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">@inv.Items.Count صنف@(hasReturns ? $" · قبل المرتجعات {N(Model.Total)} − مرتجعات {N(Model.Returned)}" : "")</div></div>
     <div class="kpi k-collect"><div class="kpi-label">المحصَّل</div><div class="kpi-value">@N(Model.NetCollected) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">@inv.Collections.Count تحصيل@(Model.Refunded > 0 ? $" · رُدّ للعميل {N(Model.Refunded)}" : "")</div></div>
-    <div class="kpi k-alerts"><div class="kpi-label">المتبقي</div><div class="kpi-value">@N(Model.Remaining) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">مستحق على العميل</div></div>
-    <div class="kpi k-sales"><div class="kpi-label">مجمل الربح</div><div class="kpi-value">@N(Model.GrossProfit) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">تكلفة المبيعات @N(Model.CostOfSales) · هامش @margin.ToString("0.#")٪</div></div>
-</div>
+    <div class="kpi k-alerts"><div class="kpi-label">المتبقي</div><div class="kpi-value">@N(Model.Remaining) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">مستحق على العميل</div></div></div>
 
 <div class="card-tile" style="margin-bottom:14px;">
     <div class="card-head"><h3>الأصناف</h3></div>

@@ -441,6 +441,10 @@ body {
 .sale-auto-grid .form-control { margin: 0; width: 100%; }
 .sale-remaining { min-height: 42px; display: flex; align-items: center; padding: 0 12px; border-radius: 10px; background: var(--surface-2); font-weight: 700; color: var(--text-strong); direction: ltr; justify-content: flex-end; }
 .sale-remaining.off { color: var(--critical); }
+/* تقرير أرباح المبيعات: the invoice number opens the invoice in a popup. */
+.profit-inv { color: var(--series-1); font-weight: 700; text-decoration: none; }
+.profit-inv:hover { text-decoration: underline; }
+
 /* Contract page: the print button with its «صفحة واحدة» option. */
 .print-group { display: inline-flex; align-items: center; gap: 8px; flex-wrap: nowrap; }
 .print-opt { display: inline-flex; align-items: center; gap: 4px; margin: 0; padding: 0 7px; min-height: 26px; border: 1px solid var(--border);

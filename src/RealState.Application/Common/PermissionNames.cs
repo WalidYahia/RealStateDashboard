@@ -175,6 +175,7 @@ public static class PermissionNames
     // ----- Reports -----
     public const string ReportsView = "Reports.View";
     public const string ReportsProjects = "Reports.Projects";   // projects report (units / inventory / expenses / incomes)
+    public const string ReportsSalesProfits = "Reports.SalesProfits";   // sales profits report (per sales invoice, net of returns)
 
     // ----- Accounting: expense/income categories (بنود) -----
     public const string TxnCategoriesManage = "TxnCategories.Manage";
@@ -340,6 +341,7 @@ public static class PermissionNames
 
         new PermissionInfo(ReportsView,     "عرض التقارير (اليومي، العملاء، الموردين)", GReports),
         new PermissionInfo(ReportsProjects, "عرض تقرير المشاريع",                       GReports),
+        new PermissionInfo(ReportsSalesProfits, "عرض تقرير أرباح المبيعات (أرباح فواتير المبيعات)", GReports),
 
         new PermissionInfo(TxnCategoriesManage, "إدارة بنود المصروفات والإيرادات", GExpenses),
 
@@ -398,6 +400,7 @@ public static class PermissionNames
         [PurchaseReturnsDeleteRefund] = PurchaseReturnsDelete,
         // Contract cancellation: whoever could delete contracts gets it (and its refunds).
         [SalesCancel] = SalesDelete,
+        [ReportsSalesProfits] = ReportsView,   // the invoice page's profit card moved into this report
         [SalesUncancel] = SalesDelete,
         [SalesRefund] = SalesDelete,
         [SalesDeleteRefund] = SalesDelete,

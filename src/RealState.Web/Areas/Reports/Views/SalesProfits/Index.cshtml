@@ -1,0 +1,83 @@
+@model SalesProfitsReportVm
+@{
+    ViewData["Title"] = "تقرير أرباح المبيعات";
+    string N(decimal v) => v.ToString("N2", RealState.Web.AppCulture.Ar);
+    string D(DateTime d) => RealState.Web.AppCulture.When(d);   // date + time when it has one
+    string? F(DateTime? d) => d?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+    var canOpen = User.Can(PermissionNames.SalesInvoicesView);   // the invoice popup is the sales-invoice page
+    object Q() => new { from = F(Model.From), to = F(Model.To), customerId = Model.CustomerId, invoiceNo = Model.InvoiceNo };
+}
+<div class="page-head">
+    <div>
+        <h1>تقرير أرباح المبيعات</h1>
+        <p style="color:var(--muted);margin:2px 0 0;">ربح كل فاتورة مبيعات بعد المرتجعات: صافي المبيعات − تكلفة الأصناف المباعة</p>
+    </div>
+</div>
+
+@{
+    var filter = FilterBarVm.For(Url.Action("Index"))
+        .DateRange(F(Model.From), F(Model.To), "تاريخ الفاتورة", FilterPresets.Standard().Append(FilterPresets.All()))
+        .Select("customerId", "العميل", Model.Customers, Model.CustomerId)
+        .Text("invoiceNo", "رقم الفاتورة", Model.InvoiceNo, "SI-…")
+        .Print(Url.Action("Print", Q()))
+        .Excel(Url.Action("Excel", Q()));
+}
+<partial name="_FilterBar" model="filter" />
+
+<div class="kpi-grid" style="grid-template-columns: repeat(4, 1fr);">
+    <div class="kpi k-reserve"><div class="kpi-label">صافي المبيعات</div><div class="kpi-value">@N(Model.TotNet) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">@Model.Rows.Count فاتورة@(Model.TotReturned > 0 ? $" · مرتجعات {N(Model.TotReturned)}" : "")</div></div>
+    <div class="kpi k-alerts"><div class="kpi-label">تكلفة المبيعات</div><div class="kpi-value">@N(Model.TotCost) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">بعد تكلفة المرتجعات</div></div>
+    <div class="kpi k-sales"><div class="kpi-label">مجمل الربح</div><div class="kpi-value @(Model.TotProfit < 0 ? "tag-down" : null)">@N(Model.TotProfit) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">صافي المبيعات − التكلفة</div></div>
+    <div class="kpi k-collect"><div class="kpi-label">هامش الربح</div><div class="kpi-value">@Model.MarginPct.ToString("0.#")<span class="kpi-unit">٪</span></div><div class="kpi-foot">من صافي المبيعات</div></div>
+</div>
+
+<div class="card-tile">
+    <div class="list-search-bar"><input class="form-control list-search" data-target="#profitTable" placeholder="🔍 بحث في القائمة..." /></div>
+    <table class="rs-table" id="profitTable" data-live-totals>
+        <thead>
+            <tr><th>رقم الفاتورة</th><th>التاريخ</th><th>العميل</th><th>قيمة الفاتورة</th><th>المرتجعات</th><th>صافي المبيعات</th><th>التكلفة</th><th>الربح</th><th>الهامش</th></tr>
+        </thead>
+        <tbody>
+        @foreach (var r in Model.Rows)
+        {
+            <tr>
+                <td style="white-space:nowrap;">
+                    @if (canOpen)
+                    {
+                        <a href="javascript:" dir="ltr" class="profit-inv" title="عرض الفاتورة"
+                           onclick="appOpenModal('@Url.Action("Details", "SalesInvoices", new { area = "Sales", id = r.InvoiceId })', 'فاتورة مبيعات SI-@r.Number', 'xl')">SI-@r.Number</a>
+                    }
+                    else
+                    {
+                        <span dir="ltr">SI-@r.Number</span>
+                    }
+                </td>
+                <td dir="ltr" style="text-align:right;white-space:nowrap;">@D(r.Date)</td>
+                <td>@r.Customer</td>
+                <td>@N(r.Value)</td>
+                <td>@(r.Returned > 0 ? N(r.Returned) : "0.00")</td>
+                <td>@N(r.Net)</td>
+                <td>@N(r.Cost)</td>
+                <td class="@(r.Profit < 0 ? "tag-down" : "tag-up")" style="font-weight:700;">@N(r.Profit)</td>
+                <td data-no-sum dir="ltr" style="text-align:right;">@r.MarginPct.ToString("0.#")٪</td>
+            </tr>
+        }
+        @if (Model.Rows.Count == 0)
+        {
+            <tr data-skip-search><td colspan="9" style="color:var(--muted)">لا توجد فواتير مبيعات مطابقة في هذه الفترة.</td></tr>
+        }
+        <tr data-no-results data-skip-search style="display:none;"><td colspan="9" style="color:var(--muted)">لا توجد نتائج مطابقة للبحث.</td></tr>
+        </tbody>
+        <tfoot>
+            <tr>
+                <th colspan="3" data-no-sum>الإجمالي</th>
+                <th>@N(Model.TotValue)</th>
+                <th>@N(Model.TotReturned)</th>
+                <th>@N(Model.TotNet)</th>
+                <th>@N(Model.TotCost)</th>
+                <th>@N(Model.TotProfit)</th>
+                <th data-no-sum dir="ltr" style="text-align:right;">@Model.MarginPct.ToString("0.#")٪</th>
+            </tr>
+        </tfoot>
+    </table>
+</div>

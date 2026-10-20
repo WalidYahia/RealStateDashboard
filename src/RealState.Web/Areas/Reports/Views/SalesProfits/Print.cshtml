@@ -1,0 +1,74 @@
+@model SalesProfitsReportVm
+@{
+    Layout = null;
+    string N(decimal v) => v.ToString("N2", RealState.Web.AppCulture.Ar);
+    string D(DateTime d) => RealState.Web.AppCulture.When(d);   // date + time when it has one
+    string Day(DateTime d) => RealState.Web.AppCulture.Day(d);
+    var range = (Model.From.HasValue || Model.To.HasValue)
+        ? $"الفترة من {(Model.From.HasValue ? Day(Model.From.Value) : "…")} إلى {(Model.To.HasValue ? Day(Model.To.Value) : "…")}"
+        : "كل الفترات";
+    var customer = Model.CustomerId.HasValue ? Model.Customers.FirstOrDefault(c => c.Value == Model.CustomerId.Value.ToString())?.Text : null;
+}
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="utf-8" />
+    <title>تقرير أرباح المبيعات</title>
+    <style>
+        body { font-family: "Segoe UI", Tahoma, sans-serif; padding: 24px; color: #111; }
+        h1 { font-size: 19px; text-align: center; margin: 4px 0; }
+        .sub { text-align: center; color: #666; font-size: 12px; margin-bottom: 14px; }
+        .cards { display: flex; gap: 8px; margin-bottom: 12px; }
+        .card { flex: 1; border: 1px solid #ccc; border-radius: 6px; padding: 6px 8px; }
+        .card .lbl { font-size: 11px; color: #666; } .card .val { font-size: 15px; font-weight: 700; }
+        table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+        th, td { border: 1px solid #ccc; padding: 5px 6px; text-align: start; unicode-bidi: plaintext; }
+        th { background: #f2f2f2; }
+        tfoot td, tfoot th { font-weight: 700; background: #fafafa; }
+        .neg { color: #c62828; }
+        .no-print { margin-bottom: 12px; } @@media print { .no-print { display: none; } }
+    </style>
+</head>
+<body>
+    @await Component.InvokeAsync("ReportBackground", new { part = "open" })
+    <div class="no-print"><button onclick="window.print()">🖨 طباعة / حفظ PDF</button></div>
+    <h1>تقرير أرباح المبيعات</h1>
+    <div class="sub">
+        @range@(customer is null ? "" : $" · العميل: {customer}")@(string.IsNullOrWhiteSpace(Model.InvoiceNo) ? "" : $" · رقم الفاتورة: {Model.InvoiceNo}")
+        · تاريخ الطباعة @ClientTime.Now.ToString("yyyy/MM/dd HH:mm")
+    </div>
+
+    <div class="cards">
+        <div class="card"><div class="lbl">صافي المبيعات (@Model.Rows.Count فاتورة)</div><div class="val">@N(Model.TotNet) ج.م</div></div>
+        <div class="card"><div class="lbl">تكلفة المبيعات</div><div class="val">@N(Model.TotCost) ج.م</div></div>
+        <div class="card"><div class="lbl">مجمل الربح</div><div class="val @(Model.TotProfit < 0 ? "neg" : null)">@N(Model.TotProfit) ج.م</div></div>
+        <div class="card"><div class="lbl">هامش الربح</div><div class="val">@Model.MarginPct.ToString("0.#")٪</div></div>
+    </div>
+
+    <table>
+        <thead>
+            <tr><th>رقم الفاتورة</th><th>التاريخ</th><th>العميل</th><th>قيمة الفاتورة</th><th>المرتجعات</th><th>صافي المبيعات</th><th>التكلفة</th><th>الربح</th><th>الهامش</th></tr>
+        </thead>
+        <tbody>
+        @foreach (var r in Model.Rows)
+        {
+            <tr>
+                <td>SI-@r.Number</td><td>@D(r.Date)</td><td>@r.Customer</td>
+                <td>@N(r.Value)</td><td>@N(r.Returned)</td><td>@N(r.Net)</td><td>@N(r.Cost)</td>
+                <td class="@(r.Profit < 0 ? "neg" : null)">@N(r.Profit)</td><td>@r.MarginPct.ToString("0.#")٪</td>
+            </tr>
+        }
+        @if (Model.Rows.Count == 0) { <tr><td colspan="9" style="color:#888;">لا توجد فواتير مبيعات مطابقة.</td></tr> }
+        </tbody>
+        <tfoot>
+            <tr>
+                <td colspan="3">الإجمالي</td>
+                <td>@N(Model.TotValue)</td><td>@N(Model.TotReturned)</td><td>@N(Model.TotNet)</td><td>@N(Model.TotCost)</td>
+                <td>@N(Model.TotProfit)</td><td>@Model.MarginPct.ToString("0.#")٪</td>
+            </tr>
+        </tfoot>
+    </table>
+    <script>window.addEventListener('load', function () { setTimeout(function () { window.print(); }, 400); });</script>
+    @await Component.InvokeAsync("ReportBackground", new { part = "close" })
+</body>
+</html>

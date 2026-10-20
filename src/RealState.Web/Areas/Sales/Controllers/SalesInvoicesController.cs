@@ -559,6 +559,8 @@ public class SalesInvoicesController : Controller
     {
         var vm = await LoadAsync(id, ct);
         if (vm is null) return NotFound();
+        // Opened in a popup (e.g. from تقرير أرباح المبيعات): the same page without the site layout and its actions.
+        ViewData["Popup"] = Request.Headers.XRequestedWith == "XMLHttpRequest";
         return View(vm);
     }
 

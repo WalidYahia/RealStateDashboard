@@ -178,6 +178,7 @@ public static class NavigationCatalog
 
         // ---- التقارير ----
         new("daily-report", "التقرير اليومي", "حركة اليوم في كل الأقسام", "calendar", "reports", "Reports", "Reports", "Daily", P(ReportsView)),
+        new("sales-profits", "تقرير أرباح المبيعات", "ربح كل فاتورة مبيعات بعد المرتجعات", "chart", "reports", "Reports", "SalesProfits", "Index", P(ReportsSalesProfits), AlsoIn: new[] { "sales" }),
 
         // ---- الإدارة ----
         new("users", "المستخدمون", "المستخدمون وصلاحياتهم", "user", "admin", "Admin", "Users", "Index", P(UsersView)),

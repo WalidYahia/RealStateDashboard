@@ -99,3 +99,41 @@ public class SupplierReportVm
     public decimal TotPaid => Rows.Sum(r => r.Paid);
     public decimal TotResidual => Rows.Sum(r => r.Residual);
 }
+
+// ---------- Sales profits report (أرباح المبيعات) ----------
+/// <summary>
+/// One sales invoice's profit: its value net of its returns, less the cost of what it took out of stock net of what its
+/// returns brought back (the same figures the invoice page used to show).
+/// </summary>
+public class SalesProfitRow
+{
+    public Guid InvoiceId { get; set; }
+    public int Number { get; set; }
+    public DateTime Date { get; set; }
+    public string Customer { get; set; } = "—";
+    public decimal Value { get; set; }
+    public decimal Returned { get; set; }
+    public decimal Net => Value - Returned;
+    /// <summary>Cost of sales: the posted goods issue's cost less the cost of the returned goods (costing method).</summary>
+    public decimal Cost { get; set; }
+    public decimal Profit => Net - Cost;
+    public decimal MarginPct => Net > 0 ? Math.Round(Profit / Net * 100, 1) : 0;
+}
+
+public class SalesProfitsReportVm
+{
+    public DateTime? From { get; set; }
+    public DateTime? To { get; set; }
+    public Guid? CustomerId { get; set; }
+    /// <summary>Invoice-number filter as typed (SI-… or digits; partial numbers match).</summary>
+    public string? InvoiceNo { get; set; }
+    public List<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem> Customers { get; set; } = new();
+    public List<SalesProfitRow> Rows { get; set; } = new();
+
+    public decimal TotValue => Rows.Sum(r => r.Value);
+    public decimal TotReturned => Rows.Sum(r => r.Returned);
+    public decimal TotNet => Rows.Sum(r => r.Net);
+    public decimal TotCost => Rows.Sum(r => r.Cost);
+    public decimal TotProfit => Rows.Sum(r => r.Profit);
+    public decimal MarginPct => TotNet > 0 ? Math.Round(TotProfit / TotNet * 100, 1) : 0;
+}
