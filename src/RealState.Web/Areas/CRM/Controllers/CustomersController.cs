@@ -8,6 +8,8 @@ using RealState.Application.Entities;
 using RealState.Application.Enums;
 using RealState.Application.Interfaces;
 using RealState.Web.Areas.CRM.Models;
+using RealState.Web.Areas.Suppliers.Controllers;
+using RealState.Web.Models;
 
 namespace RealState.Web.Areas.CRM.Controllers;
 
@@ -18,11 +20,13 @@ public class CustomersController : Controller
 {
     private readonly IApplicationDbContext _db;
     private readonly ICurrentUserService _currentUser;
+    private readonly IAccountingService _accounting;
 
-    public CustomersController(IApplicationDbContext db, ICurrentUserService currentUser)
+    public CustomersController(IApplicationDbContext db, ICurrentUserService currentUser, IAccountingService accounting)
     {
         _db = db;
         _currentUser = currentUser;
+        _accounting = accounting;
     }
 
     private bool Can(string permission) => User.HasClaim("permission", permission);
@@ -123,69 +127,95 @@ public class CustomersController : Controller
 
     // ---------- Running-balance account statement (كشف حساب — same layout as the supplier's) ----------
     [Authorize(Policy = PermissionNames.CustomersView)]
-    public async Task<IActionResult> Statement(Guid id, DateTime? from, DateTime? to, CancellationToken ct)
+    public async Task<IActionResult> Statement(Guid id, DateTime? from, DateTime? to, bool detailed, CancellationToken ct)
     {
         var customer = await _db.Customers.FirstOrDefaultAsync(c => c.Id == id && !c.IsLead, ct);
         if (customer is null) return NotFound();
         (from, to) = DateFilterDefaults.TodayIfFresh(Request, from, to);
+        // «تفصيلي»: every invoice's lines open (kept across filtering; each row can still be opened / closed on its own).
+        ViewData["Detailed"] = detailed;
         // «فواتير المبيعات» / «تحصيل دفعة» are for customers without contracts (contracts collect through installments).
         var noContracts = !await HasContractsAsync(customer.Id, ct);
         ViewData["ShowInvoiceActions"] = noContracts;
-        ViewData["HasOpenInvoices"] = noContracts && User.Can(PermissionNames.SalesInvoicesCollect) && (await OpenInvoicesAsync(customer.Id, ct)).Count > 0;
+        ViewData["CanCollect"] = noContracts && Can(PermissionNames.SalesInvoicesCollect);
         return View(await BuildLedgerAsync(customer, from, to, ct));
     }
 
     [HttpGet]
     [Authorize(Policy = PermissionNames.CustomersView)]
-    public async Task<IActionResult> PrintLedger(Guid id, DateTime? from, DateTime? to, CancellationToken ct)
+    public async Task<IActionResult> PrintLedger(Guid id, DateTime? from, DateTime? to, bool detailed, CancellationToken ct)
     {
         var customer = await _db.Customers.FirstOrDefaultAsync(c => c.Id == id && !c.IsLead, ct);
         if (customer is null) return NotFound();
         ViewBag.TenantId = _currentUser.TenantId;
+        ViewData["Detailed"] = detailed;
         return View("PrintLedger", await BuildLedgerAsync(customer, from, to, ct));
     }
 
-    // ---------- Collect from the statement (customers without contracts): pick an open sales invoice ----------
-    // A contract customer pays through the installments (التحصيلات), so the statement offers this only to customers
-    // with no contract. The picker posts to the existing Sales/SalesInvoices/Collect — the usual voucher, receipt and entry.
+    // ---------- Collect from the statement (customers without contracts): a سند قبض on the customer's account ----------
+    // Payments settle the account balance, not a particular invoice. A contract customer pays through the installments
+    // (التحصيلات), so the statement offers this only to customers with no contract.
     [HttpGet]
     [Authorize(Policy = PermissionNames.SalesInvoicesCollect)]
     public async Task<IActionResult> CollectForm(Guid id, CancellationToken ct)
     {
         var customer = await _db.Customers.FirstOrDefaultAsync(c => c.Id == id && !c.IsLead, ct);
         if (customer is null || await HasContractsAsync(customer.Id, ct)) return NotFound();
-        return PartialView("_CollectPicker", new CustomerCollectPickerModel
+        var model = new AccountVoucherFormModel { PartyId = customer.Id };
+        await FillVoucherAsync(model, customer, ct);
+        return PartialView("_AccountVoucherForm", model);
+    }
+
+    [HttpPost]
+    [Authorize(Policy = PermissionNames.SalesInvoicesCollect)]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Collect(AccountVoucherFormModel model, CancellationToken ct)
+    {
+        var customer = await _db.Customers.FirstOrDefaultAsync(c => c.Id == model.PartyId && !c.IsLead, ct);
+        if (customer is null || await HasContractsAsync(customer.Id, ct)) return NotFound();
+        if (model.SafeId is null || !await _db.Safes.AnyAsync(s => s.Id == model.SafeId && s.IsActive, ct))
+            ModelState.AddModelError(nameof(model.SafeId), "اختر خزنة صالحة.");
+        if (model.Amount <= 0) ModelState.AddModelError(nameof(model.Amount), "أدخل مبلغًا أكبر من صفر.");
+        if (model.OccurredAt.Date > ClientTime.Today) ModelState.AddModelError(nameof(model.OccurredAt), "لا يمكن التحصيل بتاريخ مستقبلي.");
+        if (!ModelState.IsValid)
         {
-            CustomerId = customer.Id,
-            CustomerName = customer.FullName,
-            Documents = await OpenInvoicesAsync(customer.Id, ct),
-            Safes = await _db.Safes.Where(s => s.IsActive).OrderBy(s => s.Name)
-                .Select(s => new SelectListItem { Value = s.Id.ToString(), Text = s.Name }).ToListAsync(ct),
-        });
+            await FillVoucherAsync(model, customer, ct);
+            return PartialView("_AccountVoucherForm", model);
+        }
+
+        // Dr الخزنة / Cr العملاء (the customer's subsidiary) — the same voucher as «الإيرادات» on a customer's account.
+        var desc = string.IsNullOrWhiteSpace(model.Description) ? $"دفعة من العميل «{customer.FullName}»" : model.Description.Trim();
+        var txn = await _accounting.AddTransactionAsync(model.SafeId!.Value, TxnType.Income, TxnSource.CustomerAccount,
+            model.Amount, model.OccurredAt, desc, customerId: customer.Id, ct: ct);
+        await _db.SaveChangesAsync(ct);
+        TempData["StatusMessage"] = $"تم تحصيل {model.Amount:N2} ج.م من العميل «{customer.FullName}» على الحساب (سند قبض رقم {txn.Serial}).";
+        return Json(new { ok = true, openTab = Url.Action(nameof(VoucherReceipt), new { id = txn.Id }) });
+    }
+
+    /// <summary>A voucher on the customer's account (سند قبض / سند صرف) — printable by whoever sees the statement.</summary>
+    [HttpGet]
+    [Authorize(Policy = PermissionNames.CustomersView)]
+    public async Task<IActionResult> VoucherReceipt(Guid id, CancellationToken ct)
+    {
+        var txn = await _db.SafeTransactions.FirstOrDefaultAsync(t => t.Id == id && t.Source == TxnSource.CustomerAccount && t.CustomerId != null, ct);
+        if (txn is null) return NotFound();
+        ViewBag.PartyLabel = "العميل";
+        ViewBag.Party = await _db.Customers.Where(c => c.Id == txn.CustomerId).Select(c => c.FullName).FirstOrDefaultAsync(ct);
+        ViewBag.About = txn.Type == TxnType.Income ? "تحصيل على الحساب" : "صرف للعميل على الحساب";
+        ViewBag.SafeName = await _db.Safes.Where(s => s.Id == txn.SafeId).Select(s => s.Name).FirstOrDefaultAsync(ct);
+        ViewBag.TenantId = _currentUser.TenantId;
+        return View("~/Areas/Accounting/Views/Shared/PrintOne.cshtml", txn);
+    }
+
+    private async Task FillVoucherAsync(AccountVoucherFormModel model, Customer customer, CancellationToken ct)
+    {
+        model.PartyName = customer.FullName;
+        model.Balance = await CustomerLedger.BalanceAsync(_db, customer.Id, ct);
+        model.Safes = await PurchasingLookups.SafesAsync(_db, ct);
     }
 
     private Task<bool> HasContractsAsync(Guid customerId, CancellationToken ct)
         => _db.SaleContracts.AnyAsync(c => c.CustomerId == customerId, ct);
-
-    /// <summary>The customer's sales invoices with a remaining balance (after collections and returns), oldest first.</summary>
-    private async Task<List<CollectableOption>> OpenInvoicesAsync(Guid customerId, CancellationToken ct)
-    {
-        var invoices = await _db.ProductSalesInvoices.Where(i => i.CustomerId == customerId)
-            .OrderBy(i => i.InvoiceDate).ThenBy(i => i.Number)
-            .Select(i => new { i.Id, i.Number, i.InvoiceDate }).ToListAsync(ct);
-        var ids = invoices.Select(i => i.Id).ToList();
-        var totals = await _db.ProductSalesInvoiceItems.Where(x => ids.Contains(x.SalesInvoiceId)).GroupBy(x => x.SalesInvoiceId)
-            .Select(g => new { g.Key, Sum = g.Sum(x => x.LineTotal) }).ToDictionaryAsync(x => x.Key, x => x.Sum, ct);
-        var collected = await _db.SalesInvoiceCollections.Where(c => ids.Contains(c.SalesInvoiceId)).GroupBy(c => c.SalesInvoiceId)
-            .Select(g => new { g.Key, Sum = g.Sum(x => x.Amount) }).ToDictionaryAsync(x => x.Key, x => x.Sum, ct);
-        var returns = await InvoiceReturns.SalesAsync(_db, ids, ct);
-        return invoices
-            .Select(i => (i, Remaining: InvoiceReturns.Remaining(totals.GetValueOrDefault(i.Id), collected.GetValueOrDefault(i.Id),
-                returns.GetValueOrDefault(i.Id, ReturnTotals.None))))
-            .Where(x => x.Remaining > 0)
-            .Select(x => new CollectableOption(x.i.Id, $"فاتورة مبيعات SI-{x.i.Number} ({RealState.Web.AppCulture.Day(x.i.InvoiceDate)}) — متبقٍ {x.Remaining:N2} ج.م", x.Remaining))
-            .ToList();
-    }
 
     /// <summary>
     /// Everything the customer owes (+: contracts, sales invoices, refunds paid back to them) and everything that settles
@@ -194,132 +224,22 @@ public class CustomersController : Controller
     /// </summary>
     private async Task<CustomerLedgerVm> BuildLedgerAsync(Customer customer, DateTime? from, DateTime? to, CancellationToken ct)
     {
-        var rows = new List<CustomerLedgerRow>();
-        var projNames = await _db.Projects.ToDictionaryAsync(p => p.Id, p => p.Name, ct);
-        var unitNames = await _db.ProjectUnits.ToDictionaryAsync(u => u.Id, u => u.Name + (string.IsNullOrEmpty(u.Number) ? "" : $" ({u.Number})"), ct);
+        var rows = await CustomerLedger.RowsAsync(_db, customer.Id, ct);
 
-        // Real-estate contracts and their collections.
-        var contracts = await _db.SaleContracts.Where(c => c.CustomerId == customer.Id).ToListAsync(ct);
-        var contractIds = contracts.Select(c => c.Id).ToList();
-        var contractCode = contracts.ToDictionary(c => c.Id, c => c.Code);
-        rows.AddRange(contracts.Select(c => new CustomerLedgerRow
+        // «عميل ومورد»: the linked supplier's account joins the same statement (with the suppliers view), each movement
+        // signed from the party's side — so the running balance is the net of both accounts.
+        Supplier? linkedSupplier = null;
+        SupplierLedgerData? supplierData = null;
+        if (customer.SupplierId is Guid sid && Can(PermissionNames.SuppliersView)
+            && (linkedSupplier = await _db.Suppliers.FirstOrDefaultAsync(s => s.Id == sid, ct)) is not null)
         {
-            Kind = CustomerLedgerKind.Contract, Id = c.Id, Source = $"عقد بيع {c.Code}", Date = c.ContractDate,
-            Statement = $"{projNames.GetValueOrDefault(c.ProjectId, "—")} / {unitNames.GetValueOrDefault(c.UnitId, "—")}", Amount = c.TotalPrice
-        }));
-
-        var installments = await _db.Installments.Where(i => contractIds.Contains(i.SaleContractId)).ToListAsync(ct);
-        var instIds = installments.Select(i => i.Id).ToList();
-        var collections = await _db.SafeTransactions
-            .Where(t => t.Source == TxnSource.Collection && t.InstallmentId != null && instIds.Contains(t.InstallmentId.Value)).ToListAsync(ct);
-        var collectedByInst = collections.GroupBy(t => t.InstallmentId!.Value).ToDictionary(g => g.Key, g => g.Sum(t => t.Amount));
-        foreach (var i in installments)
-        {
-            var phrase = $"تحصيل {i.InstPhrase()} — عقد {contractCode.GetValueOrDefault(i.SaleContractId, "—")}";
-            rows.AddRange(collections.Where(t => t.InstallmentId == i.Id).Select(t => new CustomerLedgerRow
+            supplierData = await SupplierLedger.BuildAsync(_db, sid, ct);
+            rows.AddRange(supplierData.Rows.Select(s => new CustomerLedgerRow
             {
-                Kind = CustomerLedgerKind.InstallmentCollection, Id = i.SaleContractId, VoucherId = t.Id,
-                Source = $"سند قبض رقم {t.Serial}", Date = t.OccurredAt, Statement = phrase, Amount = t.Amount
+                Kind = CustomerLedgerKind.SupplierSide, SupplierRow = s, Id = s.Id,
+                Source = s.Source, Date = s.Date, Statement = s.Statement, Amount = s.Amount
             }));
-            // Older collections recorded on the installment without a voucher still count.
-            var missing = i.PaidAmount - collectedByInst.GetValueOrDefault(i.Id);
-            if (missing > 0)
-                rows.Add(new CustomerLedgerRow
-                {
-                    Kind = CustomerLedgerKind.InstallmentCollection, Id = i.SaleContractId,
-                    Source = i.ReceiptNo is int r ? $"إيصال رقم {r}" : "تحصيل", Date = i.PaidDate ?? i.DueDate, Statement = phrase, Amount = missing
-                });
         }
-
-        // Cancelled contracts (فسخ التعاقد): the contract is reversed, the fee kept is owed, and what's paid back settles
-        // the credit the customer is left with.
-        foreach (var c in contracts.Where(c => c.IsCancelled))
-        {
-            var at = c.CancelledAt ?? c.ContractDate;
-            rows.Add(new CustomerLedgerRow
-            {
-                Kind = CustomerLedgerKind.ContractCancel, Id = c.Id, Source = $"فسخ عقد بيع {c.Code}", Date = at,
-                Statement = $"فسخ التعاقد — {projNames.GetValueOrDefault(c.ProjectId, "—")} / {unitNames.GetValueOrDefault(c.UnitId, "—")}"
-                            + (string.IsNullOrWhiteSpace(c.CancelReason) ? "" : $" — {c.CancelReason}"),
-                Amount = c.TotalPrice
-            });
-            rows.Add(new CustomerLedgerRow
-            {
-                Kind = CustomerLedgerKind.CancelFee, Id = c.Id, Source = $"رسوم فسخ {c.Code}", Date = at,
-                Statement = $"رسوم فسخ التعاقد {c.CancelFeePercent:0.##}% من المدفوع ({c.CancelPaidAmount:N2} ج.م)", Amount = c.CancelFeeAmount
-            });
-        }
-        var cancelRefunds = await _db.SafeTransactions
-            .Where(t => t.Source == TxnSource.ContractCancelRefund && t.SaleContractId != null && contractIds.Contains(t.SaleContractId.Value)).ToListAsync(ct);
-        rows.AddRange(cancelRefunds.Select(t => new CustomerLedgerRow
-        {
-            Kind = CustomerLedgerKind.Refund, Id = t.SaleContractId!.Value, VoucherId = t.Id,
-            Source = $"سند صرف رقم {t.Serial}", Date = t.OccurredAt,
-            Statement = $"رد مستحقات عن فسخ عقد البيع {contractCode.GetValueOrDefault(t.SaleContractId.Value, "—")}", Amount = t.Amount
-        }));
-
-        // Product sales invoices, their collections, returns and refunds.
-        var invoices = await _db.ProductSalesInvoices.Where(i => i.CustomerId == customer.Id).ToListAsync(ct);
-        var invIds = invoices.Select(i => i.Id).ToList();
-        var invNo = invoices.ToDictionary(i => i.Id, i => i.Number);
-        var invTotals = await _db.ProductSalesInvoiceItems.Where(x => invIds.Contains(x.SalesInvoiceId)).GroupBy(x => x.SalesInvoiceId)
-            .Select(g => new { g.Key, Sum = g.Sum(x => x.LineTotal) }).ToDictionaryAsync(x => x.Key, x => x.Sum, ct);
-        rows.AddRange(invoices.Select(i => new CustomerLedgerRow
-        {
-            Kind = CustomerLedgerKind.Invoice, Id = i.Id, Source = $"فاتورة مبيعات SI-{i.Number}", Date = i.InvoiceDate,
-            Statement = string.IsNullOrWhiteSpace(i.Notes) ? "فاتورة مبيعات أصناف" : i.Notes!, Amount = invTotals.GetValueOrDefault(i.Id)
-        }));
-
-        var invCollections = await _db.SalesInvoiceCollections.Where(c => c.CustomerId == customer.Id).ToListAsync(ct);
-        var voucherSerials = await _db.SafeTransactions
-            .Where(t => t.Source == TxnSource.SalesInvoiceCollection || t.Source == TxnSource.SalesReturnRefund)
-            .Select(t => new { t.Id, t.Serial }).ToDictionaryAsync(t => t.Id, t => t.Serial, ct);
-        rows.AddRange(invCollections.Select(c => new CustomerLedgerRow
-        {
-            Kind = CustomerLedgerKind.InvoiceCollection, Id = c.SalesInvoiceId, VoucherId = c.SafeTransactionId,
-            Source = c.SafeTransactionId is Guid v && voucherSerials.TryGetValue(v, out var sn) ? $"سند قبض رقم {sn}" : "تحصيل",
-            Date = c.CollectedDate, Statement = $"تحصيل فاتورة مبيعات SI-{invNo.GetValueOrDefault(c.SalesInvoiceId)}", Amount = c.Amount
-        }));
-
-        var returns = await _db.ProductSalesReturns.Where(r => r.CustomerId == customer.Id).ToListAsync(ct);
-        var retIds = returns.Select(r => r.Id).ToList();
-        var retTotals = await _db.ProductSalesReturnItems.Where(x => retIds.Contains(x.SalesReturnId)).GroupBy(x => x.SalesReturnId)
-            .Select(g => new { g.Key, Sum = g.Sum(x => x.LineTotal) }).ToDictionaryAsync(x => x.Key, x => x.Sum, ct);
-        rows.AddRange(returns.Select(r => new CustomerLedgerRow
-        {
-            Kind = CustomerLedgerKind.Return, Id = r.Id, Source = $"مرتجع مبيعات SR-{r.Number}", Date = r.ReturnDate,
-            Statement = $"مرتجع على الفاتورة SI-{invNo.GetValueOrDefault(r.SalesInvoiceId)}" + (string.IsNullOrWhiteSpace(r.Notes) ? "" : $" — {r.Notes}"),
-            Amount = retTotals.GetValueOrDefault(r.Id)
-        }));
-        rows.AddRange(returns.Where(r => r.RefundAmount > 0).Select(r => new CustomerLedgerRow
-        {
-            Kind = CustomerLedgerKind.Refund, Id = r.Id, VoucherId = r.RefundTransactionId,
-            Source = r.RefundVoucherNo is long vn ? $"سند صرف رقم {vn}" : "رد نقدية", Date = r.ReturnDate,
-            Statement = $"رد نقدية للعميل عن مرتجع المبيعات SR-{r.Number}", Amount = r.RefundAmount
-        }));
-
-        // The opening balance (الأرصدة الافتتاحية): debit = owed by the customer (+), credit = owed to them (−).
-        var opening = await _db.AccountOpeningBalances.AsNoTracking()
-            .FirstOrDefaultAsync(b => b.Account!.SubKind == "Customer" && b.Account.SubRefId == customer.Id, ct);
-        if (opening is not null)
-            rows.Add(new CustomerLedgerRow
-            {
-                Kind = opening.IsDebit ? CustomerLedgerKind.OpeningDebit : CustomerLedgerKind.OpeningCredit, Id = customer.Id,
-                Source = "رصيد افتتاحي", Date = opening.Date, Amount = opening.Amount,
-                Statement = opening.IsDebit ? "رصيد افتتاحي مدين — مستحق على العميل" : "رصيد افتتاحي دائن — مستحق للعميل"
-            });
-
-        // Vouchers on the customer's account from المصروفات / الإيرادات (سند قبض −, سند صرف +).
-        var accountVouchers = await _db.SafeTransactions.Where(t => t.Source == TxnSource.CustomerAccount && t.CustomerId == customer.Id).ToListAsync(ct);
-        rows.AddRange(accountVouchers.Select(t => new CustomerLedgerRow
-        {
-            Kind = t.Type == TxnType.Income ? CustomerLedgerKind.AccountReceipt : CustomerLedgerKind.AccountPayment,
-            Id = t.Id, VoucherId = t.Id,
-            Source = t.Type == TxnType.Income ? $"سند قبض رقم {t.Serial}" : $"سند صرف رقم {t.Serial}",
-            Date = t.OccurredAt,
-            Statement = (t.Type == TxnType.Income ? "تحصيل على الحساب" : "صرف للعميل على الحساب") + (string.IsNullOrWhiteSpace(t.Description) ? "" : $" — {t.Description}"),
-            Amount = t.Amount
-        }));
 
         var ordered = rows.Where(r => r.Amount != 0).OrderBy(r => r.Date).ThenBy(r => r.DayOrder).ToList();
         decimal running = 0;
@@ -335,6 +255,9 @@ public class CustomersController : Controller
             ? running
             : ordered.Where(r => r.Date < to.Value.Date.AddDays(1)).Select(r => r.Balance).DefaultIfEmpty(0m).Last();
 
+        var shown = WithPeriodOpening(ordered, from, ordered.Where(r => InRange(r.Date)).ToList());
+        await CustomerLedger.AttachItemsAsync(_db, shown, ct);
+
         return new CustomerLedgerVm
         {
             Customer = customer, From = from, To = to,
@@ -342,11 +265,33 @@ public class CustomersController : Controller
                                - ordered.Where(r => r.Kind is CustomerLedgerKind.Return or CustomerLedgerKind.ContractCancel).Sum(r => r.Amount),
             TotalPaid = ordered.Where(r => r.Kind is CustomerLedgerKind.InstallmentCollection or CustomerLedgerKind.InvoiceCollection or CustomerLedgerKind.AccountReceipt or CustomerLedgerKind.OpeningCredit).Sum(r => r.Amount)
                         - ordered.Where(r => r.Kind is CustomerLedgerKind.Refund or CustomerLedgerKind.AccountPayment).Sum(r => r.Amount),
-            DocumentsCount = contracts.Count(c => !c.IsCancelled) + invoices.Count,
+            // Contracts still in force (each cancelled one also has a ContractCancel row) + sales invoices.
+            DocumentsCount = rows.Count(r => r.Kind is CustomerLedgerKind.Contract or CustomerLedgerKind.Invoice) - rows.Count(r => r.Kind == CustomerLedgerKind.ContractCancel),
             CollectionsCount = ordered.Count(r => r.Kind is CustomerLedgerKind.InstallmentCollection or CustomerLedgerKind.InvoiceCollection or CustomerLedgerKind.AccountReceipt),
-            Rows = ordered.Where(r => InRange(r.Date)).ToList(),
+            Rows = shown,
             ClosingBalance = closing,
+            LinkedSupplier = linkedSupplier,
+            SupplierObligations = supplierData?.TotalObligations ?? 0,
+            SupplierPaid = supplierData?.TotalPaid ?? 0,
+            SupplierInvoicesCount = supplierData?.InvoicesCount ?? 0,
         };
+    }
+
+    /// <summary>
+    /// A period that starts after the account's first movement opens with «الرصيد الافتتاحي للفترة»: the balance
+    /// accumulated by every movement before <paramref name="from"/>.
+    /// </summary>
+    private static List<CustomerLedgerRow> WithPeriodOpening(List<CustomerLedgerRow> all, DateTime? from, List<CustomerLedgerRow> inRange)
+    {
+        if (from is null || all.LastOrDefault(r => r.Date < from.Value) is not { } last) return inRange;
+        inRange.Insert(0, new CustomerLedgerRow
+        {
+            Kind = CustomerLedgerKind.PeriodOpening, Id = Guid.Empty, Date = from.Value,
+            Source = "الرصيد الافتتاحي للفترة",
+            Statement = $"رصيد الحساب المُرحَّل قبل {RealState.Web.AppCulture.Day(from.Value)}",
+            Amount = last.Balance, BalanceBefore = last.Balance, Balance = last.Balance
+        });
+        return inRange;
     }
 
     private async Task<CustomerStatementVm> BuildStatementAsync(Customer customer, CancellationToken ct)
@@ -419,7 +364,8 @@ public class CustomersController : Controller
             SalesPersonId = c.SalesPersonId,
             Notes = c.Notes,
             IsLead = c.IsLead,
-            Interest = c.Interest
+            Interest = c.Interest,
+            IsAlsoSupplier = c.SupplierId.HasValue
         }, ct));
     }
 
@@ -445,11 +391,39 @@ public class CustomersController : Controller
         if (await _db.Customers.AnyAsync(c => c.Id != model.Id && c.Phone == model.Phone, ct))
             ModelState.AddModelError(nameof(model.Phone), "رقم الهاتف مستخدم بالفعل.");
 
+        // «عميل ومورد»: the supplier record of the same party — the current link, else the supplier with the same phone (the
+        // same party), else a new one with the customer's data. Real customers only (a lead isn't a customer yet; the
+        // built-in cash customer stays a plain customer).
+        var stored = model.Id == Guid.Empty ? null
+            : await _db.Customers.Where(x => x.Id == model.Id).Select(x => new { x.IsLead, x.IsDefaultCash, x.SupplierId }).FirstOrDefaultAsync(ct);
+        var isLeadRecord = stored?.IsLead ?? model.IsLead;
+        var linked = stored?.SupplierId is Guid ls ? await _db.Suppliers.FirstOrDefaultAsync(s => s.Id == ls, ct) : null;
+        Supplier? target = null;
+        if (model.IsAlsoSupplier && !isLeadRecord && Can(PermissionNames.SuppliersView))
+        {
+            if (stored?.IsDefaultCash == true)
+                ModelState.AddModelError(nameof(model.IsAlsoSupplier), "العميل النقدي الافتراضي لا يمكن أن يكون موردًا.");
+            else if (linked is not null) target = linked;
+            else if (await _db.Suppliers.FirstOrDefaultAsync(s => s.Phone == model.Phone, ct) is { } same)
+            {
+                if (same.IsDefaultCash || await _db.Customers.AnyAsync(c => c.SupplierId == same.Id && c.Id != model.Id, ct))
+                    ModelState.AddModelError(nameof(model.IsAlsoSupplier), $"رقم الهاتف مستخدم للمورد «{same.Name}» المرتبط بعميل آخر.");
+                else target = same;
+            }
+            else if (!Can(PermissionNames.SuppliersCreate))
+                ModelState.AddModelError(nameof(model.IsAlsoSupplier), "لا تملك صلاحية إضافة مورد.");
+            // Both records keep the same basic data — the supplier's phone must stay unique too.
+            if (target is not null
+                && await _db.Suppliers.AnyAsync(s => s.Id != target.Id && s.Phone == model.Phone, ct))
+                ModelState.AddModelError(nameof(model.Phone), "رقم الهاتف مستخدم لمورد آخر.");
+        }
+
         if (!ModelState.IsValid) return PartialView("_CustomerForm", await FillAsync(model, ct));
 
+        Customer customer;
         if (model.Id == Guid.Empty)
         {
-            var c = new Customer
+            var c = customer = new Customer
             {
                 FullName = model.FullName,
                 Phone = model.Phone,
@@ -484,12 +458,32 @@ public class CustomersController : Controller
             c.SalesPersonId = model.SalesPersonId;
             c.Notes = model.Notes;
             ApplyChannel(c, model);
+            customer = c;
+        }
+
+        // Without the suppliers view the form has no «عميل ومورد» field — leave the link as it is.
+        if (!isLeadRecord && Can(PermissionNames.SuppliersView))
+        {
+            if (model.IsAlsoSupplier)
+            {
+                if (target is null)
+                {
+                    target = new Supplier { Name = model.FullName, Phone = model.Phone, Email = model.Email };
+                    _db.Suppliers.Add(target);
+                }
+                else
+                {
+                    target.Name = model.FullName; target.Phone = model.Phone; target.Email = model.Email;   // same party, same data
+                }
+                customer.SupplierId = target.Id;
+            }
+            else customer.SupplierId = null;   // no longer a supplier too — both records stay, unlinked
         }
 
         await _db.SaveChangesAsync(ct);
         TempData["StatusMessage"] = model.IsLead && model.Id == Guid.Empty
             ? $"تمت إضافة العميل المحتمل «{model.FullName}»."
-            : $"تم حفظ العميل «{model.FullName}».";
+            : $"تم حفظ العميل «{model.FullName}»." + (customer.SupplierId.HasValue && target is not null ? $" (عميل ومورد — مرتبط بالمورد «{target.Name}»)" : "");
         return Json(new { ok = true });
     }
 

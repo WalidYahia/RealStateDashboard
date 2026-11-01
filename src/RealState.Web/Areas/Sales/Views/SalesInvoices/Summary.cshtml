@@ -96,7 +96,7 @@
     <div class="card-tile">
         <div class="card-head"><h3>آخر الفواتير</h3><a class="btn-sm" asp-action="Index">عرض الكل</a></div>
         <table class="rs-table">
-            <thead><tr><th>الرقم</th><th>العميل</th><th>الإجمالي</th><th>المتبقي</th><th>التاريخ</th></tr></thead>
+            <thead><tr><th>الرقم</th><th>العميل</th><th>الإجمالي</th><th>الدفع</th><th>التاريخ</th></tr></thead>
             <tbody>
             @foreach (var i in Model.Latest)
             {
@@ -104,7 +104,7 @@
                     <td><a asp-action="Details" asp-route-id="@i.Id" dir="ltr" style="color:var(--series-1);font-weight:600;text-decoration:none;">SI-@i.Number</a></td>
                     <td>@i.Customer</td>
                     <td class="tag-up">@N(i.Total)</td>
-                    <td>@N(i.Remaining)</td>
+                    <td><span class="badge-state @i.PaymentType.BadgeClass()">@i.PaymentType.Ar()</span></td>
                     <td dir="ltr" style="text-align:right;">@D(i.Date)</td>
                 </tr>
             }

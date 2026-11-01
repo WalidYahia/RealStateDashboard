@@ -24,28 +24,28 @@ public class DailyReportVm
 }
 
 // ---------- Customer report ----------
+/// <summary>A customer's current account (its statement, all time): what it was charged (مدين), what settled it (دائن)
+/// and the balance (+ = owed by them, مدين / − = owed to them, دائن). For a «عميل ومورد» party it is the merged statement —
+/// both accounts, so the balance is the net.</summary>
 public class CustomerReportRow
 {
+    public Guid Id { get; set; }
     public string Name { get; set; } = string.Empty;
     public string? Phone { get; set; }
-    public int Contracts { get; set; }
-    public decimal ContractsValue { get; set; }
-    public int RemainingInstallments { get; set; }
-    public decimal Collected { get; set; }
-    public decimal Residual { get; set; }
+    public decimal Debit { get; set; }
+    public decimal Credit { get; set; }
+    public decimal Balance => Debit - Credit;
+    /// <summary>«عميل ومورد»: also a supplier — its supplier account is included.</summary>
+    public bool IsLinked { get; set; }
 }
 
 public class CustomerReportVm
 {
-    public DateTime? From { get; set; }
-    public DateTime? To { get; set; }
     public List<CustomerReportRow> Rows { get; set; } = new();
 
-    public int TotContracts => Rows.Sum(r => r.Contracts);
-    public decimal TotValue => Rows.Sum(r => r.ContractsValue);
-    public int TotRemInst => Rows.Sum(r => r.RemainingInstallments);
-    public decimal TotCollected => Rows.Sum(r => r.Collected);
-    public decimal TotResidual => Rows.Sum(r => r.Residual);
+    public decimal TotDebit => Rows.Sum(r => r.Debit);
+    public decimal TotCredit => Rows.Sum(r => r.Credit);
+    public decimal TotBalance => Rows.Sum(r => r.Balance);
 }
 
 // ---------- Projects report ----------
@@ -78,26 +78,28 @@ public class ProjectReportVm
 }
 
 // ---------- Supplier report ----------
+/// <summary>A supplier's current account (its statement, all time): what it is owed for (دائن), what settled it (مدين)
+/// and the balance (+ = owed to them, دائن / − = owed by them, مدين). For a «عميل ومورد» party it is the merged statement —
+/// both accounts, so the balance is the net.</summary>
 public class SupplierReportRow
 {
+    public Guid Id { get; set; }
     public string Name { get; set; } = string.Empty;
     public string? Phone { get; set; }
-    public int Orders { get; set; }
-    public decimal OrdersValue { get; set; }
-    public decimal Paid { get; set; }
-    public decimal Residual { get; set; }
+    public decimal Credit { get; set; }
+    public decimal Debit { get; set; }
+    public decimal Balance => Credit - Debit;
+    /// <summary>«عميل ومورد»: also a customer — its customer account is included.</summary>
+    public bool IsLinked { get; set; }
 }
 
 public class SupplierReportVm
 {
-    public DateTime? From { get; set; }
-    public DateTime? To { get; set; }
     public List<SupplierReportRow> Rows { get; set; } = new();
 
-    public int TotOrders => Rows.Sum(r => r.Orders);
-    public decimal TotValue => Rows.Sum(r => r.OrdersValue);
-    public decimal TotPaid => Rows.Sum(r => r.Paid);
-    public decimal TotResidual => Rows.Sum(r => r.Residual);
+    public decimal TotCredit => Rows.Sum(r => r.Credit);
+    public decimal TotDebit => Rows.Sum(r => r.Debit);
+    public decimal TotBalance => Rows.Sum(r => r.Balance);
 }
 
 // ---------- Sales profits report (أرباح المبيعات) ----------

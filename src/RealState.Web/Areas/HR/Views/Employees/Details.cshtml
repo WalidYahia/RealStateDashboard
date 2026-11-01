@@ -41,7 +41,8 @@
     <div class="card-tile">
         <div class="card-head"><h3>بيانات العمل</h3></div>
         <table class="rs-table">
-            <tr><th style="width:170px;">القسم</th><td>@(Model.Department?.Name ?? "—")</td></tr>
+            <tr><th style="width:170px;">الموقع / الفرع</th><td>@(Model.Branch?.Name ?? "—")</td></tr>
+            <tr><th>القسم</th><td>@(Model.Department?.Name ?? "—")</td></tr>
             <tr><th>الوظيفة</th><td>@(Model.JobRole?.Name ?? "—")</td></tr>
             <tr><th>تاريخ بدء العمل</th><td>@D(Model.HireDate)</td></tr>
             <tr><th>نوع التعاقد</th><td>@Model.EmploymentType.Ar()</td></tr>

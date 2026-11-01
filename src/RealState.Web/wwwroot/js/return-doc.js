@@ -1,8 +1,8 @@
 // Sales / purchase return form (Views/Shared/Returns/_ReturnForm.cshtml), loaded into the shared modal:
 //  • picking the invoice reloads the form with that invoice's lines;
 //  • each returned quantity is capped by what's still returnable, and the line totals / return value follow it;
-//  • the cash refund keeps within its limits: at least the part of the return the invoice no longer owes
-//    (value − remaining), at most the return's value capped by what was paid and not refunded yet.
+//  • the cash refund keeps within its limit: payments are on the party's account, so the return lowers the account's
+//    balance and cash may change hands only for what it pushes past it (value − balance, at most the value).
 // The server applies the same rules.
 (function () {
     function num(v) { var n = parseFloat(v); return isFinite(n) ? n : 0; }
@@ -24,25 +24,26 @@
         var t = form.querySelector('[data-ret-total]');
         if (t) t.textContent = money(total);
 
-        var remaining = Math.max(num(form.getAttribute('data-ret-remaining')), 0);
-        var netPaid = num(form.getAttribute('data-ret-netpaid'));
-        var min = Math.max(0, Math.round((total - remaining) * 100) / 100);
-        var max = Math.max(0, Math.round(Math.min(total, netPaid) * 100) / 100);
+        // The account's balance before the return: what the customer owes / what's owed to the supplier.
+        var balance = num(form.getAttribute('data-ret-balance'));
+        var sales = form.getAttribute('data-ret-sales') === '1';
+        var max = Math.max(0, Math.round(Math.min(total, total - balance) * 100) / 100);
         var refund = form.querySelector('[data-ret-refund]');
         if (refund) {
-            refund.min = min; refund.max = max;
-            // Follow the minimum until the user types an amount of their own; always keep it within the limits.
-            if (!fromRefund && !refund.dataset.touched) refund.value = min.toFixed(2);
+            refund.min = 0; refund.max = max;
+            // Nothing in cash until the user types an amount of their own; always keep it within the limit.
+            if (!fromRefund && !refund.dataset.touched) refund.value = (0).toFixed(2);
             var r = num(refund.value);
-            if (r < min) refund.value = min.toFixed(2);
+            if (r < 0) refund.value = (0).toFixed(2);
             if (r > max) refund.value = max.toFixed(2);
         }
         var hint = form.querySelector('[data-ret-hint]');
         if (hint) {
+            var owed = sales ? 'المستحق على العميل' : 'المستحق للمورد';
             hint.textContent = total <= 0
-                ? 'أدخل الكميات المرتجعة؛ قيمة المرتجع تُخصم من المتبقي على الفاتورة، وما يزيد عنه يُرد نقدًا.'
-                : 'قيمة المرتجع ' + money(total) + ' ج.م — المبلغ النقدي من ' + money(min) + ' إلى ' + money(max) + ' ج.م'
-                  + (min > 0 ? ' (الحد الأدنى = ما يزيد عن المتبقي على الفاتورة ' + money(remaining) + ' ج.م).' : '؛ الباقي يُخصم من الرصيد.');
+                ? 'أدخل الكميات المرتجعة؛ قيمة المرتجع تُخصم من ' + owed + '، وما يزيد عنه يجوز ' + (sales ? 'رده' : 'استرداده') + ' نقدًا.'
+                : 'قيمة المرتجع ' + money(total) + ' ج.م تُخصم من ' + owed + ' (' + money(Math.max(balance, 0)) + ' ج.م)'
+                  + (max > 0 ? ' — المبلغ النقدي حتى ' + money(max) + ' ج.م، والباقي يبقى رصيدًا.' : ' — لا يزيد عنه، فلا مبلغ نقدي.');
         }
     }
 

@@ -12,7 +12,6 @@
         @foreach (var r in Model)
         {
             var rem = r.Amount - r.PaidAmount;
-            var isDown = r.Type == InstallmentType.DownPayment;
             <tr>
                 <td>@r.CustomerName</td>
                 <td>@r.UnitLabel</td>
@@ -32,8 +31,8 @@
                     @if (payable && canEdit)
                     {
                         <form class="pay-form" asp-action="Pay" asp-route-id="@r.InstallmentId" method="post" style="display:inline;"
-                              data-partial="@(isDown ? "true" : "false")" data-remaining="@RawNum(rem)"
-                              data-msg="@(isDown ? $"تحصيل المقدم من «{r.CustomerName}»" : $"تحصيل {ArabicLabels.InstPhrase(r.Number, r.Type)} من «{r.CustomerName}» بقيمة {N(rem)} ج.م؟")">
+                              data-remaining="@RawNum(rem)"
+                              data-msg="@($"تحصيل {ArabicLabels.InstPhrase(r.Number, r.Type)} من «{r.CustomerName}» — المتبقي {N(rem)} ج.م")">
                             @Html.AntiForgeryToken()
                             <input type="hidden" name="safeId" class="pay-safe" />
                             <input type="hidden" name="amount" class="pay-amount" />

@@ -26,7 +26,7 @@
         @foreach (var c in Model)
         {
             <tr data-search="@(((c.FullName ?? "") + " " + (c.Phone ?? "")).ToLower())">
-                <td>@c.FullName</td>
+                <td>@c.FullName @if (c.SupplierId.HasValue) { <span class="badge-state state-warn" style="font-size:11px;">عميل ومورد</span> }</td>
                 <td><span class="phone-cell"><span dir="ltr">@c.Phone</span>@ContactLinks.Buttons(c.Phone)</span></td>
                 <td dir="ltr" style="text-align:right;">@c.Email</td>
                 <td>@c.SourceLabel(campaignNames)</td>

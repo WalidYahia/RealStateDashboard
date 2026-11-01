@@ -161,18 +161,16 @@ public class PurchaseReturnsController : Controller
             }
         }
 
-        // Money: the return's value, and the refund it needs / allows on this invoice.
+        // Money: the return's value, and the refund it allows on the supplier's account (deducted there otherwise).
         decimal LineTotal(ReturnLineInput l) => invItems.TryGetValue(l.InvoiceItemId, out var it) ? Math.Round(it.Cost * Qty(l), 2) : 0m;
         var total = lines.Sum(LineTotal);
-        var position = await PositionAsync(inv.Id, ct);
-        var minRefund = position.MinRefund(total);
+        var position = await PositionAsync(inv.SupplierId, ct);
         var maxRefund = position.MaxRefund(total);
         if (model.RefundAmount < 0) ModelState.AddModelError(nameof(model.RefundAmount), "المبلغ لا يمكن أن يكون سالبًا.");
-        else if (model.RefundAmount < minRefund)
-            ModelState.AddModelError(nameof(model.RefundAmount),
-                $"يجب استرداد {minRefund:N2} ج.م على الأقل من المورد — المتبقي له على الفاتورة ({Math.Max(position.Remaining, 0):N2} ج.م) أقل من قيمة المرتجع ({total:N2} ج.م).");
         else if (model.RefundAmount > maxRefund)
-            ModelState.AddModelError(nameof(model.RefundAmount), $"لا يمكن استرداد أكثر من {maxRefund:N2} ج.م (قيمة المرتجع، وبحد أقصى ما سُدِّد على الفاتورة ولم يُسترد).");
+            ModelState.AddModelError(nameof(model.RefundAmount), maxRefund <= 0
+                ? $"لا يمكن استرداد نقدية — المستحق للمورد ({position.Balance:N2} ج.م) يغطي قيمة المرتجع ({total:N2} ج.م)، فتُخصم منه."
+                : $"لا يمكن استرداد أكثر من {maxRefund:N2} ج.م — ما يزيد به المرتجع ({total:N2} ج.م) عن المستحق للمورد ({Math.Max(position.Balance, 0):N2} ج.م).");
         if (model.RefundAmount > 0 && (model.RefundSafeId is null || !await _db.Safes.AnyAsync(s => s.Id == model.RefundSafeId && s.IsActive, ct)))
             ModelState.AddModelError(nameof(model.RefundSafeId), "اختر الخزنة التي يُستلم فيها المبلغ.");
 
@@ -316,8 +314,8 @@ public class PurchaseReturnsController : Controller
 
 /// <summary>
     /// Deletes the return's cash refund only — the return stays, and its value is credited to the supplier's
-    /// balance instead. The refund movement and its journal entry are removed (the money leaves the safe again — the overdraft rule applies).
-    /// Allowed only while the invoice still owes at least the refund, so it can't end up overpaid.
+    /// balance instead (which may leave the supplier owing). The refund movement and its journal entry are removed (the
+    /// money leaves the safe again — the overdraft rule applies).
     /// </summary>
     [HttpPost]
     [Authorize(Policy = PermissionNames.PurchaseReturnsDeleteRefund)]
@@ -327,12 +325,6 @@ public class PurchaseReturnsController : Controller
         var ret = await _db.PurchaseReturns.FirstOrDefaultAsync(r => r.Id == id, ct);
         if (ret is null) return NotFound();
         if (ret.RefundAmount <= 0) { TempData["ErrorMessage"] = "لا يوجد مبلغ نقدي على هذا المرتجع."; return RedirectToAction(nameof(Details), new { id }); }
-        var position = await PositionAsync(ret.PurchaseInvoiceId, ct);
-        if (position.Remaining - ret.RefundAmount < 0)
-        {
-            TempData["ErrorMessage"] = $"لا يمكن حذف المبلغ النقدي ({ret.RefundAmount:N2} ج.م) للمرتجع {PR(ret.Number)}: المتبقي على الفاتورة ({Math.Max(position.Remaining, 0):N2} ج.م) لا يكفي لخصمه من الرصيد — احذف المرتجع بالكامل بدلًا من ذلك.";
-            return RedirectToAction(nameof(Details), new { id });
-        }
         var txn = ret.RefundTransactionId is Guid tid ? await _db.SafeTransactions.FirstOrDefaultAsync(t => t.Id == tid, ct) : null;
         if (txn is not null && await _guard.CheckWithdrawalAsync(txn.SafeId, txn.Amount, ct) is string overdraw)
         {
@@ -402,20 +394,15 @@ public class PurchaseReturnsController : Controller
             Refund = ret.RefundAmount, RefundVoucherNo = ret.RefundVoucherNo,
             RefundSafe = ret.RefundSafeId.HasValue ? await _db.Safes.Where(s => s.Id == ret.RefundSafeId).Select(s => s.Name).FirstOrDefaultAsync(ct) : null,
             StockDocs = docs.Select(d => new ReturnStockDocRef(d.Id, d.Number, d.Date, d.Status, d.Cost)).ToList(),
-            Invoice = await PositionAsync(ret.PurchaseInvoiceId, ct),
+            PartyBalance = (await SupplierLedger.BuildAsync(_db, ret.SupplierId, ct)).Balance,
             CanDelete = Can(PermissionNames.PurchaseReturnsDelete),
             CanDeleteRefund = Can(PermissionNames.PurchaseReturnsDeleteRefund),
         };
     }
 
-    /// <summary>The invoice's money position after all its saved returns.</summary>
-    private async Task<ReturnInvoicePosition> PositionAsync(Guid invoiceId, CancellationToken ct)
-    {
-        var total = await _db.PurchaseInvoiceItems.Where(i => i.PurchaseInvoiceId == invoiceId).SumAsync(i => (decimal?)i.LineTotal, ct) ?? 0m;
-        var paid = await _db.SupplierPayments.Where(p => p.PurchaseInvoiceId == invoiceId).SumAsync(p => (decimal?)p.Amount, ct) ?? 0m;
-        var r = await InvoiceReturns.ForPurchaseInvoiceAsync(_db, invoiceId, ct);
-        return new ReturnInvoicePosition(total, r.Returned, paid, r.Refunded);
-    }
+    /// <summary>The supplier's account as it stands (before a new return).</summary>
+    private async Task<ReturnPartyPosition> PositionAsync(Guid supplierId, CancellationToken ct)
+        => new((await SupplierLedger.BuildAsync(_db, supplierId, ct)).Balance);
 
     /// <summary>Quantity already returned per invoice line (in the line's own unit).</summary>
     private async Task<Dictionary<Guid, decimal>> ReturnedQtyAsync(Guid invoiceId, CancellationToken ct)
@@ -473,7 +460,7 @@ public class PurchaseReturnsController : Controller
             var trackedIds = (await _db.Products.Where(p => productIds.Contains(p.Id) && p.TrackInventory).Select(p => p.Id).ToListAsync(ct)).ToHashSet();
             var before = await ReturnedQtyAsync(inv.Id, ct);
             model.Rows = items.Select(i => new ReturnLineVm(i.Id, i.Name, i.Unit, i.Cost, i.Quantity, before.GetValueOrDefault(i.Id), trackedIds.Contains(i.ProductId))).ToList();
-            model.Position = await PositionAsync(inv.Id, ct);
+            model.Position = await PositionAsync(inv.SupplierId, ct);
         }
         return model;
     }

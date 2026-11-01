@@ -57,12 +57,21 @@
             <tbody>
             @foreach (var r in Model.Rows)
             {
+                if (r.Kind == ContractorLedgerKind.PeriodOpening)
+                {
+                    @* «الرصيد الافتتاحي للفترة»: the balance carried in from before the period — balance only. *@
+                    <tr class="period-opening" data-skip-search><td></td><td></td><td dir="ltr" style="text-align:right;">@D(r.Date)</td><td colspan="10">@r.Statement</td><td><strong>@N(r.Balance)</strong></td><td></td></tr>
+                    continue;
+                }
                 var isOrder = r.Kind == ContractorLedgerKind.Order;
+                var isOpening = r.Kind == ContractorLedgerKind.Opening;
                 <tr>
                     <td>@(i++)</td>
                     <td>@(isOrder ? r.Project : "")</td>
                     <td dir="ltr" style="text-align:right;">@D(r.Date)</td>
-                    <td>@if (isOrder) { @r.Statement } else { <a asp-controller="WorkOrders" asp-action="Receipt" asp-route-id="@r.Id" target="_blank" style="color:var(--series-1);">@r.Statement</a> }</td>
+                    <td>@if (isOpening) { <span class="badge-state state-warn">@r.Statement</span> } else if (isOrder) { @r.Statement }
+                        else if (r.Kind is ContractorLedgerKind.AccountPayment or ContractorLedgerKind.AccountReceipt) { <a asp-area="Accounting" asp-controller="@(r.Kind == ContractorLedgerKind.AccountPayment ? "Expenses" : "Incomes")" asp-action="PrintOne" asp-route-id="@r.Id" target="_blank" style="color:var(--series-1);">@r.Statement</a> }
+                        else { <a asp-controller="WorkOrders" asp-action="Receipt" asp-route-id="@r.Id" target="_blank" style="color:var(--series-1);">@r.Statement</a> }</td>
                     <td>@(isOrder ? r.Unit : "")</td>
                     <td>@(isOrder ? N(r.Quantity) : "")</td>
                     <td>@(isOrder ? N(r.Rate) : "")</td>
@@ -70,8 +79,8 @@
                     <td>@(isOrder ? N(r.Due) : "")</td>
                     <td>@(isOrder ? P(r.UpliftPercent) : "")</td>
                     <td>@(isOrder ? N(r.Deductions) : "")</td>
-                    <td>@(isOrder ? N(r.ActualTotal) : "")</td>
-                    <td class="tag-up">@(isOrder ? "" : N(r.Payment))</td>
+                    <td>@(isOrder || r.ActualTotal > 0 ? N(r.ActualTotal) : "")</td>
+                    <td class="tag-up">@(r.Payment > 0 ? N(r.Payment) : "")</td>
                     <td><strong>@N(r.Balance)</strong></td>
                     <td>@(string.IsNullOrEmpty(r.Notes) ? "" : r.Notes)</td>
                 </tr>

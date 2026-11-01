@@ -104,25 +104,29 @@ public class SafeRow
 }
 
 /// <summary>Create/update a manual income or expense (Type is fixed by the controller).</summary>
-/// <summary>Whose account a manual income / expense voucher moves: none (a بند), a customer or a supplier.</summary>
-public enum TxnParty { Other = 0, Customer = 1, Supplier = 2 }
+/// <summary>Whose account a manual income / expense voucher moves: none (a بند), a customer, a supplier or a contractor.</summary>
+public enum TxnParty { Other = 0, Customer = 1, Supplier = 2, Contractor = 3 }
 
 public class TxnFormModel
 {
     public Guid Id { get; set; }
 
-    // --- The account the voucher is on (الحساب): عميل / مورد / أخرى (a بند) ---
+    // --- The account the voucher is on (الحساب): عميل / مورد / مقاول / أخرى (a بند) ---
     [Display(Name = "الحساب")]
     public TxnParty Party { get; set; } = TxnParty.Other;
     [Display(Name = "العميل")]
     public Guid? CustomerId { get; set; }
     [Display(Name = "المورد")]
     public Guid? SupplierId { get; set; }
+    [Display(Name = "المقاول")]
+    public Guid? ContractorId { get; set; }
     public List<SelectListItem> Customers { get; set; } = new();
     public List<SelectListItem> Suppliers { get; set; } = new();
-    /// <summary>The customer / supplier options are offered with the matching view permission.</summary>
+    public List<SelectListItem> Contractors { get; set; } = new();
+    /// <summary>The customer / supplier / contractor options are offered with the matching view permission.</summary>
     public bool CanCustomers { get; set; }
     public bool CanSuppliers { get; set; }
+    public bool CanContractors { get; set; }
 
     [Range(0.01, 999999999999, ErrorMessage = "المبلغ مطلوب")]
     [Display(Name = "المبلغ (ج.م)")]
@@ -205,7 +209,7 @@ public class TxnRow
     public string? DocNo { get; set; }
     public bool IsTransfer => Source == TxnSource.SafeTransfer;
     /// <summary>Entered on this page (a بند, or on a customer / supplier account) — editable and deletable here.</summary>
-    public bool IsManual => Source is TxnSource.Manual or TxnSource.CustomerAccount or TxnSource.SupplierAccount;
+    public bool IsManual => Source is TxnSource.Manual or TxnSource.CustomerAccount or TxnSource.SupplierAccount or TxnSource.ContractorAccount;
     /// <summary>An advance disbursement expense — deletable here to "un-disburse" the advance.</summary>
     public bool IsAdvanceDisbursement => Source == TxnSource.AdvanceDisbursement;
     /// <summary>An advance repayment income (سداد سلفة) — deletable here to reverse that repayment.</summary>

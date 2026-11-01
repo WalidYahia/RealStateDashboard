@@ -75,6 +75,7 @@ public class ApplicationDbContext
     public DbSet<CampaignUpdate> CampaignUpdates => Set<CampaignUpdate>();
     public DbSet<Employee> Employees => Set<Employee>();
     public DbSet<Department> Departments => Set<Department>();
+    public DbSet<Branch> Branches => Set<Branch>();
     public DbSet<JobRole> JobRoles => Set<JobRole>();
     public DbSet<AttendanceSetting> AttendanceSettings => Set<AttendanceSetting>();
     public DbSet<LateDeductionRule> LateDeductionRules => Set<LateDeductionRule>();
@@ -183,12 +184,14 @@ public class ApplicationDbContext
 
         builder.Entity<Permission>().HasIndex(p => p.Name).IsUnique();
         builder.Entity<RolePermission>().HasIndex(rp => new { rp.RoleId, rp.PermissionId }).IsUnique();
+        // «عميل ومورد»: a customer linked to the supplier record of the same party (no FK — both sides soft-delete independently).
+        builder.Entity<Customer>().HasIndex(c => c.SupplierId);
 
         // Double-entry ledger: unique code/number per tenant, subsidiary + source lookups, cascade lines.
         builder.Entity<Account>().HasIndex(a => new { a.TenantId, a.Code }).IsUnique().HasFilter("[IsDeleted] = 0");
         builder.Entity<Account>().HasIndex(a => new { a.TenantId, a.SubKind, a.SubRefId });
         builder.Entity<Account>().HasOne(a => a.Parent).WithMany().HasForeignKey(a => a.ParentId).OnDelete(DeleteBehavior.Restrict);
-        builder.Entity<JournalEntry>().HasIndex(e => new { e.TenantId, e.Number }).IsUnique().HasFilter("[IsDeleted] = 0");
+        builder.Entity<JournalEntry>().HasIndex(e => new { e.TenantId, e.Number }).IsUnique().HasFilter("[IsDeleted] = 0");
         // One opening balance per account.
         builder.Entity<AccountOpeningBalance>().HasIndex(b => new { b.TenantId, b.AccountId }).IsUnique().HasFilter("[IsDeleted] = 0");
         builder.Entity<AccountOpeningBalance>().HasOne(b => b.Account).WithMany().HasForeignKey(b => b.AccountId).OnDelete(DeleteBehavior.Restrict);
@@ -374,6 +377,8 @@ public class ApplicationDbContext
         // HR relationships — restrict most (deletes handled in code); employee attachments & advance
         // repayments cascade with their parent.
         builder.Entity<Employee>().HasOne(e => e.Department).WithMany().HasForeignKey(e => e.DepartmentId).OnDelete(DeleteBehavior.Restrict);
+        builder.Entity<Employee>().HasOne(e => e.Branch).WithMany().HasForeignKey(e => e.BranchId).OnDelete(DeleteBehavior.Restrict);
+        builder.Entity<Branch>().HasIndex(b => new { b.TenantId, b.Number }).IsUnique().HasFilter("[IsDeleted] = 0");
         builder.Entity<Employee>().HasOne(e => e.JobRole).WithMany().HasForeignKey(e => e.JobRoleId).OnDelete(DeleteBehavior.Restrict);
         builder.Entity<EmployeeAttachment>().HasOne(a => a.Employee).WithMany(e => e.Attachments).HasForeignKey(a => a.EmployeeId).OnDelete(DeleteBehavior.Cascade);
         builder.Entity<Vacation>().HasOne(v => v.Employee).WithMany().HasForeignKey(v => v.EmployeeId).OnDelete(DeleteBehavior.Restrict);

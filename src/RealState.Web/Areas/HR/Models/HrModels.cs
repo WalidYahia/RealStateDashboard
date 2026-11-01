@@ -41,8 +41,23 @@ public class LateRulesFormModel
     public List<LateRuleInput> Rules { get; set; } = new();
 }
 
+/// <summary>Add / edit a work location / branch — the code is assigned automatically.</summary>
+public class BranchFormModel
+{
+    public Guid Id { get; set; }
+    /// <summary>Shown read-only (BR-001 …); empty for a new branch.</summary>
+    public string? Code { get; set; }
+    [Required(ErrorMessage = "الاسم مطلوب")][Display(Name = "الاسم")]
+    public string Name { get; set; } = string.Empty;
+    [Phone(ErrorMessage = "رقم غير صالح")][Display(Name = "الهاتف (اختياري)")]
+    public string? Phone { get; set; }
+}
+
 public class HrSettingsVm
 {
+    public List<Branch> Branches { get; set; } = new();
+    /// <summary>Employees per branch.</summary>
+    public Dictionary<Guid, int> BranchEmployees { get; set; } = new();
     public List<Department> Departments { get; set; } = new();
     public List<JobRole> Roles { get; set; } = new();
     public AttendanceFormModel Attendance { get; set; } = new();
@@ -67,6 +82,7 @@ public class EmployeeFormModel
     [Display(Name = "محل الإقامة الحالي")] public string? CurrentLocation { get; set; }
     [EmailAddress(ErrorMessage = "بريد غير صالح")][Display(Name = "البريد الإلكتروني")] public string? Email { get; set; }
 
+    [Required(ErrorMessage = "الموقع / الفرع مطلوب")][Display(Name = "الموقع / الفرع")] public Guid? BranchId { get; set; }
     [Required(ErrorMessage = "القسم مطلوب")][Display(Name = "القسم")] public Guid? DepartmentId { get; set; }
     [Required(ErrorMessage = "الوظيفة مطلوبة")][Display(Name = "الوظيفة")] public Guid? JobRoleId { get; set; }
     [Required(ErrorMessage = "تاريخ بدء العمل مطلوب")][DataType(DataType.Date)][Display(Name = "تاريخ بدء العمل")] public DateTime? HireDate { get; set; }
@@ -85,6 +101,7 @@ public class EmployeeFormModel
     /// <summary>Login handle / phone of the linked account, shown next to the "already linked" note.</summary>
     public string? LinkedUserLabel { get; set; }
 
+    public List<SelectListItem> Branches { get; set; } = new();
     public List<SelectListItem> Departments { get; set; } = new();
     public List<SelectListItem> Roles { get; set; } = new();
 }
@@ -103,6 +120,7 @@ public class EmployeeListItem
     public Guid Id { get; set; }
     public string Name { get; set; } = string.Empty;
     public string? Phone { get; set; }
+    public string Branch { get; set; } = "—";
     public string Department { get; set; } = "—";
     public string Role { get; set; } = "—";
     public string EmploymentType { get; set; } = string.Empty;

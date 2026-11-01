@@ -272,6 +272,7 @@ public static class ArabicLabels
         TxnSource.FixedAssetSale => "بيع أصل ثابت",
         TxnSource.CustomerAccount => "حساب عميل",
         TxnSource.SupplierAccount => "حساب مورد",
+        TxnSource.ContractorAccount => "حساب مقاول",
         TxnSource.ContractCancelRefund => "رد مستحقات عقد مفسوخ",
         _ => s.ToString()
     };

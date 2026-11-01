@@ -111,16 +111,19 @@ public class CollectionsController : Controller
         var remaining = inst.Amount - inst.PaidAmount;
         if (remaining <= 0) return RedirectToAction(nameof(Receipt), new { id });   // already fully collected
 
-        // A down payment (المقدم) may be collected in several parts, each a separate income
-        // receipt; a regular installment (قسط) is always collected in full.
-        var isDown = inst.Type == InstallmentType.DownPayment;
-        var pay = isDown && amount.HasValue ? amount.Value : remaining;
+        // Any installment may be collected in full (no amount) or in several parts, each a
+        // separate income receipt — a part never exceeds what's left of the installment.
+        var pay = amount ?? remaining;
         if (pay <= 0)
         {
             TempData["StatusMessage"] = "أدخل مبلغًا أكبر من صفر.";
             return RedirectToAction(nameof(Index));
         }
-        if (pay > remaining) pay = remaining;   // never collect more than what's left
+        if (pay > remaining)
+        {
+            TempData["StatusMessage"] = $"المبلغ يتجاوز المتبقي من القسط ({remaining:N0} ج.م).";
+            return RedirectToAction(nameof(Index));
+        }
 
         inst.PaidAmount += pay;
         inst.PaidDate = ClientTime.Today;
@@ -139,7 +142,7 @@ public class CollectionsController : Controller
             custName = cust?.FullName ?? "—";
         }
         var label = inst.InstPhrase();
-        var partial = isDown && pay < inst.Amount ? " (دفعة جزئية)" : "";
+        var partial = pay < inst.Amount ? " (دفعة جزئية)" : "";
         await _accounting.AddTransactionAsync(safeId, TxnType.Income, TxnSource.Collection, pay,
             ClientTime.Now, $"تحصيل {label}{partial} — {custName}",
             installmentId: inst.Id, projectId: contract?.ProjectId, customerId: contract?.CustomerId, unitId: contract?.UnitId, ct: ct);

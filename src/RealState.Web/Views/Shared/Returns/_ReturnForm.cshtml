@@ -1,7 +1,9 @@
 @model RealState.Web.Models.ReturnFormModel
 @*
     Sales / purchase return form (modal). Picking the invoice reloads the form with its lines; quantities, totals and
-    the refund's limits are kept live by wwwroot/js/return-doc.js (retInit). Server-side rules are the same.
+    the refund's limit is kept live by wwwroot/js/return-doc.js (retInit). Server-side rules are the same.
+    Payments are on the party's account (not on invoices): the return lowers the account, and cash changes hands only
+    for what it pushes past the balance.
 *@
 @{
     var k = Model.Kind;
@@ -14,8 +16,8 @@
 }
 <form id="appModalForm" action="@Url.Action("Form", controller, new { area })" method="post" data-modal-init="retInit"
       data-ret-reload="@reloadUrl" data-ret-title="@k.One جديد"
-      data-ret-remaining="@((pos?.Remaining ?? 0).ToString(System.Globalization.CultureInfo.InvariantCulture))"
-      data-ret-netpaid="@((pos?.NetPaid ?? 0).ToString(System.Globalization.CultureInfo.InvariantCulture))">
+      data-ret-balance="@((pos?.Balance ?? 0).ToString(System.Globalization.CultureInfo.InvariantCulture))"
+      data-ret-sales="@(k.IsSales ? "1" : "0")">
     @Html.AntiForgeryToken()
     <div asp-validation-summary="ModelOnly" class="validation-summary-errors"></div>
 
@@ -46,11 +48,10 @@
             <div style="margin-bottom:6px;font-weight:600;"><span dir="ltr">@Model.InvoiceLabel</span> — @k.PartyLabel: @Model.Party · @Model.InvoiceDate?.ToString("yyyy/MM/dd")</div>
             @if (pos is not null)
             {
-                <div style="display:flex;gap:18px;flex-wrap:wrap;">
-                    <span>الإجمالي: <strong>@N(pos.Total)</strong></span>
-                    @if (pos.Returned > 0) { <span>مرتجعات سابقة: <strong>@N(pos.Returned)</strong></span> }
-                    <span>@k.PaidLabel: <strong style="color:var(--good);">@N(pos.NetPaid)</strong></span>
-                    <span>المتبقي: <strong style="color:var(--critical);">@N(pos.Remaining)</strong> ج.م</span>
+                <div>
+                    @(k.IsSales ? "رصيد العميل الحالي" : "رصيد المورد الحالي"):
+                    <strong>@N(Math.Abs(pos.Balance)) ج.م</strong>
+                    @(pos.Balance == 0 ? "" : k.IsSales ? (pos.Balance > 0 ? "(مستحق عليه)" : "(مستحق له)") : (pos.Balance > 0 ? "(مستحق له)" : "(مستحق عليه)"))
                 </div>
             }
         </div>
@@ -109,7 +110,7 @@
         <div class="card-tile" style="margin-top:12px;padding:12px 14px;">
             <div style="font-weight:700;margin-bottom:6px;">💵 @k.RefundLabel</div>
             <p style="color:var(--muted);font-size:12.5px;margin:0 0 10px;" data-ret-hint>
-                قيمة المرتجع تُخصم من المتبقي على الفاتورة، وما يزيد عنه يُرد نقدًا.
+                @(k.IsSales ? "قيمة المرتجع تُخصم من رصيد العميل، وما يزيد عن المستحق عليه يجوز رده نقدًا." : "قيمة المرتجع تُخصم من المستحق للمورد، وما يزيد عنه يجوز استرداده نقدًا.")
             </p>
             <div class="form-grid">
                 <div>

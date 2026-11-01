@@ -20,31 +20,30 @@ public sealed record ReturnKind(
     string PriceLabel,       // سعر البيع / تكلفة الوحدة
     string RefundLabel,      // رد نقدية للعميل / استرداد نقدية من المورد
     string RefundVoucher,    // إيصال صرف نقدية / إيصال استلام نقدية
-    string PaidLabel,        // المحصَّل / المسدَّد
     string StockDocLabel,    // إذن استلام (رجوع للمخزن) / إذن صرف (رد للمورد)
     string InvoiceArea, string InvoiceController,
     string PartyArea, string PartyController, string PartyAction)
 {
     public static readonly ReturnKind Sales = new(true, "مرتجعات المبيعات", "مرتجع مبيعات", "SR-", "SI-", "فاتورة المبيعات",
-        "العميل", "سعر البيع", "رد نقدية للعميل", "إيصال صرف نقدية", "المحصَّل", "إذن استلام (رجوع الأصناف للمخزن)",
+        "العميل", "سعر البيع", "رد نقدية للعميل", "إيصال صرف نقدية", "إذن استلام (رجوع الأصناف للمخزن)",
         "Sales", "SalesInvoices", "CRM", "Customers", "Details");
 
     public static readonly ReturnKind Purchase = new(false, "مرتجعات المشتريات", "مرتجع مشتريات", "PR-", "PI-", "فاتورة المشتريات",
-        "المورد", "تكلفة الوحدة", "استرداد نقدية من المورد", "إيصال استلام نقدية", "المسدَّد", "إذن صرف (رد الأصناف للمورد)",
+        "المورد", "تكلفة الوحدة", "استرداد نقدية من المورد", "إيصال استلام نقدية", "إذن صرف (رد الأصناف للمورد)",
         "Suppliers", "PurchaseInvoices", "Suppliers", "Suppliers", "Statement");
 }
 
-/// <summary>An invoice's money position for a return: what it leaves owed, and how much may be refunded.</summary>
-public sealed record ReturnInvoicePosition(decimal Total, decimal Returned, decimal Paid, decimal Refunded)
+/// <summary>
+/// The party's account for a return — payments are on the account, not on invoices. <paramref name="Balance"/> is the
+/// account's balance before the return, in its usual direction: what the customer owes / what's owed to the supplier
+/// (− = the other way round). The return lowers it by its value; cash may change hands only for the part that leaves
+/// the account in credit.
+/// </summary>
+public sealed record ReturnPartyPosition(decimal Balance)
 {
-    /// <summary>Still owed on the invoice: total − returned − (paid − refunded).</summary>
-    public decimal Remaining => Total - Returned - (Paid - Refunded);
-    /// <summary>Paid on the invoice and not refunded yet — the most any refund can give back.</summary>
-    public decimal NetPaid => Paid - Refunded;
-    /// <summary>The smallest refund a return of <paramref name="value"/> needs: the part the invoice no longer owes.</summary>
-    public decimal MinRefund(decimal value) => Math.Max(0m, value - Math.Max(Remaining, 0m));
-    /// <summary>The largest refund a return of <paramref name="value"/> allows: its value, capped by what was paid.</summary>
-    public decimal MaxRefund(decimal value) => Math.Max(0m, Math.Min(value, NetPaid));
+    /// <summary>The largest refund a return of <paramref name="value"/> allows: what the return pushes past the balance
+    /// (value − balance), capped by the value. The rest is credited to the account.</summary>
+    public decimal MaxRefund(decimal value) => Math.Clamp(value - Balance, 0m, Math.Max(value, 0m));
 }
 
 // ---------- Create (modal) ----------
@@ -93,7 +92,8 @@ public class ReturnFormModel
     public string? InvoiceLabel { get; set; }
     public string? Party { get; set; }
     public DateTime? InvoiceDate { get; set; }
-    public ReturnInvoicePosition? Position { get; set; }
+    /// <summary>The party's account before this return (with the invoice picked).</summary>
+    public ReturnPartyPosition? Position { get; set; }
     public List<ReturnLineVm> Rows { get; set; } = new();
     public List<SelectListItem> Invoices { get; set; } = new();
     public List<SelectListItem> Warehouses { get; set; } = new();
@@ -155,8 +155,8 @@ public class ReturnDetailsVm
     /// <summary>The part of the return credited to the party's balance (not paid in cash).</summary>
     public decimal Credited => Total - Refund;
     public List<ReturnStockDocRef> StockDocs { get; set; } = new();
-    /// <summary>The invoice after all its returns.</summary>
-    public ReturnInvoicePosition? Invoice { get; set; }
+    /// <summary>The party's account balance now (after all its movements, this return included).</summary>
+    public decimal PartyBalance { get; set; }
     public bool CanDelete { get; set; }
     public bool CanDeleteRefund { get; set; }
 }

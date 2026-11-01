@@ -19,6 +19,7 @@
 
     <h4 style="font-size:14px;margin:14px 0 8px;">بيانات العمل</h4>
     <div class="form-grid">
+        <div class="full"><label asp-for="BranchId" class="form-label"></label> <span style="color:var(--critical)">*</span><select asp-for="BranchId" class="form-control" asp-items="Model.Branches"><option value="">—</option></select><span asp-validation-for="BranchId" class="field-validation-error"></span></div>
         <div><label asp-for="DepartmentId" class="form-label"></label> <span style="color:var(--critical)">*</span><select asp-for="DepartmentId" class="form-control" asp-items="Model.Departments"><option value="">—</option></select></div>
         <div><label asp-for="JobRoleId" class="form-label"></label> <span style="color:var(--critical)">*</span><select asp-for="JobRoleId" class="form-control" asp-items="Model.Roles"><option value="">—</option></select></div>
         <div><label asp-for="HireDate" class="form-label"></label> <span style="color:var(--critical)">*</span><input asp-for="HireDate" class="form-control" type="date" dir="ltr" /></div>

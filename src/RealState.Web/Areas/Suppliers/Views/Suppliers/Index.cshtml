@@ -1,6 +1,7 @@
 @model List<Supplier>
 @{
     ViewData["Title"] = "قائمة الموردين";
+    var linkedIds = ViewBag.LinkedSupplierIds as HashSet<Guid> ?? new();   // «عميل ومورد»
 }
 <div class="page-head"><h1>قائمة الموردين</h1></div>
 
@@ -24,7 +25,7 @@
         @foreach (var s in Model)
         {
             <tr data-search="@(((s.Name ?? "") + " " + (s.Phone ?? "")).ToLower())">
-                <td>@s.Name</td>
+                <td>@s.Name @if (linkedIds.Contains(s.Id)) { <span class="badge-state state-warn" style="font-size:11px;">عميل ومورد</span> }</td>
                 <td dir="ltr" style="text-align:right;">@s.Phone</td>
                 <td dir="ltr" style="text-align:right;">@s.Email</td>
                 <td style="white-space:nowrap;">

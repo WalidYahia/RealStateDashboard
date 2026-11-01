@@ -604,6 +604,63 @@ namespace RealState.Infrastructure.Persistence.Migrations
                     b.ToTable("AuditLogs");
                 });
 
+            modelBuilder.Entity("RealState.Application.Entities.Branch", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("DeletedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("IsDefault")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("Number")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Phone")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "Number")
+                        .IsUnique()
+                        .HasFilter("[IsDeleted] = 0");
+
+                    b.ToTable("Branches");
+                });
+
             modelBuilder.Entity("RealState.Application.Entities.Campaign", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1133,6 +1190,9 @@ namespace RealState.Infrastructure.Persistence.Migrations
                     b.Property<Guid?>("SourceCampaignId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<Guid?>("SupplierId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uniqueidentifier");
 
@@ -1145,6 +1205,8 @@ namespace RealState.Infrastructure.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("SalesPersonId");
+
+                    b.HasIndex("SupplierId");
 
                     b.ToTable("Customers");
                 });
@@ -1277,6 +1339,9 @@ namespace RealState.Infrastructure.Persistence.Migrations
                     b.Property<DateTime?>("BirthDate")
                         .HasColumnType("datetime2");
 
+                    b.Property<Guid?>("BranchId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
@@ -1357,6 +1422,8 @@ namespace RealState.Infrastructure.Persistence.Migrations
                         .HasColumnType("uniqueidentifier");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("BranchId");
 
                     b.HasIndex("DepartmentId");
 
@@ -4682,6 +4749,9 @@ namespace RealState.Infrastructure.Persistence.Migrations
                     b.Property<Guid?>("CategoryId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<Guid?>("ContractorId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
@@ -6993,6 +7063,11 @@ namespace RealState.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("RealState.Application.Entities.Employee", b =>
                 {
+                    b.HasOne("RealState.Application.Entities.Branch", "Branch")
+                        .WithMany()
+                        .HasForeignKey("BranchId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("RealState.Application.Entities.Department", "Department")
                         .WithMany()
                         .HasForeignKey("DepartmentId")
@@ -7002,6 +7077,8 @@ namespace RealState.Infrastructure.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("JobRoleId")
                         .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Branch");
 
                     b.Navigation("Department");
 

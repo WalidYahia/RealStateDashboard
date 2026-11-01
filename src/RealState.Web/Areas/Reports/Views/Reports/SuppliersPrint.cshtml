@@ -3,7 +3,8 @@
     Layout = null;
     var tenantId = (Guid)ViewBag.TenantId;
     string N(decimal v) => v.ToString("N0", RealState.Web.AppCulture.Ar);
-    string D(DateTime d) => RealState.Web.AppCulture.When(d);   // date + time when it has one
+    // A balance with its side: + = owed to the supplier (دائن), − = owed by them (مدين).
+    string B(decimal v, string plus = "دائن", string minus = "مدين") => v == 0 ? N(0) : $"{N(Math.Abs(v))} {(v > 0 ? plus : minus)}";
 }
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -27,21 +28,20 @@
     <div class="no-print"><button onclick="window.print()">🖨 طباعة / حفظ PDF</button></div>
     <h1>تقرير الموردين</h1>
     <div class="sub">
-        @if (Model.From.HasValue || Model.To.HasValue) { <text>الفترة @D(Model.From ?? DateTime.MinValue) — @D(Model.To ?? DateTime.MaxValue) · </text> }
-        طُبع @ClientTime.Now.ToString("yyyy/MM/dd HH:mm")
+        الرصيد الحالي لكل مورد كما في كشف حسابه · طُبع @ClientTime.Now.ToString("yyyy/MM/dd HH:mm")
     </div>
 
     <table>
-        <thead><tr><th>المورد</th><th>الهاتف</th><th>عدد الفواتير</th><th>قيمة الفواتير</th><th>المسدَّد</th><th>المتبقي</th></tr></thead>
+        <thead><tr><th>المورد</th><th>الهاتف</th><th>دائن</th><th>مدين</th><th>الرصيد</th></tr></thead>
         <tbody>
         @foreach (var r in Model.Rows)
         {
-            <tr><td>@r.Name</td><td>@r.Phone</td><td>@r.Orders</td><td>@N(r.OrdersValue)</td><td>@N(r.Paid)</td><td>@N(r.Residual)</td></tr>
+            <tr><td>@r.Name@(r.IsLinked ? " (عميل ومورد)" : "")</td><td>@r.Phone</td><td>@N(r.Credit)</td><td>@N(r.Debit)</td><td>@B(r.Balance)</td></tr>
         }
-        @if (Model.Rows.Count == 0) { <tr><td colspan="6">لا توجد بيانات.</td></tr> }
+        @if (Model.Rows.Count == 0) { <tr><td colspan="5">لا يوجد موردون.</td></tr> }
         </tbody>
         <tfoot>
-            <tr><th colspan="2">الإجمالي</th><th>@Model.TotOrders</th><th>@N(Model.TotValue)</th><th>@N(Model.TotPaid)</th><th>@N(Model.TotResidual)</th></tr>
+            <tr><th colspan="2">الإجمالي</th><th>@N(Model.TotCredit)</th><th>@N(Model.TotDebit)</th><th>@B(Model.TotBalance)</th></tr>
         </tfoot>
     </table>
 

@@ -263,6 +263,8 @@ html.theme-fading, html.theme-fading *, html.theme-fading *::before, html.theme-
 .swal2-html-container .swal-field { margin-top: 14px; text-align: start; }
 .swal-field label { display: block; margin-bottom: 6px; font-size: 13px; font-weight: 600; color: var(--text-secondary); }
 .swal-field .form-control { margin: 0; min-height: 42px; font-size: 14px; }
+.swal-field .swal-choice { display: flex; gap: 18px; flex-wrap: wrap; }
+.swal-field .swal-choice label { display: inline-flex; align-items: center; gap: 6px; margin: 0; font-weight: 500; color: var(--text-primary); cursor: pointer; }
 @media (hover: none) and (pointer: coarse) { .swal-field .form-control { font-size: 16px; } }   /* no iOS zoom on focus */
 
 * { box-sizing: border-box; }
@@ -441,6 +443,24 @@ body {
 .sale-auto-grid .form-control { margin: 0; width: 100%; }
 .sale-remaining { min-height: 42px; display: flex; align-items: center; padding: 0 12px; border-radius: 10px; background: var(--surface-2); font-weight: 700; color: var(--text-strong); direction: ltr; justify-content: flex-end; }
 .sale-remaining.off { color: var(--critical); }
+/* Account statements (customer / supplier / contractor): «الرصيد الافتتاحي للفترة» — the balance carried into the period. */
+.rs-table tr.period-opening td { background: rgba(57,135,229,.07); font-weight: 600; color: var(--text-strong); }
+/* Account statements «تفصيلي» (customer / supplier): an invoice / return's lines in the row under it —
+   Views/Shared/_StatementItemsRow + js/statement-items.js. */
+.stmt-detail-toggle { display: inline-flex; align-items: center; gap: 6px; margin-bottom: 10px; font-weight: 700; color: var(--text-strong); cursor: pointer; user-select: none; }
+.stmt-detail-toggle[hidden] { display: none; }
+.stmt-detail-toggle input { width: 16px; height: 16px; margin: 0; accent-color: var(--series-1); }
+.stmt-detail-toggle span { font-weight: 400; font-size: 12.5px; color: var(--muted); }
+.stmt-items-btn { margin-inline-start: 8px; padding: 1px 10px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface-2); color: var(--muted); font: inherit; font-size: 12px; cursor: pointer; white-space: nowrap; }
+.stmt-items-btn::before { content: "◂ "; }
+.stmt-items-btn[aria-expanded="true"] { color: var(--series-1); border-color: var(--series-1); }
+.stmt-items-btn[aria-expanded="true"]::before { content: "▾ "; }
+.rs-table tr.stmt-items[hidden] { display: none; }
+.rs-table tr.stmt-items > td { padding: 2px 8px 10px; padding-inline-start: 32px; background: var(--surface-2); }
+.stmt-items-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.rs-table .stmt-items-table th, .rs-table .stmt-items-table td { padding: 5px 8px; border-bottom: 1px dashed var(--border); }
+.rs-table .stmt-items-table tbody tr:last-child td { border-bottom: 0; }
+
 /* تقرير أرباح المبيعات: the invoice number opens the invoice in a popup. */
 .profit-inv { color: var(--series-1); font-weight: 700; text-decoration: none; }
 .profit-inv:hover { text-decoration: underline; }

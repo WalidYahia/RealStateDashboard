@@ -8,6 +8,7 @@ using RealState.Application.Entities;
 using RealState.Application.Enums;
 using RealState.Application.Interfaces;
 using RealState.Application.Inventory;
+using RealState.Web.Areas.CRM.Controllers;
 using RealState.Web.Models;
 using static RealState.Web.Areas.Suppliers.Controllers.PurchasingLookups;
 
@@ -143,18 +144,16 @@ public class SalesReturnsController : Controller
         if (tracked.Count > 0 && (model.WarehouseId is null || !await _db.Warehouses.AnyAsync(w => w.Id == model.WarehouseId && w.IsActive, ct)))
             ModelState.AddModelError(nameof(model.WarehouseId), "اختر المخزن الذي تعود إليه الأصناف المخزنية.");
 
-        // Money: the return's value, and the refund it needs / allows on this invoice.
+        // Money: the return's value, and the refund it allows on the customer's account (credited there otherwise).
         decimal LineTotal(ReturnLineInput l) => invItems.TryGetValue(l.InvoiceItemId, out var it) ? Math.Round(it.Price * Qty(l), 2) : 0m;
         var total = lines.Sum(LineTotal);
-        var position = await PositionAsync(inv.Id, ct);
-        var minRefund = position.MinRefund(total);
+        var position = await PositionAsync(inv.CustomerId, ct);
         var maxRefund = position.MaxRefund(total);
         if (model.RefundAmount < 0) ModelState.AddModelError(nameof(model.RefundAmount), "المبلغ لا يمكن أن يكون سالبًا.");
-        else if (model.RefundAmount < minRefund)
-            ModelState.AddModelError(nameof(model.RefundAmount),
-                $"يجب رد {minRefund:N2} ج.م على الأقل نقدًا — المتبقي على الفاتورة ({Math.Max(position.Remaining, 0):N2} ج.م) أقل من قيمة المرتجع ({total:N2} ج.م).");
         else if (model.RefundAmount > maxRefund)
-            ModelState.AddModelError(nameof(model.RefundAmount), $"لا يمكن رد أكثر من {maxRefund:N2} ج.م (قيمة المرتجع، وبحد أقصى ما حُصِّل على الفاتورة ولم يُرد).");
+            ModelState.AddModelError(nameof(model.RefundAmount), maxRefund <= 0
+                ? $"لا يمكن رد نقدية — رصيد العميل ({position.Balance:N2} ج.م مستحق عليه) يغطي قيمة المرتجع ({total:N2} ج.م)، فتُخصم منه."
+                : $"لا يمكن رد أكثر من {maxRefund:N2} ج.م — ما يزيد به المرتجع ({total:N2} ج.م) عن رصيد العميل المستحق عليه ({Math.Max(position.Balance, 0):N2} ج.م).");
         if (model.RefundAmount > 0)
         {
             if (model.RefundSafeId is null || !await _db.Safes.AnyAsync(s => s.Id == model.RefundSafeId && s.IsActive, ct))
@@ -310,8 +309,8 @@ public class SalesReturnsController : Controller
 
 /// <summary>
     /// Deletes the return's cash refund only — the return stays, and its value is credited to the customer's
-    /// balance instead. The refund movement and its journal entry are removed (the money goes back into the safe).
-    /// Allowed only while the invoice still owes at least the refund, so it can't end up overpaid.
+    /// balance instead (which may leave the account in credit). The refund movement and its journal entry are removed
+    /// (the money goes back into the safe).
     /// </summary>
     [HttpPost]
     [Authorize(Policy = PermissionNames.SalesReturnsDeleteRefund)]
@@ -321,12 +320,6 @@ public class SalesReturnsController : Controller
         var ret = await _db.ProductSalesReturns.FirstOrDefaultAsync(r => r.Id == id, ct);
         if (ret is null) return NotFound();
         if (ret.RefundAmount <= 0) { TempData["ErrorMessage"] = "لا يوجد مبلغ نقدي على هذا المرتجع."; return RedirectToAction(nameof(Details), new { id }); }
-        var position = await PositionAsync(ret.SalesInvoiceId, ct);
-        if (position.Remaining - ret.RefundAmount < 0)
-        {
-            TempData["ErrorMessage"] = $"لا يمكن حذف المبلغ النقدي ({ret.RefundAmount:N2} ج.م) للمرتجع {SR(ret.Number)}: المتبقي على الفاتورة ({Math.Max(position.Remaining, 0):N2} ج.م) لا يكفي لخصمه من الرصيد — احذف المرتجع بالكامل بدلًا من ذلك.";
-            return RedirectToAction(nameof(Details), new { id });
-        }
         var txn = ret.RefundTransactionId is Guid tid ? await _db.SafeTransactions.FirstOrDefaultAsync(t => t.Id == tid, ct) : null;
         if (txn is not null) await _accounting.RemoveTransactionAsync(txn, ct);   // the refund movement + its journal entry
         var amount = ret.RefundAmount;
@@ -391,20 +384,15 @@ public class SalesReturnsController : Controller
             Refund = ret.RefundAmount, RefundVoucherNo = ret.RefundVoucherNo,
             RefundSafe = ret.RefundSafeId.HasValue ? await _db.Safes.Where(s => s.Id == ret.RefundSafeId).Select(s => s.Name).FirstOrDefaultAsync(ct) : null,
             StockDocs = docs.Select(d => new ReturnStockDocRef(d.Id, d.Number, d.Date, d.Status, d.Cost)).ToList(),
-            Invoice = await PositionAsync(ret.SalesInvoiceId, ct),
+            PartyBalance = await CustomerLedger.BalanceAsync(_db, ret.CustomerId, ct),
             CanDelete = Can(PermissionNames.SalesReturnsDelete),
             CanDeleteRefund = Can(PermissionNames.SalesReturnsDeleteRefund),
         };
     }
 
-    /// <summary>The invoice's money position after all its saved returns.</summary>
-    private async Task<ReturnInvoicePosition> PositionAsync(Guid invoiceId, CancellationToken ct)
-    {
-        var total = await _db.ProductSalesInvoiceItems.Where(i => i.SalesInvoiceId == invoiceId).SumAsync(i => (decimal?)i.LineTotal, ct) ?? 0m;
-        var paid = await _db.SalesInvoiceCollections.Where(c => c.SalesInvoiceId == invoiceId).SumAsync(c => (decimal?)c.Amount, ct) ?? 0m;
-        var r = await InvoiceReturns.ForSalesInvoiceAsync(_db, invoiceId, ct);
-        return new ReturnInvoicePosition(total, r.Returned, paid, r.Refunded);
-    }
+    /// <summary>The customer's account as it stands (before a new return).</summary>
+    private async Task<ReturnPartyPosition> PositionAsync(Guid customerId, CancellationToken ct)
+        => new(await CustomerLedger.BalanceAsync(_db, customerId, ct));
 
     /// <summary>Quantity already returned per invoice line (in the line's own unit).</summary>
     private async Task<Dictionary<Guid, decimal>> ReturnedQtyAsync(Guid invoiceId, CancellationToken ct)
@@ -464,7 +452,7 @@ public class SalesReturnsController : Controller
             var trackedIds = (await _db.Products.Where(p => productIds.Contains(p.Id) && p.TrackInventory).Select(p => p.Id).ToListAsync(ct)).ToHashSet();
             var before = await ReturnedQtyAsync(inv.Id, ct);
             model.Rows = items.Select(i => new ReturnLineVm(i.Id, i.Name, i.Unit, i.Price, i.Quantity, before.GetValueOrDefault(i.Id), trackedIds.Contains(i.ProductId))).ToList();
-            model.Position = await PositionAsync(inv.Id, ct);
+            model.Position = await PositionAsync(inv.CustomerId, ct);
         }
         return model;
     }

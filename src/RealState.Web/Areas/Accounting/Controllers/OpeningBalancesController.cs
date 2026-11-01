@@ -147,6 +147,9 @@ public class OpeningBalancesController : Controller
             case 'S':
                 var s = await _db.Suppliers.Where(x => x.Id == id).Select(x => x.Name).FirstOrDefaultAsync(ct);
                 return s is null ? null : await _engine.ResolveAccountAsync(LedgerAccounts.AccountsPayable, "Supplier", id, s, ct);
+            case 'K':
+                var k = await _db.Contractors.Where(x => x.Id == id).Select(x => x.Name).FirstOrDefaultAsync(ct);
+                return k is null ? null : await _engine.ResolveAccountAsync(LedgerAccounts.ContractorsPayable, "Contractor", id, k, ct);
             case 'F':
                 var f = await _db.Safes.Where(x => x.Id == id).Select(x => x.Name).FirstOrDefaultAsync(ct);
                 return f is null ? null : await _engine.ResolveAccountAsync(LedgerAccounts.CashAndBanks, "Safe", id, f, ct);
@@ -155,7 +158,7 @@ public class OpeningBalancesController : Controller
     }
 
     /// <summary>
-    /// Every account that can carry an opening balance: all customers (not leads), suppliers and safes — with or without
+    /// Every account that can carry an opening balance: all customers (not leads), suppliers, contractors and safes — with or without
     /// their subsidiary account yet — and the other postable accounts of the chart (not «رصيد افتتاحي» itself).
     /// </summary>
     private async Task<List<OpeningBalanceRow>> BuildRowsAsync(CancellationToken ct)
@@ -182,6 +185,9 @@ public class OpeningBalancesController : Controller
             rows.Add(Row(OpeningKind.Customers, $"C:{c.Id}", Sub("Customer", c.Id), c.FullName, ControlName(LedgerAccounts.AccountsReceivable), true));
         foreach (var s in await _db.Suppliers.AsNoTracking().OrderBy(x => x.Name).Select(x => new { x.Id, x.Name }).ToListAsync(ct))
             rows.Add(Row(OpeningKind.Suppliers, $"S:{s.Id}", Sub("Supplier", s.Id), s.Name, ControlName(LedgerAccounts.AccountsPayable), false));
+        // Contractors: a credit balance is owed to the contractor (like a supplier), a debit one is owed by them.
+        foreach (var k in await _db.Contractors.AsNoTracking().OrderBy(x => x.Name).Select(x => new { x.Id, x.Name }).ToListAsync(ct))
+            rows.Add(Row(OpeningKind.Contractors, $"K:{k.Id}", Sub("Contractor", k.Id), k.Name, ControlName(LedgerAccounts.ContractorsPayable), false));
         foreach (var s in await _db.Safes.AsNoTracking().OrderBy(x => x.Name).Select(x => new { x.Id, x.Name, x.InitialAmount }).ToListAsync(ct))
         {
             var r = Row(OpeningKind.Safes, $"F:{s.Id}", Sub("Safe", s.Id), s.Name, ControlName(LedgerAccounts.CashAndBanks), true);
@@ -207,7 +213,7 @@ public class OpeningBalancesController : Controller
               .GroupBy(x => x.AccountId).ToDictionary(g => g.Key, g => (Net: g.Sum(x => x.Net), At: g.Max(x => x.At)))
             : new();
 
-        foreach (var a in accounts.Where(a => a.IsPostable && a.SubKind is not ("Customer" or "Supplier" or "Safe") && a.Code != LedgerAccounts.OpeningBalanceEquity
+        foreach (var a in accounts.Where(a => a.IsPostable && a.SubKind is not ("Customer" or "Supplier" or "Contractor" or "Safe") && a.Code != LedgerAccounts.OpeningBalanceEquity
                                               && (a.IsActive || openings.ContainsKey(a.Id)))
                                   .OrderBy(a => a.Code, StringComparer.Ordinal))
         {

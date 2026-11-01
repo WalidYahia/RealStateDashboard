@@ -45,26 +45,14 @@ public class DashboardService : IDashboardService
             .Sum(i => i.Amount - i.PaidAmount);
         vm.CollectedThisMonth = installments.Where(i => i.PaidDate != null && i.PaidDate >= monthStart).Sum(i => i.PaidAmount);
 
-        // --- Suppliers: outstanding payables (per-document remaining, summed over documents not fully paid).
-        // Obligations are purchase invoices, plus legacy orders that still carry a supplier. ---
-        var legacyOrderIds = _db.SupplierOrders.Where(o => o.SupplierId != null).Select(o => o.Id);
-        var orderTotals = (await _db.SupplierOrderItems.Where(i => legacyOrderIds.Contains(i.SupplierOrderId))
-            .GroupBy(i => i.SupplierOrderId)
-            .Select(g => new { g.Key, Sum = g.Sum(x => x.Cost * x.Quantity) }).ToListAsync(ct))
-            .ToDictionary(x => x.Key, x => x.Sum);
-        var orderPaid = (await _db.SupplierPayments.Where(p => p.SupplierOrderId != null)
-            .GroupBy(p => p.SupplierOrderId!.Value).Select(g => new { g.Key, Sum = g.Sum(x => x.Amount) }).ToListAsync(ct))
-            .ToDictionary(x => x.Key, x => x.Sum);
-        var invoiceTotals = (await _db.PurchaseInvoiceItems.GroupBy(i => i.PurchaseInvoiceId)
-            .Select(g => new { g.Key, Sum = g.Sum(x => x.LineTotal) }).ToListAsync(ct))
-            .ToDictionary(x => x.Key, x => x.Sum);
-        var invoicePaid = (await _db.SupplierPayments.Where(p => p.PurchaseInvoiceId != null)
-            .GroupBy(p => p.PurchaseInvoiceId!.Value).Select(g => new { g.Key, Sum = g.Sum(x => x.Amount) }).ToListAsync(ct))
-            .ToDictionary(x => x.Key, x => x.Sum);
-        // Invoices net of their purchase returns (and of the cash refunded through them).
-        var invoiceReturns = await InvoiceReturns.PurchaseAsync(_db, null, ct);
-        vm.SupplierPayables = orderTotals.Sum(o => Math.Max(0, o.Value - orderPaid.GetValueOrDefault(o.Key, 0)))
-            + invoiceTotals.Sum(i => Math.Max(0, InvoiceReturns.Remaining(i.Value, invoicePaid.GetValueOrDefault(i.Key, 0), invoiceReturns.GetValueOrDefault(i.Key))));
+        // --- Suppliers: outstanding payables — payments settle a supplier's account, not particular invoices, so this is
+        // what's owed on each supplier's account (its subsidiary of الموردون in the journal), summed over those in credit. ---
+        var supplierBalances = await (from l in _db.JournalLines
+                                      join a in _db.Accounts on l.AccountId equals a.Id
+                                      where a.SubKind == "Supplier" && a.SubRefId != null
+                                      group l by a.SubRefId into g
+                                      select g.Sum(x => x.Credit - x.Debit)).ToListAsync(ct);
+        vm.SupplierPayables = supplierBalances.Where(b => b > 0).Sum();
 
         // --- Projects / units ---
         vm.ProjectsCount = await _db.Projects.CountAsync(ct);

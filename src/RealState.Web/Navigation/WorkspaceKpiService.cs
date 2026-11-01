@@ -48,34 +48,28 @@ public sealed class WorkspaceKpiService : IWorkspaceKpiService
         }
         if (Has("customers")) k["customers"] = new($"{N(await _db.Customers.CountAsync(c => !c.IsLead, ct))} عميل");
         if (Has("leads")) k["leads"] = new($"{N(await _db.Customers.CountAsync(c => c.IsLead, ct))} عميل محتمل");
+        // Payments settle the party's account, not particular invoices — so these count parties with a balance (their
+        // subsidiary of العملاء / الموردون in the journal). Contract customers are left out: they pay by installments.
         if (Has("sales-invoices"))
         {
-            var open = await (from i in _db.ProductSalesInvoices
-                              let total = _db.ProductSalesInvoiceItems.Where(x => x.SalesInvoiceId == i.Id).Sum(x => (decimal?)x.LineTotal) ?? 0m
-                              let paid = _db.SalesInvoiceCollections.Where(x => x.SalesInvoiceId == i.Id).Sum(x => (decimal?)x.Amount) ?? 0m
-                              let returned = (from x in _db.ProductSalesReturnItems
-                                              join r in _db.ProductSalesReturns on x.SalesReturnId equals r.Id
-                                              where r.SalesInvoiceId == i.Id
-                                              select (decimal?)x.LineTotal).Sum() ?? 0m
-                              let refunded = _db.ProductSalesReturns.Where(r => r.SalesInvoiceId == i.Id).Sum(r => (decimal?)r.RefundAmount) ?? 0m
-                              where total - returned > paid - refunded
-                              select i.Id).CountAsync(ct);
-            if (open > 0) k["sales-invoices"] = new($"{N(open)} فاتورة غير محصّلة", "warn");
+            var owing = await (from l in _db.JournalLines
+                               join a in _db.Accounts on l.AccountId equals a.Id
+                               where a.SubKind == "Customer" && a.SubRefId != null && !_db.SaleContracts.Any(s => s.CustomerId == a.SubRefId)
+                               group l by a.SubRefId into g
+                               where g.Sum(x => x.Debit - x.Credit) > 0
+                               select g.Key).CountAsync(ct);
+            if (owing > 0) k["sales-invoices"] = new($"{N(owing)} عميل عليه رصيد", "warn");
         }
         if (Has("suppliers")) k["suppliers"] = new($"{N(await _db.Suppliers.CountAsync(ct))} مورد");
         if (Has("purchase-invoices"))
         {
-            var open = await (from i in _db.PurchaseInvoices
-                              let total = _db.PurchaseInvoiceItems.Where(x => x.PurchaseInvoiceId == i.Id).Sum(x => (decimal?)x.LineTotal) ?? 0m
-                              let paid = _db.SupplierPayments.Where(x => x.PurchaseInvoiceId == i.Id).Sum(x => (decimal?)x.Amount) ?? 0m
-                              let returned = (from x in _db.PurchaseReturnItems
-                                              join r in _db.PurchaseReturns on x.PurchaseReturnId equals r.Id
-                                              where r.PurchaseInvoiceId == i.Id
-                                              select (decimal?)x.LineTotal).Sum() ?? 0m
-                              let refunded = _db.PurchaseReturns.Where(r => r.PurchaseInvoiceId == i.Id).Sum(r => (decimal?)r.RefundAmount) ?? 0m
-                              where total - returned > paid - refunded
-                              select i.Id).CountAsync(ct);
-            if (open > 0) k["purchase-invoices"] = new($"{N(open)} فاتورة غير مسددة", "warn");
+            var owed = await (from l in _db.JournalLines
+                              join a in _db.Accounts on l.AccountId equals a.Id
+                              where a.SubKind == "Supplier" && a.SubRefId != null
+                              group l by a.SubRefId into g
+                              where g.Sum(x => x.Credit - x.Debit) > 0
+                              select g.Key).CountAsync(ct);
+            if (owed > 0) k["purchase-invoices"] = new($"{N(owed)} مورد له رصيد مستحق", "warn");
         }
         if (Has("products")) k["products"] = new($"{N(await _db.Products.CountAsync(p => p.IsActive, ct))} صنف");
         if (Has("warehouses")) k["warehouses"] = new($"{N(await _db.Warehouses.CountAsync(w => w.IsActive, ct))} مخزن");

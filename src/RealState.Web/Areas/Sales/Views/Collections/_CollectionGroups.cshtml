@@ -78,7 +78,6 @@
                 @foreach (var r in g.OrderBy(x => x.DueDate))
                 {
                     var rem = r.Amount - r.PaidAmount;
-                    var isDown = r.Type == InstallmentType.DownPayment;
                     <tr data-search="@r.Search">
                         <td>@r.CustomerName</td>
 
@@ -158,8 +157,8 @@
                                       asp-route-id="@r.InstallmentId"
                                       method="post"
                                       style="display:inline;"
-                                      data-partial="@(isDown ? "true" : "false")" data-remaining="@RawNum(rem)"
-                                      data-msg="@(isDown ? $"تحصيل المقدم من «{r.CustomerName}»" : $"تحصيل {ArabicLabels.InstPhrase(r.Number, r.Type)} من «{r.CustomerName}» بقيمة {N(rem)} ج.م؟")">
+                                      data-remaining="@RawNum(rem)"
+                                      data-msg="@($"تحصيل {ArabicLabels.InstPhrase(r.Number, r.Type)} من «{r.CustomerName}» — المتبقي {N(rem)} ج.م")">
                                     @Html.AntiForgeryToken()
                                     <input type="hidden" name="safeId" class="pay-safe" />
                                     <input type="hidden" name="amount" class="pay-amount" />

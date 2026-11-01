@@ -110,7 +110,10 @@ public class WorkOrderDetailsVm
 }
 
 // ---------- Contractor statement (كشف حساب مقاول) ----------
-public enum ContractorLedgerKind { Order, Payment }
+/// <summary>Opening: the contractor's opening balance (الأرصدة الافتتاحية) — credit = owed to them (+), debit = owed by them (−).
+/// PeriodOpening: «الرصيد الافتتاحي للفترة» — the balance carried in from before a filtered period (first row only).</summary>
+/// <summary>AccountPayment / AccountReceipt: a سند صرف / سند قبض on the contractor's account from المصروفات / الإيرادات.</summary>
+public enum ContractorLedgerKind { Order, Payment, Opening, PeriodOpening, AccountPayment, AccountReceipt }
 
 public class ContractorLedgerRow
 {

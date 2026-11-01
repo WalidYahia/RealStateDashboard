@@ -5,6 +5,7 @@
     string N(decimal v) => v.ToString("N0", RealState.Web.AppCulture.Ar);
     string D(DateTime d) => RealState.Web.AppCulture.When(d);   // date + time when it has one
     string? F(DateTime? d) => d?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+    var detailed = ViewData["Detailed"] as bool? ?? false;
 }
 <div class="page-head">
     <div>
@@ -17,7 +18,8 @@
         {
             <a class="btn-sm" asp-controller="PurchaseInvoices" asp-action="Index" asp-route-supplierId="@Model.Supplier.Id">فواتير المشتريات</a>
         }
-        @if (canPay && Model.HasPayableDocuments)
+        @* Payments are on the account (سند صرف) — not on a particular invoice. *@
+        @if (canPay)
         {
             <button type="button" class="btn-new-tenant" onclick="appOpenModal('@Url.Action("PayForm", new { id = Model.Supplier.Id })', 'سداد دفعة للمورد')">💵 سداد دفعة</button>
         }
@@ -47,19 +49,27 @@
     var filter = FilterBarVm.For(Url.Action("Details", new { id = Model.Supplier.Id }))
         .WithTitle("تصفية كشف الحساب")
         .DateRange(F(Model.From), F(Model.To))
-        .Print(Url.Action("PrintStatement", "Suppliers", new { id = Model.Supplier.Id, from = F(Model.From), to = F(Model.To) }), "طباعة كشف الحساب");
+        .Print(Url.Action("PrintStatement", "Suppliers", new { id = Model.Supplier.Id, from = F(Model.From), to = F(Model.To), detailed = detailed ? "true" : null }), "طباعة كشف الحساب");
 }
 <partial name="_FilterBar" model="filter" />
 
 <div class="card-tile">
+    <label class="stmt-detail-toggle"><input type="checkbox" data-items-all="#supLedger" data-print-key="PrintStatement" checked="@detailed" /> تفصيلي <span>— أصناف كل فاتورة تحت سطرها (وفي الطباعة)</span></label>
     <div class="list-search-bar"><input class="form-control list-search" data-target="#supLedger" placeholder="🔍 بحث في القائمة..." /></div>
     <table class="rs-table" id="supLedger">
         <thead><tr><th>المصدر</th><th>التاريخ</th><th>البيان</th><th>رصيد قبل</th><th>المبلغ</th><th>الرصيد</th></tr></thead>
         <tbody>
         @foreach (var r in Model.Rows)
         {
+            if (r.Kind == SupplierLedgerKind.PeriodOpening)
+            {
+                @* «الرصيد الافتتاحي للفترة»: the balance carried in from before the period — balance only. *@
+                <tr class="period-opening" data-skip-search><td>@r.Source</td><td dir="ltr" style="text-align:right;">@D(r.Date)</td><td>@r.Statement</td><td>—</td><td>—</td><td style="font-weight:800;white-space:nowrap;">@N(r.Balance)</td></tr>
+                continue;
+            }
             var isPay = r.Decreases;
-            <tr>
+            var hasItems = r.Items.Count > 0;
+            <tr data-items="@(hasItems ? "" : null)" data-open="@(hasItems ? (detailed ? "1" : "0") : null)">
                 <td>
                     @if (r.Kind == SupplierLedgerKind.Invoice && (ViewData["CanViewInvoices"] as bool? ?? false))
                     {
@@ -81,17 +91,17 @@
                 <td dir="ltr" style="text-align:right;">@D(r.Date)</td>
                 <td>
                     @r.Statement
+                    @if (hasItems)
+                    {
+                        <button type="button" class="stmt-items-btn" data-items-toggle aria-expanded="@(detailed ? "true" : "false")">الأصناف (@r.Items.Count)</button>
+                    }
                     @if (r.Kind == SupplierLedgerKind.Payment)
                     {
                         <a class="btn-sm" asp-controller="Payments" asp-action="Receipt" asp-route-id="@r.Id" target="_blank" style="margin-inline-start:8px;">🖨 طباعة</a>
                     }
-                    else if (r.Kind == SupplierLedgerKind.AccountPayment && User.Can(PermissionNames.ExpensesView))
+                    else if (r.Kind is SupplierLedgerKind.AccountPayment or SupplierLedgerKind.AccountReceipt)
                     {
-                        <a class="btn-sm" asp-area="Accounting" asp-controller="Expenses" asp-action="PrintOne" asp-route-id="@r.Id" target="_blank" style="margin-inline-start:8px;">🖨 طباعة</a>
-                    }
-                    else if (r.Kind == SupplierLedgerKind.AccountReceipt && User.Can(PermissionNames.IncomesView))
-                    {
-                        <a class="btn-sm" asp-area="Accounting" asp-controller="Incomes" asp-action="PrintOne" asp-route-id="@r.Id" target="_blank" style="margin-inline-start:8px;">🖨 طباعة</a>
+                        <a class="btn-sm" asp-action="VoucherReceipt" asp-route-id="@r.Id" target="_blank" style="margin-inline-start:8px;">🖨 طباعة</a>
                     }
                     else if (r.Kind == SupplierLedgerKind.Refund && User.Can(PermissionNames.PurchaseReturnsView))
                     {
@@ -102,6 +112,10 @@
                 <td style="color:@(isPay ? "var(--good)" : "var(--critical)");white-space:nowrap;">@(isPay ? "−" : "+")@N(r.Amount)</td>
                 <td style="font-weight:600;white-space:nowrap;">@N(r.Balance)</td>
             </tr>
+            if (hasItems)
+            {
+                <partial name="_StatementItemsRow" model="r.Items" />
+            }
         }
         @if (!Model.HasEntries)
         {
@@ -119,13 +133,5 @@
 </div>
 
 @section Scripts {
-    <script>
-        // In the pay modal: when an order is picked, cap + prefill the amount with that order's remaining.
-        window.supplierPayPick = function (sel) {
-            var opt = sel.options[sel.selectedIndex];
-            var rem = opt ? parseFloat(opt.getAttribute('data-remaining')) : 0;
-            var amt = document.getElementById('supPayAmount');
-            if (amt && !isNaN(rem)) { amt.max = rem; amt.value = 0; }
-        };
-    </script>
+    <script src="~/js/statement-items.js" asp-append-version="true"></script>
 }

@@ -37,6 +37,7 @@ public class AccountingService : IAccountingService
         // The party the voucher is about (statements of on-account vouchers read it; re-posting falls back to it).
         txn.CustomerId = customerId;
         txn.SupplierId = supplierId;
+        txn.ContractorId = contractorId;
 
         await PostCashSettlementAsync(txn, projectId, customerId, supplierId, contractorId, employeeId, unitId, categoryId, ct);
 
@@ -78,6 +79,7 @@ public class AccountingService : IAccountingService
         // A re-post (edit / backfill) of a party voucher finds its party on the voucher itself.
         customerId ??= txn.CustomerId;
         supplierId ??= txn.SupplierId;
+        contractorId ??= txn.ContractorId;
 
         // The counter (non-cash) side, chosen by source.
         var counter = await BuildCounterAsync(txn.Source, txn, projectId, customerId, supplierId, contractorId, employeeId, unitId, categoryId, ct);
@@ -151,6 +153,11 @@ public class AccountingService : IAccountingService
                 // On-account voucher with a supplier: a payment debits / a receipt credits the supplier's payable.
                 return new LedgerLine(LedgerAccounts.AccountsPayable, 0, 0,
                     SubKind: "Supplier", SubRefId: accSup, SubName: await NameAsync("Supplier", accSup), SupplierId: accSup, ProjectId: projectId);
+
+            case TxnSource.ContractorAccount when contractorId is Guid accCon:
+                // On-account voucher with a contractor: a payment debits / a receipt credits what is owed to the contractor.
+                return new LedgerLine(LedgerAccounts.ContractorsPayable, 0, 0,
+                    SubKind: "Contractor", SubRefId: accCon, SubName: await NameAsync("Contractor", accCon), ContractorId: accCon, ProjectId: projectId);
 
             case TxnSource.SupplierPayment when supplierId is Guid sup:
                 return new LedgerLine(LedgerAccounts.AccountsPayable, 0, 0,

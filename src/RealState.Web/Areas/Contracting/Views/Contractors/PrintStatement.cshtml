@@ -41,6 +41,12 @@
         <tbody>
         @foreach (var r in Model.Rows)
         {
+            if (r.Kind == ContractorLedgerKind.PeriodOpening)
+            {
+                @* «الرصيد الافتتاحي للفترة»: the balance carried in from before the period — balance only. *@
+                <tr class="period-opening"><td></td><td></td><td>@D(r.Date)</td><td colspan="10">@r.Statement</td><td><strong>@N(r.Balance)</strong></td><td></td></tr>
+                continue;
+            }
             var isOrder = r.Kind == ContractorLedgerKind.Order;
             <tr>
                 <td>@(i++)</td>
@@ -54,8 +60,8 @@
                 <td>@(isOrder ? N(r.Due) : "")</td>
                 <td>@(isOrder ? P(r.UpliftPercent) : "")</td>
                 <td>@(isOrder ? N(r.Deductions) : "")</td>
-                <td>@(isOrder ? N(r.ActualTotal) : "")</td>
-                <td>@(isOrder ? "" : N(r.Payment))</td>
+                <td>@(isOrder || r.ActualTotal > 0 ? N(r.ActualTotal) : "")</td>
+                <td>@(r.Payment > 0 ? N(r.Payment) : "")</td>
                 <td>@N(r.Balance)</td>
                 <td>@r.Notes</td>
             </tr>

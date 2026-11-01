@@ -61,13 +61,10 @@ public class SalesInvoiceListItem
     public InvoicePaymentType PaymentType { get; set; }
     public decimal Total { get; set; }
     public int ItemCount { get; set; }
-    public decimal Collected { get; set; }
-    /// <summary>Value of the invoice's sales returns, and the cash refunded through them.</summary>
+    /// <summary>Value of the invoice's sales returns.</summary>
     public decimal Returned { get; set; }
-    public decimal Refunded { get; set; }
-    /// <summary>Collected and not refunded.</summary>
-    public decimal NetCollected => Collected - Refunded;
-    public decimal Remaining => Total - Returned - NetCollected;
+    /// <summary>The invoice after its returns (payments are on the customer's account, not the invoice).</summary>
+    public decimal NetTotal => Total - Returned;
 }
 
 /// <summary>A return recorded against an invoice (sales or purchase): its value and the cash refunded through it.</summary>
@@ -93,43 +90,11 @@ public class SalesInvoiceDetailsVm
     public decimal ReturnedCost { get; set; }
     public decimal Total => Invoice.Items.Sum(i => i.LineTotal);
     public decimal Returned => Returns.Sum(r => r.Total);
-    public decimal Refunded => Returns.Sum(r => r.Refund);
-    /// <summary>The invoice after its returns.</summary>
+    /// <summary>The invoice after its returns (payments are on the customer's account, not the invoice).</summary>
     public decimal NetTotal => Total - Returned;
-    public decimal Collected => Invoice.Collections.Sum(c => c.Amount);
-    /// <summary>Collected and not refunded through returns.</summary>
-    public decimal NetCollected => Collected - Refunded;
-    public decimal Remaining => InvoiceReturns.Remaining(Total, Collected, new ReturnTotals(Returned, Refunded));
     /// <summary>Cost of sales booked by the posted goods issue (costing method), less what came back with returns.</summary>
     public decimal CostOfSales => Issues.Where(i => i.Status == InventoryDocStatus.Posted).Sum(i => i.Cost) - ReturnedCost;
     public decimal GrossProfit => NetTotal - CostOfSales;
-}
-
-// ---------- Collection form ----------
-public class SalesCollectFormModel
-{
-    public Guid InvoiceId { get; set; }
-    public string DocumentLabel { get; set; } = string.Empty;
-    public decimal Total { get; set; }
-    public decimal Collected { get; set; }
-    public decimal Remaining { get; set; }
-
-    [Range(0.01, 999999999999, ErrorMessage = "المبلغ غير صالح")]
-    [Display(Name = "المبلغ المحصَّل (ج.م)")]
-    public decimal Amount { get; set; }
-
-    [Required(ErrorMessage = "اختر الخزنة")]
-    [Display(Name = "الخزنة")]
-    public Guid? SafeId { get; set; }
-
-    /// <summary>Date + time of the document, entered by the user (default: now) — auto-created records take it.</summary>
-    [Required][DataType(DataType.DateTime)][Display(Name = "تاريخ ووقت التحصيل")]
-    public DateTime CollectedDate { get; set; } = ClientTime.Now;
-
-    [Display(Name = "ملاحظات")]
-    public string? Description { get; set; }
-
-    public List<SelectListItem> Safes { get; set; } = new();
 }
 
 // ---------- Sales summary (landing page of «المبيعات») ----------
@@ -137,15 +102,17 @@ public class SalesCollectFormModel
 public record CustomerAmount(Guid CustomerId, string Customer, decimal Value, int Invoices);
 
 /// <summary>A recent invoice on the sales summary.</summary>
-public record RecentSalesInvoice(Guid Id, int Number, string Customer, decimal Total, decimal Remaining, DateTime Date);
+public record RecentSalesInvoice(Guid Id, int Number, string Customer, decimal Total, InvoicePaymentType PaymentType, DateTime Date);
 
 /// <summary>Product sales invoices + their customers at a glance — the counterpart of the contracts summary.</summary>
 public class SalesInvoiceSummaryVm
 {
     public int InvoicesCount { get; set; }
     public decimal TotalSales { get; set; }
+    /// <summary>Cash received from the buying customers on their accounts (net of refunds) — not per invoice.</summary>
     public decimal TotalCollected { get; set; }
-    public decimal TotalRemaining => TotalSales - TotalCollected;
+    /// <summary>What the buying customers owe on their accounts (product-sales side).</summary>
+    public decimal TotalRemaining { get; set; }
     /// <summary>Cost of sales booked by the invoices' posted goods issues (costing method).</summary>
     public decimal CostOfSales { get; set; }
     public decimal GrossProfit => TotalSales - CostOfSales;
@@ -154,7 +121,7 @@ public class SalesInvoiceSummaryVm
 
     /// <summary>Customers that have at least one sales invoice.</summary>
     public int BuyingCustomers { get; set; }
-    /// <summary>Customers with an outstanding balance on their invoices.</summary>
+    /// <summary>Customers with an outstanding balance on their accounts.</summary>
     public int CustomersWithBalance { get; set; }
 
     // Month-over-month (current vs previous calendar month).

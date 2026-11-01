@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using RealState.Application.Common;
 using RealState.Application.Entities;
+using RealState.Application.Enums;
 using RealState.Application.Interfaces;
 using RealState.Web.Areas.Contracting.Models;
 
@@ -70,9 +71,16 @@ public class ContractorsController : Controller
         var c = await _db.Contractors.FirstOrDefaultAsync(x => x.Id == id, ct);
         if (c is null) return NotFound();
         if (await _db.WorkOrders.AnyAsync(o => o.ContractorId == id, ct) ||
-            await _db.WorkOrderPayments.AnyAsync(p => p.ContractorId == id, ct))
+            await _db.WorkOrderPayments.AnyAsync(p => p.ContractorId == id, ct) ||
+            await _db.SafeTransactions.AnyAsync(t => t.Source == TxnSource.ContractorAccount && t.ContractorId == id, ct))
         {
-            TempData["ErrorMessage"] = "لا يمكن حذف مقاول لديه أوامر شغل أو مدفوعات.";
+            TempData["ErrorMessage"] = "لا يمكن حذف مقاول لديه أوامر شغل أو مدفوعات أو سندات على حسابه.";
+            return RedirectToAction(nameof(Index));
+        }
+        // Its opening balance is a posted journal entry on its account — clear it first (الأرصدة الافتتاحية).
+        if (await _db.AccountOpeningBalances.AnyAsync(b => b.Account!.SubKind == "Contractor" && b.Account.SubRefId == id && b.Amount > 0, ct))
+        {
+            TempData["ErrorMessage"] = $"لا يمكن حذف المقاول «{c.Name}» لأن له رصيدًا افتتاحيًا — ألغِه أولًا من صفحة الأرصدة الافتتاحية (المقاولون).";
             return RedirectToAction(nameof(Index));
         }
         _db.Contractors.Remove(c);
@@ -134,8 +142,8 @@ public class ContractorsController : Controller
                 isOrder ? (object?)r.Due : "",
                 isOrder ? P(r.UpliftPercent) : "",
                 isOrder ? (object?)r.Deductions : "",
-                isOrder ? (object?)r.ActualTotal : "",
-                isOrder ? "" : (object?)r.Payment,
+                isOrder || r.ActualTotal > 0 ? (object?)r.ActualTotal : "",
+                r.Payment > 0 ? (object?)r.Payment : "",
                 r.Balance,
                 r.Notes ?? ""
             };
@@ -167,12 +175,42 @@ public class ContractorsController : Controller
                 Statement = $"إيصال صرف نقدية رقم {p.ReceiptNo:D5}", Payment = p.Amount
             });
 
-        // Chronological running balance (owed to contractor): orders before payments on the same date.
-        var ordered = rows.OrderBy(r => r.Date).ThenBy(r => r.Kind == ContractorLedgerKind.Order ? 0 : 1).ToList();
+        // The opening balance (الأرصدة الافتتاحية): credit = owed to the contractor (+), debit = owed by them (−).
+        var opening = await _db.AccountOpeningBalances.AsNoTracking()
+            .FirstOrDefaultAsync(b => b.Account!.SubKind == "Contractor" && b.Account.SubRefId == contractor.Id, ct);
+        if (opening is { Amount: > 0 })
+            rows.Add(new ContractorLedgerRow
+            {
+                Kind = ContractorLedgerKind.Opening, Id = contractor.Id, Date = opening.Date,
+                Statement = opening.IsDebit ? "رصيد افتتاحي مدين — مستحق على المقاول" : "رصيد افتتاحي دائن — مستحق للمقاول",
+                ActualTotal = opening.IsDebit ? 0 : opening.Amount,
+                Payment = opening.IsDebit ? opening.Amount : 0
+            });
+
+        // Vouchers on the contractor's account from المصروفات / الإيرادات: a سند صرف settles what's owed (الدفعة),
+        // a سند قبض (money the contractor paid back) adds to it.
+        var accountVouchers = await _db.SafeTransactions.Where(t => t.Source == TxnSource.ContractorAccount && t.ContractorId == contractor.Id).ToListAsync(ct);
+        foreach (var t in accountVouchers)
+        {
+            var isPay = t.Type == TxnType.Expense;
+            rows.Add(new ContractorLedgerRow
+            {
+                Kind = isPay ? ContractorLedgerKind.AccountPayment : ContractorLedgerKind.AccountReceipt, Id = t.Id, Number = t.Serial, Date = t.OccurredAt,
+                Statement = isPay ? $"سداد على الحساب — سند صرف رقم {t.Serial}" : $"قبض من المقاول على الحساب — سند قبض رقم {t.Serial}",
+                Notes = string.IsNullOrWhiteSpace(t.Description) ? null : t.Description,
+                ActualTotal = isPay ? 0 : t.Amount,
+                Payment = isPay ? t.Amount : 0
+            });
+        }
+
+        // Chronological running balance (owed to contractor): the opening balance first, then orders before payments on
+        // the same date. Each row adds what it owes the contractor (ActualTotal) and takes off what settles it (Payment).
+        var ordered = rows.OrderBy(r => r.Date)
+            .ThenBy(r => r.Kind switch { ContractorLedgerKind.Opening => -1, ContractorLedgerKind.Order => 0, _ => 1 }).ToList();
         decimal running = 0;
         foreach (var r in ordered)
         {
-            running += r.Kind == ContractorLedgerKind.Order ? r.ActualTotal : -r.Payment;
+            running += r.ActualTotal - r.Payment;
             r.Balance = running;
         }
 
@@ -187,12 +225,31 @@ public class ContractorsController : Controller
         return new ContractorStatementVm
         {
             Contractor = contractor, From = from, To = to,
-            TotalObligations = orders.Sum(o => o.ActualTotal),
-            TotalPaid = payments.Sum(p => p.Amount),
-            OrdersCount = orders.Count, PaymentsCount = payments.Count,
+            // The opening balance counts with what's owed (credit) or what's settled (debit), so the totals match the balance.
+            TotalObligations = orders.Sum(o => o.ActualTotal) + (opening is { IsDebit: false } ? opening.Amount : 0)
+                               + accountVouchers.Where(t => t.Type == TxnType.Income).Sum(t => t.Amount),
+            TotalPaid = payments.Sum(p => p.Amount) + (opening is { IsDebit: true } ? opening.Amount : 0)
+                        + accountVouchers.Where(t => t.Type == TxnType.Expense).Sum(t => t.Amount),
+            OrdersCount = orders.Count, PaymentsCount = payments.Count + accountVouchers.Count(t => t.Type == TxnType.Expense),
             HasPayableOrders = hasPayable,
-            Rows = ordered.Where(r => InRange(r.Date)).ToList(),
+            Rows = WithPeriodOpening(ordered, from, ordered.Where(r => InRange(r.Date)).ToList()),
             ClosingBalance = closing
         };
+    }
+
+    /// <summary>
+    /// A period that starts after the account's first movement opens with «الرصيد الافتتاحي للفترة»: the balance
+    /// accumulated by every movement before <paramref name="from"/>.
+    /// </summary>
+    private static List<ContractorLedgerRow> WithPeriodOpening(List<ContractorLedgerRow> all, DateTime? from, List<ContractorLedgerRow> inRange)
+    {
+        if (from is null || all.LastOrDefault(r => r.Date < from.Value) is not { } last) return inRange;
+        inRange.Insert(0, new ContractorLedgerRow
+        {
+            Kind = ContractorLedgerKind.PeriodOpening, Date = from.Value,
+            Statement = $"الرصيد الافتتاحي للفترة — رصيد الحساب المُرحَّل قبل {RealState.Web.AppCulture.Day(from.Value)}",
+            Balance = last.Balance
+        });
+        return inRange;
     }
 }

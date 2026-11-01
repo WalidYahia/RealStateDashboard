@@ -268,6 +268,7 @@ public class TenantsController : Controller
             await _db.EmployeeAttachments.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
             await _db.Employees.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
             await _db.Departments.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
+            await _db.Branches.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
             await _db.JobRoles.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
             await _db.AttendanceSettings.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
             await _db.LateDeductionRules.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);

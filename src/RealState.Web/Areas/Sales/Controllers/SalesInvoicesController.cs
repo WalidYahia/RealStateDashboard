@@ -8,6 +8,8 @@ using RealState.Application.Entities;
 using RealState.Application.Enums;
 using RealState.Application.Interfaces;
 using RealState.Application.Inventory;
+using RealState.Web.Areas.CRM.Controllers;
+using RealState.Web.Areas.CRM.Models;
 using RealState.Web.Areas.Sales.Models;
 using RealState.Web.Areas.Suppliers.Models;
 using static RealState.Web.Areas.Suppliers.Controllers.PurchasingLookups;
@@ -69,13 +71,11 @@ public class SalesInvoicesController : Controller
 
     private async Task<SalesInvoiceSummaryVm> BuildSummaryAsync(CancellationToken ct)
     {
-        var invoices = await _db.ProductSalesInvoices.Select(i => new { i.Id, i.Number, i.CustomerId, i.InvoiceDate }).ToListAsync(ct);
+        var invoices = await _db.ProductSalesInvoices.Select(i => new { i.Id, i.Number, i.CustomerId, i.InvoiceDate, i.PaymentType }).ToListAsync(ct);
         var totals = (await _db.ProductSalesInvoiceItems.GroupBy(x => x.SalesInvoiceId)
                 .Select(g => new { g.Key, Sum = g.Sum(x => x.LineTotal) }).ToListAsync(ct))
             .ToDictionary(x => x.Key, x => x.Sum);
-        var collections = await _db.SalesInvoiceCollections.Select(c => new { c.SalesInvoiceId, c.Amount, c.CollectedDate }).ToListAsync(ct);
-        var collectedByInvoice = collections.GroupBy(c => c.SalesInvoiceId).ToDictionary(g => g.Key, g => g.Sum(x => x.Amount));
-        // Returns are credit notes on their invoice: sales are net of them, and cash refunded through them is no longer collected.
+        // Returns are credit notes on their invoice: sales are net of them.
         var returns = await InvoiceReturns.SalesAsync(_db, null, ct);
         // Cost of sales = the invoices' posted goods issues, less the cost that came back with sales returns
         // (reversed documents net to zero and are left out).
@@ -91,7 +91,21 @@ public class SalesInvoicesController : Controller
         var custNames = await _db.Customers.Where(c => custIds.Contains(c.Id)).ToDictionaryAsync(c => c.Id, c => c.FullName, ct);
 
         decimal Total(Guid id) => totals.GetValueOrDefault(id) - returns.GetValueOrDefault(id).Returned;
-        decimal Collected(Guid id) => collectedByInvoice.GetValueOrDefault(id) - returns.GetValueOrDefault(id).Refunded;
+
+        // Payments are on the customer's account, not on invoices: what's collected and still owed comes from the buying
+        // customers' statements — their product-sales side (real-estate contracts and their installments left out).
+        var contractIds = (await _db.SaleContracts.Select(c => c.Id).ToListAsync(ct)).ToHashSet();
+        bool IsContract(CustomerLedgerRow r) => r.Kind is CustomerLedgerKind.Contract or CustomerLedgerKind.InstallmentCollection
+            or CustomerLedgerKind.ContractCancel or CustomerLedgerKind.CancelFee || (r.Kind == CustomerLedgerKind.Refund && contractIds.Contains(r.Id));
+        var accounts = (await CustomerLedger.AllRowsAsync(_db, ct))
+            .Where(a => custIds.Contains(a.Key))
+            .ToDictionary(a => a.Key, a => a.Value.Where(r => !IsContract(r)).ToList());
+        decimal Balance(Guid customerId) => (accounts.GetValueOrDefault(customerId) ?? new()).Sum(r => r.Decreases ? -r.Amount : r.Amount);
+        // Cash received from the customers (collections, on-account receipts) less cash paid back to them.
+        var cash = accounts.Values.SelectMany(rows => rows)
+            .Select(r => (r.Date, Amount: r.Kind is CustomerLedgerKind.InvoiceCollection or CustomerLedgerKind.AccountReceipt ? r.Amount
+                : r.Kind is CustomerLedgerKind.Refund or CustomerLedgerKind.AccountPayment ? -r.Amount : 0m))
+            .ToList();
 
         var now = ClientTime.Today;
         var thisStart = new DateTime(now.Year, now.Month, 1);
@@ -110,7 +124,7 @@ public class SalesInvoicesController : Controller
         {
             CustomerId = g.Key,
             Sales = g.Sum(i => Total(i.Id)),
-            Remaining = g.Sum(i => Total(i.Id) - Collected(i.Id)),
+            Remaining = Balance(g.Key),
             Count = g.Count()
         }).ToList();
 
@@ -118,14 +132,15 @@ public class SalesInvoicesController : Controller
         {
             InvoicesCount = invoices.Count,
             TotalSales = invoices.Sum(i => Total(i.Id)),
-            TotalCollected = invoices.Sum(i => Collected(i.Id)),
+            TotalCollected = cash.Sum(c => c.Amount),
+            TotalRemaining = perCustomer.Where(c => c.Remaining > 0).Sum(c => c.Remaining),
             CostOfSales = cogs,
             BuyingCustomers = perCustomer.Count,
             CustomersWithBalance = perCustomer.Count(c => c.Remaining > 0),
             SalesThisMonth = invoices.Where(i => In(i.InvoiceDate, thisStart, nextStart)).Sum(i => Total(i.Id)),
             SalesPrevMonth = invoices.Where(i => In(i.InvoiceDate, prevStart, thisStart)).Sum(i => Total(i.Id)),
-            CollectedThisMonth = collections.Where(c => In(c.CollectedDate, thisStart, nextStart)).Sum(c => c.Amount),
-            CollectedPrevMonth = collections.Where(c => In(c.CollectedDate, prevStart, thisStart)).Sum(c => c.Amount),
+            CollectedThisMonth = cash.Where(c => In(c.Date, thisStart, nextStart)).Sum(c => c.Amount),
+            CollectedPrevMonth = cash.Where(c => In(c.Date, prevStart, thisStart)).Sum(c => c.Amount),
             InvoicesThisMonth = invoices.Count(i => In(i.InvoiceDate, thisStart, nextStart)),
             InvoicesPrevMonth = invoices.Count(i => In(i.InvoiceDate, prevStart, thisStart)),
             NewBuyersThisMonth = firstBuy.Values.Count(d => In(d, thisStart, nextStart)),
@@ -136,7 +151,7 @@ public class SalesInvoicesController : Controller
             TopDebtors = perCustomer.Where(c => c.Remaining > 0).OrderByDescending(c => c.Remaining).Take(6)
                 .Select(c => new CustomerAmount(c.CustomerId, custNames.GetValueOrDefault(c.CustomerId, "—"), c.Remaining, c.Count)).ToList(),
             Latest = invoices.OrderByDescending(i => i.InvoiceDate).ThenByDescending(i => i.Number).Take(6)
-                .Select(i => new RecentSalesInvoice(i.Id, i.Number, custNames.GetValueOrDefault(i.CustomerId, "—"), Total(i.Id), Total(i.Id) - Collected(i.Id), i.InvoiceDate))
+                .Select(i => new RecentSalesInvoice(i.Id, i.Number, custNames.GetValueOrDefault(i.CustomerId, "—"), Total(i.Id), i.PaymentType, i.InvoiceDate))
                 .ToList(),
         };
     }
@@ -171,9 +186,6 @@ public class SalesInvoicesController : Controller
         var itemsByInvoice = (await _db.ProductSalesInvoiceItems.Where(i => ids.Contains(i.SalesInvoiceId)).GroupBy(i => i.SalesInvoiceId)
             .Select(g => new { g.Key, Sum = g.Sum(x => x.LineTotal), Count = g.Count() }).ToListAsync(ct))
             .ToDictionary(x => x.Key, x => (x.Sum, x.Count));
-        var collectedByInvoice = (await _db.SalesInvoiceCollections.Where(c => ids.Contains(c.SalesInvoiceId))
-            .GroupBy(c => c.SalesInvoiceId).Select(g => new { g.Key, Sum = g.Sum(x => x.Amount) }).ToListAsync(ct))
-            .ToDictionary(x => x.Key, x => x.Sum);
         var returns = await InvoiceReturns.SalesAsync(_db, ids, ct);
 
         return invoices.Select(i =>
@@ -189,9 +201,7 @@ public class SalesInvoicesController : Controller
                 PaymentType = i.PaymentType,
                 Total = agg.Sum,
                 ItemCount = agg.Count,
-                Collected = collectedByInvoice.GetValueOrDefault(i.Id, 0),
                 Returned = returns.GetValueOrDefault(i.Id).Returned,
-                Refunded = returns.GetValueOrDefault(i.Id).Refunded,
             };
         }).ToList();
     }
@@ -581,78 +591,10 @@ public class SalesInvoicesController : Controller
     }
 
     // ---------- Collections (تحصيل) ----------
-    [HttpGet]
-    [Authorize(Policy = PermissionNames.SalesInvoicesCollect)]
-    public async Task<IActionResult> Collect(Guid id, CancellationToken ct)
-    {
-        var vm = await LoadAsync(id, ct);
-        if (vm is null) return NotFound();
-        return PartialView("_CollectForm", new SalesCollectFormModel
-        {
-            InvoiceId = id,
-            DocumentLabel = $"{SI(vm.Invoice.Number)} — {vm.Customer}",
-            Total = vm.Total,
-            Collected = vm.Collected,
-            Remaining = vm.Remaining,
-            Amount = vm.Remaining,
-            CollectedDate = ClientTime.Today,
-            Safes = await SafesAsync(_db, ct)
-        });
-    }
+    // New collections are سند قبض vouchers on the customer's account (CRM/Customers/Collect) — not on an invoice. These
+    // are the cash invoice's automatic collection and those recorded on an invoice before payments moved to the account.
 
-    [HttpPost]
-    [Authorize(Policy = PermissionNames.SalesInvoicesCollect)]
-    [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Collect(SalesCollectFormModel model, CancellationToken ct)
-    {
-        var vm = await LoadAsync(model.InvoiceId, ct);
-        if (vm is null) return NotFound();
-        var inv = vm.Invoice;
-
-        if (model.SafeId is null || !await _db.Safes.AnyAsync(s => s.Id == model.SafeId && s.IsActive, ct))
-            ModelState.AddModelError(nameof(model.SafeId), "اختر خزنة صالحة.");
-        if (model.Amount <= 0)
-            ModelState.AddModelError(nameof(model.Amount), "أدخل مبلغًا أكبر من صفر.");
-        if (model.Amount > vm.Remaining)
-            ModelState.AddModelError(nameof(model.Amount), $"المبلغ يتجاوز المتبقي على الفاتورة ({vm.Remaining:N2} ج.م).");
-        if (model.CollectedDate.Date > ClientTime.Today)
-            ModelState.AddModelError(nameof(model.CollectedDate), "لا يمكن التحصيل بتاريخ مستقبلي.");
-
-        if (!ModelState.IsValid)
-        {
-            model.Safes = await SafesAsync(_db, ct);
-            model.Total = vm.Total;
-            model.Collected = vm.Collected;
-            model.Remaining = vm.Remaining;
-            model.DocumentLabel = $"{SI(inv.Number)} — {vm.Customer}";
-            return PartialView("_CollectForm", model);
-        }
-
-        // Record as an Income into the safe; its serial IS the receipt number. Dr الخزنة / Cr العملاء.
-        var desc = $"تحصيل من العميل «{vm.Customer}» على فاتورة المبيعات {SI(inv.Number)}";
-        var txn = await _accounting.AddTransactionAsync(model.SafeId!.Value, TxnType.Income, TxnSource.SalesInvoiceCollection,
-            model.Amount, model.CollectedDate, desc, customerId: inv.CustomerId, ct: ct);
-        txn.Description = $"{desc} (إيصال استلام نقدية رقم {txn.Serial})";
-
-        var collection = new SalesInvoiceCollection
-        {
-            CustomerId = inv.CustomerId,
-            SalesInvoiceId = inv.Id,
-            Amount = model.Amount,
-            CollectedDate = model.CollectedDate,
-            SafeId = model.SafeId.Value,
-            SafeTransactionId = txn.Id,
-            ReceiptNo = txn.Serial,
-            Description = model.Description
-        };
-        _db.SalesInvoiceCollections.Add(collection);
-        await _db.SaveChangesAsync(ct);
-
-        TempData["StatusMessage"] = $"تم تحصيل {model.Amount:N2} ج.م من العميل «{vm.Customer}» على فاتورة المبيعات {SI(inv.Number)} (إيصال استلام نقدية رقم {txn.Serial}).";
-        return Json(new { ok = true, openTab = Url.Action(nameof(CollectionReceipt), new { id = collection.Id }) });
-    }
-
-    /// <summary>Cancels a collection: removes its Income movement (and journal entry) — the amount goes back onto the invoice.</summary>
+    /// <summary>Cancels a collection: removes its Income movement (and journal entry) — the amount is owed by the customer again.</summary>
     [HttpPost]
     [Authorize(Policy = PermissionNames.SalesInvoicesDeleteCollection)]
     [ValidateAntiForgeryToken]
@@ -665,14 +607,6 @@ public class SalesInvoicesController : Controller
         {
             HttpContext.Items[RealState.Web.Filters.ActivityLogFilter.SkipItem] = true;   // refused — nothing changed
             TempData["ErrorMessage"] = $"التحصيل رقم {c.ReceiptNo} هو تحصيل الفاتورة النقدية {SI(invNo)} — عدّل الفاتورة إلى «آجل» أو احذفها.";
-            return RedirectToAction(nameof(Details), new { id = c.SalesInvoiceId });
-        }
-        // Cash already refunded through returns came out of what was collected — it can't be left larger than that.
-        var refunded = (await InvoiceReturns.ForSalesInvoiceAsync(_db, c.SalesInvoiceId, ct)).Refunded;
-        var collected = await _db.SalesInvoiceCollections.Where(x => x.SalesInvoiceId == c.SalesInvoiceId).SumAsync(x => x.Amount, ct);
-        if (refunded > 0 && collected - c.Amount < refunded)
-        {
-            TempData["ErrorMessage"] = $"لا يمكن إلغاء التحصيل رقم {c.ReceiptNo}: رُدّ للعميل {refunded:N2} ج.م من مرتجعات هذه الفاتورة، ولا يجوز أن يقل المحصَّل عنه — احذف المرتجع أولًا.";
             return RedirectToAction(nameof(Details), new { id = c.SalesInvoiceId });
         }
         // Taking the money back out of the safe — «سحب على المكشوف» applies.

@@ -7,7 +7,7 @@
     string D(DateTime d) => RealState.Web.AppCulture.When(d);   // date + time when it has one
     string? F(DateTime? d) => d?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
     var total = Model.Sum(r => r.Total);
-    var remaining = Model.Sum(r => r.Remaining);
+    var net = Model.Sum(r => r.NetTotal);
 }
 <div class="page-head">
     <h1>فواتير المبيعات
@@ -42,12 +42,12 @@
 <div class="card-tile">
     <div class="card-head">
         <h3>الفواتير</h3>
-        <span class="pill">الفواتير: <span data-live-count="#sinvTable">@Model.Count</span> · الإجمالي: <span data-live-sum="#sinvTable:4">@N(total)</span> ج.م · المتبقي: <span data-live-sum="#sinvTable:7">@N(remaining)</span> ج.م</span>
+        <span class="pill">الفواتير: <span data-live-count="#sinvTable">@Model.Count</span> · الإجمالي: <span data-live-sum="#sinvTable:4">@N(total)</span> ج.م · الصافي: <span data-live-sum="#sinvTable:6">@N(net)</span> ج.م</span>
     </div>
     <div class="list-search-bar"><input class="form-control list-search" data-target="#sinvTable" placeholder="🔍 بحث في القائمة..." /></div>
     <table class="rs-table" id="sinvTable">
         <thead>
-            <tr><th>الرقم</th><th>التاريخ</th><th>العميل</th><th>الدفع</th><th>الإجمالي</th><th>المرتجعات</th><th>المحصَّل</th><th>المتبقي</th><th></th></tr>
+            <tr><th>الرقم</th><th>التاريخ</th><th>العميل</th><th>الدفع</th><th>الإجمالي</th><th>المرتجعات</th><th>الصافي</th><th></th></tr>
         </thead>
         <tbody>
         @foreach (var i in Model)
@@ -59,8 +59,7 @@
                 <td><span class="badge-state @i.PaymentType.BadgeClass()">@i.PaymentType.Ar()</span></td>
                 <td>@N(i.Total)</td>
                 <td>@(i.Returned > 0 ? N(i.Returned) : "—")</td>
-                <td class="tag-up">@N(i.NetCollected)</td>
-                <td>@N(i.Remaining)</td>
+                <td>@N(i.NetTotal)</td>
                 <td style="white-space:nowrap;">
                     <a class="btn-sm" asp-action="Details" asp-route-id="@i.Id">التفاصيل</a>
                     @if (canEdit && i.Returned == 0)
@@ -72,9 +71,9 @@
         }
         @if (Model.Count == 0)
         {
-            <tr data-skip-search><td colspan="9" style="color:var(--muted)">لا توجد فواتير مبيعات.</td></tr>
+            <tr data-skip-search><td colspan="8" style="color:var(--muted)">لا توجد فواتير مبيعات.</td></tr>
         }
-        <tr data-no-results data-skip-search style="display:none;"><td colspan="9" style="color:var(--muted)">لا توجد نتائج مطابقة للبحث.</td></tr>
+        <tr data-no-results data-skip-search style="display:none;"><td colspan="8" style="color:var(--muted)">لا توجد نتائج مطابقة للبحث.</td></tr>
         </tbody>
     </table>
 </div>

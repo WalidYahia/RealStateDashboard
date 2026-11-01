@@ -23,6 +23,15 @@
             <label asp-for="Notes" class="form-label"></label>
             <textarea asp-for="Notes" class="form-control" rows="2"></textarea>
         </div>
+        @if (User.Can(PermissionNames.CustomersView))
+        {
+            @* «عميل ومورد»: a customer record with this supplier's data is created (or linked) automatically on save. *@
+            <div class="full">
+                <label class="form-check"><input asp-for="IsAlsoCustomer" type="checkbox" /> @Html.DisplayNameFor(m => m.IsAlsoCustomer)</label>
+                <small style="display:block;margin:4px 0 6px;color:var(--muted);font-size:12px;">يُنشأ له عميل بنفس البيانات — يظهر في فواتير المبيعات كعميل وفي فواتير المشتريات كمورد، ويُعرض له كشف حساب موحّد بصافي الرصيد.</small>
+                <span asp-validation-for="IsAlsoCustomer" class="field-validation-error"></span>
+            </div>
+        }
     </div>
     <button type="submit" class="btn-primary" style="margin-top:12px;">💾 حفظ</button>
 </form>

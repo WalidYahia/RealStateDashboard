@@ -23,8 +23,12 @@ public class HrController : Controller
     {
         var attendance = await EnsureAttendanceAsync(ct);
         await EnsureLateRulesAsync(ct);
+        await HrBranches.EnsureDefaultAsync(_db, ct);
         var vm = new HrSettingsVm
         {
+            Branches = await _db.Branches.OrderBy(b => b.Number).ToListAsync(ct),
+            BranchEmployees = await _db.Employees.Where(e => e.BranchId != null).GroupBy(e => e.BranchId!.Value)
+                .Select(g => new { g.Key, Count = g.Count() }).ToDictionaryAsync(x => x.Key, x => x.Count, ct),
             Departments = await _db.Departments.OrderBy(d => d.Name).ToListAsync(ct),
             Roles = await _db.JobRoles.OrderBy(r => r.Name).ToListAsync(ct),
             Attendance = new AttendanceFormModel
@@ -36,6 +40,58 @@ public class HrController : Controller
         };
         ViewData["CanManage"] = CanManage();
         return View(vm);
+    }
+
+    // ---------- Work locations / branches (المواقع والفروع) ----------
+    [HttpGet]
+    public async Task<IActionResult> BranchForm(Guid? id, CancellationToken ct)
+    {
+        if (!CanManage()) return Forbid();
+        if (id is null) return PartialView("_BranchForm", new BranchFormModel());
+        var b = await _db.Branches.FirstOrDefaultAsync(x => x.Id == id, ct);
+        if (b is null) return NotFound();
+        return PartialView("_BranchForm", new BranchFormModel { Id = b.Id, Code = b.Code, Name = b.Name, Phone = b.Phone });
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> BranchForm(BranchFormModel model, CancellationToken ct)
+    {
+        if (!CanManage()) return Forbid();
+        if (await _db.Branches.AnyAsync(b => b.Id != model.Id && b.Name == model.Name, ct))
+            ModelState.AddModelError(nameof(model.Name), "يوجد موقع / فرع بنفس الاسم.");
+        if (!ModelState.IsValid) return PartialView("_BranchForm", model);
+        if (model.Id == Guid.Empty)
+            _db.Branches.Add(new Branch { Number = await HrBranches.NextNumberAsync(_db, ct), Name = model.Name, Phone = model.Phone });
+        else
+        {
+            var b = await _db.Branches.FirstOrDefaultAsync(x => x.Id == model.Id, ct);
+            if (b is null) return NotFound();
+            b.Name = model.Name; b.Phone = model.Phone;
+        }
+        await _db.SaveChangesAsync(ct);
+        TempData["StatusMessage"] = $"تم حفظ الموقع / الفرع «{model.Name}».";
+        return Json(new { ok = true });
+    }
+
+    [HttpPost]
+    [Authorize(Policy = PermissionNames.HrManage)]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> BranchDelete(Guid id, CancellationToken ct)
+    {
+        var b = await _db.Branches.FirstOrDefaultAsync(x => x.Id == id, ct);
+        if (b is null) return Redirect(Url.Action(nameof(Index)) + "#branches");
+        if (b.IsDefault)
+            TempData["ErrorMessage"] = $"«{b.Name}» هو الموقع الافتراضي — لا يمكن حذفه.";
+        else if (await _db.Employees.AnyAsync(e => e.BranchId == id, ct))
+            TempData["ErrorMessage"] = "لا يمكن حذف موقع / فرع مرتبط بموظفين — انقلهم إلى موقع آخر أولًا.";
+        else
+        {
+            _db.Branches.Remove(b);
+            await _db.SaveChangesAsync(ct);
+            TempData["StatusMessage"] = $"تم حذف الموقع / الفرع «{b.Name}».";
+        }
+        return Redirect(Url.Action(nameof(Index)) + "#branches");
     }
 
     // ---------- Departments ----------

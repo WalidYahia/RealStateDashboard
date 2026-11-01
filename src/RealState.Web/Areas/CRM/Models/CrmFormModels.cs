@@ -196,4 +196,11 @@ public class CustomerFormModel
 
     public List<SelectListItem> SalesPersons { get; set; } = new();
     public List<SelectListItem> Campaigns { get; set; } = new();
+
+    /// <summary>
+    /// «عميل ومورد في نفس الوقت»: the customer is also a supplier — a supplier record with the same name / phone / email is
+    /// linked to it (the existing one with the same phone, or a new one).
+    /// </summary>
+    [Display(Name = "عميل ومورد في نفس الوقت")]
+    public bool IsAlsoSupplier { get; set; }
 }

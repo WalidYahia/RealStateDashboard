@@ -4,7 +4,9 @@ using Microsoft.EntityFrameworkCore;
 using RealState.Application.Common;
 using RealState.Application.Enums;
 using RealState.Application.Interfaces;
+using RealState.Web.Areas.CRM.Controllers;
 using RealState.Web.Areas.Reports.Models;
+using RealState.Web.Areas.Suppliers.Controllers;
 
 namespace RealState.Web.Areas.Reports.Controllers;
 
@@ -87,144 +89,105 @@ public class ReportsController : Controller
     }
 
     // ---------------- Customer report ----------------
-    public async Task<IActionResult> Customers(DateTime? from, DateTime? to, CancellationToken ct)
-    {
-        (from, to) = DateFilterDefaults.TodayIfFresh(Request, from, to);
-        return View(await BuildCustomersAsync(from, to, ct));
-    }
+    // Every customer's current account — the same figures as its statement (all time, no date range).
+    public async Task<IActionResult> Customers(CancellationToken ct) => View(await BuildCustomersAsync(ct));
 
     [HttpGet]
-    public async Task<IActionResult> CustomersPrint(DateTime? from, DateTime? to, CancellationToken ct)
+    public async Task<IActionResult> CustomersPrint(CancellationToken ct)
     {
         ViewBag.TenantId = _currentUser.TenantId;
-        return View("CustomersPrint", await BuildCustomersAsync(from, to, ct));
+        return View("CustomersPrint", await BuildCustomersAsync(ct));
     }
 
     [HttpGet]
-    public async Task<IActionResult> CustomersCsv(DateTime? from, DateTime? to, CancellationToken ct)
+    public async Task<IActionResult> CustomersCsv(CancellationToken ct)
     {
-        var vm = await BuildCustomersAsync(from, to, ct);
-        var headers = new[] { "العميل", "الهاتف", "عدد العقود", "قيمة العقود", "أقساط متبقية", "المحصّل", "المتبقي" };
+        var vm = await BuildCustomersAsync(ct);
+        var headers = new[] { "العميل", "الهاتف", "مدين", "دائن", "الرصيد", "" };
         var rows = vm.Rows.Select(r => (IReadOnlyList<object?>)new object?[]
         {
-            r.Name, r.Phone, r.Contracts, r.ContractsValue, r.RemainingInstallments, r.Collected, r.Residual
+            r.Name + (r.IsLinked ? " (عميل ومورد)" : ""), r.Phone, r.Debit, r.Credit, Math.Abs(r.Balance), Side(r.Balance, "مدين", "دائن")
         });
-        var totals = new object?[] { "الإجمالي", null, vm.TotContracts, vm.TotValue, vm.TotRemInst, vm.TotCollected, vm.TotResidual };
+        var totals = new object?[] { "الإجمالي", null, vm.TotDebit, vm.TotCredit, Math.Abs(vm.TotBalance), Side(vm.TotBalance, "مدين", "دائن") };
         return RealState.Web.Common.Xlsx.File($"تقرير العملاء {ClientTime.Now:yyyy-MM-dd}.xlsx", "تقرير العملاء", headers, rows, totals);
     }
 
-    private async Task<CustomerReportVm> BuildCustomersAsync(DateTime? from, DateTime? to, CancellationToken ct)
+    private async Task<CustomerReportVm> BuildCustomersAsync(CancellationToken ct)
     {
-        var vm = new CustomerReportVm { From = from, To = to };
-        var contracts = await _db.SaleContracts.Where(c => !c.IsCancelled).ToListAsync(ct);   // cancelled contracts owe nothing
-        if (from.HasValue) contracts = contracts.Where(c => c.ContractDate >= from.Value).ToList();
-        if (to.HasValue) contracts = contracts.Where(c => c.ContractDate < to.Value.Date.AddDays(1)).ToList();
+        var customers = await _db.Customers.Where(c => !c.IsLead).OrderBy(c => c.FullName).ToListAsync(ct);
+        var accounts = await CustomerLedger.AllRowsAsync(_db, ct);
+        // «عميل ومورد»: the merged statement — the linked supplier account's movements count too, from the party's side
+        // (what lowers the amount owed to the supplier raises its debit here, and the other way round).
+        var supplierAccounts = customers.Any(c => c.SupplierId.HasValue) ? await SupplierLedger.AllAsync(_db, ct) : new();
 
-        var contractIds = contracts.Select(c => c.Id).ToList();
-        var installments = await _db.Installments.Where(i => contractIds.Contains(i.SaleContractId)).ToListAsync(ct);
-        var instByContract = installments.GroupBy(i => i.SaleContractId).ToDictionary(g => g.Key, g => g.ToList());
-        var customers = await _db.Customers.ToDictionaryAsync(c => c.Id, c => c, ct);
-
-        vm.Rows = contracts.GroupBy(c => c.CustomerId).Select(g =>
+        return new CustomerReportVm
         {
-            customers.TryGetValue(g.Key, out var cust);
-            var value = g.Sum(c => c.TotalPrice);
-            var insts = g.SelectMany(c => instByContract.GetValueOrDefault(c.Id, new())).ToList();
-            var collected = insts.Sum(i => i.PaidAmount);
-            return new CustomerReportRow
+            Rows = customers.Select(c =>
             {
-                Name = cust?.FullName ?? "—",
-                Phone = cust?.Phone,
-                Contracts = g.Count(),
-                ContractsValue = value,
-                RemainingInstallments = insts.Count(i => i.PaidAmount < i.Amount),
-                Collected = collected,
-                Residual = value - collected
-            };
-        }).OrderByDescending(r => r.ContractsValue).ToList();
-
-        return vm;
+                var rows = accounts.GetValueOrDefault(c.Id) ?? new();
+                var supplierRows = c.SupplierId is Guid sid ? supplierAccounts.GetValueOrDefault(sid)?.Rows ?? new() : new();
+                return new CustomerReportRow
+                {
+                    Id = c.Id, Name = c.FullName, Phone = c.Phone, IsLinked = c.SupplierId.HasValue,
+                    Debit = rows.Where(r => !r.Decreases).Sum(r => r.Amount) + supplierRows.Where(r => r.Decreases).Sum(r => r.Amount),
+                    Credit = rows.Where(r => r.Decreases).Sum(r => r.Amount) + supplierRows.Where(r => !r.Decreases).Sum(r => r.Amount)
+                };
+            }).ToList()
+        };
     }
 
     // ---------------- Supplier report ----------------
-    public async Task<IActionResult> Suppliers(DateTime? from, DateTime? to, CancellationToken ct)
-    {
-        (from, to) = DateFilterDefaults.TodayIfFresh(Request, from, to);
-        return View(await BuildSuppliersAsync(from, to, ct));
-    }
+    // Every supplier's current account — the same figures as its statement (all time, no date range).
+    public async Task<IActionResult> Suppliers(CancellationToken ct) => View(await BuildSuppliersAsync(ct));
 
     [HttpGet]
-    public async Task<IActionResult> SuppliersPrint(DateTime? from, DateTime? to, CancellationToken ct)
+    public async Task<IActionResult> SuppliersPrint(CancellationToken ct)
     {
         ViewBag.TenantId = _currentUser.TenantId;
-        return View("SuppliersPrint", await BuildSuppliersAsync(from, to, ct));
+        return View("SuppliersPrint", await BuildSuppliersAsync(ct));
     }
 
     [HttpGet]
-    public async Task<IActionResult> SuppliersCsv(DateTime? from, DateTime? to, CancellationToken ct)
+    public async Task<IActionResult> SuppliersCsv(CancellationToken ct)
     {
-        var vm = await BuildSuppliersAsync(from, to, ct);
-        var headers = new[] { "المورد", "الهاتف", "عدد الفواتير", "قيمة الفواتير", "المسدَّد", "المتبقي" };
+        var vm = await BuildSuppliersAsync(ct);
+        var headers = new[] { "المورد", "الهاتف", "دائن", "مدين", "الرصيد", "" };
         var rows = vm.Rows.Select(r => (IReadOnlyList<object?>)new object?[]
         {
-            r.Name, r.Phone, r.Orders, r.OrdersValue, r.Paid, r.Residual
+            r.Name + (r.IsLinked ? " (عميل ومورد)" : ""), r.Phone, r.Credit, r.Debit, Math.Abs(r.Balance), Side(r.Balance, "دائن", "مدين")
         });
-        var totals = new object?[] { "الإجمالي", null, vm.TotOrders, vm.TotValue, vm.TotPaid, vm.TotResidual };
+        var totals = new object?[] { "الإجمالي", null, vm.TotCredit, vm.TotDebit, Math.Abs(vm.TotBalance), Side(vm.TotBalance, "دائن", "مدين") };
         return RealState.Web.Common.Xlsx.File($"تقرير الموردين {ClientTime.Now:yyyy-MM-dd}.xlsx", "تقرير الموردين", headers, rows, totals);
     }
 
-    private async Task<SupplierReportVm> BuildSuppliersAsync(DateTime? from, DateTime? to, CancellationToken ct)
+    private async Task<SupplierReportVm> BuildSuppliersAsync(CancellationToken ct)
     {
-        var vm = new SupplierReportVm { From = from, To = to };
+        var suppliers = await _db.Suppliers.OrderBy(s => s.Name).ToListAsync(ct);
+        var accounts = await SupplierLedger.AllAsync(_db, ct);
+        // «عميل ومورد»: the merged statement — the linked customer account's movements count too, from the party's side
+        // as a supplier (a collection from them raises what's owed to them here, a sale lowers it).
+        var linkedCustomers = await _db.Customers.Where(c => c.SupplierId != null && !c.IsLead)
+            .Select(c => new { c.Id, SupplierId = c.SupplierId!.Value }).ToListAsync(ct);
+        var customerAccounts = linkedCustomers.Count > 0 ? await CustomerLedger.AllRowsAsync(_db, ct) : new();
+        var customerOf = linkedCustomers.GroupBy(c => c.SupplierId).ToDictionary(g => g.Key, g => g.First().Id);
 
-        // A supplier's documents: purchase invoices, plus legacy orders that still carry the supplier.
-        var invQ = _db.PurchaseInvoices.AsQueryable();
-        var ordQ = _db.SupplierOrders.Where(o => o.SupplierId != null);
-        var (invFrom, invTo) = ClientTime.DayRange(from, to);   // [from, to) of the picked days
-        if (from.HasValue) { invQ = invQ.Where(i => i.InvoiceDate >= invFrom!.Value); ordQ = ordQ.Where(o => o.OrderDate >= from.Value); }
-        if (to.HasValue) { invQ = invQ.Where(i => i.InvoiceDate < invTo!.Value); ordQ = ordQ.Where(o => o.OrderDate < to.Value.Date.AddDays(1)); }
-        var invoices = await invQ.ToListAsync(ct);
-        var orders = await ordQ.ToListAsync(ct);
-
-        var invoiceIds = invoices.Select(i => i.Id).ToList();
-        var invoiceSums = (await _db.PurchaseInvoiceItems.Where(i => invoiceIds.Contains(i.PurchaseInvoiceId))
-            .GroupBy(i => i.PurchaseInvoiceId).Select(g => new { g.Key, Sum = g.Sum(x => x.LineTotal) }).ToListAsync(ct))
-            .ToDictionary(x => x.Key, x => x.Sum);
-        var paidByInvoice = (await _db.SupplierPayments.Where(p => p.PurchaseInvoiceId != null && invoiceIds.Contains(p.PurchaseInvoiceId!.Value))
-            .GroupBy(p => p.PurchaseInvoiceId!.Value).Select(g => new { g.Key, Sum = g.Sum(x => x.Amount) }).ToListAsync(ct))
-            .ToDictionary(x => x.Key, x => x.Sum);
-        // Invoice values net of purchase returns; paid net of the cash the supplier refunded through them.
-        var returns = await RealState.Application.Accounting.InvoiceReturns.PurchaseAsync(_db, invoiceIds, ct);
-        var orderIds = orders.Select(o => o.Id).ToList();
-        var itemSums = (await _db.SupplierOrderItems.Where(i => orderIds.Contains(i.SupplierOrderId))
-            .GroupBy(i => i.SupplierOrderId).Select(g => new { g.Key, Sum = g.Sum(x => x.Cost * x.Quantity) }).ToListAsync(ct))
-            .ToDictionary(x => x.Key, x => x.Sum);
-        var paidByOrder = (await _db.SupplierPayments.Where(p => p.SupplierOrderId != null && orderIds.Contains(p.SupplierOrderId!.Value))
-            .GroupBy(p => p.SupplierOrderId!.Value).Select(g => new { g.Key, Sum = g.Sum(x => x.Amount) }).ToListAsync(ct))
-            .ToDictionary(x => x.Key, x => x.Sum);
-        var suppliers = await _db.Suppliers.ToDictionaryAsync(s => s.Id, s => s, ct);
-
-        var docs = invoices.Select(i => (SupplierId: i.SupplierId,
-                Value: invoiceSums.GetValueOrDefault(i.Id, 0) - returns.GetValueOrDefault(i.Id).Returned,
-                Paid: paidByInvoice.GetValueOrDefault(i.Id, 0) - returns.GetValueOrDefault(i.Id).Refunded))
-            .Concat(orders.Select(o => (SupplierId: o.SupplierId!.Value, Value: itemSums.GetValueOrDefault(o.Id, 0), Paid: paidByOrder.GetValueOrDefault(o.Id, 0))));
-
-        vm.Rows = docs.GroupBy(d => d.SupplierId).Select(g =>
+        return new SupplierReportVm
         {
-            suppliers.TryGetValue(g.Key, out var sup);
-            var value = g.Sum(d => d.Value);
-            var paid = g.Sum(d => d.Paid);
-            return new SupplierReportRow
+            Rows = suppliers.Select(s =>
             {
-                Name = sup?.Name ?? "—",
-                Phone = sup?.Phone,
-                Orders = g.Count(),
-                OrdersValue = value,
-                Paid = paid,
-                Residual = value - paid
-            };
-        }).OrderByDescending(r => r.OrdersValue).ToList();
-
-        return vm;
+                var rows = accounts.GetValueOrDefault(s.Id)?.Rows ?? new();
+                var linked = customerOf.TryGetValue(s.Id, out var customerId);
+                var customerRows = linked ? customerAccounts.GetValueOrDefault(customerId) ?? new() : new();
+                return new SupplierReportRow
+                {
+                    Id = s.Id, Name = s.Name, Phone = s.Phone, IsLinked = linked,
+                    Credit = rows.Where(r => !r.Decreases).Sum(r => r.Amount) + customerRows.Where(r => r.Decreases).Sum(r => r.Amount),
+                    Debit = rows.Where(r => r.Decreases).Sum(r => r.Amount) + customerRows.Where(r => !r.Decreases).Sum(r => r.Amount)
+                };
+            }).ToList()
+        };
     }
+
+    /// <summary>The side of a balance: <paramref name="positive"/> above zero, <paramref name="negative"/> below, empty at zero.</summary>
+    private static string Side(decimal v, string positive, string negative) => v > 0 ? positive : v < 0 ? negative : "";
 }

@@ -55,10 +55,7 @@
             {
                 <tr><th colspan="5">المرتجعات (@string.Join("، ", Model.Returns.Select(r => "SR-" + r.Number)))</th><th>− @N(Model.Returned) ج.م</th></tr>
                 <tr><th colspan="5">الصافي بعد المرتجعات</th><th>@N(Model.NetTotal) ج.م</th></tr>
-            }
-            <tr><th colspan="5">المحصَّل@(Model.Refunded > 0 ? " (بعد رد " + N(Model.Refunded) + " للعميل)" : "")</th><th>@N(Model.NetCollected) ج.م</th></tr>
-            <tr><th colspan="5">المتبقي</th><th>@N(Model.Remaining) ج.م</th></tr>
-        </tfoot>
+            }        </tfoot>
     </table>
 
     @if (!string.IsNullOrEmpty(inv.Notes))

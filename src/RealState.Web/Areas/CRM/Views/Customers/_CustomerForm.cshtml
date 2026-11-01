@@ -77,6 +77,15 @@
             <label asp-for="Notes" class="form-label"></label>
             <textarea asp-for="Notes" class="form-control" rows="2"></textarea>
         </div>
+        @if (!Model.IsLead && User.Can(PermissionNames.SuppliersView))
+        {
+            @* «عميل ومورد»: a supplier record with this customer's data is created (or linked) automatically on save. *@
+            <div class="full">
+                <label class="form-check"><input asp-for="IsAlsoSupplier" type="checkbox" /> @Html.DisplayNameFor(m => m.IsAlsoSupplier)</label>
+                <small style="display:block;margin:4px 0 6px;color:var(--muted);font-size:12px;">يُنشأ له مورد بنفس البيانات — يظهر في فواتير المبيعات كعميل وفي فواتير المشتريات كمورد، ويُعرض له كشف حساب موحّد بصافي الرصيد.</small>
+                <span asp-validation-for="IsAlsoSupplier" class="field-validation-error"></span>
+            </div>
+        }
     </div>
     <button type="submit" class="btn-primary" style="margin-top:12px;">💾 حفظ</button>
 </form>

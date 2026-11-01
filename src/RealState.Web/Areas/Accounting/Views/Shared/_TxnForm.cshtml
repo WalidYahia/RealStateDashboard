@@ -13,9 +13,9 @@
         </div>
     }
 
-    @if (Model.CanCustomers || Model.CanSuppliers || Model.Party != TxnParty.Other)
+    @if (Model.CanCustomers || Model.CanSuppliers || Model.CanContractors || Model.Party != TxnParty.Other)
     {
-        @* The account the voucher is on: a customer / supplier (their statement) or a بند. *@
+        @* The account the voucher is on: a customer / supplier / contractor (their statement) or a بند. *@
         <div class="form-grid">
             <div class="full">
                 <label class="form-label">@Html.DisplayNameFor(m => m.Party)</label>
@@ -28,21 +28,31 @@
                     {
                         <label><input type="radio" name="Party" value="Supplier" checked="@(Model.Party == TxnParty.Supplier)" data-txn-party onchange="txnPartyChange(this.form)" /> مورد</label>
                     }
+                    @if (Model.CanContractors || Model.Party == TxnParty.Contractor)
+                    {
+                        <label><input type="radio" name="Party" value="Contractor" checked="@(Model.Party == TxnParty.Contractor)" data-txn-party onchange="txnPartyChange(this.form)" /> مقاول</label>
+                    }
                     <label><input type="radio" name="Party" value="Other" checked="@(Model.Party == TxnParty.Other)" data-txn-party onchange="txnPartyChange(this.form)" /> أخرى (@(Model.IsExpense ? "بنود المصروفات" : "بنود الإيرادات"))</label>
                 </div>
                 <span asp-validation-for="Party" class="field-validation-error"></span>
             </div>
             <div class="full txn-party-customer" style="@(Model.Party == TxnParty.Customer ? "" : "display:none;")">
                 <label asp-for="CustomerId" class="form-label"></label>
-                <select asp-for="CustomerId" class="form-control" data-searchable asp-items="Model.Customers" data-search-placeholder="🔍 ابحث بالاسم أو الهاتف..."><option value="">— اختر العميل —</option></select>
+                <select asp-for="CustomerId" class="form-control" data-searchable data-cascade-init data-party="Customer" data-balance-url="@Url.Action("PartyBalance")" onchange="txnPartyBalance(this)" asp-items="Model.Customers" data-search-placeholder="🔍 ابحث بالاسم أو الهاتف..."><option value="">— اختر العميل —</option></select>
                 <span asp-validation-for="CustomerId" class="field-validation-error"></span>
-                <small style="display:block;margin:4px 0 6px;color:var(--muted);font-size:12px;">@(Model.IsExpense ? "يُضاف المبلغ على رصيد العميل (مدين) ويظهر في كشف حسابه." : "يُخصم المبلغ من رصيد العميل (دائن) ويظهر في كشف حسابه.")</small>
+                <small style="display:block;margin:4px 0 6px;color:var(--muted);font-size:12px;">@(Model.IsExpense ? "يُضاف المبلغ على رصيد العميل (مدين) ويظهر في كشف حسابه." : "يُخصم المبلغ من رصيد العميل (دائن) ويظهر في كشف حسابه.") <span class="txn-party-balance" style="display:none;"></span></small>
             </div>
             <div class="full txn-party-supplier" style="@(Model.Party == TxnParty.Supplier ? "" : "display:none;")">
                 <label asp-for="SupplierId" class="form-label"></label>
-                <select asp-for="SupplierId" class="form-control" data-searchable asp-items="Model.Suppliers" data-search-placeholder="🔍 ابحث بالاسم أو الهاتف..."><option value="">— اختر المورد —</option></select>
+                <select asp-for="SupplierId" class="form-control" data-searchable data-cascade-init data-party="Supplier" data-balance-url="@Url.Action("PartyBalance")" onchange="txnPartyBalance(this)" asp-items="Model.Suppliers" data-search-placeholder="🔍 ابحث بالاسم أو الهاتف..."><option value="">— اختر المورد —</option></select>
                 <span asp-validation-for="SupplierId" class="field-validation-error"></span>
-                <small style="display:block;margin:4px 0 6px;color:var(--muted);font-size:12px;">@(Model.IsExpense ? "يُخصم المبلغ من المستحق للمورد ويظهر في كشف حسابه." : "يُضاف المبلغ على المستحق للمورد ويظهر في كشف حسابه.")</small>
+                <small style="display:block;margin:4px 0 6px;color:var(--muted);font-size:12px;">@(Model.IsExpense ? "يُخصم المبلغ من المستحق للمورد ويظهر في كشف حسابه." : "يُضاف المبلغ على المستحق للمورد ويظهر في كشف حسابه.") <span class="txn-party-balance" style="display:none;"></span></small>
+            </div>
+            <div class="full txn-party-contractor" style="@(Model.Party == TxnParty.Contractor ? "" : "display:none;")">
+                <label asp-for="ContractorId" class="form-label"></label>
+                <select asp-for="ContractorId" class="form-control" data-searchable data-cascade-init data-party="Contractor" data-balance-url="@Url.Action("PartyBalance")" onchange="txnPartyBalance(this)" asp-items="Model.Contractors" data-search-placeholder="🔍 ابحث بالاسم أو الهاتف..."><option value="">— اختر المقاول —</option></select>
+                <span asp-validation-for="ContractorId" class="field-validation-error"></span>
+                <small style="display:block;margin:4px 0 6px;color:var(--muted);font-size:12px;">@(Model.IsExpense ? "يُخصم المبلغ من المستحق للمقاول ويظهر في كشف حسابه." : "يُضاف المبلغ على المستحق للمقاول ويظهر في كشف حسابه.") <span class="txn-party-balance" style="display:none;"></span></small>
             </div>
         </div>
     }

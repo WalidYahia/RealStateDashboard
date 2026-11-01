@@ -80,9 +80,6 @@ public class PurchaseInvoicesController : Controller
         var itemsByInvoice = (await _db.PurchaseInvoiceItems.Where(i => ids.Contains(i.PurchaseInvoiceId)).GroupBy(i => i.PurchaseInvoiceId)
             .Select(g => new { g.Key, Sum = g.Sum(x => x.LineTotal), Count = g.Count() }).ToListAsync(ct))
             .ToDictionary(x => x.Key, x => (x.Sum, x.Count));
-        var paidByInvoice = (await _db.SupplierPayments.Where(p => p.PurchaseInvoiceId != null && ids.Contains(p.PurchaseInvoiceId!.Value))
-            .GroupBy(p => p.PurchaseInvoiceId!.Value).Select(g => new { g.Key, Sum = g.Sum(x => x.Amount) }).ToListAsync(ct))
-            .ToDictionary(x => x.Key, x => x.Sum);
         var returns = await InvoiceReturns.PurchaseAsync(_db, ids, ct);
 
         return invoices.Select(i =>
@@ -100,9 +97,7 @@ public class PurchaseInvoicesController : Controller
                 OrderNumber = i.PurchaseOrderId.HasValue && orderNumbers.TryGetValue(i.PurchaseOrderId.Value, out var n) ? n : null,
                 Total = agg.Sum,
                 ItemCount = agg.Count,
-                Paid = paidByInvoice.GetValueOrDefault(i.Id, 0),
                 Returned = returns.GetValueOrDefault(i.Id).Returned,
-                Refunded = returns.GetValueOrDefault(i.Id).Refunded,
             };
         }).ToList();
     }
@@ -484,7 +479,8 @@ public class PurchaseInvoicesController : Controller
 
     /// <summary>
     /// Deletes a payment (سند صرف) made on the invoice: its expense movement and journal entry are removed (the money
-    /// goes back into the safe, Dr الخزنة / Cr الموردون reversed) and the amount is owed on the invoice again.
+    /// goes back into the safe, Dr الخزنة / Cr الموردون reversed) and the amount is owed to the supplier again. Only for
+    /// payments recorded on an invoice before payments moved to the supplier's account.
     /// </summary>
     [HttpPost]
     [Authorize(Policy = PermissionNames.PurchaseInvoicesDeletePayment)]
@@ -499,14 +495,6 @@ public class PurchaseInvoicesController : Controller
         {
             HttpContext.Items[RealState.Web.Filters.ActivityLogFilter.SkipItem] = true;   // refused — nothing changed
             TempData["ErrorMessage"] = $"سند الصرف رقم {p.ReceiptNo} هو سداد الفاتورة النقدية {PI(invNo)} — عدّل الفاتورة إلى «آجل» أو احذفها.";
-            return RedirectToAction(nameof(Details), new { id = invId });
-        }
-        // Cash the supplier refunded through returns came out of what was paid — paid can't be left below it.
-        var refunded = (await InvoiceReturns.ForPurchaseInvoiceAsync(_db, invId, ct)).Refunded;
-        var paid = await _db.SupplierPayments.Where(x => x.PurchaseInvoiceId == invId).SumAsync(x => x.Amount, ct);
-        if (refunded > 0 && paid - p.Amount < refunded)
-        {
-            TempData["ErrorMessage"] = $"لا يمكن حذف سند الصرف رقم {p.ReceiptNo}: استُرد من المورد {refunded:N2} ج.م في مرتجعات هذه الفاتورة، ولا يجوز أن يقل المسدَّد عنه — احذف استرداد المرتجع أولًا.";
             return RedirectToAction(nameof(Details), new { id = invId });
         }
         var txn = await _db.SafeTransactions.FirstOrDefaultAsync(
@@ -531,7 +519,6 @@ public class PurchaseInvoicesController : Controller
     {
         var vm = await LoadAsync(id, ct);
         if (vm is null) return NotFound();
-        ViewData["CanPay"] = Can(PermissionNames.SuppliersPay);
         ViewData["CanDeletePayment"] = Can(PermissionNames.PurchaseInvoicesDeletePayment);
         ViewData["CanViewSuppliers"] = Can(PermissionNames.SuppliersView);
         return View(vm);

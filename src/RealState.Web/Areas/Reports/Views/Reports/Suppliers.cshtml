@@ -2,53 +2,69 @@
 @{
     ViewData["Title"] = "تقرير الموردين";
     string N(decimal v) => v.ToString("N0", RealState.Web.AppCulture.Ar);
-    string? F(DateTime? d) => d?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+    // A balance with its side: + = owed to the supplier (دائن), − = owed by them (مدين).
+    string B(decimal v, string plus = "دائن", string minus = "مدين") => v == 0 ? N(0) : $"{N(Math.Abs(v))} {(v > 0 ? plus : minus)}";
+    var canStatement = User.Can(PermissionNames.SuppliersView);
 }
 <div class="page-head">
-    <h1>تقرير الموردين</h1>
+    <div>
+        <h1>تقرير الموردين</h1>
+        <p style="color:var(--muted);margin:2px 0 0;">الرصيد الحالي لكل مورد كما في كشف حسابه — دائن: مستحق له، مدين: مستحق عليه.</p>
+    </div>
+    <div style="display:flex;gap:8px;">
+        <a class="btn-sm" asp-action="SuppliersPrint" target="_blank">🖨 طباعة (PDF)</a>
+        <a class="btn-sm" asp-action="SuppliersCsv">⬇ Excel</a>
+    </div>
 </div>
 
-@{
-    // The report now aggregates purchase invoices (and legacy orders) by their date.
-    var filter = FilterBarVm.For(Url.Action("Suppliers"))
-        .DateRange(F(Model.From), F(Model.To), "تاريخ الفاتورة")
-        .Print(Url.Action("SuppliersPrint", new { from = F(Model.From), to = F(Model.To) }))
-        .Excel(Url.Action("SuppliersCsv", new { from = F(Model.From), to = F(Model.To) }));
-}
-<partial name="_FilterBar" model="filter" />
+@* Totals of the listed suppliers — they follow the list search (data-live-sum / data-live-count; the net by the script below). *@
+<div class="kpi-grid" style="grid-template-columns: repeat(3, 1fr);">
+    <div class="kpi k-reserve"><div class="kpi-label">إجمالي الدائن</div><div class="kpi-value"><span id="repCredit" data-live-sum="#supRepTable:2">@N(Model.TotCredit)</span> <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">مستحق للموردين · <span data-live-count="#supRepTable">@Model.Rows.Count</span> مورد</div></div>
+    <div class="kpi k-collect"><div class="kpi-label">إجمالي المدين</div><div class="kpi-value"><span id="repDebit" data-live-sum="#supRepTable:3">@N(Model.TotDebit)</span> <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">مستحق على الموردين</div></div>
+    <div class="kpi k-tasks"><div class="kpi-label">صافي الرصيد</div><div class="kpi-value"><span id="repBalance">@N(Math.Abs(Model.TotBalance))</span> <span class="kpi-unit">ج.م</span></div><div class="kpi-foot" id="repBalanceSide">@(Model.TotBalance > 0 ? "دائن — مستحق للموردين" : Model.TotBalance < 0 ? "مدين — مستحق على الموردين" : "متوازن")</div></div>
+</div>
 
 <div class="card-tile">
     <div class="list-search-bar"><input class="form-control list-search" data-target="#supRepTable" placeholder="🔍 بحث في القائمة..." /></div>
-    <table class="rs-table" id="supRepTable" data-live-totals>
+    <table class="rs-table" id="supRepTable">
         <thead>
-            <tr><th>المورد</th><th>الهاتف</th><th>عدد الفواتير</th><th>قيمة الفواتير</th><th>المسدَّد</th><th>المتبقي</th></tr>
+            <tr><th>المورد</th><th>الهاتف</th><th>دائن</th><th>مدين</th><th>الرصيد</th></tr>
         </thead>
         <tbody>
         @foreach (var r in Model.Rows)
         {
             <tr>
-                <td>@r.Name</td>
+                <td>
+                    @if (canStatement) { <a asp-area="Suppliers" asp-controller="Suppliers" asp-action="Details" asp-route-id="@r.Id" style="color:var(--series-1);text-decoration:none;font-weight:600;">@r.Name</a> }
+                    else { @r.Name }
+                    @* «عميل ومورد»: the figures are its merged statement (both accounts). *@
+                    @if (r.IsLinked) { <span class="badge-state state-warn" style="font-size:11px;">عميل ومورد</span> }
+                </td>
                 <td dir="ltr" style="text-align:right;">@r.Phone</td>
-                <td>@r.Orders</td>
-                <td>@N(r.OrdersValue)</td>
-                <td class="tag-up">@N(r.Paid)</td>
-                <td>@N(r.Residual)</td>
+                <td>@N(r.Credit)</td>
+                <td class="tag-up">@N(r.Debit)</td>
+                <td style="font-weight:600;white-space:nowrap;">@B(r.Balance)</td>
             </tr>
         }
         @if (Model.Rows.Count == 0)
         {
-            <tr data-skip-search><td colspan="6" style="color:var(--muted)">لا توجد بيانات في هذه الفترة.</td></tr>
+            <tr data-skip-search><td colspan="5" style="color:var(--muted)">لا يوجد موردون.</td></tr>
         }
-        <tr data-no-results data-skip-search style="display:none;"><td colspan="6" style="color:var(--muted)">لا توجد نتائج مطابقة للبحث.</td></tr>
+        <tr data-no-results data-skip-search style="display:none;"><td colspan="5" style="color:var(--muted)">لا توجد نتائج مطابقة للبحث.</td></tr>
         </tbody>
-        <tfoot>
-            <tr>
-                <th colspan="2">الإجمالي</th>
-                <th>@Model.TotOrders</th>
-                <th>@N(Model.TotValue)</th>
-                <th>@N(Model.TotPaid)</th>
-                <th>@N(Model.TotResidual)</th>
-            </tr>
-        </tfoot>
     </table>
 </div>
+
+@section Scripts {
+    <script>
+        // The net card follows the list search too: credit − debit of the listed suppliers (after app-modal.js's
+        // capture-phase search handler has refreshed the two sums).
+        document.addEventListener('input', function (e) {
+            if (!e.target.classList || !e.target.classList.contains('list-search')) return;
+            function num(id) { return parseFloat(document.getElementById(id).textContent.replace(/,/g, '')) || 0; }
+            var net = Math.round((num('repCredit') - num('repDebit')) * 100) / 100;
+            document.getElementById('repBalance').textContent = Math.abs(net).toLocaleString('en-US', { maximumFractionDigits: 2 });
+            document.getElementById('repBalanceSide').textContent = net > 0 ? 'دائن — مستحق للموردين' : net < 0 ? 'مدين — مستحق على الموردين' : 'متوازن';
+        });
+    </script>
+}

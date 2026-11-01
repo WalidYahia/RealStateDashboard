@@ -2,7 +2,6 @@
 @{
     var inv = Model.Invoice;
     ViewData["Title"] = $"فاتورة مشتريات PI-{inv.Number}";
-    var canPay = ViewData["CanPay"] as bool? ?? false;
     var canDeletePayment = ViewData["CanDeletePayment"] as bool? ?? false;
     var canViewSuppliers = ViewData["CanViewSuppliers"] as bool? ?? false;
     var canReturn = User.Can(PermissionNames.PurchaseReturnsCreate);
@@ -44,10 +43,6 @@
         {
             <a class="btn-sm" asp-controller="Suppliers" asp-action="Details" asp-route-id="@inv.SupplierId">كشف حساب المورد</a>
         }
-        @if (canPay && Model.Remaining > 0)
-        {
-            <button type="button" class="btn-new-tenant" onclick="appOpenModal('@Url.Action("Pay", "Payments", new { target = "I:" + inv.Id })', 'سداد دفعة على الفاتورة')">💵 سداد دفعة</button>
-        }
         <a class="btn-new-tenant" asp-action="PrintInvoice" asp-route-id="@inv.Id" target="_blank">🖨 طباعة الفاتورة (PDF)</a>
         @if (canReturn && returnable)
         {
@@ -70,10 +65,11 @@
     <div class="status-message">@status</div>
 }
 
+@* Payments are on the supplier's account (كشف الحساب), not on the invoice — so the invoice shows its value only. *@
 <div class="kpi-grid" style="grid-template-columns: repeat(3, 1fr);">
-    <div class="kpi k-reserve"><div class="kpi-label">إجمالي الفاتورة</div><div class="kpi-value">@N(Model.NetTotal) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">@inv.Items.Count صنف@(hasReturns ? $" · قبل المرتجعات {N(Model.Total)} − مرتجعات {N(Model.Returned)}" : "")</div></div>
-    <div class="kpi k-collect"><div class="kpi-label">المسدَّد</div><div class="kpi-value">@N(Model.NetPaid) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">@inv.Payments.Count دفعة@(Model.Refunded > 0 ? $" · استُرد من المورد {N(Model.Refunded)}" : "")</div></div>
-    <div class="kpi k-alerts"><div class="kpi-label">المتبقي</div><div class="kpi-value">@N(Model.Remaining) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">مستحق الدفع للمورد</div></div>
+    <div class="kpi k-reserve"><div class="kpi-label">إجمالي الفاتورة</div><div class="kpi-value">@N(Model.Total) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">@inv.Items.Count صنف</div></div>
+    <div class="kpi k-collect"><div class="kpi-label">المرتجعات</div><div class="kpi-value">@N(Model.Returned) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">@Model.Returns.Count مرتجع</div></div>
+    <div class="kpi k-sales"><div class="kpi-label">الصافي</div><div class="kpi-value">@N(Model.NetTotal) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">@(inv.PaymentType == InvoicePaymentType.Cash ? "نقدي — سُدِّد عند الإصدار" : "آجل — على حساب المورد")</div></div>
 </div>
 
 <div class="card-tile" style="margin-bottom:14px;">
@@ -170,6 +166,9 @@
     </div>
 }
 
+@* A cash invoice's automatic payment, and payments recorded on the invoice before payments moved to the account. *@
+@if (inv.Payments.Count > 0)
+{
 <div class="card-tile">
     <div class="card-head"><h3>الدفعات</h3></div>
     <table class="rs-table">
@@ -190,20 +189,17 @@
                     else if (canDeletePayment)
                     {
                         <form asp-action="DeletePayment" asp-route-id="@p.Id" method="post" style="display:inline;" data-danger
-                              data-confirm="حذف سند الصرف رقم @p.ReceiptNo (@N(p.Amount) ج.م)؟ سيُحذف المصروف وقيده، ويعود المبلغ إلى الخزنة ومستحقًّا على الفاتورة.">
+                              data-confirm="حذف سند الصرف رقم @p.ReceiptNo (@N(p.Amount) ج.م)؟ سيُحذف المصروف وقيده، ويعود المبلغ إلى الخزنة ومستحقًّا للمورد.">
                             @Html.AntiForgeryToken()<button type="submit" class="btn-sm btn-danger">🗑 حذف</button>
                         </form>
                     }
                 </td>
             </tr>
         }
-        @if (inv.Payments.Count == 0)
-        {
-            <tr><td colspan="4" style="color:var(--muted)">لا توجد دفعات بعد.</td></tr>
-        }
         </tbody>
     </table>
 </div>
+}
 
 @section Scripts {
     <script src="~/js/purchase-doc.js" asp-append-version="true"></script>

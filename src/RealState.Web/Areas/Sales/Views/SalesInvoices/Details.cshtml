@@ -5,7 +5,6 @@
     // Popup (loaded into a modal): no layout, and read-only — actions that open their own popups stay on the full page.
     var popup = ViewData["Popup"] as bool? ?? false;
     if (popup) Layout = null;
-    var canCollect = !popup && User.Can(PermissionNames.SalesInvoicesCollect);
     var canDeleteCollection = !popup && User.Can(PermissionNames.SalesInvoicesDeleteCollection);
     var canViewCustomers = User.Can(PermissionNames.CustomersView);
     var canViewInventory = !popup && User.Can(PermissionNames.InventoryView);
@@ -47,10 +46,6 @@
         {
             <a class="btn-sm" asp-area="CRM" asp-controller="Customers" asp-action="Details" asp-route-id="@inv.CustomerId">ملف العميل</a>
         }
-        @if (canCollect && Model.Remaining > 0)
-        {
-            <button type="button" class="btn-new-tenant" onclick="appOpenModal('@Url.Action("Collect", new { id = inv.Id })', 'تحصيل على الفاتورة')">💵 تحصيل</button>
-        }
         <a class="btn-new-tenant" asp-action="PrintInvoice" asp-route-id="@inv.Id" target="_blank">🖨 طباعة الفاتورة (PDF)</a>
         @if (canReturn && returnable)
         {
@@ -73,10 +68,12 @@
     <div class="status-message">@status</div>
 }
 
+@* Payments are on the customer's account (كشف الحساب), not on the invoice — so the invoice shows its value only. *@
 <div class="kpi-grid" style="grid-template-columns: repeat(3, 1fr);">
-    <div class="kpi k-reserve"><div class="kpi-label">إجمالي الفاتورة</div><div class="kpi-value">@N(Model.NetTotal) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">@inv.Items.Count صنف@(hasReturns ? $" · قبل المرتجعات {N(Model.Total)} − مرتجعات {N(Model.Returned)}" : "")</div></div>
-    <div class="kpi k-collect"><div class="kpi-label">المحصَّل</div><div class="kpi-value">@N(Model.NetCollected) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">@inv.Collections.Count تحصيل@(Model.Refunded > 0 ? $" · رُدّ للعميل {N(Model.Refunded)}" : "")</div></div>
-    <div class="kpi k-alerts"><div class="kpi-label">المتبقي</div><div class="kpi-value">@N(Model.Remaining) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">مستحق على العميل</div></div></div>
+    <div class="kpi k-reserve"><div class="kpi-label">إجمالي الفاتورة</div><div class="kpi-value">@N(Model.Total) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">@inv.Items.Count صنف</div></div>
+    <div class="kpi k-collect"><div class="kpi-label">المرتجعات</div><div class="kpi-value">@N(Model.Returned) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">@Model.Returns.Count مرتجع</div></div>
+    <div class="kpi k-sales"><div class="kpi-label">الصافي</div><div class="kpi-value">@N(Model.NetTotal) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">@(inv.PaymentType == InvoicePaymentType.Cash ? "نقدي — حُصِّل عند الإصدار" : "آجل — على حساب العميل")</div></div>
+</div>
 
 <div class="card-tile" style="margin-bottom:14px;">
     <div class="card-head"><h3>الأصناف</h3></div>
@@ -169,6 +166,9 @@
     </div>
 }
 
+@* A cash invoice's automatic collection, and collections recorded on the invoice before payments moved to the account. *@
+@if (inv.Collections.Count > 0)
+{
 <div class="card-tile">
     <div class="card-head"><h3>التحصيلات</h3></div>
     <table class="rs-table">
@@ -189,18 +189,15 @@
                     }
                     else if (canDeleteCollection)
                     {
-                        <form asp-action="CancelCollection" asp-route-id="@c.Id" method="post" style="display:inline;" data-confirm="إلغاء التحصيل رقم @c.ReceiptNo (@N(c.Amount) ج.م)؟ سيُحذف الإيراد من الخزنة ويعود المبلغ متبقيًا على الفاتورة." data-danger>@Html.AntiForgeryToken()<button type="submit" class="btn-sm btn-danger">🗑 حذف</button></form>
+                        <form asp-action="CancelCollection" asp-route-id="@c.Id" method="post" style="display:inline;" data-confirm="إلغاء التحصيل رقم @c.ReceiptNo (@N(c.Amount) ج.م)؟ سيُحذف الإيراد من الخزنة ويعود المبلغ مستحقًا على العميل." data-danger>@Html.AntiForgeryToken()<button type="submit" class="btn-sm btn-danger">🗑 حذف</button></form>
                     }
                 </td>
             </tr>
         }
-        @if (inv.Collections.Count == 0)
-        {
-            <tr><td colspan="5" style="color:var(--muted)">لا توجد تحصيلات بعد.</td></tr>
-        }
         </tbody>
     </table>
 </div>
+}
 
 @section Scripts {
     <script src="~/js/purchase-doc.js" asp-append-version="true"></script>

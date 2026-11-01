@@ -70,8 +70,15 @@
         var hi = document.createElement('th'); hi.textContent = '#'; hi.className = 'grid-idx';
         t.tHead.rows[0].insertBefore(hi, t.tHead.rows[0].firstChild);
         Array.prototype.forEach.call(body.rows, function (r) {
-            if (isPlaceholder(r)) { if (r.cells[0] && (r.cells[0].colSpan || 1) > 1) r.cells[0].colSpan += 1; return; }
-            var td = document.createElement('td'); td.className = 'grid-idx'; r.insertBefore(td, r.firstChild);
+            var td = document.createElement('td'); td.className = 'grid-idx';
+            if (isPlaceholder(r)) {
+                // A one-cell placeholder (empty state / no results) just widens; a full row that sits outside the search
+                // and paging (e.g. a statement's «الرصيد الافتتاحي للفترة») gets a blank # cell so its columns line up.
+                if (r.cells.length === 1 && (r.cells[0].colSpan || 1) > 1) r.cells[0].colSpan += 1;
+                else if (r.cells.length > 1) r.insertBefore(td, r.firstChild);
+                return;
+            }
+            r.insertBefore(td, r.firstChild);
         });
         if (t.tFoot) {
             Array.prototype.forEach.call(t.tFoot.rows, function (r) {

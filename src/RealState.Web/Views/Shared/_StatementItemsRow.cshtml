@@ -1,0 +1,24 @@
+@model List<RealState.Web.Models.StatementItem>
+@*
+    Account statements (customer / supplier) «تفصيلي»: the lines of the invoice / return in the row just above, as the
+    row right after it. wwwroot/js/statement-items.js opens it (that row's «الأصناف» button, or «تفصيلي» for the list).
+    Placeholder row for the list search and paging (data-skip-search) — the script shows it only with its document row.
+*@
+@{
+    var open = ViewData["Detailed"] as bool? ?? false;   // the page's «تفصيلي» (ViewData is inherited from the page)
+    string N(decimal v) => v.ToString("N2", RealState.Web.AppCulture.Ar);
+    string Q(decimal v) => v.ToString("0.####", System.Globalization.CultureInfo.InvariantCulture);
+}
+<tr class="stmt-items" data-skip-search hidden="@(!open)">
+    <td colspan="6">
+        <table class="stmt-items-table">
+            <thead><tr data-skip-search><th>الصنف</th><th>الوحدة</th><th>السعر</th><th>الكمية</th><th>الإجمالي</th></tr></thead>
+            <tbody>
+            @foreach (var it in Model)
+            {
+                <tr data-skip-search><td>@it.Name</td><td>@(it.Unit ?? "—")</td><td>@N(it.Price)</td><td dir="ltr" style="text-align:right;">@Q(it.Quantity)</td><td>@N(it.LineTotal)</td></tr>
+            }
+            </tbody>
+        </table>
+    </td>
+</tr>

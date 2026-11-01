@@ -1,11 +1,11 @@
 namespace RealState.Web.Areas.Accounting.Models;
 
 /// <summary>Which accounts the opening-balances page lists.</summary>
-public enum OpeningKind { All, Customers, Suppliers, Safes, Others }
+public enum OpeningKind { All, Customers, Suppliers, Safes, Others, Contractors }
 
 /// <summary>
 /// One account on the opening-balances page. <see cref="Target"/> names what is saved: "A:{accountId}" for a chart account,
-/// "C:{customerId}" / "S:{supplierId}" / "F:{safeId}" for a customer / supplier / safe — whose subsidiary account is
+/// "C:{customerId}" / "S:{supplierId}" / "K:{contractorId}" / "F:{safeId}" for a customer / supplier / contractor / safe — whose subsidiary account is
 /// created on save when it doesn't exist yet.
 /// </summary>
 public class OpeningBalanceRow

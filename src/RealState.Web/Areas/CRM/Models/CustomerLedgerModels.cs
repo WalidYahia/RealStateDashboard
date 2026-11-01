@@ -4,8 +4,10 @@ namespace RealState.Web.Areas.CRM.Models;
 
 /// <summary>What a customer-ledger row records.</summary>
 /// <remarks>ContractCancel reverses a cancelled contract (−); CancelFee is the fee kept from its refund (+); paying the refund
-/// back is a <see cref="Refund"/> row.</remarks>
-public enum CustomerLedgerKind { Contract, Invoice, InstallmentCollection, InvoiceCollection, Return, Refund, AccountReceipt, AccountPayment, OpeningDebit, OpeningCredit, ContractCancel, CancelFee }
+/// back is a <see cref="Refund"/> row. PeriodOpening is «الرصيد الافتتاحي للفترة» — the balance carried in from before a
+/// filtered period (first row only). SupplierSide is a movement on the linked supplier account of a «عميل ومورد» party
+/// (see <see cref="CustomerLedgerRow.SupplierRow"/>).</remarks>
+public enum CustomerLedgerKind { Contract, Invoice, InstallmentCollection, InvoiceCollection, Return, Refund, AccountReceipt, AccountPayment, OpeningDebit, OpeningCredit, ContractCancel, CancelFee, PeriodOpening, SupplierSide }
 
 /// <summary>One row of the running-balance customer ledger («كشف حساب» — same layout as the supplier's).</summary>
 public class CustomerLedgerRow
@@ -21,14 +23,23 @@ public class CustomerLedgerRow
     public decimal Amount { get; set; }
     public decimal BalanceBefore { get; set; }
     public decimal Balance { get; set; }
+    /// <summary>The invoice / return lines, for the detailed statement («تفصيلي»; see CustomerLedger.AttachItemsAsync).</summary>
+    public List<RealState.Web.Models.StatementItem> Items { get; set; } = new();
+
+    /// <summary>
+    /// «عميل ومورد»: the linked supplier's movement this row shows in the merged statement. What raises the amount owed to
+    /// the supplier (a purchase invoice) lowers the party's net debit here, and what settles it (a payment) raises it.
+    /// </summary>
+    public RealState.Web.Areas.Suppliers.Models.SupplierLedgerRow? SupplierRow { get; set; }
 
     /// <summary>Lowers what the customer owes (shown as −): collections (incl. on-account receipts) and returns.</summary>
-    public bool Decreases => Kind is CustomerLedgerKind.InstallmentCollection or CustomerLedgerKind.InvoiceCollection or CustomerLedgerKind.Return or CustomerLedgerKind.ContractCancel
-        or CustomerLedgerKind.AccountReceipt or CustomerLedgerKind.OpeningCredit;
+    public bool Decreases => SupplierRow is { } s ? !s.Decreases
+        : Kind is CustomerLedgerKind.InstallmentCollection or CustomerLedgerKind.InvoiceCollection or CustomerLedgerKind.Return or CustomerLedgerKind.ContractCancel
+            or CustomerLedgerKind.AccountReceipt or CustomerLedgerKind.OpeningCredit;
     /// <summary>The row's voucher is a سند صرف (printed from المصروفات) rather than a سند قبض.</summary>
     public bool VoucherIsExpense => Kind is CustomerLedgerKind.Refund or CustomerLedgerKind.AccountPayment;
     /// <summary>Same-day order: what's owed first, then collections, returns, refunds.</summary>
-    public int DayOrder => Kind switch
+    public int DayOrder => SupplierRow?.DayOrder ?? Kind switch
     {
         CustomerLedgerKind.OpeningDebit or CustomerLedgerKind.OpeningCredit => -1,   // the opening balance comes first
         CustomerLedgerKind.InstallmentCollection or CustomerLedgerKind.InvoiceCollection or CustomerLedgerKind.AccountReceipt => 1,
@@ -57,15 +68,15 @@ public class CustomerLedgerVm
     /// <summary>Balance at the end of the selected range.</summary>
     public decimal ClosingBalance { get; set; }
     public bool HasEntries => Rows.Count > 0;
-}
 
-/// <summary>A sales invoice with a remaining balance, offered by the statement's «تحصيل دفعة».</summary>
-public record CollectableOption(Guid InvoiceId, string Label, decimal Remaining);
-
-public class CustomerCollectPickerModel
-{
-    public Guid CustomerId { get; set; }
-    public string CustomerName { get; set; } = string.Empty;
-    public List<CollectableOption> Documents { get; set; } = new();
-    public List<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem> Safes { get; set; } = new();
+    // «عميل ومورد»: the linked supplier account merged into this statement (null when not linked, or not shown to the user).
+    public Supplier? LinkedSupplier { get; set; }
+    public bool IsMerged => LinkedSupplier is not null;
+    public decimal SupplierObligations { get; set; }
+    public decimal SupplierPaid { get; set; }
+    /// <summary>What's owed to the party as a supplier (− = owed by them).</summary>
+    public decimal SupplierBalance => SupplierObligations - SupplierPaid;
+    public int SupplierInvoicesCount { get; set; }
+    /// <summary>The party's net balance: + = owed by them (مدين), − = owed to them (دائن).</summary>
+    public decimal NetBalance => TotalRemaining - SupplierBalance;
 }

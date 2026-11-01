@@ -11,6 +11,24 @@ public class Department : AuditableEntity, ITenantEntity
     public bool IsActive { get; set; } = true;
 }
 
+/// <summary>
+/// A work location / branch (الموقع / الفرع) every employee is assigned to. Each tenant has the built-in
+/// «الموقع الرئيسي» (<see cref="IsDefault"/>) — new employees start on it and it can't be deleted.
+/// </summary>
+public class Branch : AuditableEntity, ITenantEntity
+{
+    public Guid TenantId { get; set; }
+    /// <summary>Sequential per tenant (1, 2, …) — assigned automatically, shown as <see cref="Code"/>.</summary>
+    public int Number { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string? Phone { get; set; }
+    public bool IsDefault { get; set; }
+
+    /// <summary>The branch code, e.g. BR-001.</summary>
+    [System.ComponentModel.DataAnnotations.Schema.NotMapped]
+    public string Code => $"BR-{Number:D3}";
+}
+
 /// <summary>A job role / title (محاسب، مهندس، ...).</summary>
 public class JobRole : AuditableEntity, ITenantEntity
 {
@@ -72,6 +90,9 @@ public class Employee : AuditableEntity, ITenantEntity
     public string? AltPhone { get; set; }
 
     // --- Work ---
+    /// <summary>The work location / branch (الموقع / الفرع) — required; existing employees were put on «الموقع الرئيسي».</summary>
+    public Guid? BranchId { get; set; }
+    public Branch? Branch { get; set; }
     public Guid? DepartmentId { get; set; }
     public Department? Department { get; set; }
     public Guid? JobRoleId { get; set; }

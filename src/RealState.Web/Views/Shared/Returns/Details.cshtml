@@ -62,10 +62,12 @@
     <div class="kpi k-reserve"><div class="kpi-label">قيمة المرتجع</div><div class="kpi-value">@N(Model.Total) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">@Model.Lines.Count صنف</div></div>
     <div class="kpi k-collect"><div class="kpi-label">@(k.IsSales ? "رُدّ نقدًا للعميل" : "استُرد نقدًا من المورد")</div><div class="kpi-value">@N(Model.Refund) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">@(Model.RefundSafe is null ? "بدون نقدية" : "الخزنة: " + Model.RefundSafe)</div></div>
     <div class="kpi k-sales"><div class="kpi-label">@(k.IsSales ? "خُصم من رصيد العميل" : "خُصم من المستحق للمورد")</div><div class="kpi-value">@N(Model.Credited) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">على الفاتورة <span dir="ltr">@invLabel</span></div></div>
-    @if (Model.Invoice is { } pos)
-    {
-        <div class="kpi k-alerts"><div class="kpi-label">المتبقي على الفاتورة الآن</div><div class="kpi-value">@N(pos.Remaining) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">الإجمالي @N(pos.Total) · المرتجعات @N(pos.Returned)</div></div>
+    @{
+        var bal = Model.PartyBalance;
+        // Customer: + = owed by them; supplier: + = owed to them.
+        var side = bal == 0 ? "الحساب متوازن" : k.IsSales ? (bal > 0 ? "مستحق على العميل" : "مستحق للعميل") : (bal > 0 ? "مستحق للمورد" : "مستحق على المورد");
     }
+    <div class="kpi k-alerts"><div class="kpi-label">@(k.IsSales ? "رصيد العميل الآن" : "رصيد المورد الآن")</div><div class="kpi-value">@N(Math.Abs(bal)) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">@side</div></div>
 </div>
 
 <div class="card-tile" style="margin-bottom:14px;">

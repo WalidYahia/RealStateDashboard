@@ -3,6 +3,7 @@
     Layout = null;
     string N(decimal v) => v.ToString("N0", RealState.Web.AppCulture.Ar);
     string D(DateTime d) => RealState.Web.AppCulture.When(d);   // date + time when it has one
+    var detailed = ViewData["Detailed"] as bool? ?? false;
 }
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -19,12 +20,22 @@
         th { background: #f2f2f2; }
         tfoot td { font-weight: 700; background: #fafafa; }
         .no-print { margin-bottom: 12px; } @@media print { .no-print { display: none; } }
+        .no-print label { margin-inline-start: 14px; font-size: 13px; cursor: pointer; }
+        /* «تفصيلي»: each invoice / return's lines under its row (Views/Shared/_StatementItemsRow). */
+        .stmt-items { display: none; } body.detailed .stmt-items { display: table-row; }
+        .stmt-items > td { padding: 2px 8px 8px; padding-inline-start: 28px; background: #fcfcfc; }
+        .stmt-items-table { font-size: 11.5px; }
+        .stmt-items-table th, .stmt-items-table td { padding: 3px 6px; border-color: #e3e3e3; }
+        .stmt-items-table th { background: #f7f7f7; font-weight: 600; }
     </style>
 </head>
-<body>
+<body class="@(detailed ? "detailed" : null)">
     @await Component.InvokeAsync("ReportBackground", new { part = "open" })
-    <div class="no-print"><button onclick="window.print()">🖨 طباعة / حفظ PDF</button></div>
-    <h1>كشف حساب عميل — @Model.Customer.FullName</h1>
+    <div class="no-print">
+        <button onclick="window.print()">🖨 طباعة / حفظ PDF</button>
+        <label><input type="checkbox" checked="@detailed" onchange="statementDetailed(this.checked)" /> تفصيلي (أصناف الفواتير)</label>
+    </div>
+    <h1>@(Model.IsMerged ? "كشف حساب موحّد (عميل ومورد)" : "كشف حساب عميل") — @Model.Customer.FullName</h1>
     <div class="sub">
         <span dir="ltr">@Model.Customer.Phone</span>
         @if (Model.From.HasValue || Model.To.HasValue)
@@ -34,7 +45,16 @@
         · تاريخ الطباعة @ClientTime.Now.ToString("yyyy/MM/dd HH:mm")
     </div>
     <div class="summary">
-        إجمالي المستحقات @N(Model.TotalObligations) ج.م · المحصَّل @N(Model.TotalPaid) ج.م · @(Model.TotalRemaining < 0 ? "رصيد دائن (مستحق للعميل)" : "المتبقي") @N(Math.Abs(Model.TotalRemaining)) ج.م
+        @if (Model.IsMerged)
+        {
+            <text>رصيده كعميل @N(Math.Abs(Model.TotalRemaining)) ج.م @(Model.TotalRemaining < 0 ? "(له)" : "(عليه)")
+            · رصيده كمورد @N(Math.Abs(Model.SupplierBalance)) ج.م @(Model.SupplierBalance < 0 ? "(عليه)" : "(له)")
+            · الصافي @N(Math.Abs(Model.NetBalance)) ج.م @(Model.NetBalance > 0 ? "(مدين — مستحق عليه)" : Model.NetBalance < 0 ? "(دائن — مستحق له)" : "")</text>
+        }
+        else
+        {
+            <text>إجمالي المستحقات @N(Model.TotalObligations) ج.م · المحصَّل @N(Model.TotalPaid) ج.م · @(Model.TotalRemaining < 0 ? "رصيد دائن (مستحق للعميل)" : "المتبقي") @N(Math.Abs(Model.TotalRemaining)) ج.م</text>
+        }
     </div>
 
     <table>
@@ -42,14 +62,24 @@
         <tbody>
         @foreach (var r in Model.Rows)
         {
+            if (r.Kind == CustomerLedgerKind.PeriodOpening)
+            {
+                @* «الرصيد الافتتاحي للفترة»: the balance carried in from before the period — balance only. *@
+                <tr class="period-opening"><td>@r.Source</td><td>@D(r.Date)</td><td>@r.Statement</td><td>—</td><td>—</td><td><strong>@N(r.Balance)</strong></td></tr>
+                continue;
+            }
             <tr>
-                <td>@r.Source</td>
+                <td>@(r.SupplierRow is null ? "" : "[مورد] ")@r.Source</td>
                 <td>@D(r.Date)</td>
                 <td>@r.Statement</td>
                 <td>@N(r.BalanceBefore)</td>
                 <td>@(r.Decreases ? "−" : "+")@N(r.Amount)</td>
                 <td>@N(r.Balance)</td>
             </tr>
+            if (r.Items.Count > 0)
+            {
+                <partial name="_StatementItemsRow" model="r.Items" />
+            }
         }
         @if (!Model.HasEntries)
         {
@@ -57,11 +87,20 @@
         }
         </tbody>
         <tfoot>
-            <tr><td colspan="5">الرصيد الختامي للفترة</td><td>@N(Math.Abs(Model.ClosingBalance)) ج.م @(Model.ClosingBalance < 0 ? "(دائن — مستحق للعميل)" : Model.ClosingBalance > 0 ? "(مدين)" : "")</td></tr>
+            <tr><td colspan="5">الرصيد الختامي للفترة</td><td>@N(Math.Abs(Model.ClosingBalance)) ج.م @(Model.ClosingBalance < 0 ? (Model.IsMerged ? "(دائن — مستحق له)" : "(دائن — مستحق للعميل)") : Model.ClosingBalance > 0 ? "(مدين)" : "")</td></tr>
         </tfoot>
     </table>
 
-    <script>window.addEventListener('load', function () { setTimeout(function () { window.print(); }, 400); });</script>
+    <script>
+        window.addEventListener('load', function () { setTimeout(function () { window.print(); }, 400); });
+        // «تفصيلي» on / off — kept in the address so a reload prints the same.
+        function statementDetailed(on) {
+            document.body.classList.toggle('detailed', on);
+            var u = new URL(location.href);
+            if (on) u.searchParams.set('detailed', 'true'); else u.searchParams.delete('detailed');
+            history.replaceState(null, '', u);
+        }
+    </script>
     @await Component.InvokeAsync("ReportBackground", new { part = "close" })
 </body>
 </html>

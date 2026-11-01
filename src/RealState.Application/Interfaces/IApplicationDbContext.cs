@@ -57,6 +57,7 @@ public interface IApplicationDbContext
     DbSet<CampaignUpdate> CampaignUpdates { get; }
     DbSet<Employee> Employees { get; }
     DbSet<Department> Departments { get; }
+    DbSet<Branch> Branches { get; }
     DbSet<JobRole> JobRoles { get; }
     DbSet<AttendanceSetting> AttendanceSettings { get; }
     DbSet<LateDeductionRule> LateDeductionRules { get; }

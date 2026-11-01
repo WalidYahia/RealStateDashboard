@@ -31,35 +31,33 @@ public class EmployeesController : Controller
 
     public async Task<IActionResult> Index(CancellationToken ct)
     {
+        var rows = await ListAsync(ct);
+        ViewData["CanManage"] = CanManage();
+        return View(rows);
+    }
+
+    private async Task<List<EmployeeListItem>> ListAsync(CancellationToken ct)
+    {
+        await HrBranches.EnsureDefaultAsync(_db, ct);   // every employee is on a branch
+        var branches = await _db.Branches.ToDictionaryAsync(b => b.Id, b => b.Name, ct);
         var deps = await _db.Departments.ToDictionaryAsync(d => d.Id, d => d.Name, ct);
         var roles = await _db.JobRoles.ToDictionaryAsync(r => r.Id, r => r.Name, ct);
-        var rows = (await _db.Employees.OrderBy(e => e.FullName).ToListAsync(ct)).Select(e => new EmployeeListItem
+        return (await _db.Employees.OrderBy(e => e.FullName).ToListAsync(ct)).Select(e => new EmployeeListItem
         {
             Id = e.Id, Name = e.FullName, Phone = e.Phone,
+            Branch = e.BranchId.HasValue ? branches.GetValueOrDefault(e.BranchId.Value, "—") : "—",
             Department = e.DepartmentId.HasValue ? deps.GetValueOrDefault(e.DepartmentId.Value, "—") : "—",
             Role = e.JobRoleId.HasValue ? roles.GetValueOrDefault(e.JobRoleId.Value, "—") : "—",
             EmploymentType = e.EmploymentType.Ar(),
             BasicSalary = e.BasicSalary,
             NationalId = e.NationalId
         }).ToList();
-        ViewData["CanManage"] = CanManage();
-        return View(rows);
     }
 
     [HttpGet]
     public async Task<IActionResult> Print(bool withSalary, bool withNationalId, CancellationToken ct)
     {
-        var deps = await _db.Departments.ToDictionaryAsync(d => d.Id, d => d.Name, ct);
-        var roles = await _db.JobRoles.ToDictionaryAsync(r => r.Id, r => r.Name, ct);
-        var rows = (await _db.Employees.OrderBy(e => e.FullName).ToListAsync(ct)).Select(e => new EmployeeListItem
-        {
-            Id = e.Id, Name = e.FullName, Phone = e.Phone,
-            Department = e.DepartmentId.HasValue ? deps.GetValueOrDefault(e.DepartmentId.Value, "—") : "—",
-            Role = e.JobRoleId.HasValue ? roles.GetValueOrDefault(e.JobRoleId.Value, "—") : "—",
-            EmploymentType = e.EmploymentType.Ar(),
-            BasicSalary = e.BasicSalary,
-            NationalId = e.NationalId
-        }).ToList();
+        var rows = await ListAsync(ct);
         ViewBag.TenantId = _currentUser.TenantId;
         ViewBag.WithSalary = withSalary;
         ViewBag.WithNationalId = withNationalId;
@@ -82,7 +80,7 @@ public class EmployeesController : Controller
         {
             Id = e.Id, FullName = e.FullName, Phone = e.Phone, AltPhone = e.AltPhone, BirthDate = e.BirthDate,
             Nationality = e.Nationality, NationalId = e.NationalId, AcademicQualification = e.AcademicQualification,
-            CurrentLocation = e.CurrentLocation, Email = e.Email, DepartmentId = e.DepartmentId, JobRoleId = e.JobRoleId,
+            CurrentLocation = e.CurrentLocation, Email = e.Email, BranchId = e.BranchId, DepartmentId = e.DepartmentId, JobRoleId = e.JobRoleId,
             HireDate = e.HireDate, EmploymentType = e.EmploymentType, SocialInsurance = e.SocialInsurance,
             MedicalInsurance = e.MedicalInsurance, BasicSalary = e.BasicSalary, IncentivesCommissions = e.IncentivesCommissions,
             HasLogin = linked is not null, LinkedUserLabel = linkedLabel, CreateLogin = false
@@ -94,6 +92,8 @@ public class EmployeesController : Controller
     public async Task<IActionResult> Form(EmployeeFormModel model, CancellationToken ct)
     {
         if (!CanManage()) return Forbid();
+        if (model.BranchId is Guid bid && !await _db.Branches.AnyAsync(b => b.Id == bid, ct))
+            ModelState.AddModelError(nameof(model.BranchId), "الموقع / الفرع المحدد غير موجود.");
         if (!ModelState.IsValid) return PartialView("_EmployeeForm", await FillAsync(model, ct));
 
         // Only employees in a salesperson-flagged role are salespersons (assignable to customers).
@@ -182,7 +182,7 @@ public class EmployeesController : Controller
     {
         e.FullName = m.FullName; e.Phone = m.Phone; e.AltPhone = m.AltPhone; e.BirthDate = m.BirthDate;
         e.Nationality = m.Nationality; e.NationalId = m.NationalId; e.AcademicQualification = m.AcademicQualification;
-        e.CurrentLocation = m.CurrentLocation; e.Email = m.Email; e.DepartmentId = m.DepartmentId; e.JobRoleId = m.JobRoleId;
+        e.CurrentLocation = m.CurrentLocation; e.Email = m.Email; e.BranchId = m.BranchId; e.DepartmentId = m.DepartmentId; e.JobRoleId = m.JobRoleId;
         e.HireDate = m.HireDate; e.EmploymentType = m.EmploymentType; e.SocialInsurance = m.SocialInsurance;
         e.MedicalInsurance = m.MedicalInsurance; e.BasicSalary = m.BasicSalary; e.IncentivesCommissions = m.IncentivesCommissions;
         return e;
@@ -223,6 +223,7 @@ public class EmployeesController : Controller
     {
         var e = await _db.Employees.FirstOrDefaultAsync(x => x.Id == id, ct);
         if (e is null) return NotFound();
+        e.Branch = e.BranchId.HasValue ? await _db.Branches.FirstOrDefaultAsync(b => b.Id == e.BranchId, ct) : null;
         e.Department = e.DepartmentId.HasValue ? await _db.Departments.FirstOrDefaultAsync(d => d.Id == e.DepartmentId, ct) : null;
         e.JobRole = e.JobRoleId.HasValue ? await _db.JobRoles.FirstOrDefaultAsync(r => r.Id == e.JobRoleId, ct) : null;
         ViewBag.Attachments = await _db.EmployeeAttachments.Where(a => a.EmployeeId == id).OrderBy(a => a.Kind).ToListAsync(ct);
@@ -367,6 +368,11 @@ public class EmployeesController : Controller
 
     private async Task<EmployeeFormModel> FillAsync(EmployeeFormModel m, CancellationToken ct)
     {
+        // A new employee starts on the default branch («الموقع الرئيسي»).
+        var main = await HrBranches.EnsureDefaultAsync(_db, ct);
+        if (m.Id == Guid.Empty && m.BranchId is null) m.BranchId = main.Id;
+        m.Branches = await _db.Branches.OrderBy(b => b.Number)
+            .Select(b => new SelectListItem { Value = b.Id.ToString(), Text = b.Name }).ToListAsync(ct);
         m.Departments = await _db.Departments.Where(d => d.IsActive).OrderBy(d => d.Name)
             .Select(d => new SelectListItem { Value = d.Id.ToString(), Text = d.Name }).ToListAsync(ct);
         m.Roles = await _db.JobRoles.Where(r => r.IsActive).OrderBy(r => r.Name)

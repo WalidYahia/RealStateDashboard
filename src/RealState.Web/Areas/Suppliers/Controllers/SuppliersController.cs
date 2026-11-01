@@ -7,6 +7,7 @@ using RealState.Application.Entities;
 using RealState.Application.Enums;
 using RealState.Application.Interfaces;
 using RealState.Web.Areas.Suppliers.Models;
+using RealState.Web.Models;
 using static RealState.Web.Areas.Suppliers.Controllers.PurchasingLookups;
 
 namespace RealState.Web.Areas.Suppliers.Controllers;
@@ -17,11 +18,15 @@ public class SuppliersController : Controller
 {
     private readonly IApplicationDbContext _db;
     private readonly ICurrentUserService _currentUser;
+    private readonly IAccountingService _accounting;
+    private readonly ISafeBalanceGuard _guard;
 
-    public SuppliersController(IApplicationDbContext db, ICurrentUserService currentUser)
+    public SuppliersController(IApplicationDbContext db, ICurrentUserService currentUser, IAccountingService accounting, ISafeBalanceGuard guard)
     {
         _db = db;
         _currentUser = currentUser;
+        _accounting = accounting;
+        _guard = guard;
     }
 
     private bool Can(string permission) => User.HasClaim("permission", permission);
@@ -29,6 +34,7 @@ public class SuppliersController : Controller
     public async Task<IActionResult> Index(CancellationToken ct)
     {
         var suppliers = await _db.Suppliers.OrderBy(s => s.Name).ToListAsync(ct);
+        ViewBag.LinkedSupplierIds = (await _db.Customers.Where(c => c.SupplierId != null).Select(c => c.SupplierId!.Value).ToListAsync(ct)).ToHashSet();
         return View(suppliers);
     }
 
@@ -46,7 +52,8 @@ public class SuppliersController : Controller
             Name = s.Name,
             Phone = s.Phone ?? "",
             Email = s.Email,
-            Notes = s.Notes
+            Notes = s.Notes,
+            IsAlsoCustomer = await _db.Customers.AnyAsync(c => c.SupplierId == s.Id, ct)
         });
     }
 
@@ -58,21 +65,67 @@ public class SuppliersController : Controller
         if (await _db.Suppliers.AnyAsync(s => s.Id != model.Id && s.Phone == model.Phone, ct))
             ModelState.AddModelError(nameof(model.Phone), "رقم الهاتف مستخدم بالفعل.");
 
+        // «عميل ومورد»: the customer record of the same party — the current link, else the customer with the same phone (the
+        // same party), else a new one with the supplier's data.
+        var linked = model.Id == Guid.Empty ? null : await _db.Customers.FirstOrDefaultAsync(c => c.SupplierId == model.Id, ct);
+        Customer? target = null;
+        // Without the customers view the form has no «عميل ومورد» field — leave the link as it is.
+        var canLink = Can(PermissionNames.CustomersView);
+        if (model.IsAlsoCustomer && canLink)
+        {
+            if (model.Id != Guid.Empty && await _db.Suppliers.AnyAsync(s => s.Id == model.Id && s.IsDefaultCash, ct))
+                ModelState.AddModelError(nameof(model.IsAlsoCustomer), "المورد النقدي الافتراضي لا يمكن أن يكون عميلًا.");
+            else if (linked is not null) target = linked;
+            else if (await _db.Customers.FirstOrDefaultAsync(c => c.Phone == model.Phone, ct) is { } same)
+            {
+                if (same.IsLead)
+                    ModelState.AddModelError(nameof(model.IsAlsoCustomer), $"رقم الهاتف مستخدم للعميل المحتمل «{same.FullName}» — حوّله إلى عميل أولًا.");
+                else if (same.IsDefaultCash || (same.SupplierId is Guid other && other != model.Id))
+                    ModelState.AddModelError(nameof(model.IsAlsoCustomer), $"رقم الهاتف مستخدم للعميل «{same.FullName}» المرتبط بمورد آخر.");
+                else target = same;
+            }
+            else if (!Can(PermissionNames.CustomersCreate))
+                ModelState.AddModelError(nameof(model.IsAlsoCustomer), "لا تملك صلاحية إضافة عميل.");
+            // Both records keep the same basic data — the customer's phone must stay unique too.
+            if (target is not null
+                && await _db.Customers.AnyAsync(c => c.Id != target.Id && c.Phone == model.Phone, ct))
+                ModelState.AddModelError(nameof(model.Phone), "رقم الهاتف مستخدم لعميل آخر.");
+        }
+
         if (!ModelState.IsValid) return PartialView("_SupplierForm", model);
 
+        Supplier supplier;
         if (model.Id == Guid.Empty)
         {
-            _db.Suppliers.Add(new Supplier { Name = model.Name, Phone = model.Phone, Email = model.Email, Notes = model.Notes });
+            supplier = new Supplier { Name = model.Name, Phone = model.Phone, Email = model.Email, Notes = model.Notes };
+            _db.Suppliers.Add(supplier);
         }
         else
         {
             var s = await _db.Suppliers.FirstOrDefaultAsync(x => x.Id == model.Id, ct);
             if (s is null) return NotFound();
             s.Name = model.Name; s.Phone = model.Phone; s.Email = model.Email; s.Notes = model.Notes;
+            supplier = s;
         }
 
+        if (canLink && model.IsAlsoCustomer)
+        {
+            if (target is null)
+            {
+                target = new Customer { FullName = model.Name, Phone = model.Phone, Email = model.Email, Source = CustomerSource.Other };
+                _db.Customers.Add(target);
+            }
+            else
+            {
+                target.FullName = model.Name; target.Phone = model.Phone; target.Email = model.Email;   // same party, same data
+            }
+            target.SupplierId = supplier.Id;
+        }
+        else if (canLink && linked is not null) linked.SupplierId = null;   // no longer a customer too — both records stay, unlinked
+
         await _db.SaveChangesAsync(ct);
-        TempData["StatusMessage"] = $"تم حفظ المورد «{model.Name}».";
+        TempData["StatusMessage"] = $"تم حفظ المورد «{model.Name}»."
+            + (canLink && model.IsAlsoCustomer ? $" (عميل ومورد — مرتبط بالعميل «{target!.FullName}»)" : "");
         return Json(new { ok = true });
     }
 
@@ -98,6 +151,8 @@ public class SuppliersController : Controller
             TempData["ErrorMessage"] = "لا يمكن حذف مورد لديه فواتير مشتريات أو أوامر توريد أو مدفوعات أو رصيد افتتاحي.";
             return RedirectToAction(nameof(Index));
         }
+        // «عميل ومورد»: the customer record stays — it just stops being a supplier too.
+        foreach (var c in await _db.Customers.Where(c => c.SupplierId == id).ToListAsync(ct)) c.SupplierId = null;
         _db.Suppliers.Remove(s);
         await _db.SaveChangesAsync(ct);
         TempData["StatusMessage"] = $"تم حذف المورد «{s.Name}».";
@@ -105,137 +160,45 @@ public class SuppliersController : Controller
     }
 
     // ---------- Account statement (كشف الحساب) ----------
-    public async Task<IActionResult> Details(Guid id, DateTime? from, DateTime? to, CancellationToken ct)
+    public async Task<IActionResult> Details(Guid id, DateTime? from, DateTime? to, bool detailed, CancellationToken ct)
     {
         var supplier = await _db.Suppliers.FirstOrDefaultAsync(s => s.Id == id, ct);
         if (supplier is null) return NotFound();
+        // «عميل ومورد»: the party has one merged statement (both accounts, net balance) — shown on the customer side.
+        if (await LinkedCustomerIdAsync(id, ct) is Guid customerId)
+            return RedirectToAction("Statement", "Customers", new { area = "CRM", id = customerId, from = Day(from), to = Day(to), detailed = detailed ? "true" : null });
         (from, to) = DateFilterDefaults.TodayIfFresh(Request, from, to);
+        // «تفصيلي»: every invoice's lines open (kept across filtering; each row can still be opened / closed on its own).
+        ViewData["Detailed"] = detailed;
         ViewData["CanPay"] = Can(PermissionNames.SuppliersPay);
         ViewData["CanViewInvoices"] = Can(PermissionNames.PurchaseInvoicesView);
         return View(await BuildStatementAsync(supplier, from, to, ct));
     }
 
     [HttpGet]
-    public async Task<IActionResult> PrintStatement(Guid id, DateTime? from, DateTime? to, CancellationToken ct)
+    public async Task<IActionResult> PrintStatement(Guid id, DateTime? from, DateTime? to, bool detailed, CancellationToken ct)
     {
         var supplier = await _db.Suppliers.FirstOrDefaultAsync(s => s.Id == id, ct);
         if (supplier is null) return NotFound();
+        if (await LinkedCustomerIdAsync(id, ct) is Guid customerId)
+            return RedirectToAction("PrintLedger", "Customers", new { area = "CRM", id = customerId, from = Day(from), to = Day(to), detailed = detailed ? "true" : null });
         ViewBag.TenantId = _currentUser.TenantId;
+        ViewData["Detailed"] = detailed;
         return View("PrintStatement", await BuildStatementAsync(supplier, from, to, ct));
     }
 
-    /// <summary>An obligation (purchase invoice, or legacy order) with its total and what's been paid on it.</summary>
-    /// <summary>Paid is net of refunds; Returned is the value of the invoice's purchase returns.</summary>
-    private sealed record Obligation(SupplierLedgerKind Kind, Guid Id, string Label, DateTime Date, string Statement, decimal Total, decimal Paid, decimal Returned = 0)
-    {
-        public decimal Remaining => Total - Returned - Paid;
-    }
+    /// <summary>The customer record of a «عميل ومورد» supplier — when the user may see customers (else the supplier-only statement).</summary>
+    private async Task<Guid?> LinkedCustomerIdAsync(Guid supplierId, CancellationToken ct) =>
+        Can(PermissionNames.CustomersView)
+            ? await _db.Customers.Where(c => c.SupplierId == supplierId && !c.IsLead).Select(c => (Guid?)c.Id).FirstOrDefaultAsync(ct)
+            : null;
 
-    /// <summary>The supplier's obligations: every purchase invoice, plus legacy orders that still carry the supplier.</summary>
-    private async Task<List<Obligation>> ObligationsAsync(Guid supplierId, CancellationToken ct)
-    {
-        var invoices = await _db.PurchaseInvoices.Where(i => i.SupplierId == supplierId).ToListAsync(ct);
-        var invIds = invoices.Select(i => i.Id).ToList();
-        var invItems = (await _db.PurchaseInvoiceItems.Where(i => invIds.Contains(i.PurchaseInvoiceId)).ToListAsync(ct))
-            .GroupBy(i => i.PurchaseInvoiceId).ToDictionary(g => g.Key, g => g.ToList());
-
-        var orders = await _db.SupplierOrders.Where(o => o.SupplierId == supplierId).ToListAsync(ct);
-        var ordIds = orders.Select(o => o.Id).ToList();
-        var ordItems = (await _db.SupplierOrderItems.Where(i => ordIds.Contains(i.SupplierOrderId)).ToListAsync(ct))
-            .GroupBy(i => i.SupplierOrderId).ToDictionary(g => g.Key, g => g.ToList());
-
-        var payments = await _db.SupplierPayments.Where(p => p.SupplierId == supplierId).ToListAsync(ct);
-        var paidByInvoice = payments.Where(p => p.PurchaseInvoiceId.HasValue)
-            .GroupBy(p => p.PurchaseInvoiceId!.Value).ToDictionary(g => g.Key, g => g.Sum(x => x.Amount));
-        // Purchase returns lower an invoice's total; cash the supplier refunded through them is no longer "paid".
-        var returns = await InvoiceReturns.PurchaseAsync(_db, invIds, ct);
-        var paidByOrder = payments.Where(p => p.SupplierOrderId.HasValue)
-            .GroupBy(p => p.SupplierOrderId!.Value).ToDictionary(g => g.Key, g => g.Sum(x => x.Amount));
-
-        string Names(IEnumerable<string> names, string fallback)
-        {
-            var list = names.ToList();
-            return list.Count > 0 ? string.Join("، ", list) : fallback;
-        }
-
-        return invoices.Select(i =>
-            {
-                var items = invItems.GetValueOrDefault(i.Id, new());
-                var r = returns.GetValueOrDefault(i.Id);
-                return new Obligation(SupplierLedgerKind.Invoice, i.Id, $"فاتورة مشتريات رقم {PI(i.Number)}", i.InvoiceDate,
-                    Names(items.Select(x => x.Name), "فاتورة مشتريات"), items.Sum(x => x.LineTotal),
-                    paidByInvoice.GetValueOrDefault(i.Id, 0) - r.Refunded, r.Returned);
-            })
-            .Concat(orders.Select(o =>
-            {
-                var items = ordItems.GetValueOrDefault(o.Id, new());
-                return new Obligation(SupplierLedgerKind.Order, o.Id, $"أمر توريد رقم {PO(o.Number)}", o.OrderDate,
-                    Names(items.Select(x => x.Name), "أمر توريد"), Math.Round(items.Sum(x => x.Cost * x.Quantity), 2), paidByOrder.GetValueOrDefault(o.Id, 0));
-            }))
-            .ToList();
-    }
+    private static string? Day(DateTime? d) => d?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
 
     private async Task<SupplierStatementVm> BuildStatementAsync(Supplier supplier, DateTime? from, DateTime? to, CancellationToken ct)
     {
-        var obligations = await ObligationsAsync(supplier.Id, ct);
-        var payments = await _db.SupplierPayments.Where(p => p.SupplierId == supplier.Id).ToListAsync(ct);
-        var rets = await _db.PurchaseReturns.Where(r => r.SupplierId == supplier.Id).ToListAsync(ct);
-        var retIds = rets.Select(r => r.Id).ToList();
-        var retTotals = await _db.PurchaseReturnItems.Where(i => retIds.Contains(i.PurchaseReturnId)).GroupBy(i => i.PurchaseReturnId)
-            .Select(g => new { g.Key, Sum = g.Sum(x => x.LineTotal) }).ToDictionaryAsync(x => x.Key, x => x.Sum, ct);
-        var invNos = await _db.PurchaseInvoices.Where(i => i.SupplierId == supplier.Id).ToDictionaryAsync(i => i.Id, i => i.Number, ct);
-        string InvLabel(Guid id) => invNos.TryGetValue(id, out var n) ? PI(n) : "—";
-
-        // Build one ledger row per obligation (+) and per payment (settlement, −).
-        var rows = obligations.Select(o => new SupplierLedgerRow
-        {
-            Kind = o.Kind, Id = o.Id, Source = o.Label, Date = o.Date, Statement = o.Statement, Amount = o.Total
-        }).ToList();
-        rows.AddRange(payments.Select(p => new SupplierLedgerRow
-        {
-            Kind = SupplierLedgerKind.Payment,
-            Id = p.Id,
-            Source = "إيصال صرف نقدية",
-            Date = p.PaidDate,
-            Statement = $"إيصال صرف نقدية رقم {p.ReceiptNo:D5}",
-            ReceiptNo = p.ReceiptNo,
-            Amount = p.Amount
-        }));
-        // Purchase returns (debit notes, −) and the cash the supplier refunded through them (+).
-        rows.AddRange(rets.Select(r => new SupplierLedgerRow
-        {
-            Kind = SupplierLedgerKind.Return, Id = r.Id, Source = $"مرتجع مشتريات رقم PR-{r.Number}", Date = r.ReturnDate,
-            Statement = $"مرتجع على الفاتورة {InvLabel(r.PurchaseInvoiceId)}" + (string.IsNullOrWhiteSpace(r.Notes) ? "" : $" — {r.Notes}"),
-            Amount = retTotals.GetValueOrDefault(r.Id)
-        }));
-        rows.AddRange(rets.Where(r => r.RefundAmount > 0).Select(r => new SupplierLedgerRow
-        {
-            Kind = SupplierLedgerKind.Refund, Id = r.Id, Source = "إيصال استلام نقدية", Date = r.ReturnDate,
-            Statement = $"استرداد نقدية عن مرتجع المشتريات PR-{r.Number} (إيصال استلام نقدية رقم {r.RefundVoucherNo})",
-            ReceiptNo = r.RefundVoucherNo ?? 0, Amount = r.RefundAmount
-        }));
-
-        // The opening balance (الأرصدة الافتتاحية): credit = owed to the supplier (+), debit = owed by them (−).
-        var opening = await _db.AccountOpeningBalances.AsNoTracking()
-            .FirstOrDefaultAsync(b => b.Account!.SubKind == "Supplier" && b.Account.SubRefId == supplier.Id, ct);
-        if (opening is not null)
-            rows.Add(new SupplierLedgerRow
-            {
-                Kind = opening.IsDebit ? SupplierLedgerKind.OpeningDebit : SupplierLedgerKind.OpeningCredit, Id = supplier.Id,
-                Source = "رصيد افتتاحي", Date = opening.Date, Amount = opening.Amount,
-                Statement = opening.IsDebit ? "رصيد افتتاحي مدين — مستحق على المورد" : "رصيد افتتاحي دائن — مستحق للمورد"
-            });
-
-        // Vouchers on the supplier's account from المصروفات / الإيرادات (سند صرف −, سند قبض +).
-        var accountVouchers = await _db.SafeTransactions.Where(t => t.Source == TxnSource.SupplierAccount && t.SupplierId == supplier.Id).ToListAsync(ct);
-        rows.AddRange(accountVouchers.Select(t => new SupplierLedgerRow
-        {
-            Kind = t.Type == TxnType.Expense ? SupplierLedgerKind.AccountPayment : SupplierLedgerKind.AccountReceipt,
-            Id = t.Id, ReceiptNo = t.Serial, Date = t.OccurredAt, Amount = t.Amount,
-            Source = t.Type == TxnType.Expense ? "سند صرف" : "سند قبض",
-            Statement = (t.Type == TxnType.Expense ? $"سداد على الحساب — سند صرف رقم {t.Serial}" : $"قبض من المورد على الحساب — سند قبض رقم {t.Serial}")
-                        + (string.IsNullOrWhiteSpace(t.Description) ? "" : $" — {t.Description}")
-        }));
+        var data = await SupplierLedger.BuildAsync(_db, supplier.Id, ct);
+        var rows = data.Rows;
 
         // Chronological running balance (owed to supplier) over ALL rows — obligations before payments on
         // the same date — so each row's balance stays correct even when the list is date-filtered.
@@ -255,48 +218,100 @@ public class SuppliersController : Controller
             ? running
             : ordered.Where(r => r.Date < to.Value.Date.AddDays(1)).Select(r => r.Balance).DefaultIfEmpty(0m).Last();
 
+        var shown = WithPeriodOpening(ordered, from, ordered.Where(r => InRange(r.Date)).ToList());
+        await SupplierLedger.AttachItemsAsync(_db, shown, ct);
+
         return new SupplierStatementVm
         {
             Supplier = supplier,
             From = from,
             To = to,
-            // Net of purchase returns, and of the cash the supplier refunded through them.
-            TotalObligations = obligations.Sum(o => o.Total - o.Returned) + (opening is { IsDebit: false } ? opening.Amount : 0m),
-            TotalPaid = payments.Sum(p => p.Amount) - rets.Sum(r => r.RefundAmount) + (opening is { IsDebit: true } ? opening.Amount : 0m)
-                        + accountVouchers.Where(t => t.Type == TxnType.Expense).Sum(t => t.Amount) - accountVouchers.Where(t => t.Type == TxnType.Income).Sum(t => t.Amount),
-            InvoicesCount = obligations.Count,
-            PaymentsCount = payments.Count + accountVouchers.Count(t => t.Type == TxnType.Expense),
-            // The pay button shows when ANY single document still has an outstanding balance — independent of
-            // the net supplier balance (a supplier can be net-overpaid yet still have an unpaid invoice).
-            HasPayableDocuments = obligations.Any(o => o.Remaining > 0),
-            Rows = ordered.Where(r => InRange(r.Date)).ToList(),
+            TotalObligations = data.TotalObligations,
+            TotalPaid = data.TotalPaid,
+            InvoicesCount = data.InvoicesCount,
+            PaymentsCount = data.PaymentsCount,
+            Rows = shown,
             ClosingBalance = closing,
         };
     }
 
-    // ---------- Pay from the statement: pick one of the supplier's not-fully-paid invoices ----------
+    /// <summary>
+    /// A period that starts after the account's first movement opens with «الرصيد الافتتاحي للفترة»: the balance
+    /// accumulated by every movement before <paramref name="from"/>.
+    /// </summary>
+    private static List<SupplierLedgerRow> WithPeriodOpening(List<SupplierLedgerRow> all, DateTime? from, List<SupplierLedgerRow> inRange)
+    {
+        if (from is null || all.LastOrDefault(r => r.Date < from.Value) is not { } last) return inRange;
+        inRange.Insert(0, new SupplierLedgerRow
+        {
+            Kind = SupplierLedgerKind.PeriodOpening, Date = from.Value,
+            Source = "الرصيد الافتتاحي للفترة",
+            Statement = $"رصيد الحساب المُرحَّل قبل {AppCulture.Day(from.Value)}",
+            Amount = last.Balance, BalanceBefore = last.Balance, Balance = last.Balance
+        });
+        return inRange;
+    }
+
+    // ---------- Pay from the statement: a سند صرف on the supplier's account ----------
+    // Payments settle the account balance, not a particular invoice.
     [HttpGet]
     public async Task<IActionResult> PayForm(Guid id, CancellationToken ct)
     {
         if (!Can(PermissionNames.SuppliersPay)) return Forbid();
         var supplier = await _db.Suppliers.FirstOrDefaultAsync(s => s.Id == id, ct);
         if (supplier is null) return NotFound();
+        var model = new AccountVoucherFormModel { PartyId = id, IsSupplier = true };
+        await FillVoucherAsync(model, supplier, ct);
+        return PartialView("_AccountVoucherForm", model);
+    }
 
-        var options = (await ObligationsAsync(id, ct))
-            .Where(o => o.Remaining > 0)
-            .OrderBy(o => o.Date)
-            .Select(o => new PayableOption(
-                (o.Kind == SupplierLedgerKind.Invoice ? "I:" : "O:") + o.Id,
-                $"{o.Label} — متبقٍ {o.Remaining:N2} ج.م",
-                o.Remaining))
-            .ToList();
-
-        return PartialView("_SupplierPayPicker", new SupplierPayPickerModel
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Pay(AccountVoucherFormModel model, CancellationToken ct)
+    {
+        if (!Can(PermissionNames.SuppliersPay)) return Forbid();
+        var supplier = await _db.Suppliers.FirstOrDefaultAsync(s => s.Id == model.PartyId, ct);
+        if (supplier is null) return NotFound();
+        model.IsSupplier = true;
+        if (model.SafeId is null || !await _db.Safes.AnyAsync(s => s.Id == model.SafeId && s.IsActive, ct))
+            ModelState.AddModelError(nameof(model.SafeId), "اختر خزنة صالحة.");
+        else if (model.Amount > 0 && await _guard.CheckWithdrawalAsync(model.SafeId.Value, model.Amount, ct) is string overdraw)
+            ModelState.AddModelError(nameof(model.Amount), overdraw);   // «سحب على المكشوف»
+        if (model.Amount <= 0) ModelState.AddModelError(nameof(model.Amount), "أدخل مبلغًا أكبر من صفر.");
+        if (model.OccurredAt.Date > ClientTime.Today) ModelState.AddModelError(nameof(model.OccurredAt), "لا يمكن السداد بتاريخ مستقبلي.");
+        if (!ModelState.IsValid)
         {
-            SupplierId = id,
-            SupplierName = supplier.Name,
-            Documents = options,
-            Safes = await SafesAsync(_db, ct)
-        });
+            await FillVoucherAsync(model, supplier, ct);
+            return PartialView("_AccountVoucherForm", model);
+        }
+
+        // Dr الموردون (the supplier's subsidiary) / Cr الخزنة — the same voucher as «المصروفات» on a supplier's account.
+        var desc = string.IsNullOrWhiteSpace(model.Description) ? $"دفعة للمورد «{supplier.Name}»" : model.Description.Trim();
+        var txn = await _accounting.AddTransactionAsync(model.SafeId!.Value, TxnType.Expense, TxnSource.SupplierAccount,
+            model.Amount, model.OccurredAt, desc, supplierId: supplier.Id, ct: ct);
+        await _db.SaveChangesAsync(ct);
+        TempData["StatusMessage"] = $"تم سداد {model.Amount:N2} ج.م للمورد «{supplier.Name}» على الحساب (سند صرف رقم {txn.Serial}).";
+        return Json(new { ok = true, openTab = Url.Action(nameof(VoucherReceipt), new { id = txn.Id }) });
+    }
+
+    /// <summary>A voucher on the supplier's account (سند صرف / سند قبض) — printable by whoever sees the statement.</summary>
+    [HttpGet]
+    public async Task<IActionResult> VoucherReceipt(Guid id, CancellationToken ct)
+    {
+        var txn = await _db.SafeTransactions.FirstOrDefaultAsync(t => t.Id == id && t.Source == TxnSource.SupplierAccount && t.SupplierId != null, ct);
+        if (txn is null) return NotFound();
+        ViewBag.PartyLabel = "المورد";
+        ViewBag.Party = await _db.Suppliers.Where(s => s.Id == txn.SupplierId).Select(s => s.Name).FirstOrDefaultAsync(ct);
+        ViewBag.About = txn.Type == TxnType.Expense ? "سداد على الحساب" : "قبض من المورد على الحساب";
+        ViewBag.SafeName = await _db.Safes.Where(s => s.Id == txn.SafeId).Select(s => s.Name).FirstOrDefaultAsync(ct);
+        ViewBag.TenantId = _currentUser.TenantId;
+        return View("~/Areas/Accounting/Views/Shared/PrintOne.cshtml", txn);
+    }
+
+    private async Task FillVoucherAsync(AccountVoucherFormModel model, Supplier supplier, CancellationToken ct)
+    {
+        model.PartyName = supplier.Name;
+        model.Balance = (await SupplierLedger.BuildAsync(_db, supplier.Id, ct)).Balance;
+        model.Safes = await SafesAsync(_db, ct);
     }
 }

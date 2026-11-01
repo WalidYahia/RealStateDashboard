@@ -1,0 +1,58 @@
+@model RealState.Web.Models.AccountVoucherFormModel
+@*
+    «تحصيل دفعة» (customer) / «سداد دفعة للمورد» from an account statement (modal): a cash voucher on the party's
+    account — not tied to any invoice. Posts to CRM/Customers/Collect or Suppliers/Suppliers/Pay; the voucher opens in a
+    new tab (data-open-tab).
+*@
+@{
+    var s = Model.IsSupplier;
+    string N(decimal v) => v.ToString("N2", RealState.Web.AppCulture.Ar);
+    var side = Model.Balance == 0 ? "الحساب متوازن"
+        : s ? (Model.Balance > 0 ? "مستحق له" : "مستحق عليه")
+            : (Model.Balance > 0 ? "مستحق عليه" : "مستحق له");
+}
+<form id="appModalForm" method="post" data-open-tab
+      action="@(s ? Url.Action("Pay", "Suppliers", new { area = "Suppliers" }) : Url.Action("Collect", "Customers", new { area = "CRM" }))">
+    @Html.AntiForgeryToken()
+    <input type="hidden" asp-for="PartyId" />
+    <div asp-validation-summary="ModelOnly" class="validation-summary-errors"></div>
+
+    <div class="status-message" style="background:var(--surface-2);border-color:var(--border);color:var(--text-secondary);">
+        @(s ? "المورد" : "العميل"): <strong>@Model.PartyName</strong>
+        · الرصيد الحالي: <strong>@N(Math.Abs(Model.Balance)) ج.م</strong> (@side)
+        <div style="font-size:12.5px;margin-top:4px;">@(s ? "يُسجَّل سند صرف على حساب المورد ويُخصم من المستحق له." : "يُسجَّل سند قبض على حساب العميل ويُخصم من المستحق عليه.")</div>
+    </div>
+
+    @if (Model.Safes.Count == 0)
+    {
+        <div class="status-message" style="background:rgba(250,178,25,.12);border-color:var(--warning);color:var(--warning);">
+            لا توجد خزنة نشطة. أضف خزنة من صفحة الخزائن أولًا.
+        </div>
+    }
+    else
+    {
+        <div class="form-grid">
+            <div>
+                <label asp-for="Amount" class="form-label"></label>
+                <input asp-for="Amount" class="form-control" type="number" step="any" min="0.01" dir="ltr" inputmode="decimal" />
+                <span asp-validation-for="Amount" class="field-validation-error"></span>
+            </div>
+            <div>
+                <label asp-for="SafeId" class="form-label">@(s ? "الخزنة (يُصرف منها)" : "الخزنة (يُورَّد إليها)")</label>
+                <select asp-for="SafeId" class="form-control" asp-items="Model.Safes"><option value="">— اختر الخزنة —</option></select>
+                <span asp-validation-for="SafeId" class="field-validation-error"></span>
+            </div>
+            <div>
+                <label asp-for="OccurredAt" class="form-label"></label>
+                <input asp-for="OccurredAt" class="form-control" type="datetime-local" dir="ltr" asp-format="{0:yyyy-MM-ddTHH:mm}"
+                       max="@(ClientTime.Today.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture))T23:59" />
+                <span asp-validation-for="OccurredAt" class="field-validation-error"></span>
+            </div>
+            <div class="full">
+                <label asp-for="Description" class="form-label"></label>
+                <input asp-for="Description" class="form-control" />
+            </div>
+        </div>
+        <button type="submit" class="btn-primary" style="margin-top:12px;">💵 @(s ? "تسجيل الدفعة وطباعة سند الصرف" : "تسجيل التحصيل وطباعة سند القبض")</button>
+    }
+</form>

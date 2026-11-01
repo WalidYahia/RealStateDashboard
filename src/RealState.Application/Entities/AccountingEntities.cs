@@ -79,11 +79,12 @@ public class SafeTransaction : AuditableEntity, ITenantEntity
     /// <summary>Optional predefined category (بند) chosen when recording a manual expense/income.</summary>
     public Guid? CategoryId { get; set; }
 
-    /// <summary>The customer / supplier whose account the voucher moves — set on vouchers recorded against a party
-    /// (<see cref="TxnSource.CustomerAccount"/> / <see cref="TxnSource.SupplierAccount"/>) and on the other party-linked
+    /// <summary>The customer / supplier / contractor whose account the voucher moves — set on vouchers recorded against a party
+    /// (<see cref="TxnSource.CustomerAccount"/> / <see cref="TxnSource.SupplierAccount"/> / <see cref="TxnSource.ContractorAccount"/>) and on the other party-linked
     /// sources (collections, payments, refunds) for reference.</summary>
     public Guid? CustomerId { get; set; }
     public Guid? SupplierId { get; set; }
+    public Guid? ContractorId { get; set; }
 
     /// <summary>The cancelled sale contract a <see cref="TxnSource.ContractCancelRefund"/> voucher refunds.</summary>
     public Guid? SaleContractId { get; set; }

@@ -64,6 +64,13 @@ public class Customer : AuditableEntity, ITenantEntity
 
     /// <summary>The tenant's built-in «عميل نقدي» (walk-in cash customer) — seeded per tenant, can't be deleted.</summary>
     public bool IsDefaultCash { get; set; }
+
+    /// <summary>
+    /// «عميل ومورد»: the supplier record of the same party — set when the customer is also a supplier. The party keeps one
+    /// customer and one supplier record (sales invoices / contracts on the first, purchase invoices on the second, each with
+    /// its own ledger account) and the two are shown together: one merged statement and a net balance in the reports.
+    /// </summary>
+    public Guid? SupplierId { get; set; }
     /// <summary>Optional lead interest (مهتم / غير مهتم).</summary>
     public LeadInterest? Interest { get; set; }
 

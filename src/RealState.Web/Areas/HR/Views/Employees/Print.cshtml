@@ -6,7 +6,7 @@
     var withNationalId = ViewBag.WithNationalId as bool? ?? false;
     string N(decimal v) => v.ToString("N0", RealState.Web.AppCulture.Ar);
     var totalSalary = Model.Sum(e => e.BasicSalary);
-    var baseCols = 6 + (withNationalId ? 1 : 0);   // # + الاسم + الهاتف + القسم + الوظيفة + نوع التعاقد (+ الرقم القومي)
+    var baseCols = 7 + (withNationalId ? 1 : 0);   // # + الاسم + الهاتف + الموقع / الفرع + القسم + الوظيفة + نوع التعاقد (+ الرقم القومي)
 }
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -34,7 +34,7 @@
     <table>
         <thead>
             <tr>
-                <th>#</th><th>الاسم</th><th>الهاتف</th><th>القسم</th><th>الوظيفة</th><th>نوع التعاقد</th>
+                <th>#</th><th>الاسم</th><th>الهاتف</th><th>الموقع / الفرع</th><th>القسم</th><th>الوظيفة</th><th>نوع التعاقد</th>
                 @if (withNationalId) { <th>الرقم القومي</th> }
                 @if (withSalary) { <th>الراتب الأساسي</th> }
             </tr>
@@ -47,6 +47,7 @@
                 <td>@i</td>
                 <td>@e.Name</td>
                 <td>@e.Phone</td>
+                <td>@e.Branch</td>
                 <td>@e.Department</td>
                 <td>@e.Role</td>
                 <td>@e.EmploymentType</td>

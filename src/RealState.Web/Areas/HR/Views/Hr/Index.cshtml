@@ -10,7 +10,43 @@
 
 <div class="subtabs" style="margin-top:6px;">
     <a class="subtab active" data-tab="org" href="javascript:" onclick="hrTab(event,'org')">الأقسام والوظائف</a>
+    <a class="subtab" data-tab="branches" href="javascript:" onclick="hrTab(event,'branches')">المواقع والفروع</a>
     <a class="subtab" data-tab="att" href="javascript:" onclick="hrTab(event,'att')">إعدادات الحضور</a>
+</div>
+
+<!-- Tab: work locations / branches -->
+<div id="hr-branches" class="hr-tab" style="display:none;">
+    <div class="card-tile">
+        <div class="card-head">
+            <h3>المواقع والفروع</h3>
+            @if (canManage) { <button type="button" class="btn-new-tenant" onclick="appOpenModal('@Url.Action("BranchForm")', 'موقع / فرع جديد')">➕ موقع / فرع</button> }
+        </div>
+        <table class="rs-table">
+            <thead><tr><th>الكود</th><th>الاسم</th><th>الهاتف</th><th>الموظفون</th><th></th></tr></thead>
+            <tbody>
+            @foreach (var b in Model.Branches)
+            {
+                <tr>
+                    <td dir="ltr" style="text-align:right;">@b.Code</td>
+                    <td>@b.Name @if (b.IsDefault) { <span class="badge-state state-on" style="font-size:11px;">افتراضي</span> }</td>
+                    <td dir="ltr" style="text-align:right;">@(string.IsNullOrEmpty(b.Phone) ? "—" : b.Phone)</td>
+                    <td>@Model.BranchEmployees.GetValueOrDefault(b.Id)</td>
+                    <td style="white-space:nowrap;">
+                        @if (canManage)
+                        {
+                            <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("BranchForm", new { id = b.Id })', 'تعديل الموقع / الفرع')">✏️ تعديل</button>
+                            @if (!b.IsDefault)
+                            {
+                                <form asp-action="BranchDelete" asp-route-id="@b.Id" method="post" style="display:inline;" data-confirm="حذف الموقع / الفرع «@b.Name»؟" data-danger>@Html.AntiForgeryToken()<button type="submit" class="btn-sm btn-danger">حذف</button></form>
+                            }
+                        }
+                    </td>
+                </tr>
+            }
+            @if (Model.Branches.Count == 0) { <tr><td colspan="5" style="color:var(--muted)">لا توجد مواقع.</td></tr> }
+            </tbody>
+        </table>
+    </div>
 </div>
 
 <!-- Tab: departments + roles -->
@@ -120,8 +156,9 @@
     <script>
         var hrCanManage = @(canManage ? "true" : "false");
         function showHrTab(name) {
-            if (name !== 'att') name = 'org';
+            if (name !== 'att' && name !== 'branches') name = 'org';
             document.getElementById('hr-org').style.display = name === 'org' ? '' : 'none';
+            document.getElementById('hr-branches').style.display = name === 'branches' ? '' : 'none';
             document.getElementById('hr-att').style.display = name === 'att' ? '' : 'none';
             document.querySelectorAll('.subtabs .subtab').forEach(function (a) {
                 a.classList.toggle('active', a.getAttribute('data-tab') === name);

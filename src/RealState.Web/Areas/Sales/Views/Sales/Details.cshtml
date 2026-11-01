@@ -131,7 +131,6 @@ else
         @foreach (var i in installments)
         {
             var rem = i.Amount - i.PaidAmount;
-            var isDown = i.Type == InstallmentType.DownPayment;
             <tr>
                 <td>@i.InstNo()</td>
                 <td>@i.Type.Ar()</td>
@@ -158,10 +157,10 @@ else
                     }
                     @if (rem > 0 && canCollect)
                     {
-                        @* Same collection as the collections page: pick the safe (and, for a down payment, the amount) → receipt. *@
+                        @* Same collection as the collections page: pick the safe (and full / partial amount) → receipt. *@
                         <form class="pay-form" asp-controller="Collections" asp-action="Pay" asp-route-id="@i.Id" method="post" style="display:inline;"
-                              data-partial="@(isDown ? "true" : "false")" data-remaining="@RawNum(rem)"
-                              data-msg="@(isDown ? $"تحصيل المقدم من «{Model.Customer?.FullName}»" : $"تحصيل {i.InstPhrase()} من «{Model.Customer?.FullName}» بقيمة {N(rem)} ج.م؟")">
+                              data-remaining="@RawNum(rem)"
+                              data-msg="@($"تحصيل {i.InstPhrase()} من «{Model.Customer?.FullName}» — المتبقي {N(rem)} ج.م")">
                             @Html.AntiForgeryToken()
                             <input type="hidden" name="safeId" class="pay-safe" />
                             <input type="hidden" name="amount" class="pay-amount" />

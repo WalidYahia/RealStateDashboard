@@ -11,7 +11,7 @@
     <div class="kpi k-tasks"><div class="kpi-label">المشاريع</div><div class="kpi-value">@Model.ProjectsCount</div><div class="kpi-foot">وحدات: مباع @Model.UnitsSold / @Model.UnitsTotal</div></div>
     <div class="kpi k-sales"><div class="kpi-label">مبيعات الشهر</div><div class="kpi-value">@C(Model.MonthSales) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">@Model.ContractsCount عقد إجمالًا</div></div>
     <div class="kpi k-alerts"><div class="kpi-label">مديونيات العملاء</div><div class="kpi-value">@C(Model.TotalOutstanding) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">متأخرات @C(Model.OverdueAmount)</div></div>
-    <div class="kpi k-reserve"><div class="kpi-label">مستحقات الموردين</div><div class="kpi-value">@C(Model.SupplierPayables) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">أوامر توريد غير مسدَّدة</div></div>
+    <div class="kpi k-reserve"><div class="kpi-label">مستحقات الموردين</div><div class="kpi-value">@C(Model.SupplierPayables) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">المستحق على حسابات الموردين</div></div>
     <div class="kpi k-collect"><div class="kpi-label">إجمالي التحصيل</div><div class="kpi-value">@C(Model.TotalCollected) <span class="kpi-unit">ج.م</span></div><div class="kpi-foot">@Model.CollectionPercent% من التعاقدات</div></div>
 </div>
 
