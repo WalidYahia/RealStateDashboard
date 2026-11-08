@@ -36,9 +36,21 @@
         function colLoad(url) {
             COL.base = url.split('?')[0];
             COL.last = url;
+            // A big tab takes a while to fetch and render — show the preloader meanwhile. Only the latest request
+            // fills the tab (switching tabs quickly drops the earlier responses).
+            var seq = COL.seq = (COL.seq || 0) + 1;
+            window.appLoader.begin('جارٍ تحميل البيانات…');
             fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
-                .then(function (r) { return r.text(); })
-                .then(function (h) { document.getElementById('colTab').innerHTML = h; colBind(); });
+                .then(function (r) { if (!r.ok) throw new Error(r.status); return r.text(); })
+                .then(function (h) {
+                    if (seq !== COL.seq) return;
+                    document.getElementById('colTab').innerHTML = h;
+                    colBind();
+                })
+                .catch(function () {
+                    if (seq === COL.seq) window.appToast('تعذّر تحميل البيانات — أعد المحاولة.', 'error');
+                })
+                .finally(function () { window.appLoader.end(); });
         }
         function colOpen(e, url) {
             document.querySelectorAll('.subtabs .subtab').forEach(function (a) { a.classList.remove('active'); });

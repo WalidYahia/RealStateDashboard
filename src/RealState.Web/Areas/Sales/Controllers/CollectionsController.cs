@@ -75,7 +75,7 @@ public class CollectionsController : Controller
     // All installments, grouped + sortable + searchable.
     public async Task<IActionResult> All(string? sort, CancellationToken ct)
     {
-        ViewData["Sort"] = sort ?? "unit";
+        ViewData["Sort"] = sort ?? "project";
         ViewData["Mode"] = "all";
         return PartialView("_CollectionGroups", Group(await BuildRowsAsync(ct), sort));
     }
@@ -83,7 +83,7 @@ public class CollectionsController : Controller
     // Collected (paid) installments, grouped + sortable + searchable + cancelable.
     public async Task<IActionResult> Collected(string? sort, CancellationToken ct)
     {
-        ViewData["Sort"] = sort ?? "unit";
+        ViewData["Sort"] = sort ?? "project";
         ViewData["Mode"] = "collected";
         var rows = (await BuildRowsAsync(ct)).Where(r => r.Status == InstallmentStatus.Paid).ToList();
         return PartialView("_CollectionGroups", Group(rows, sort));
@@ -209,11 +209,12 @@ public class CollectionsController : Controller
     }
 
     // ---------- helpers ----------
+    /// <summary>Groups the installments by unit / customer / project (the default).</summary>
     private static List<IGrouping<string, CollectionRow>> Group(List<CollectionRow> rows, string? sort) => sort switch
     {
         "customer" => rows.OrderBy(r => r.CustomerName).ThenBy(r => r.DueDate).GroupBy(r => r.CustomerName).ToList(),
-        "project" => rows.OrderBy(r => r.ProjectName).ThenBy(r => r.DueDate).GroupBy(r => r.ProjectName).ToList(),
-        _ => rows.OrderBy(r => r.UnitLabel).ThenBy(r => r.DueDate).GroupBy(r => r.UnitLabel).ToList(),
+        "unit" => rows.OrderBy(r => r.UnitLabel).ThenBy(r => r.DueDate).GroupBy(r => r.UnitLabel).ToList(),
+        _ => rows.OrderBy(r => r.ProjectName).ThenBy(r => r.DueDate).GroupBy(r => r.ProjectName).ToList(),
     };
 
     private async Task<List<CollectionRow>> BuildRowsAsync(CancellationToken ct)

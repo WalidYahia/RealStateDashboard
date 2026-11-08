@@ -16,6 +16,7 @@
         .Id("isForm")
         .WithTitle("فترة القائمة")
         .SubmitLabel("عرض")
+        .NoSort()   // sections and subtotals — the row order is the statement
         .DateRange(from, to, presets: new[] { FilterPresets.ThisYear(), FilterPresets.PreviousYear(), FilterPresets.ThisMonth() }, autoSubmitPresets: true)
         .Print(Url.Action("IncomeStatementPrint", new { from, to }))
         .Excel(Url.Action("IncomeStatementExcel", new { from, to }));

@@ -80,6 +80,13 @@ public sealed class FilterBarVm
     private string? _resetUrl;
     private bool _noReset;
 
+    /// <summary>
+    /// «الترتيب»: sort the page's table(s) by a column, ascending / descending — on by default. The columns come from the
+    /// headers of the tables under the bar (wwwroot/js/filter-bar.js); the choice is posted as sortBy / sortDir so a
+    /// filter submit keeps it. Off for structured statements whose row order is the content (e.g. ميزان المراجعة).
+    /// </summary>
+    public bool Sortable { get; private set; } = true;
+
     /// <summary>Number of non-date filters currently applied (shown as a badge).</summary>
     public int ActiveCount => Fields.Count(f => f.IsActive);
 
@@ -105,6 +112,7 @@ public sealed class FilterBarVm
     public FilterBarVm Hide(string name, object? value) { Hidden.Add(new(name, value?.ToString())); return this; }
     public FilterBarVm Reset(string? url) { _resetUrl = url; return this; }
     public FilterBarVm NoReset() { _noReset = true; return this; }
+    public FilterBarVm NoSort() { Sortable = false; return this; }
     public FilterBarVm WithSummary(IHtmlContent html) { Summary = html; return this; }
 
     /// <summary>From/to range. Values are passed pre-formatted exactly as the page posts them.</summary>

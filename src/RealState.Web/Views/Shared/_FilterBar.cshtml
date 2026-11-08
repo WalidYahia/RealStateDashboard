@@ -10,7 +10,10 @@
     bool Same(string? a, string? b) => string.Equals(a ?? "", b ?? "", StringComparison.OrdinalIgnoreCase);
     // Date part only (a date-time range value is "yyyy-MM-ddTHH:mm").
     string D10(string? s) => string.IsNullOrEmpty(s) ? "" : (s.Length >= 10 ? s[..10] : s);
-    var hasBody = r is not null || Model.Fields.Count > 0;
+    var hasBody = r is not null || Model.Fields.Count > 0 || Model.Sortable;
+    // «الترتيب»: the column list is filled from the table headers by filter-bar.js (hidden while there's no table).
+    var sortBy = Context.Request.Query["sortBy"].ToString();
+    var sortDesc = string.Equals(Context.Request.Query["sortDir"].ToString(), "desc", StringComparison.OrdinalIgnoreCase);
     // Active states are rendered server-side (no flash on load); filter-bar.js keeps them live afterwards.
     var rangeOn = r is not null && (!string.IsNullOrEmpty(r.From) || !string.IsNullOrEmpty(r.To));
 }
@@ -115,6 +118,22 @@
                                 </div>
                                 break;
                         }
+                    </div>
+                }
+
+                @if (Model.Sortable)
+                {
+                    <div class="fb-field fb-sort @(sortBy.Length > 0 ? "fb-on" : "")" data-fb-sort hidden>
+                        <span class="fb-label">الترتيب</span>
+                        <div class="fb-sort-box">
+                            <select name="sortBy" class="form-control fb-input" data-fb-sort-col data-value="@sortBy" aria-label="ترتيب حسب العمود">
+                                <option value="">الترتيب الافتراضي</option>
+                            </select>
+                            <select name="sortDir" class="form-control fb-input" data-fb-sort-dir aria-label="اتجاه الترتيب">
+                                <option value="asc">تصاعدي ↑</option>
+                                <option value="desc" selected="@sortDesc">تنازلي ↓</option>
+                            </select>
+                        </div>
                     </div>
                 }
             </div>

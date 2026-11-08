@@ -2,14 +2,15 @@
 @*
     Account statements (customer / supplier) «تفصيلي»: the lines of the invoice / return in the row just above, as the
     row right after it. wwwroot/js/statement-items.js opens it (that row's «الأصناف» button, or «تفصيلي» for the list).
-    Placeholder row for the list search and paging (data-skip-search) — the script shows it only with its document row.
+    Placeholder row for the list search and paging (data-skip-search) — the script shows it only with its document row;
+    the filter bar's «الترتيب» moves it with that row (data-sort-follow).
 *@
 @{
     var open = ViewData["Detailed"] as bool? ?? false;   // the page's «تفصيلي» (ViewData is inherited from the page)
     string N(decimal v) => v.ToString("N2", RealState.Web.AppCulture.Ar);
     string Q(decimal v) => v.ToString("0.####", System.Globalization.CultureInfo.InvariantCulture);
 }
-<tr class="stmt-items" data-skip-search hidden="@(!open)">
+<tr class="stmt-items" data-skip-search data-sort-follow hidden="@(!open)">
     <td colspan="6">
         <table class="stmt-items-table">
             <thead><tr data-skip-search><th>الصنف</th><th>الوحدة</th><th>السعر</th><th>الكمية</th><th>الإجمالي</th></tr></thead>

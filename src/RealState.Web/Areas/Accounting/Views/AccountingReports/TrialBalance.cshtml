@@ -18,6 +18,7 @@
         .Id("tbForm")
         .WithTitle("فترة الميزان")
         .SubmitLabel("عرض")
+        .NoSort()   // the chart-of-accounts tree — the row order is the statement
         .DateRange(from, to, presets: new[] { new FilterPreset("الكل", "", D(today)), FilterPresets.ThisYear(), FilterPresets.PreviousYear() },
             autoSubmitPresets: true, fromLabel: "من تاريخ", toLabel: "إلى تاريخ")
         .Print(Url.Action("TrialBalancePrint", new { from, to }))

@@ -127,6 +127,14 @@ html.theme-fading, html.theme-fading *, html.theme-fading *::before, html.theme-
 .fb-range { grid-column: span 2; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .fb-field { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .fb-wide { grid-column: span 2; }
+/* «الترتيب»: the column + direction selects side by side, at the bar's left side (the last grid cells, RTL) — a bit
+   wider than one cell, but capped so the column select doesn't stretch across the bar. */
+.fb-sort { grid-column: -3 / -1; justify-self: end; width: min(100%, 290px); }
+.fb-sort[hidden], .fb-body[hidden] { display: none; }
+.fb-sort-box { display: flex; gap: 8px; min-width: 0; }
+.fb-sort-box > select { margin: 0; min-width: 0; }
+.fb-sort-box > [data-fb-sort-col] { flex: 1 1 auto; }
+.fb-sort-box > [data-fb-sort-dir] { flex: 0 0 auto; width: auto; }
 .fb-label { font-size: 12.5px; color: var(--text-secondary); font-weight: 600; line-height: 1.2; }
 .fb-on > .fb-label::after {
     content: ""; display: inline-block; width: 6px; height: 6px; border-radius: 50%;
@@ -198,7 +206,8 @@ html.theme-fading, html.theme-fading *, html.theme-fading *::before, html.theme-
 
 .fb-toggle { display: none; }
 @media (max-width: 720px) {
-    .fb-range, .fb-wide { grid-column: 1 / -1; }
+    .fb-range, .fb-wide, .fb-sort { grid-column: 1 / -1; }
+    .fb-sort { justify-self: stretch; width: auto; }
     /* Filters start folded: the header (title + active count) opens them. */
     .fb-collapsible .fb-head { cursor: pointer; padding: 10px 14px; }
     .fb-toggle {

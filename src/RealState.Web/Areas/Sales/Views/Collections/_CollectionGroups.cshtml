@@ -6,7 +6,7 @@
     string RawNum(decimal v) => v.ToString("0.##", CultureInfo.InvariantCulture);
     string D(DateTime d) => RealState.Web.AppCulture.When(d);   // date + time when it has one
 
-    var sort = (string?)ViewData["Sort"] ?? "unit";
+    var sort = (string?)ViewData["Sort"] ?? "project";
     var mode = (string?)ViewData["Mode"] ?? "all";
     var isCollected = mode == "collected";
     var canCollect = User.Can(PermissionNames.CollectionsCollect);
