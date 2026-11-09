@@ -6,7 +6,7 @@ using RealState.Application.Enums;
 namespace RealState.Web.Areas.Accounting.Models;
 
 // ======================================================================================
-//  فئات الأصول الثابتة — categories and their posting profile (chart-of-accounts accounts)
+//  فئات الأصول الثابتة — in the chart of accounts: الأصول › الأصول الثابتة › the category › each asset
 // ======================================================================================
 
 public class FixedAssetCategoryFormModel
@@ -19,12 +19,11 @@ public class FixedAssetCategoryFormModel
     [Range(0, 1200, ErrorMessage = "من 0 إلى 1200 شهر")][Display(Name = "العمر الإنتاجي الافتراضي (بالأشهر)")]
     public int DefaultUsefulLifeMonths { get; set; } = 60;
 
-    [Display(Name = "حساب تكلفة الأصول")] public Guid? AssetAccountId { get; set; }
-    [Display(Name = "حساب مجمع الإهلاك")] public Guid? AccumulatedDepreciationAccountId { get; set; }
     [Display(Name = "حساب مصروف الإهلاك")] public Guid? DepreciationExpenseAccountId { get; set; }
 
-    /// <summary>Postable asset accounts (cost and accumulated depreciation pickers).</summary>
-    public List<SelectListItem> AssetAccounts { get; set; } = new();
+    /// <summary>Editing: the category's groups in the chart (display — each asset's accounts are created under them).</summary>
+    public string? CostGroup { get; set; }
+    public string? AccumulatedGroup { get; set; }
     /// <summary>Postable expense accounts (depreciation expense picker).</summary>
     public List<SelectListItem> ExpenseAccounts { get; set; } = new();
     public bool HasPostings { get; set; }
@@ -35,6 +34,7 @@ public class FixedAssetCategoryRow
     public Guid Id { get; set; }
     public string Name { get; set; } = string.Empty;
     public int DefaultUsefulLifeMonths { get; set; }
+    /// <summary>The category's groups under الأصول الثابتة / مجمع إهلاك الأصول الثابتة, and its expense account.</summary>
     public string? AssetAccount { get; set; }
     public string? AccumulatedAccount { get; set; }
     public string? ExpenseAccount { get; set; }
@@ -77,17 +77,14 @@ public class FixedAssetFormModel
     [Range(0, 999_999_999_999, ErrorMessage = "قيمة غير صالحة")][Display(Name = "إهلاك سابق متراكم (ج.م)")]
     public decimal OpeningAccumulatedDepreciation { get; set; }
 
-    // Depreciation (straight-line, monthly).
+    // Depreciation guidance — depreciation itself is recorded by the user (إهلاك الأصول الثابتة / the asset page).
     [Range(0, 1200, ErrorMessage = "من 0 إلى 1200 شهر")][Display(Name = "العمر الإنتاجي المتبقي (بالأشهر)")]
     public int UsefulLifeMonths { get; set; }
     [Range(0, 999_999_999_999, ErrorMessage = "قيمة غير صالحة")][Display(Name = "القيمة التخريدية (ج.م)")]
     public decimal SalvageValue { get; set; }
-    [DataType(DataType.Date)][Display(Name = "بداية الإهلاك")] public DateTime? DepreciationStartDate { get; set; }
 
     /// <summary>Editing a posted asset: cost / quantity / category / acquisition are fixed (they're in the ledger).</summary>
     public bool FinancialsLocked { get; set; }
-    /// <summary>Depreciation already posted: the schedule fields are fixed too (undo the runs first).</summary>
-    public bool ScheduleLocked { get; set; }
 
     public List<SelectListItem> Categories { get; set; } = new();
     /// <summary>Category id → its default useful life (prefills the field).</summary>
@@ -145,10 +142,16 @@ public class FixedAssetDetailsVm
     public string? PurchaseSafe { get; set; }
     public long? PurchaseVoucherSerial { get; set; }
     public long? DisposalVoucherSerial { get; set; }
+    /// <summary>The asset's own accounts in the chart («code — name»), once its acquisition is posted.</summary>
+    public string? CostAccount { get; set; }
+    public string? AccumulatedAccount { get; set; }
     public decimal Accumulated { get; set; }
     public decimal BookValue => Asset.TotalCost - Accumulated;
-    public decimal MonthlyDepreciation { get; set; }
-    public int MonthsPosted { get; set; }
+    /// <summary>What may still be depreciated (down to the salvage value).</summary>
+    public decimal RemainingDepreciable { get; set; }
+    /// <summary>Straight line over the useful life — a suggestion only.</summary>
+    public decimal SuggestedMonthly { get; set; }
+    /// <summary>Depreciation recorded on the asset, oldest first.</summary>
     public List<FixedAssetDepreciation> Depreciations { get; set; } = new();
     /// <summary>Every custody of this asset, newest first (history is never deleted).</summary>
     public List<MaterialCustodyRow> Custodies { get; set; } = new();
@@ -187,36 +190,55 @@ public class FixedAssetDisposeModel
 }
 
 // ======================================================================================
-//  إهلاك الأصول الثابتة — monthly runs
+//  إهلاك الأصول الثابتة — depreciation recorded by the user on an asset (nothing automatic)
 // ======================================================================================
 
-public class DepreciationPreviewRow
+public class DepreciationRow
 {
+    public Guid Id { get; set; }
+    public DateTime Date { get; set; }
     public Guid AssetId { get; set; }
     public int Number { get; set; }
     public string Name { get; set; } = string.Empty;
     public string? Category { get; set; }
-    /// <summary>Months not yet posted up to the selected month, and their total.</summary>
-    public int Months { get; set; }
     public decimal Amount { get; set; }
-    public decimal BookValueAfter { get; set; }
-}
-
-public class DepreciationRunRow
-{
-    public DateTime Period { get; set; }
-    public int Assets { get; set; }
-    public decimal Amount { get; set; }
+    public string? Notes { get; set; }
+    public string? CreatedBy { get; set; }
+    /// <summary>The asset was disposed of — its depreciation is closed into the disposal and can't be removed.</summary>
+    public bool AssetDisposed { get; set; }
 }
 
 public class DepreciationVm
 {
-    /// <summary>Selected month (first day).</summary>
-    public DateTime Period { get; set; }
-    public List<DepreciationPreviewRow> Due { get; set; } = new();
-    public decimal DueTotal => Due.Sum(d => d.Amount);
-    public List<DepreciationRunRow> History { get; set; } = new();
-    public DateTime? LastPostedPeriod { get; set; }
-    /// <summary>Assets that can't be depreciated yet: not posted, or missing a useful life / start date.</summary>
-    public int SkippedUnposted { get; set; }
+    public DateTime? From { get; set; }
+    public DateTime? To { get; set; }
+    public Guid? CategoryId { get; set; }
+    public List<DepreciationRow> Rows { get; set; } = new();
+    public decimal Total => Rows.Sum(r => r.Amount);
+    public List<SelectListItem> Categories { get; set; } = new();
+    /// <summary>Assets that can be depreciated now (posted, not disposed, above their salvage value).</summary>
+    public int DepreciableCount { get; set; }
+}
+
+/// <summary>An asset offered on the depreciation form: what's left to depreciate and a suggested amount.</summary>
+public record DepreciableAssetOption(Guid Id, string Label, decimal Remaining, decimal Suggested);
+
+/// <summary>Record a depreciation on an asset (Dr مصروف الإهلاك / Cr مجمع الإهلاك).</summary>
+public class DepreciationFormModel
+{
+    [Required(ErrorMessage = "اختر الأصل")][Display(Name = "الأصل")]
+    public Guid? AssetId { get; set; }
+
+    /// <summary>Date + time entered by the user (default: now) — the journal entry takes it.</summary>
+    [DataType(DataType.DateTime)][Display(Name = "تاريخ ووقت الإهلاك")]
+    public DateTime Date { get; set; } = ClientTime.Now;
+
+    [Range(0.01, 999_999_999_999, ErrorMessage = "أدخل مبلغًا أكبر من صفر")][Display(Name = "قيمة الإهلاك (ج.م)")]
+    public decimal Amount { get; set; }
+
+    [Display(Name = "البيان / ملاحظات")] public string? Notes { get; set; }
+
+    /// <summary>Opened from the asset's page: the asset is fixed.</summary>
+    public bool AssetLocked { get; set; }
+    public List<DepreciableAssetOption> Assets { get; set; } = new();
 }

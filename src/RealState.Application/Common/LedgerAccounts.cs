@@ -53,9 +53,10 @@ public static class LedgerAccounts
     public const string GeneralExpenses = "5900";
 
     /// <summary>Control accounts whose children are per-entity subsidiaries — added only from their own
-    /// pages (customers / suppliers / contractors / safes / employees), never hand-added in the chart.</summary>
+    /// pages (customers / suppliers / contractors / safes / employees / fixed-asset categories), never hand-added in the chart.</summary>
     public static readonly IReadOnlyList<string> SubsidiaryControls =
-        new[] { CashAndBanks, AccountsReceivable, EmployeeAdvances, FinancialCustody, AccountsPayable, ContractorsPayable, GoodsInventory };
+        new[] { CashAndBanks, AccountsReceivable, EmployeeAdvances, FinancialCustody, AccountsPayable, ContractorsPayable, GoodsInventory,
+                FixedAssetsCost, AccumulatedDepreciation };
 
     public static readonly IReadOnlyList<AccountDef> Defaults = new List<AccountDef>
     {

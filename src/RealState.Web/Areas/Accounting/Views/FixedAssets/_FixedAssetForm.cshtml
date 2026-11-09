@@ -2,7 +2,6 @@
 @{
     var isEdit = Model.Id != Guid.Empty;
     var fin = Model.FinancialsLocked;
-    var sched = Model.ScheduleLocked;
     string? ro(bool locked) => locked ? "readonly" : null;
     var lives = System.Text.Json.JsonSerializer.Serialize(Model.CategoryLives.ToDictionary(k => k.Key.ToString(), v => v.Value));
 }
@@ -19,7 +18,7 @@
     @if (fin)
     {
         <div class="status-message" style="background:var(--surface-2);border-color:var(--border);color:var(--text-secondary);">
-            الأصل مُرحَّل محاسبيًا — لا تُعدَّل الفئة والكمية والتكلفة وطريقة الاقتناء. @(sched ? "وجدول الإهلاك ثابت لوجود إهلاك مُرحَّل." : "")
+            الأصل مُرحَّل محاسبيًا — لا تُعدَّل الفئة والكمية والتكلفة وطريقة الاقتناء.
         </div>
     }
     <div class="form-grid">
@@ -30,7 +29,8 @@
         </div>
         <div>
             <label asp-for="CategoryId" class="form-label"></label>
-            <select asp-for="CategoryId" class="form-control" asp-items="Model.Categories" disabled="@fin" data-fa-category><option value="">— اختر الفئة —</option></select>
+            <select asp-for="CategoryId" class="form-control" asp-items="Model.Categories" disabled="@fin" data-fa-category
+                    data-searchable="@(fin ? null : "")" data-search-placeholder="🔍 ابحث عن الفئة…"><option value="">— اختر الفئة —</option></select>
             @if (fin) { <input type="hidden" asp-for="CategoryId" /> }
             <span asp-validation-for="CategoryId" class="field-validation-error"></span>
         </div>
@@ -80,21 +80,18 @@
             </div>
         }
 
-        <div class="full fa-section">الإهلاك (قسط ثابت شهري)</div>
+        <div class="full fa-section">الإهلاك (يُسجَّل يدويًا عند الحاجة — لا يُحتسب تلقائيًا)</div>
         <div>
             <label asp-for="UsefulLifeMonths" class="form-label"></label>
-            <input asp-for="UsefulLifeMonths" class="form-control" type="number" min="0" max="1200" inputmode="numeric" dir="ltr" readonly="@ro(sched)" data-fa-life />
+            <input asp-for="UsefulLifeMonths" class="form-control" type="number" min="0" max="1200" inputmode="numeric" dir="ltr" data-fa-life />
             <span asp-validation-for="UsefulLifeMonths" class="field-validation-error"></span>
+            <span style="color:var(--muted);font-size:12px;">استرشادي — يقترح قيمة الإهلاك الشهري عند تسجيله.</span>
         </div>
         <div>
             <label asp-for="SalvageValue" class="form-label"></label>
-            <input asp-for="SalvageValue" class="form-control" type="number" step="any" min="0" inputmode="decimal" dir="ltr" readonly="@ro(sched)" />
+            <input asp-for="SalvageValue" class="form-control" type="number" step="any" min="0" inputmode="decimal" dir="ltr" />
             <span asp-validation-for="SalvageValue" class="field-validation-error"></span>
-        </div>
-        <div>
-            <label asp-for="DepreciationStartDate" class="form-label"></label>
-            <input asp-for="DepreciationStartDate" class="form-control" type="date" dir="ltr" readonly="@ro(sched)" />
-            <span style="color:var(--muted);font-size:12px;">فارغ = تاريخ الاقتناء. 0 شهر = لا يُهلك (مثل الأراضي).</span>
+            <span style="color:var(--muted);font-size:12px;">لا يُهلك الأصل دونها.</span>
         </div>
 
         <div class="full">

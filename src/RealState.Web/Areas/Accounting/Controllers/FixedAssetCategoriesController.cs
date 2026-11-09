@@ -12,9 +12,9 @@ using RealState.Web.Areas.Accounting.Models;
 namespace RealState.Web.Areas.Accounting.Controllers;
 
 /// <summary>
-/// فئات الأصول الثابتة — asset categories and their posting profile: which chart-of-accounts accounts the category's
-/// assets post to (cost / accumulated depreciation / depreciation expense). Left on «تلقائي», the cost and accumulated
-/// depreciation accounts are created under 1500 / 1590 named after the category, and the expense is «مصروف الإهلاك».
+/// فئات الأصول الثابتة — asset categories. In the chart of accounts each category is a group under الأصول الثابتة (1500)
+/// and مجمع إهلاك الأصول الثابتة (1590), named after it, holding one account per asset (الأصول › الأصول الثابتة › الفئة ›
+/// الأصل); its depreciation expense account is picked here (default «مصروف الإهلاك»).
 /// </summary>
 [Area("Accounting")]
 [Authorize(Policy = PermissionNames.FixedAssetsView)]
@@ -68,8 +68,8 @@ public class FixedAssetCategoriesController : Controller
             if (c is null) return NotFound();
             model = new FixedAssetCategoryFormModel
             {
-                Id = c.Id, Name = c.Name, DefaultUsefulLifeMonths = c.DefaultUsefulLifeMonths, AssetAccountId = c.AssetAccountId,
-                AccumulatedDepreciationAccountId = c.AccumulatedDepreciationAccountId, DepreciationExpenseAccountId = c.DepreciationExpenseAccountId,
+                Id = c.Id, Name = c.Name, DefaultUsefulLifeMonths = c.DefaultUsefulLifeMonths,
+                DepreciationExpenseAccountId = c.DepreciationExpenseAccountId,
                 HasPostings = await _db.FixedAssets.AnyAsync(a => a.CategoryId == c.Id && a.AcquisitionMethod != null, ct)
             };
         }
@@ -84,15 +84,8 @@ public class FixedAssetCategoriesController : Controller
         var name = model.Name?.Trim() ?? "";
         if (name.Length > 0 && await _db.FixedAssetCategories.AnyAsync(c => c.Name == name && c.Id != model.Id, ct))
             ModelState.AddModelError(nameof(model.Name), "توجد فئة بنفس الاسم.");
-        // Picked accounts must be postable and of the right type (asset / expense).
-        foreach (var (id, field, type) in new[]
-                 {
-                     (model.AssetAccountId, nameof(model.AssetAccountId), AccountType.Asset),
-                     (model.AccumulatedDepreciationAccountId, nameof(model.AccumulatedDepreciationAccountId), AccountType.Asset),
-                     (model.DepreciationExpenseAccountId, nameof(model.DepreciationExpenseAccountId), AccountType.Expense),
-                 })
-            if (id is Guid g && !await _db.Accounts.AnyAsync(a => a.Id == g && a.IsPostable && a.Type == type, ct))
-                ModelState.AddModelError(field, "اختر حسابًا فرعيًا (قابلًا للترحيل) من النوع الصحيح.");
+        if (model.DepreciationExpenseAccountId is Guid g && !await _db.Accounts.AnyAsync(a => a.Id == g && a.IsPostable && a.Type == AccountType.Expense, ct))
+            ModelState.AddModelError(nameof(model.DepreciationExpenseAccountId), "اختر حساب مصروفات فرعيًا (قابلًا للترحيل).");
         if (!ModelState.IsValid) return PartialView("_CategoryForm", await FillAsync(model, ct));
 
         var isEdit = model.Id != Guid.Empty;
@@ -110,14 +103,13 @@ public class FixedAssetCategoriesController : Controller
         }
         c.Name = name;
         c.DefaultUsefulLifeMonths = model.DefaultUsefulLifeMonths;
-        c.AssetAccountId = model.AssetAccountId;
-        c.AccumulatedDepreciationAccountId = model.AccumulatedDepreciationAccountId;
         c.DepreciationExpenseAccountId = model.DepreciationExpenseAccountId;
-        await _assets.EnsureCategoryAccountsAsync(c, ct);   // «تلقائي» → the category's own accounts
+        await _assets.EnsureCategoryAccountsAsync(c, ct);   // its groups under 1500 / 1590, and «تلقائي» → مصروف الإهلاك
 
-        // Accounts created for this category follow its name.
-        foreach (var acc in await _db.Accounts.Where(a => a.SubRefId == c.Id && (a.SubKind == "AssetCategory" || a.SubKind == "AssetCategoryDepreciation")).ToListAsync(ct))
-            acc.Name = acc.SubKind == "AssetCategory" ? c.Name : $"مجمع إهلاك — {c.Name}";
+        // The category's groups follow its name.
+        foreach (var acc in await _db.Accounts.Where(a => a.SubRefId == c.Id
+                     && (a.SubKind == FixedAssetAccounting.CategoryCostKind || a.SubKind == FixedAssetAccounting.CategoryAccumulatedKind)).ToListAsync(ct))
+            acc.Name = acc.SubKind == FixedAssetAccounting.CategoryCostKind ? c.Name : FixedAssetAccounting.CategoryAccumulatedName(c.Name);
 
         await _db.SaveChangesAsync(ct);
         TempData["StatusMessage"] = isEdit ? $"تم تعديل فئة الأصول «{c.Name}»." : $"تمت إضافة فئة الأصول «{c.Name}» وحساباتها.";
@@ -145,10 +137,16 @@ public class FixedAssetCategoriesController : Controller
 
     private async Task<FixedAssetCategoryFormModel> FillAsync(FixedAssetCategoryFormModel m, CancellationToken ct)
     {
-        var accounts = await _db.Accounts.Where(a => a.IsPostable && a.IsActive && (a.Type == AccountType.Asset || a.Type == AccountType.Expense))
-            .OrderBy(a => a.Code).Select(a => new { a.Id, a.Code, a.Name, a.Type }).ToListAsync(ct);
-        m.AssetAccounts = accounts.Where(a => a.Type == AccountType.Asset).Select(a => new SelectListItem($"{a.Code} — {a.Name}", a.Id.ToString())).ToList();
-        m.ExpenseAccounts = accounts.Where(a => a.Type == AccountType.Expense).Select(a => new SelectListItem($"{a.Code} — {a.Name}", a.Id.ToString())).ToList();
+        m.ExpenseAccounts = await _db.Accounts.Where(a => a.IsPostable && a.IsActive && a.Type == AccountType.Expense).OrderBy(a => a.Code)
+            .Select(a => new SelectListItem(a.Code + " — " + a.Name, a.Id.ToString())).ToListAsync(ct);
+        if (m.Id != Guid.Empty)
+        {
+            var groups = await _db.Accounts.Where(a => a.SubRefId == m.Id
+                    && (a.SubKind == FixedAssetAccounting.CategoryCostKind || a.SubKind == FixedAssetAccounting.CategoryAccumulatedKind))
+                .Select(a => new { a.SubKind, Text = a.Code + " — " + a.Name }).ToListAsync(ct);
+            m.CostGroup = groups.FirstOrDefault(x => x.SubKind == FixedAssetAccounting.CategoryCostKind)?.Text;
+            m.AccumulatedGroup = groups.FirstOrDefault(x => x.SubKind == FixedAssetAccounting.CategoryAccumulatedKind)?.Text;
+        }
         return m;
     }
 }

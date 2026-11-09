@@ -81,7 +81,7 @@
                 @foreach (var f in Model.Fields)
                 {
                     <div class="fb-field @(f.Wide ? "fb-wide" : "") @(f.IsActive ? "fb-on" : "")">
-                        <span class="fb-label">@f.Label</span>
+                        <span class="fb-label" title="@f.Label">@f.Label</span>
                         @switch (f.Type)
                         {
                             case FilterFieldType.Select:

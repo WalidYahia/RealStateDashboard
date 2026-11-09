@@ -1,7 +1,7 @@
 // الأصول الثابتة — popups run through [data-modal-init] (Views/FixedAssets/_FixedAssetForm, _PostForm, _DisposeForm).
 
-// Acquisition: show the safe picker for «شراء نقدي», the prior-depreciation box for «رصيد افتتاحي». New asset: a
-// category's default useful life fills an empty life field.
+// Acquisition: show the safe picker for «شراء نقدي», the prior-depreciation box for «رصيد افتتاحي». A category's default
+// useful life fills an empty life field (guidance for recording depreciation).
 window.faFormInit = function () {
     var form = document.querySelector('#appModalBody #appModalForm[data-modal-init="faFormInit"]');
     if (!form) return;
@@ -24,6 +24,27 @@ window.faFormInit = function () {
             if (v != null && (!life.value || life.value === '0')) life.value = v;
         });
     }
+};
+
+// Depreciation form (Views/FixedAssetDepreciation/_DepreciationForm): picking an asset shows what's left to depreciate
+// and fills the suggested amount (straight line over its useful life, capped by what's left) while the amount is empty.
+window.faDepreciationInit = function () {
+    var form = document.querySelector('#appModalBody #appModalForm[data-modal-init="faDepreciationInit"]');
+    if (!form) return;
+    var asset = form.querySelector('[data-fa-dep-asset]'), amount = form.querySelector('[data-fa-dep-amount]'), info = form.querySelector('[data-fa-dep-info]');
+    function fmt(v) { return v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+    function apply(fill) {
+        var opt = asset && asset.options[asset.selectedIndex];
+        var remaining = opt ? parseFloat(opt.getAttribute('data-remaining')) : NaN;
+        var suggested = opt ? parseFloat(opt.getAttribute('data-suggested')) : NaN;
+        if (isNaN(remaining)) { if (info) info.textContent = ''; return; }
+        amount.max = remaining;
+        if (info) info.textContent = 'المتبقي للإهلاك (حتى القيمة التخريدية): ' + fmt(remaining) + ' ج.م'
+            + (suggested > 0 ? ' · المقترح شهريًا: ' + fmt(suggested) + ' ج.م' : '');
+        if (fill && (!amount.value || parseFloat(amount.value) === 0) && suggested > 0) amount.value = Math.min(suggested, remaining).toFixed(2);
+    }
+    if (asset) asset.addEventListener('change', function () { amount.value = ''; apply(true); });
+    apply(true);
 };
 
 // Disposal: proceeds → show the safe picker; live gain / loss against the book value.

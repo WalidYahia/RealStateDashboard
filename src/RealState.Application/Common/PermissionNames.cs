@@ -152,7 +152,7 @@ public static class PermissionNames
     public const string FixedAssetsView = "FixedAssets.View";
     public const string FixedAssetsManage = "FixedAssets.Manage";   // add / edit / activate-deactivate
     public const string FixedAssetsDelete = "FixedAssets.Delete";
-    public const string FixedAssetsDepreciate = "FixedAssets.Depreciate";   // run / undo monthly depreciation
+    public const string FixedAssetsDepreciate = "FixedAssets.Depreciate";   // record / delete depreciation on an asset
     public const string FixedAssetsDispose = "FixedAssets.Dispose";         // sell / write off (and undo)
 
     // ----- Custodies (العُهد) -----
@@ -321,7 +321,7 @@ public static class PermissionNames
         new PermissionInfo(FixedAssetsView,   "عرض الأصول الثابتة", GFixedAssets),
         new PermissionInfo(FixedAssetsManage, "إضافة وتعديل الأصول الثابتة وفئاتها", GFixedAssets),
         new PermissionInfo(FixedAssetsDelete, "حذف الأصول الثابتة (بلا سجل عُهد أو إهلاك)", GFixedAssets),
-        new PermissionInfo(FixedAssetsDepreciate, "احتساب إهلاك الأصول وإلغاؤه", GFixedAssets),
+        new PermissionInfo(FixedAssetsDepreciate, "تسجيل إهلاك الأصول وحذفه", GFixedAssets),
         new PermissionInfo(FixedAssetsDispose, "بيع / استبعاد الأصول الثابتة", GFixedAssets),
 
         new PermissionInfo(MaterialCustodyView,   "عرض العُهد العينية", GCustody),

@@ -1721,9 +1721,6 @@ namespace RealState.Infrastructure.Persistence.Migrations
                     b.Property<string>("DeletedBy")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<DateTime?>("DepreciationStartDate")
-                        .HasColumnType("datetime2");
-
                     b.Property<DateTime?>("DisposalDate")
                         .HasColumnType("datetime2");
 
@@ -1884,6 +1881,9 @@ namespace RealState.Infrastructure.Persistence.Migrations
                     b.Property<string>("CreatedBy")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<DateTime>("Date")
+                        .HasColumnType("datetime2");
+
                     b.Property<DateTime?>("DeletedAt")
                         .HasColumnType("datetime2");
 
@@ -1896,8 +1896,8 @@ namespace RealState.Infrastructure.Persistence.Migrations
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
 
-                    b.Property<DateTime>("Period")
-                        .HasColumnType("datetime2");
+                    b.Property<string>("Notes")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<byte[]>("RowVersion")
                         .IsConcurrencyToken()
@@ -1915,7 +1915,7 @@ namespace RealState.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("FixedAssetId", "Period");
+                    b.HasIndex("FixedAssetId", "Date");
 
                     b.ToTable("FixedAssetDepreciations");
                 });

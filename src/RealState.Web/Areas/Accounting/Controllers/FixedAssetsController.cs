@@ -14,7 +14,7 @@ namespace RealState.Web.Areas.Accounting.Controllers;
 /// <summary>
 /// الأصول الثابتة — what the company owns and its accounting value (FA-{year}{seq}). Financial events post through the
 /// accounting engine using the asset's category posting profile (<see cref="IFixedAssetAccounting"/>): acquisition (cash
-/// from a safe / opening balance), monthly depreciation (FixedAssetDepreciation page) and disposal / write-off. Custody
+/// from a safe / opening balance), depreciation the user records (FixedAssetDepreciation) and disposal / write-off. Custody
 /// (العُهد العينية) only tracks who is responsible — it never changes the asset's value. Once posted, an asset's financial
 /// fields are fixed; mistakes are corrected by deleting (reversing) an unused asset or by disposing of it.
 /// </summary>
@@ -111,6 +111,10 @@ public class FixedAssetsController : Controller
         };
     }
 
+    /// <summary>The asset's life cycle and actions (❓ on the list page).</summary>
+    [HttpGet]
+    public IActionResult Help() => PartialView("_Help");
+
     // ---------- Details ----------
     public async Task<IActionResult> Details(Guid id, CancellationToken ct)
     {
@@ -118,23 +122,31 @@ public class FixedAssetsController : Controller
         if (a is null) return NotFound();
         var empNames = await _db.Employees.IgnoreQueryFilters().ToDictionaryAsync(e => e.Id, e => e.FullName, ct);
         var custodies = await _db.MaterialCustodies.Where(c => c.FixedAssetId == id).OrderByDescending(c => c.Number).ToListAsync(ct);
-        var deps = await _db.FixedAssetDepreciations.Where(d => d.FixedAssetId == id).OrderBy(d => d.Period).ToListAsync(ct);
+        var deps = await _db.FixedAssetDepreciations.Where(d => d.FixedAssetId == id).OrderBy(d => d.Date).ToListAsync(ct);
         var serials = await _db.SafeTransactions.Where(t => t.Id == a.PurchaseTransactionId || t.Id == a.DisposalTransactionId)
             .ToDictionaryAsync(t => t.Id, t => t.Serial, ct);
+        var accumulated = a.OpeningAccumulatedDepreciation + deps.Sum(x => x.Amount);
+        // The asset's own accounts (الأصول › الأصول الثابتة › الفئة › الأصل, and under مجمع الإهلاك).
+        var ownAccounts = await _db.Accounts.Where(x => x.SubRefId == a.Id
+                && (x.SubKind == FixedAssetAccounting.AssetCostKind || x.SubKind == FixedAssetAccounting.AssetAccumulatedKind))
+            .Select(x => new { x.SubKind, Text = x.Code + " — " + x.Name }).ToListAsync(ct);
 
         ViewData["CanManage"] = Can(PermissionNames.FixedAssetsManage);
         ViewData["CanDelete"] = Can(PermissionNames.FixedAssetsDelete);
         ViewData["CanDispose"] = Can(PermissionNames.FixedAssetsDispose);
+        ViewData["CanDepreciate"] = Can(PermissionNames.FixedAssetsDepreciate);
         return View(new FixedAssetDetailsVm
         {
             Asset = a,
             Category = a.CategoryId is Guid cid ? await _db.FixedAssetCategories.FirstOrDefaultAsync(c => c.Id == cid, ct) : null,
+            CostAccount = ownAccounts.FirstOrDefault(x => x.SubKind == FixedAssetAccounting.AssetCostKind)?.Text,
+            AccumulatedAccount = ownAccounts.FirstOrDefault(x => x.SubKind == FixedAssetAccounting.AssetAccumulatedKind)?.Text,
             PurchaseSafe = a.PurchaseSafeId is Guid s ? await _db.Safes.IgnoreQueryFilters().Where(x => x.Id == s).Select(x => x.Name).FirstOrDefaultAsync(ct) : null,
             PurchaseVoucherSerial = a.PurchaseTransactionId is Guid p && serials.TryGetValue(p, out var ps) ? ps : null,
             DisposalVoucherSerial = a.DisposalTransactionId is Guid d && serials.TryGetValue(d, out var ds) ? ds : null,
-            Accumulated = a.OpeningAccumulatedDepreciation + deps.Sum(x => x.Amount),
-            MonthlyDepreciation = FixedAssetSchedule.Months(a).Select(m => m.Amount).FirstOrDefault(),
-            MonthsPosted = deps.Count,
+            Accumulated = accumulated,
+            RemainingDepreciable = FixedAssetSchedule.Remaining(a, accumulated),
+            SuggestedMonthly = FixedAssetSchedule.SuggestedMonthly(a),
             Depreciations = deps,
             Custodies = custodies.Select(c => new MaterialCustodyRow
             {
@@ -161,9 +173,8 @@ public class FixedAssetsController : Controller
                 Quantity = a.Quantity, UnitCost = a.UnitCost, PurchaseDate = a.PurchaseDate ?? ClientTime.Today, Location = a.Location,
                 Notes = a.Notes, IsActive = a.IsActive, AcquisitionMethod = a.AcquisitionMethod ?? AssetAcquisitionMethod.OpeningBalance,
                 SafeId = a.PurchaseSafeId, OpeningAccumulatedDepreciation = a.OpeningAccumulatedDepreciation,
-                UsefulLifeMonths = a.UsefulLifeMonths, SalvageValue = a.SalvageValue, DepreciationStartDate = a.DepreciationStartDate,
-                FinancialsLocked = a.IsPosted,
-                ScheduleLocked = await _db.FixedAssetDepreciations.AnyAsync(d => d.FixedAssetId == a.Id, ct)
+                UsefulLifeMonths = a.UsefulLifeMonths, SalvageValue = a.SalvageValue,
+                FinancialsLocked = a.IsPosted
             };
         }
         return PartialView("_FixedAssetForm", await FillAsync(model, ct));
@@ -182,7 +193,6 @@ public class FixedAssetsController : Controller
             if (a is null) return NotFound();
             model.Number = a.Number;
             model.FinancialsLocked = a.IsPosted;
-            model.ScheduleLocked = await _db.FixedAssetDepreciations.AnyAsync(d => d.FixedAssetId == a.Id, ct);
             if (a.IsPosted)
             {
                 // Fixed once posted — keep the stored values whatever was submitted.
@@ -190,10 +200,11 @@ public class FixedAssetsController : Controller
                 model.PurchaseDate = a.PurchaseDate ?? model.PurchaseDate; model.OpeningAccumulatedDepreciation = a.OpeningAccumulatedDepreciation;
                 ModelState.Remove(nameof(model.UnitCost)); ModelState.Remove(nameof(model.CategoryId)); ModelState.Remove(nameof(model.Quantity));
             }
-            if (model.ScheduleLocked)
-            {
-                model.UsefulLifeMonths = a.UsefulLifeMonths; model.SalvageValue = a.SalvageValue; model.DepreciationStartDate = a.DepreciationStartDate;
-            }
+            // The salvage value is the floor of depreciation — it can't rise above what's left after what's recorded.
+            var recorded = await _db.FixedAssetDepreciations.Where(d => d.FixedAssetId == a.Id).SumAsync(d => (decimal?)d.Amount, ct) ?? 0m;
+            if (recorded > 0 && model.SalvageValue + a.OpeningAccumulatedDepreciation + recorded > a.TotalCost)
+                ModelState.AddModelError(nameof(model.SalvageValue),
+                    $"القيمة التخريدية أكبر من القيمة الدفترية الحالية ({a.TotalCost - a.OpeningAccumulatedDepreciation - recorded:N2} ج.م) بعد الإهلاك المسجَّل.");
             if (a.IsDisposed) model.IsActive = false;
             if (!model.IsActive && a.IsActive && await _db.MaterialCustodies.AnyAsync(c => c.FixedAssetId == a.Id && c.Status == MaterialCustodyStatus.HandedOver, ct))
                 ModelState.AddModelError(nameof(model.IsActive), "الأصل في عهدة موظف — استلمه أولًا قبل إخراجه من الخدمة.");
@@ -202,7 +213,7 @@ public class FixedAssetsController : Controller
         var cost = model.UnitCost * model.Quantity;
         if (model.CategoryId is Guid catId && !await _db.FixedAssetCategories.AnyAsync(c => c.Id == catId, ct))
             ModelState.AddModelError(nameof(model.CategoryId), "الفئة غير موجودة.");
-        if (model.UsefulLifeMonths > 0 && model.SalvageValue + model.OpeningAccumulatedDepreciation >= cost)
+        if (model.SalvageValue > 0 && model.SalvageValue + model.OpeningAccumulatedDepreciation >= cost)
             ModelState.AddModelError(nameof(model.SalvageValue), "القيمة التخريدية + الإهلاك السابق يجب أن تقل عن تكلفة الأصل.");
         if (!isEdit || a?.IsPosted == false)
         {
@@ -233,7 +244,6 @@ public class FixedAssetsController : Controller
         a.IsActive = model.IsActive;
         a.UsefulLifeMonths = model.UsefulLifeMonths;
         a.SalvageValue = model.SalvageValue;
-        a.DepreciationStartDate = model.UsefulLifeMonths > 0 ? model.DepreciationStartDate ?? model.PurchaseDate : null;
         if (!a.IsPosted)
         {
             a.CategoryId = model.CategoryId;
@@ -260,6 +270,9 @@ public class FixedAssetsController : Controller
         {
             c.ItemName = a.Name; c.ItemType = catName; c.SerialNumber = a.SerialNumber; c.Value = a.UnitCost; c.Quantity = a.Quantity;
         }
+        // …and so do its own accounts in the chart.
+        foreach (var acc in await OwnAccountsAsync(a.Id, ct))
+            acc.Name = acc.SubKind == FixedAssetAccounting.AssetCostKind ? FixedAssetAccounting.AssetCostName(a) : FixedAssetAccounting.AssetAccumulatedName(a);
         await _db.SaveChangesAsync(ct);
         TempData["StatusMessage"] = msg;
         return Json(new { ok = true, redirect = Url.Action(nameof(Details), new { id = a.Id }) });
@@ -333,9 +346,9 @@ public class FixedAssetsController : Controller
         if (a is null) return NotFound();
         if (await DisposeBlockerAsync(a, ct) is string why) { Refused(); return Json(new { ok = false, error = why }); }
         if (model.Proceeds > 0 && model.SafeId is null) ModelState.AddModelError(nameof(model.SafeId), "اختر الخزنة التي تُورَّد إليها المتحصلات.");
-        var lastDep = await _db.FixedAssetDepreciations.Where(d => d.FixedAssetId == a.Id).MaxAsync(d => (DateTime?)d.Period, ct);
-        if (lastDep is DateTime ld && model.Date.Date < FixedAssetSchedule.EndOfMonth(ld))
-            ModelState.AddModelError(nameof(model.Date), $"تاريخ الاستبعاد قبل آخر إهلاك مُرحَّل ({FixedAssetSchedule.EndOfMonth(ld):yyyy/MM/dd}).");
+        var lastDep = await _db.FixedAssetDepreciations.Where(d => d.FixedAssetId == a.Id).MaxAsync(d => (DateTime?)d.Date, ct);
+        if (lastDep is DateTime ld && model.Date.Date < ld.Date)
+            ModelState.AddModelError(nameof(model.Date), $"تاريخ الاستبعاد قبل آخر إهلاك مسجَّل ({AppCulture.Day(ld)}).");
         var accumulated = await AccumulatedAsync(a, ct);
         if (!ModelState.IsValid)
         {
@@ -388,7 +401,7 @@ public class FixedAssetsController : Controller
         if (a is null) return NotFound();
         string? why = a.IsDisposed ? "الأصل مُستبعد — ألغِ الاستبعاد أولًا."
             : await _db.MaterialCustodies.AnyAsync(c => c.FixedAssetId == id, ct) ? "للأصل سجل عُهد — يمكن إخراجه من الخدمة بدلًا من حذفه."
-            : await _db.FixedAssetDepreciations.AnyAsync(d => d.FixedAssetId == id, ct) ? "للأصل إهلاك مُرحَّل — ألغِ فترات الإهلاك أولًا."
+            : await _db.FixedAssetDepreciations.AnyAsync(d => d.FixedAssetId == id, ct) ? "للأصل إهلاك مسجَّل — احذف قيود إهلاكه أولًا."
             : null;
         if (why is not null)
         {
@@ -397,6 +410,8 @@ public class FixedAssetsController : Controller
             return RedirectToAction(nameof(Details), new { id });
         }
         await _accounting.RemoveAcquisitionAsync(a, ct);   // reverses the acquisition entry (and a cash purchase's voucher)
+        // Its own accounts held only that entry (no depreciation / disposal) — they go with it.
+        foreach (var acc in await OwnAccountsAsync(a.Id, ct)) _db.Accounts.Remove(acc);
         _db.FixedAssets.Remove(a);
         await _db.SaveChangesAsync(ct);
         TempData["StatusMessage"] = $"تم حذف الأصل الثابت {FA(a.Number)} «{a.Name}» وعكس قيد اقتنائه.";
@@ -410,6 +425,11 @@ public class FixedAssetsController : Controller
         : await _db.MaterialCustodies.AnyAsync(c => c.FixedAssetId == a.Id && c.Status == MaterialCustodyStatus.HandedOver, ct)
             ? "الأصل في عهدة موظف — استلمه أولًا."
             : null;
+
+    /// <summary>The asset's own cost / accumulated-depreciation accounts (under its category's in the chart).</summary>
+    private Task<List<Account>> OwnAccountsAsync(Guid assetId, CancellationToken ct) =>
+        _db.Accounts.Where(x => x.SubRefId == assetId
+            && (x.SubKind == FixedAssetAccounting.AssetCostKind || x.SubKind == FixedAssetAccounting.AssetAccumulatedKind)).ToListAsync(ct);
 
     private async Task<decimal> AccumulatedAsync(FixedAsset a, CancellationToken ct) =>
         a.OpeningAccumulatedDepreciation + await _db.FixedAssetDepreciations.Where(d => d.FixedAssetId == a.Id).SumAsync(d => d.Amount, ct);

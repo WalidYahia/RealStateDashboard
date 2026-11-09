@@ -47,7 +47,9 @@ public class ChartOfAccountsController : Controller
                     Id = a.Id, Code = a.Code, Name = a.Name, Type = a.Type, Depth = depth,
                     IsPostable = a.IsPostable, IsActive = a.IsActive,
                     IsSystem = a.SubKind != null || builtIn.Contains(a.Code),
-                    IsControlManaged = LedgerAccounts.SubsidiaryControls.Contains(a.Code),
+                    // A fixed-asset category's group holds its assets' accounts — created from the assets, not by hand.
+                    IsControlManaged = LedgerAccounts.SubsidiaryControls.Contains(a.Code)
+                                       || a.SubKind is FixedAssetAccounting.CategoryCostKind or FixedAssetAccounting.CategoryAccumulatedKind,
                     IsSubsidiary = a.SubKind != null,
                     Children = Build(a.Id, depth + 1)
                 };
@@ -129,12 +131,13 @@ public class ChartOfAccountsController : Controller
         // A child inherits its parent's account type; subsidiaries of control accounts can't be hand-added.
         if (model.ParentId is Guid pid2)
         {
-            var parent = await _db.Accounts.Where(a => a.Id == pid2).Select(a => new { a.Code, a.Type }).FirstOrDefaultAsync(ct);
+            var parent = await _db.Accounts.Where(a => a.Id == pid2).Select(a => new { a.Code, a.Type, a.SubKind }).FirstOrDefaultAsync(ct);
             if (parent != null)
             {
                 model.Type = parent.Type;   // النوع = نوع الحساب الأب
-                if (LedgerAccounts.SubsidiaryControls.Contains(parent.Code))
-                    ModelState.AddModelError(nameof(model.ParentId), "لا يمكن إضافة حساب فرعي هنا — يُضاف من صفحته المخصّصة (العملاء/الموردون/المقاولون/الخزائن/الموظفون).");
+                if (LedgerAccounts.SubsidiaryControls.Contains(parent.Code)
+                    || parent.SubKind is FixedAssetAccounting.CategoryCostKind or FixedAssetAccounting.CategoryAccumulatedKind)
+                    ModelState.AddModelError(nameof(model.ParentId), "لا يمكن إضافة حساب فرعي هنا — يُضاف من صفحته المخصّصة (العملاء/الموردون/المقاولون/الخزائن/الموظفون/الأصول الثابتة).");
             }
         }
 

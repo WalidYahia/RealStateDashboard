@@ -135,7 +135,7 @@ html.theme-fading, html.theme-fading *, html.theme-fading *::before, html.theme-
 .fb-sort-box > select { margin: 0; min-width: 0; }
 .fb-sort-box > [data-fb-sort-col] { flex: 1 1 auto; }
 .fb-sort-box > [data-fb-sort-dir] { flex: 0 0 auto; width: auto; }
-.fb-label { font-size: 12.5px; color: var(--text-secondary); font-weight: 600; line-height: 1.2; }
+.fb-label { font-size: 12.5px; color: var(--text-secondary); font-weight: 600; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }   /* one line, so every field lines up */
 .fb-on > .fb-label::after {
     content: ""; display: inline-block; width: 6px; height: 6px; border-radius: 50%;
     background: var(--series-1); margin-inline-start: 6px; vertical-align: middle;
@@ -169,6 +169,8 @@ html.theme-fading, html.theme-fading *, html.theme-fading *::before, html.theme-
 .fb .form-control.fb-input, .fb .ss-input { margin: 0; min-height: 42px; padding: 8px 12px; }
 .fb .form-control:focus, .fb .ss-input:focus { border-color: var(--series-1); box-shadow: 0 0 0 3px rgba(57,135,229,.18); }
 .fb-on .form-control, .fb-on .ss-input { border-color: rgba(57,135,229,.55); }
+/* Placeholders («🔍 الكل», hints) readable in both themes — Bootstrap's default is near-invisible on the dark surface. */
+.fb .fb-input::placeholder, .fb .ss-input::placeholder { color: var(--muted); opacity: 1; }
 /* checkbox group (multi-choice filter) */
 .fb-checks {
     display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; min-height: 42px; padding: 6px 12px;
@@ -408,8 +410,6 @@ body {
 .emp-custody-title { font-size: 14px; font-weight: 700; margin: 14px 0 8px; color: var(--text-secondary); }
 .emp-custody-title:first-of-type { margin-top: 4px; }
 .fa-section { font-size: 13px; font-weight: 700; color: var(--text-secondary); border-top: 1px solid var(--border); padding-top: 10px; margin-top: 4px; }
-.dep-month { display: flex; gap: 8px; align-items: center; }
-.dep-month .form-control { margin: 0; width: auto; min-width: 170px; }
 .mc-asset-info { color: var(--muted); font-size: 12px; margin-top: 6px; min-height: 1em; }
 .mc-upload { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
 .mc-upload .form-control { flex: 1 1 260px; margin: 0; }

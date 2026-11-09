@@ -36,6 +36,13 @@ public interface IAccountingEngine
     /// <summary>Resolves a postable account by code, or a per-entity subsidiary under it. Creates subsidiaries on demand.</summary>
     Task<Account> ResolveAccountAsync(string code, string? subKind = null, Guid? subRefId = null, string? subName = null, CancellationToken ct = default);
 
+    /// <summary>
+    /// A per-entity subsidiary under a given parent account rather than a control code (e.g. a fixed asset's account under
+    /// its category's): found by <paramref name="subKind"/> + <paramref name="subRefId"/>, else created as «{parent code}.{id}»,
+    /// postable, of the parent's type. The parent is left as it is.
+    /// </summary>
+    Task<Account> ResolveSubAccountAsync(Account parent, string subKind, Guid subRefId, string name, CancellationToken ct = default);
+
     /// <summary>Validates + builds a balanced posted entry and adds it to the context (no SaveChanges).</summary>
     Task<JournalEntry> PostAsync(DateTime date, string description, string? sourceType, Guid? sourceId, IReadOnlyList<LedgerLine> lines, CancellationToken ct = default);
 

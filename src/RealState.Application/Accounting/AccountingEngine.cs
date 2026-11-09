@@ -68,6 +68,21 @@ public class AccountingEngine : IAccountingEngine
         return child;
     }
 
+    public async Task<Account> ResolveSubAccountAsync(Account parent, string subKind, Guid subRefId, string name, CancellationToken ct = default)
+    {
+        var sub = _db.Accounts.Local.FirstOrDefault(a => a.SubKind == subKind && a.SubRefId == subRefId && !a.IsDeleted)
+                  ?? await _db.Accounts.FirstOrDefaultAsync(a => a.SubKind == subKind && a.SubRefId == subRefId, ct);
+        if (sub is not null) return sub;
+        var child = new Account
+        {
+            Code = $"{parent.Code}.{subRefId.ToString("N")[..8]}",
+            Name = name, Type = parent.Type, ParentId = parent.Id,
+            IsPostable = true, IsActive = true, SubKind = subKind, SubRefId = subRefId
+        };
+        _db.Accounts.Add(child);
+        return child;
+    }
+
     /// <summary>
     /// A chart seeded before an account joined <see cref="LedgerAccounts.Defaults"/> (e.g. «العُهد المالية») lacks it —
     /// add it under its default parent the first time it's needed. Null when the code isn't a default account.

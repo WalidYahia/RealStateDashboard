@@ -403,7 +403,7 @@ public class ApplicationDbContext
         builder.Entity<FixedAsset>().HasIndex(a => new { a.TenantId, a.Number });
         builder.Entity<FixedAsset>().HasOne(a => a.Category).WithMany().HasForeignKey(a => a.CategoryId).OnDelete(DeleteBehavior.Restrict);
         builder.Entity<FixedAssetDepreciation>().HasOne(d => d.Asset).WithMany().HasForeignKey(d => d.FixedAssetId).OnDelete(DeleteBehavior.Restrict);
-        builder.Entity<FixedAssetDepreciation>().HasIndex(d => new { d.FixedAssetId, d.Period });
+        builder.Entity<FixedAssetDepreciation>().HasIndex(d => new { d.FixedAssetId, d.Date });
         builder.Entity<MaterialCustodyAttachment>().HasOne(a => a.Custody).WithMany(c => c.Attachments).HasForeignKey(a => a.MaterialCustodyId).OnDelete(DeleteBehavior.Cascade);
         builder.Entity<FinancialCustody>().HasOne(c => c.Employee).WithMany().HasForeignKey(c => c.EmployeeId).OnDelete(DeleteBehavior.Restrict);
         builder.Entity<FinancialCustody>().HasIndex(c => new { c.TenantId, c.Number });

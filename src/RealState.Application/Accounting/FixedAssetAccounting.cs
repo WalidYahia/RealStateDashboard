@@ -6,37 +6,39 @@ using RealState.Application.Interfaces;
 
 namespace RealState.Application.Accounting;
 
-/// <summary>Straight-line monthly depreciation schedule of an asset (pure arithmetic — no data access).</summary>
+/// <summary>
+/// Depreciation arithmetic of an asset (no data access). Depreciation itself is recorded by the user — these only bound it
+/// and suggest an amount.
+/// </summary>
 public static class FixedAssetSchedule
 {
     /// <summary>Total depreciation over the asset's life: cost − salvage − what was already depreciated before it came in.</summary>
     public static decimal Depreciable(FixedAsset a) => Math.Max(0, a.TotalCost - a.SalvageValue - a.OpeningAccumulatedDepreciation);
 
-    public static DateTime MonthOf(DateTime d) => new(d.Year, d.Month, 1);
+    /// <summary>What may still be depreciated: book value down to the salvage value.</summary>
+    public static decimal Remaining(FixedAsset a, decimal accumulated) => Math.Max(0, a.TotalCost - a.SalvageValue - accumulated);
 
-    /// <summary>Every (month, amount) of the schedule; the last month absorbs the rounding.</summary>
-    public static IEnumerable<(DateTime Period, decimal Amount)> Months(FixedAsset a)
-    {
-        var total = Depreciable(a);
-        if (a.UsefulLifeMonths <= 0 || total <= 0 || a.DepreciationStartDate is null) yield break;
-        var monthly = Math.Round(total / a.UsefulLifeMonths, 2);
-        var start = MonthOf(a.DepreciationStartDate.Value);
-        for (var i = 0; i < a.UsefulLifeMonths; i++)
-            yield return (start.AddMonths(i), i == a.UsefulLifeMonths - 1 ? total - monthly * (a.UsefulLifeMonths - 1) : monthly);
-    }
-
-    public static DateTime EndOfMonth(DateTime period) => MonthOf(period).AddMonths(1).AddDays(-1);
+    /// <summary>A suggested monthly amount — straight line over the useful life (0 without one).</summary>
+    public static decimal SuggestedMonthly(FixedAsset a) => a.UsefulLifeMonths > 0 ? Math.Round(Depreciable(a) / a.UsefulLifeMonths, 2) : 0;
 }
 
+/// <summary>The accounts an asset posts to: its own cost and accumulated-depreciation accounts, and its category's expense.</summary>
+public sealed record FixedAssetAccounts(Guid CostAccountId, Guid AccumulatedDepreciationAccountId, Guid DepreciationExpenseAccountId);
+
 /// <summary>
-/// Posts the financial events of fixed assets through the accounting engine, using each asset's category posting profile.
+/// Posts the financial events of fixed assets through the accounting engine. In the chart of accounts every asset has its
+/// own accounts under its category's: الأصول › الأصول الثابتة (1500) › the category › «FA-… — the asset», mirrored under
+/// مجمع إهلاك الأصول الثابتة (1590); the depreciation expense is the category's (default «مصروف الإهلاك»).
 /// Custody (العُهد العينية) never posts anything — it only tracks responsibility. None of these call SaveChanges.
 /// </summary>
 public interface IFixedAssetAccounting
 {
-    /// <summary>Fills the category's empty accounts: cost under 1500, accumulated depreciation under 1590 (both named after
-    /// the category), depreciation expense = 5600.</summary>
+    /// <summary>The category's accounts: its groups under 1500 / 1590 (named after it; they hold its assets' accounts) and
+    /// the depreciation expense (5600 unless picked).</summary>
     Task EnsureCategoryAccountsAsync(FixedAssetCategory category, CancellationToken ct = default);
+
+    /// <summary>The asset's own cost / accumulated-depreciation accounts under its category's (created on first use).</summary>
+    Task<FixedAssetAccounts> AccountsAsync(FixedAsset asset, CancellationToken ct = default);
 
     /// <summary>Acquisition: cash → سند صرف + Dr cost / Cr safe; opening balance → Dr cost / Cr مجمع الإهلاك (prior
     /// depreciation) / Cr رصيد افتتاحي. Set <see cref="FixedAsset.AcquisitionMethod"/> (and the safe) before calling.</summary>
@@ -45,7 +47,7 @@ public interface IFixedAssetAccounting
     /// <summary>Reverses the acquisition entry (and removes a cash purchase's voucher).</summary>
     Task RemoveAcquisitionAsync(FixedAsset asset, CancellationToken ct = default);
 
-    /// <summary>One month: Dr مصروف الإهلاك / Cr مجمع الإهلاك, dated the month's last day.</summary>
+    /// <summary>A recorded depreciation: Dr مصروف الإهلاك / Cr مجمع الإهلاك, dated as entered.</summary>
     Task PostDepreciationAsync(FixedAssetDepreciation depreciation, FixedAsset asset, CancellationToken ct = default);
 
     Task RemoveDepreciationAsync(FixedAssetDepreciation depreciation, CancellationToken ct = default);
@@ -64,6 +66,16 @@ public sealed class FixedAssetAccounting : IFixedAssetAccounting
     public const string DepreciationSource = "FixedAssetDepreciation";
     public const string DisposalSource = "FixedAssetDisposal";
 
+    // Account.SubKind of the category groups and of each asset's own accounts under them.
+    public const string CategoryCostKind = "AssetCategory";
+    public const string CategoryAccumulatedKind = "AssetCategoryDepreciation";
+    public const string AssetCostKind = "FixedAsset";
+    public const string AssetAccumulatedKind = "FixedAssetAccumulated";
+
+    public static string CategoryAccumulatedName(string category) => $"مجمع إهلاك — {category}";
+    public static string AssetCostName(FixedAsset a) => $"{FA(a)} — {a.Name}";
+    public static string AssetAccumulatedName(FixedAsset a) => $"مجمع إهلاك — {FA(a)} — {a.Name}";
+
     private readonly IApplicationDbContext _db;
     private readonly IAccountingEngine _engine;
     private readonly IAccountingService _accounting;
@@ -79,20 +91,39 @@ public sealed class FixedAssetAccounting : IFixedAssetAccounting
 
     public async Task EnsureCategoryAccountsAsync(FixedAssetCategory c, CancellationToken ct = default)
     {
-        c.AssetAccountId ??= (await _engine.ResolveAccountAsync(LedgerAccounts.FixedAssetsCost, "AssetCategory", c.Id, c.Name, ct)).Id;
-        c.AccumulatedDepreciationAccountId ??= (await _engine.ResolveAccountAsync(LedgerAccounts.AccumulatedDepreciation,
-            "AssetCategoryDepreciation", c.Id, $"مجمع إهلاك — {c.Name}", ct)).Id;
+        // The category's own groups (its assets' accounts hang under them) — not postable themselves.
+        var cost = await GroupAsync(LedgerAccounts.FixedAssetsCost, CategoryCostKind, c.Id, c.Name, ct);
+        var accumulated = await GroupAsync(LedgerAccounts.AccumulatedDepreciation, CategoryAccumulatedKind, c.Id, CategoryAccumulatedName(c.Name), ct);
+        c.AssetAccountId = cost.Id;
+        c.AccumulatedDepreciationAccountId = accumulated.Id;
         c.DepreciationExpenseAccountId ??= (await _engine.ResolveAccountAsync(LedgerAccounts.DepreciationExpense, null, null, null, ct)).Id;
     }
 
-    private async Task<FixedAssetCategory> CategoryAsync(FixedAsset a, CancellationToken ct)
+    /// <summary>A category's group under 1500 / 1590 — created (not postable) the first time.</summary>
+    private async Task<Account> GroupAsync(string control, string kind, Guid categoryId, string name, CancellationToken ct)
     {
-        var c = a.Category
-                ?? _db.FixedAssetCategories.Local.FirstOrDefault(x => x.Id == a.CategoryId)
-                ?? await _db.FixedAssetCategories.FirstOrDefaultAsync(x => x.Id == a.CategoryId, ct)
+        var existed = _db.Accounts.Local.Any(a => a.SubKind == kind && a.SubRefId == categoryId && !a.IsDeleted)
+                      || await _db.Accounts.AnyAsync(a => a.SubKind == kind && a.SubRefId == categoryId, ct);
+        var group = await _engine.ResolveAccountAsync(control, kind, categoryId, name, ct);
+        if (!existed) group.IsPostable = false;
+        return group;
+    }
+
+    private async Task<Account> AccountAsync(Guid id, CancellationToken ct) =>
+        _db.Accounts.Local.FirstOrDefault(a => a.Id == id) ?? await _db.Accounts.FirstAsync(a => a.Id == id, ct);
+
+    public async Task<FixedAssetAccounts> AccountsAsync(FixedAsset a, CancellationToken ct = default)
+    {
+        var c = (a.CategoryId is Guid id
+                    ? a.Category ?? _db.FixedAssetCategories.Local.FirstOrDefault(x => x.Id == id)
+                      ?? await _db.FixedAssetCategories.FirstOrDefaultAsync(x => x.Id == id, ct)
+                    : null)
                 ?? throw new InvalidOperationException($"الأصل {FA(a)} بلا فئة — حدِّد فئته أولًا.");
         await EnsureCategoryAccountsAsync(c, ct);
-        return c;
+        var cost = await _engine.ResolveSubAccountAsync(await AccountAsync(c.AssetAccountId!.Value, ct), AssetCostKind, a.Id, AssetCostName(a), ct);
+        var accumulated = await _engine.ResolveSubAccountAsync(await AccountAsync(c.AccumulatedDepreciationAccountId!.Value, ct),
+            AssetAccumulatedKind, a.Id, AssetAccumulatedName(a), ct);
+        return new FixedAssetAccounts(cost.Id, accumulated.Id, c.DepreciationExpenseAccountId!.Value);
     }
 
     private async Task<Guid> SafeAccountAsync(Guid safeId, CancellationToken ct)
@@ -104,7 +135,7 @@ public sealed class FixedAssetAccounting : IFixedAssetAccounting
     public async Task PostAcquisitionAsync(FixedAsset a, CancellationToken ct = default)
     {
         if (a.TotalCost <= 0) return;
-        var c = await CategoryAsync(a, ct);
+        var c = await AccountsAsync(a, ct);
         var date = a.PurchaseDate ?? DateTime.Today;
         var desc = $"اقتناء الأصل الثابت {FA(a)} — {a.Name}";
 
@@ -115,7 +146,7 @@ public sealed class FixedAssetAccounting : IFixedAssetAccounting
             a.PurchaseTransactionId = txn.Id;
             await _engine.PostByIdsAsync(date, desc, "SafeTransaction", new[]
             {
-                (c.AssetAccountId!.Value, a.TotalCost, 0m, (string?)desc),
+                (c.CostAccountId, a.TotalCost, 0m, (string?)desc),
                 (await SafeAccountAsync(a.PurchaseSafeId!.Value, ct), 0m, a.TotalCost, (string?)desc),
             }, ct, txn.Id);
             return;
@@ -123,9 +154,9 @@ public sealed class FixedAssetAccounting : IFixedAssetAccounting
 
         // Opening balance: an asset the company already owns, possibly part-depreciated.
         var equity = (await _engine.ResolveAccountAsync(LedgerAccounts.OpeningBalanceEquity, null, null, null, ct)).Id;
-        var lines = new List<(Guid, decimal, decimal, string?)> { (c.AssetAccountId!.Value, a.TotalCost, 0m, desc) };
+        var lines = new List<(Guid, decimal, decimal, string?)> { (c.CostAccountId, a.TotalCost, 0m, desc) };
         if (a.OpeningAccumulatedDepreciation > 0)
-            lines.Add((c.AccumulatedDepreciationAccountId!.Value, 0m, a.OpeningAccumulatedDepreciation, "إهلاك سابق"));
+            lines.Add((c.AccumulatedDepreciationAccountId, 0m, a.OpeningAccumulatedDepreciation, "إهلاك سابق"));
         var net = a.TotalCost - a.OpeningAccumulatedDepreciation;
         if (net > 0) lines.Add((equity, 0m, net, "رصيد افتتاحي"));
         await _engine.PostByIdsAsync(date, desc + " (رصيد افتتاحي)", AcquisitionSource, lines, ct, a.Id);
@@ -141,12 +172,12 @@ public sealed class FixedAssetAccounting : IFixedAssetAccounting
 
     public async Task PostDepreciationAsync(FixedAssetDepreciation d, FixedAsset a, CancellationToken ct = default)
     {
-        var c = await CategoryAsync(a, ct);
-        var desc = $"إهلاك الأصل {FA(a)} — {a.Name} عن {d.Period:yyyy/MM}";
-        await _engine.PostByIdsAsync(FixedAssetSchedule.EndOfMonth(d.Period), desc, DepreciationSource, new[]
+        var c = await AccountsAsync(a, ct);
+        var desc = $"إهلاك الأصل {FA(a)} — {a.Name}" + (string.IsNullOrWhiteSpace(d.Notes) ? "" : $" — {d.Notes.Trim()}");
+        await _engine.PostByIdsAsync(d.Date, desc, DepreciationSource, new[]
         {
-            (c.DepreciationExpenseAccountId!.Value, d.Amount, 0m, (string?)desc),
-            (c.AccumulatedDepreciationAccountId!.Value, 0m, d.Amount, (string?)desc),
+            (c.DepreciationExpenseAccountId, d.Amount, 0m, (string?)desc),
+            (c.AccumulatedDepreciationAccountId, 0m, d.Amount, (string?)desc),
         }, ct, d.Id);
     }
 
@@ -155,11 +186,11 @@ public sealed class FixedAssetAccounting : IFixedAssetAccounting
 
     public async Task PostDisposalAsync(FixedAsset a, decimal accumulated, CancellationToken ct = default)
     {
-        var c = await CategoryAsync(a, ct);
+        var c = await AccountsAsync(a, ct);
         var date = a.DisposalDate!.Value;
         var desc = (a.DisposalProceeds > 0 ? "بيع" : "استبعاد") + $" الأصل الثابت {FA(a)} — {a.Name}";
         var lines = new List<(Guid, decimal, decimal, string?)>();
-        if (accumulated > 0) lines.Add((c.AccumulatedDepreciationAccountId!.Value, accumulated, 0m, "إقفال مجمع الإهلاك"));
+        if (accumulated > 0) lines.Add((c.AccumulatedDepreciationAccountId, accumulated, 0m, "إقفال مجمع الإهلاك"));
         if (a.DisposalProceeds > 0)
         {
             // The proceeds' voucher carries no entry of its own — its cash line is part of this disposal entry.
@@ -168,7 +199,7 @@ public sealed class FixedAssetAccounting : IFixedAssetAccounting
             a.DisposalTransactionId = txn.Id;
             lines.Add((await SafeAccountAsync(a.DisposalSafeId!.Value, ct), a.DisposalProceeds, 0m, "متحصلات البيع"));
         }
-        lines.Add((c.AssetAccountId!.Value, 0m, a.TotalCost, "إقفال تكلفة الأصل"));
+        lines.Add((c.CostAccountId, 0m, a.TotalCost, "إقفال تكلفة الأصل"));
 
         // Gain = proceeds − book value (cost − accumulated depreciation).
         var gain = a.DisposalProceeds - (a.TotalCost - accumulated);

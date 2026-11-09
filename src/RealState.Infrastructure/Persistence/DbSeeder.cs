@@ -33,11 +33,105 @@ public static class DbSeeder
         // Every tenant has its «عميل نقدي» / «مورد نقدي» (cash invoices default to them).
         await SeedCashPartiesAsync(db);
 
+        // One-time data fix: each fixed asset gets its own accounts under its category's (الأصول › الأصول الثابتة › الفئة › الأصل).
+        await MigrateFixedAssetAccountsAsync(db);
+
         // var userManager = sp.GetRequiredService<UserManager<ApplicationUser>>();
         // var roleManager = sp.GetRequiredService<RoleManager<ApplicationRole>>();
         // await SeedTenantAsync(db);
         // await SeedRoleAndAdminAsync(db, roleManager, userManager);
         // await SeedLookupsAsync(db);
+    }
+
+    /// <summary>
+    /// One-time data fix: every posted fixed asset gets its own accounts in the chart under its category's —
+    /// الأصول › الأصول الثابتة › الفئة › «FA-… — الأصل», mirrored under مجمع إهلاك الأصول الثابتة — and the category accounts
+    /// become groups. Each asset's existing acquisition / depreciation / disposal lines move from its category's account (or
+    /// one picked for the category before) to its own, so balances match the new tree. A category account left with lines
+    /// that aren't any asset's stays postable. Idempotent: nothing to do once every posted asset has its accounts and no
+    /// category group is postable.
+    /// </summary>
+    private static async Task MigrateFixedAssetAccountsAsync(ApplicationDbContext db)
+    {
+        const string CostKind = RealState.Application.Accounting.FixedAssetAccounting.CategoryCostKind;
+        const string AccumulatedKind = RealState.Application.Accounting.FixedAssetAccounting.CategoryAccumulatedKind;
+        const string AssetCostKind = RealState.Application.Accounting.FixedAssetAccounting.AssetCostKind;
+        const string AssetAccumulatedKind = RealState.Application.Accounting.FixedAssetAccounting.AssetAccumulatedKind;
+
+        var accounts = await db.Accounts.IgnoreQueryFilters().Where(a => !a.IsDeleted).ToListAsync();
+        var assets = await db.FixedAssets.IgnoreQueryFilters()
+            .Where(a => !a.IsDeleted && a.AcquisitionMethod != null && a.CategoryId != null).ToListAsync();
+        var withAccounts = accounts.Where(a => a.SubKind == AssetCostKind).Select(a => a.SubRefId).ToHashSet();
+        var todo = assets.Where(a => !withAccounts.Contains(a.Id)).ToList();
+        if (todo.Count == 0 && !accounts.Any(a => a.IsPostable && a.SubKind is CostKind or AccumulatedKind)) return;
+
+        Account Child(Account parent, string kind, Guid refId, string name, bool postable)
+        {
+            var acc = new Account
+            {
+                TenantId = parent.TenantId, Code = $"{parent.Code}.{refId.ToString("N")[..8]}", Name = name, Type = parent.Type,
+                ParentId = parent.Id, IsPostable = postable, IsActive = true, SubKind = kind, SubRefId = refId
+            };
+            db.Accounts.Add(acc);
+            accounts.Add(acc);
+            return acc;
+        }
+        Account? Find(string kind, Guid refId) => accounts.FirstOrDefault(a => a.SubKind == kind && a.SubRefId == refId);
+        Account? Control(Guid tenantId, string code) => accounts.FirstOrDefault(a => a.TenantId == tenantId && a.Code == code);
+
+        // The journal entries of the assets to move: acquisition (incl. a cash purchase's voucher), depreciation, disposal.
+        var depsByAsset = (await db.FixedAssetDepreciations.IgnoreQueryFilters().Where(d => !d.IsDeleted)
+                .Select(d => new { d.Id, d.FixedAssetId }).ToListAsync())
+            .ToLookup(d => d.FixedAssetId, d => d.Id);
+        var purchaseTxns = todo.Where(a => a.PurchaseTransactionId != null).Select(a => a.PurchaseTransactionId!.Value).ToList();
+        var entries = await db.JournalEntries.IgnoreQueryFilters()
+            .Where(e => !e.IsDeleted && e.SourceId != null
+                        && (e.SourceType == "FixedAsset" || e.SourceType == "FixedAssetDisposal" || e.SourceType == "FixedAssetDepreciation"
+                            || (e.SourceType == "SafeTransaction" && purchaseTxns.Contains(e.SourceId!.Value))))
+            .Select(e => new { e.Id, e.SourceType, SourceId = e.SourceId!.Value }).ToListAsync();
+        var entryIds = entries.Select(e => e.Id).ToList();
+        var lines = await db.JournalLines.IgnoreQueryFilters().Where(l => !l.IsDeleted && entryIds.Contains(l.JournalEntryId)).ToListAsync();
+        var linesByEntry = lines.ToLookup(l => l.JournalEntryId);
+
+        foreach (var c in await db.FixedAssetCategories.IgnoreQueryFilters().Where(c => !c.IsDeleted).ToListAsync())
+        {
+            if (Control(c.TenantId, LedgerAccounts.FixedAssetsCost) is not { } costControl
+                || Control(c.TenantId, LedgerAccounts.AccumulatedDepreciation) is not { } accumulatedControl) continue;   // chart not seeded yet
+
+            var costGroup = Find(CostKind, c.Id) ?? Child(costControl, CostKind, c.Id, c.Name, false);
+            var accumulatedGroup = Find(AccumulatedKind, c.Id)
+                                   ?? Child(accumulatedControl, AccumulatedKind, c.Id, RealState.Application.Accounting.FixedAssetAccounting.CategoryAccumulatedName(c.Name), false);
+            var oldCost = c.AssetAccountId;
+            var oldAccumulated = c.AccumulatedDepreciationAccountId;
+            c.AssetAccountId = costGroup.Id;
+            c.AccumulatedDepreciationAccountId = accumulatedGroup.Id;
+            c.DepreciationExpenseAccountId ??= Control(c.TenantId, LedgerAccounts.DepreciationExpense)?.Id;
+
+            foreach (var a in todo.Where(a => a.CategoryId == c.Id))
+            {
+                var cost = Find(AssetCostKind, a.Id) ?? Child(costGroup, AssetCostKind, a.Id, RealState.Application.Accounting.FixedAssetAccounting.AssetCostName(a), true);
+                var accumulated = Find(AssetAccumulatedKind, a.Id)
+                                  ?? Child(accumulatedGroup, AssetAccumulatedKind, a.Id, RealState.Application.Accounting.FixedAssetAccounting.AssetAccumulatedName(a), true);
+                var deps = depsByAsset[a.Id].ToHashSet();
+                foreach (var e in entries.Where(e => (e.SourceType is "FixedAsset" or "FixedAssetDisposal" && e.SourceId == a.Id)
+                                                     || (e.SourceType == "FixedAssetDepreciation" && deps.Contains(e.SourceId))
+                                                     || (e.SourceType == "SafeTransaction" && e.SourceId == a.PurchaseTransactionId)))
+                    foreach (var l in linesByEntry[e.Id])
+                    {
+                        if (l.AccountId == oldCost || l.AccountId == costGroup.Id) l.AccountId = cost.Id;
+                        else if (l.AccountId == oldAccumulated || l.AccountId == accumulatedGroup.Id) l.AccountId = accumulated.Id;
+                    }
+            }
+        }
+        await db.SaveChangesAsync();
+
+        // The category accounts are groups now — unless lines that aren't any asset's are still on them.
+        var groups = accounts.Where(a => a.IsPostable && a.SubKind is CostKind or AccumulatedKind).ToList();
+        var groupIds = groups.Select(a => a.Id).ToList();
+        var used = (await db.JournalLines.IgnoreQueryFilters().Where(l => !l.IsDeleted && groupIds.Contains(l.AccountId))
+            .Select(l => l.AccountId).Distinct().ToListAsync()).ToHashSet();
+        foreach (var g in groups.Where(g => !used.Contains(g.Id))) g.IsPostable = false;
+        await db.SaveChangesAsync();
     }
 
     /// <summary>Adds the built-in cash customer / supplier to every tenant missing them. Idempotent.</summary>

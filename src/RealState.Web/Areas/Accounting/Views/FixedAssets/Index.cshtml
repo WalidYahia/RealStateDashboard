@@ -15,7 +15,9 @@
     var categoryId = Model.CategoryId?.ToString();
 }
 <div class="page-head">
-    <h1>الأصول الثابتة</h1>
+    <h1>الأصول الثابتة
+        <button type="button" title="دورة حياة الأصل وإجراءاته" onclick="appOpenModal('@Url.Action("Help")', 'شرح الأصول الثابتة — دورة حياة الأصل', 'xl')" style="border:none;background:none;cursor:pointer;font-size:18px;vertical-align:middle;">❓</button>
+    </h1>
     <div style="display:flex;gap:8px;flex-wrap:wrap;">
         <a class="btn-sm" asp-controller="FixedAssetCategories" asp-action="Index">🗂 فئات الأصول</a>
         <a class="btn-sm" asp-controller="FixedAssetDepreciation" asp-action="Index">📉 الإهلاك</a>
@@ -52,7 +54,7 @@
     var filter = FilterBarVm.For(Url.Action("Index"))
         .Select("categoryId", "الفئة", Model.Categories, categoryId)
         .Select("state", "الحالة", states, Model.State)
-        .Text("q", "بحث (الاسم / الرقم التسلسلي / صاحب العهدة)", Model.Q, "FA-… أو اسم الأصل")
+        .Text("q", "بحث", Model.Q, "الاسم / الرقم التسلسلي / صاحب العهدة / FA-…")
         .Print(Url.Action("PrintList", new { categoryId, state = Model.State, q = Model.Q }));
 }
 <partial name="_FilterBar" model="filter" />

@@ -4,9 +4,10 @@ using RealState.Application.Enums;
 namespace RealState.Application.Entities;
 
 /// <summary>
-/// An asset category (فئة الأصول: أجهزة، سيارات، أثاث…) and its posting profile — which chart-of-accounts accounts its assets
-/// post to. Left empty on save, each account is created under its control account (1500 / 1590) named after the category;
-/// the depreciation expense defaults to «مصروف الإهلاك» (5600). Assets never carry account ids of their own.
+/// An asset category (فئة الأصول: أجهزة، سيارات، أثاث…) and its posting profile. In the chart of accounts every asset has
+/// its own accounts under its category's: الأصول › الأصول الثابتة (1500) › the category › the asset, mirrored under
+/// مجمع إهلاك الأصول الثابتة (1590). The category's cost / accumulated-depreciation accounts are those group accounts
+/// (created named after it); the depreciation expense defaults to «مصروف الإهلاك» (5600).
 /// </summary>
 public class FixedAssetCategory : AuditableEntity, ITenantEntity
 {
@@ -15,16 +16,17 @@ public class FixedAssetCategory : AuditableEntity, ITenantEntity
     /// <summary>Suggested useful life for new assets of this category (0 = not depreciated, e.g. land).</summary>
     public int DefaultUsefulLifeMonths { get; set; }
 
-    public Guid? AssetAccountId { get; set; }                     // الأصول الثابتة — cost
-    public Guid? AccumulatedDepreciationAccountId { get; set; }   // مجمع الإهلاك (contra-asset)
+    public Guid? AssetAccountId { get; set; }                     // الأصول الثابتة › the category (group of its assets' cost accounts)
+    public Guid? AccumulatedDepreciationAccountId { get; set; }   // مجمع الإهلاك › the category (group of its assets' accounts)
     public Guid? DepreciationExpenseAccountId { get; set; }       // مصروف الإهلاك
 }
 
 /// <summary>
 /// A company fixed asset (أصل ثابت) — what the company owns and its accounting value. Physical custodies (العُهد العينية)
 /// reference it to track who is responsible for it; they never change its value. Financial events post through the
-/// accounting engine using its category's posting profile: acquisition (cash from a safe, or opening balance), monthly
-/// straight-line depreciation, and disposal / write-off. Numbered FA-{year}{4-digit seq}.
+/// accounting engine using its category's posting profile: acquisition (cash from a safe, or opening balance),
+/// depreciation recorded by the user (<see cref="FixedAssetDepreciation"/>), and disposal / write-off. Numbered
+/// FA-{year}{4-digit seq}.
 /// </summary>
 public class FixedAsset : AuditableEntity, ITenantEntity
 {
@@ -53,11 +55,11 @@ public class FixedAsset : AuditableEntity, ITenantEntity
     /// <summary>Depreciation already accumulated when an owned asset is brought in as an opening balance.</summary>
     public decimal OpeningAccumulatedDepreciation { get; set; }
 
-    // ----- Depreciation (straight-line, monthly) -----
-    /// <summary>Remaining useful life from <see cref="DepreciationStartDate"/> (0 = not depreciated).</summary>
+    // ----- Depreciation guidance (depreciation itself is recorded by the user — nothing runs on a schedule) -----
+    /// <summary>Remaining useful life (0 = not depreciated) — suggests the monthly amount on the depreciation form.</summary>
     public int UsefulLifeMonths { get; set; }
+    /// <summary>The value the asset is never depreciated below.</summary>
     public decimal SalvageValue { get; set; }
-    public DateTime? DepreciationStartDate { get; set; }
 
     // ----- Disposal / write-off -----
     public DateTime? DisposalDate { get; set; }
@@ -72,13 +74,17 @@ public class FixedAsset : AuditableEntity, ITenantEntity
     public bool IsDisposed => DisposalDate is not null;
 }
 
-/// <summary>One month of straight-line depreciation posted for an asset (Dr مصروف الإهلاك / Cr مجمع الإهلاك).</summary>
+/// <summary>
+/// A depreciation the user recorded on an asset (Dr مصروف الإهلاك / Cr مجمع الإهلاك), whenever they choose to — there is
+/// no automatic schedule. It never takes the asset below its salvage value.
+/// </summary>
 public class FixedAssetDepreciation : AuditableEntity, ITenantEntity
 {
     public Guid TenantId { get; set; }
     public Guid FixedAssetId { get; set; }
     public FixedAsset? Asset { get; set; }
-    /// <summary>First day of the depreciated month; the entry is dated its last day.</summary>
-    public DateTime Period { get; set; }
+    /// <summary>Date + time entered by the user; the journal entry takes it.</summary>
+    public DateTime Date { get; set; }
     public decimal Amount { get; set; }
+    public string? Notes { get; set; }
 }

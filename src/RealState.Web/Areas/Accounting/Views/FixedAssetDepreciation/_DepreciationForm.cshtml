@@ -1,0 +1,62 @@
+@model DepreciationFormModel
+@*
+    Record a depreciation on an asset (modal). fixed-assets.js (faDepreciationInit) shows what's left to depreciate and
+    fills the suggested amount; the server applies the same limit (down to the salvage value).
+*@
+@{
+    var inv = System.Globalization.CultureInfo.InvariantCulture;
+    var locked = Model.AssetLocked && Model.AssetId is not null;
+}
+<form id="appModalForm" asp-area="Accounting" asp-controller="FixedAssetDepreciation" asp-action="Form" method="post" data-modal-init="faDepreciationInit">
+    @Html.AntiForgeryToken()
+    <input type="hidden" asp-for="AssetLocked" />
+    <div asp-validation-summary="ModelOnly" class="validation-summary-errors"></div>
+
+    @if (Model.Assets.Count == 0)
+    {
+        <div class="status-message" style="background:rgba(250,178,25,.12);border-color:var(--warning);color:var(--warning);">
+            لا توجد أصول قابلة للإهلاك — الأصل يجب أن يكون مُرحَّلًا محاسبيًا، غير مُستبعد، وأعلى من قيمته التخريدية.
+        </div>
+    }
+    else
+    {
+        <div class="form-grid">
+            <div class="full">
+                <label asp-for="AssetId" class="form-label"></label>
+                @if (locked)
+                {
+                    <input type="hidden" asp-for="AssetId" />
+                }
+                <select name="@(locked ? null : "AssetId")" class="form-control" data-fa-dep-asset disabled="@locked"
+                        data-searchable="@(locked ? null : "")" data-search-placeholder="🔍 ابحث برقم الأصل أو اسمه…">
+                    <option value="">— اختر الأصل —</option>
+                    @foreach (var o in Model.Assets)
+                    {
+                        <option value="@o.Id" selected="@(o.Id == Model.AssetId)"
+                                data-remaining="@o.Remaining.ToString(inv)" data-suggested="@o.Suggested.ToString(inv)">@o.Label</option>
+                    }
+                </select>
+                <span asp-validation-for="AssetId" class="field-validation-error"></span>
+                <div style="color:var(--muted);font-size:12px;margin-top:4px;" data-fa-dep-info></div>
+            </div>
+            <div>
+                <label asp-for="Amount" class="form-label"></label>
+                <input asp-for="Amount" class="form-control" type="number" step="any" min="0.01" inputmode="decimal" dir="ltr" data-fa-dep-amount
+                       value="@(Model.Amount > 0 ? Model.Amount.ToString(inv) : "")" />
+                <span asp-validation-for="Amount" class="field-validation-error"></span>
+            </div>
+            <div>
+                <label asp-for="Date" class="form-label"></label>
+                <input asp-for="Date" class="form-control" type="datetime-local" dir="ltr" asp-format="{0:yyyy-MM-ddTHH:mm}"
+                       max="@(ClientTime.Today.ToString("yyyy-MM-dd", inv))T23:59" />
+                <span asp-validation-for="Date" class="field-validation-error"></span>
+            </div>
+            <div class="full">
+                <label asp-for="Notes" class="form-label"></label>
+                <input asp-for="Notes" class="form-control" placeholder="مثال: إهلاك الربع الأول / تقادم" />
+            </div>
+        </div>
+        <p style="color:var(--muted);font-size:12px;margin:10px 0 0;">قيد: من ح/ مصروف الإهلاك إلى ح/ مجمع الإهلاك (حسابات فئة الأصل) — بتاريخ الإهلاك.</p>
+        <button type="submit" class="btn-primary" style="margin-top:12px;">📉 تسجيل الإهلاك</button>
+    }
+</form>

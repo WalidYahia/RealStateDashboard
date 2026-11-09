@@ -89,7 +89,7 @@ public static class NavigationCatalog
         new(GFinance, "المالية", "الخزائن والتحويلات والإيرادات والمصروفات", "vault", "finance"),
         new(GAccounting, "المحاسبة", "دليل الحسابات والقيود والقوائم المالية والأصول الثابتة", "book", "finance"),
         // Implemented, held as «قريبًا» until its final review.
-        new(GAssets, "الأصول الثابتة", "سجل الأصول وإهلاكها وفئاتها", "package", "finance", Parent: GAccounting, Soon: true),
+        new(GAssets, "الأصول الثابتة", "سجل الأصول وإهلاكها وفئاتها", "package", "finance", Parent: GAccounting),
         new(GCustody, "العُهد", "العُهد المالية والعينية للموظفين", "briefcase", "finance"),
     };
 
@@ -159,9 +159,9 @@ public static class NavigationCatalog
         new("trial-balance", "ميزان المراجعة", "أرصدة الحسابات", "scale", "finance", "Accounting", "AccountingReports", "TrialBalance", P(AccountsView), AlsoIn: new[] { "reports" }, Group: GAccounting),
         new("budget", "الموازنة", "قريبًا", "pie", "finance", "Accounting", "AccountingReports", "Budget", P(AccountsView), Soon: true, Group: GAccounting),
         // Fixed assets + material custody: implemented, held as «قريبًا» until their final review.
-        new("fixed-assets", "الأصول الثابتة", "سجل الأصول وتكلفتها وإهلاكها وقيمتها الدفترية", "package", "finance", "Accounting", "FixedAssets", "Index", P(FixedAssetsView), Soon: true, Group: GAssets),
-        new("fixed-asset-depreciation", "إهلاك الأصول الثابتة", "احتساب الإهلاك الشهري وترحيله", "trend-down", "finance", "Accounting", "FixedAssetDepreciation", "Index", P(FixedAssetsView), Soon: true, Group: GAssets),
-        new("fixed-asset-categories", "فئات الأصول الثابتة", "الفئات وحسابات التكلفة والإهلاك لكل فئة", "layers", "finance", "Accounting", "FixedAssetCategories", "Index", P(FixedAssetsView), Soon: true, Group: GAssets),
+        new("fixed-assets", "الأصول الثابتة", "سجل الأصول وتكلفتها وإهلاكها وقيمتها الدفترية", "package", "finance", "Accounting", "FixedAssets", "Index", P(FixedAssetsView), Group: GAssets),
+        new("fixed-asset-depreciation", "إهلاك الأصول الثابتة", "تسجيل الإهلاك يدويًا على الأصول وسجله", "trend-down", "finance", "Accounting", "FixedAssetDepreciation", "Index", P(FixedAssetsView), Group: GAssets),
+        new("fixed-asset-categories", "فئات الأصول الثابتة", "الفئات وحساباتها في شجرة الحسابات (حساب لكل أصل تحت فئته)", "layers", "finance", "Accounting", "FixedAssetCategories", "Index", P(FixedAssetsView), Group: GAssets),
         new("financial-custody", "العُهد المالية", "عُهد نقدية للموظفين وتسويتها مع المحاسب", "wallet", "finance", "Accounting", "FinancialCustody", "Index", P(FinancialCustodyView), Group: GCustody),
         new("material-custody", "العُهد العينية", "أصول الشركة المسلَّمة للموظفين واستلامها", "briefcase", "finance", "Accounting", "MaterialCustody", "Index", P(MaterialCustodyView), Soon: true, Group: GCustody),
 
@@ -209,7 +209,7 @@ public static class NavigationCatalog
         new("new-safe-transfer", "تحويل بين الخزائن", "arrows", "finance", "Accounting", "SafeTransfers", "Index", P(SafesTransfer)),
         new("new-journal", "قيد يدوي", "book", "finance", "Accounting", "GeneralLedger", "Index", P(AccountsPostJournal)),
         new("new-financial-custody", "عهدة مالية", "wallet", "finance", "Accounting", "FinancialCustody", "Index", P(FinancialCustodyCreate)),
-        new("new-fixed-asset", "أصل ثابت", "package", "finance", "Accounting", "FixedAssets", "Index", P(FixedAssetsManage), Soon: true),
+        new("new-fixed-asset", "أصل ثابت", "package", "finance", "Accounting", "FixedAssets", "Index", P(FixedAssetsManage)),
         new("new-material-custody", "عهدة عينية", "briefcase", "finance", "Accounting", "MaterialCustody", "Index", P(MaterialCustodyManage), Soon: true),
         new("new-project", "مشروع", "building", "projects", "Projects", "Projects", "Index", P(ProjectsCreate)),
         new("new-task", "مهمة", "tasks", "home", "Tasks", "Tasks", "Index", P(TasksCreate)),
