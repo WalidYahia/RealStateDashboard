@@ -1,7 +1,8 @@
 @model MaterialCustodyListVm
 @{
     ViewData["Title"] = "العُهد العينية";
-    var canManage = ViewData["CanManage"] as bool? ?? false;
+    var canCreate = ViewData["CanCreate"] as bool? ?? false;
+    var canReceive = ViewData["CanReceive"] as bool? ?? false;
     string N(decimal v) => v.ToString("N0", RealState.Web.AppCulture.Ar);
     string D(DateTime? d) => RealState.Web.AppCulture.When(d);   // date + time when it has one
     string? F(DateTime? d) => d?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
@@ -10,7 +11,7 @@
 }
 <div class="page-head">
     <h1>العُهد العينية</h1>
-    @if (canManage)
+    @if (canCreate)
     {
         <button type="button" class="btn-new-tenant" data-quick-new onclick="appOpenModal('@Url.Action("Form")', 'تسليم عهدة عينية')">➕ تسليم عهدة</button>
     }
@@ -52,7 +53,11 @@
         {
             <tr>
                 <td dir="ltr" style="text-align:right;white-space:nowrap;"><a asp-action="Details" asp-route-id="@r.Id" style="color:var(--series-1);font-weight:600;text-decoration:none;">MC-@r.Number</a></td>
-                <td>@r.ItemName @if (r.AttachmentsCount > 0) { <span title="@r.AttachmentsCount مرفق" style="color:var(--muted);">📎</span> }@if (r.AssetNumber is int an) { <div style="color:var(--muted);font-size:11px;" dir="ltr">FA-@an</div> }</td>
+                <td>@r.ItemName @if (r.AttachmentsCount > 0) { <span title="@r.AttachmentsCount مرفق" style="color:var(--muted);">📎</span> }@if (r.AssetNumber is int an)
+                    {
+                        @* The line follows the cell (RTL, under the name); only the code reads left-to-right. *@
+                        <div style="font-size:11px;"><a asp-controller="FixedAssets" asp-action="Details" asp-route-id="@r.FixedAssetId" dir="ltr" style="color:var(--muted);text-decoration:none;">FA-@an</a></div>
+                    }</td>
                 <td>@(r.ItemType ?? "—")</td>
                 <td dir="ltr" style="text-align:right;">@(r.SerialNumber ?? "—")</td>
                 <td>@r.Quantity</td>
@@ -63,7 +68,7 @@
                 <td><span class="badge-state @r.Status.BadgeClass()">@r.Status.Ar()</span></td>
                 <td style="white-space:nowrap;">
                     <a class="btn-sm" asp-action="Details" asp-route-id="@r.Id">التفاصيل</a>
-                    @if (canManage && r.Status == MaterialCustodyStatus.HandedOver)
+                    @if (canReceive && r.Status == MaterialCustodyStatus.HandedOver)
                     {
                         <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("ReturnForm", new { id = r.Id })', 'استلام العهدة MC-@r.Number')">↩ استلام</button>
                     }

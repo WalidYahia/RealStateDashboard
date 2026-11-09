@@ -2,6 +2,7 @@
 @{
     ViewData["Title"] = "إهلاك الأصول الثابتة";
     var canDepreciate = ViewData["CanDepreciate"] as bool? ?? false;
+    var canDeleteDepreciation = ViewData["CanDeleteDepreciation"] as bool? ?? false;
     string N(decimal v) => v.ToString("N2", RealState.Web.AppCulture.Ar);
     string D(DateTime d) => RealState.Web.AppCulture.When(d);   // date + time when it has one
     string? F(DateTime? d) => d?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
@@ -54,7 +55,7 @@
                 <td>@(r.Notes ?? "—")</td>
                 <td>@(r.CreatedBy ?? "—")</td>
                 <td style="white-space:nowrap;">
-                    @if (canDepreciate && !r.AssetDisposed)
+                    @if (canDeleteDepreciation && !r.AssetDisposed)
                     {
                         <form asp-action="Delete" asp-route-id="@r.Id" method="post" style="display:inline;" data-danger
                               data-confirm="حذف إهلاك @N(r.Amount) ج.م على الأصل FA-@r.Number وعكس قيده؟">@Html.AntiForgeryToken()<button type="submit" class="btn-sm btn-danger">🗑 حذف</button></form>

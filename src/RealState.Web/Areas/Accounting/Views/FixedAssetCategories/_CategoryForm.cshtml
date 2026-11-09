@@ -26,7 +26,7 @@
         </div>
         <div class="full fa-section">ملف الترحيل (حسابات شجرة الحسابات)</div>
         <div class="full">
-            <div class="status-message" style="background:var(--surface-2);border-color:var(--border);color:var(--text-secondary);margin:0;">
+            <div class="status-message" style="background:var(--surface-2);border-color:var(--border);color:var(--text-secondary);margin:0;overflow-wrap:anywhere;">
                 <div>الأصول › الأصول الثابتة › <strong>@(string.IsNullOrWhiteSpace(Model.Name) ? "الفئة" : Model.Name)</strong> › حساب لكل أصل
                     @if (Model.CostGroup is string cg) { <span dir="ltr" style="color:var(--muted);"> (@cg)</span> }</div>
                 <div>الأصول › مجمع إهلاك الأصول الثابتة › <strong>مجمع إهلاك — @(string.IsNullOrWhiteSpace(Model.Name) ? "الفئة" : Model.Name)</strong> › حساب لكل أصل

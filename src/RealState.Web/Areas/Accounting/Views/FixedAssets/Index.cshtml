@@ -1,7 +1,7 @@
 @model FixedAssetListVm
 @{
     ViewData["Title"] = "الأصول الثابتة";
-    var canManage = ViewData["CanManage"] as bool? ?? false;
+    var canCreate = ViewData["CanCreate"] as bool? ?? false;
     string N(decimal v) => v.ToString("N2", RealState.Web.AppCulture.Ar);
     string D(DateTime? d) => RealState.Web.AppCulture.When(d);   // date + time when it has one
     var states = new List<SelectListItem>
@@ -25,7 +25,7 @@
         {
             <a class="btn-sm" asp-controller="MaterialCustody" asp-action="Index">💼 العُهد العينية</a>
         }
-        @if (canManage)
+        @if (canCreate)
         {
             <button type="button" class="btn-new-tenant" data-quick-new onclick="appOpenModal('@Url.Action("Form")', 'إضافة أصل ثابت')">➕ أصل ثابت</button>
         }

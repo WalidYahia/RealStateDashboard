@@ -2,7 +2,10 @@
 @{
     var c = Model.Custody;
     ViewData["Title"] = $"عهدة عينية MC-{c.Number}";
-    var canManage = ViewData["CanManage"] as bool? ?? false;
+    var canEdit = ViewData["CanEdit"] as bool? ?? false;
+    var canReceive = ViewData["CanReceive"] as bool? ?? false;
+    var canTransfer = ViewData["CanTransfer"] as bool? ?? false;
+    var canAttach = ViewData["CanAttach"] as bool? ?? false;
     var canDelete = ViewData["CanDelete"] as bool? ?? false;
     string N(decimal v) => v.ToString("N2", RealState.Web.AppCulture.Ar);
     string D(DateTime? d) => RealState.Web.AppCulture.When(d);   // date + time when it has one
@@ -19,13 +22,22 @@
     <div style="display:flex;gap:8px;flex-wrap:wrap;">
         <a class="btn-sm" asp-action="Index">رجوع لقائمة العُهد</a>
         <a class="btn-sm" asp-action="PrintHandover" asp-route-id="@c.Id" target="_blank">🖨 إقرار الاستلام</a>
-        @if (canManage && c.Status == MaterialCustodyStatus.HandedOver)
+        @if (c.Status == MaterialCustodyStatus.HandedOver)
         {
-            <button type="button" class="btn-new-tenant" onclick="appOpenModal('@Url.Action("ReturnForm", new { id = c.Id })', 'استلام العهدة MC-@c.Number')">↩ استلام العهدة</button>
-            <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("TransferForm", new { id = c.Id })', 'تحويل الأصل لموظف آخر')">🔁 تحويل لموظف آخر</button>
-            <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("Form", new { id = c.Id })', 'تعديل العهدة MC-@c.Number')">✏️ تعديل</button>
+            if (canReceive)
+            {
+                <button type="button" class="btn-new-tenant" onclick="appOpenModal('@Url.Action("ReturnForm", new { id = c.Id })', 'استلام العهدة MC-@c.Number')">↩ استلام العهدة</button>
+            }
+            if (canTransfer)
+            {
+                <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("TransferForm", new { id = c.Id })', 'تحويل الأصل لموظف آخر')">🔁 تحويل لموظف آخر</button>
+            }
+            if (canEdit)
+            {
+                <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("Form", new { id = c.Id })', 'تعديل العهدة MC-@c.Number')">✏️ تعديل</button>
+            }
         }
-        @if (canManage && c.Status is MaterialCustodyStatus.Returned or MaterialCustodyStatus.Damaged or MaterialCustodyStatus.Lost)
+        @if (canReceive && c.Status is MaterialCustodyStatus.Returned or MaterialCustodyStatus.Damaged or MaterialCustodyStatus.Lost)
         {
             <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("ReturnForm", new { id = c.Id })', 'تصحيح بيانات الاستلام')">✏️ تصحيح الاستلام</button>
         }
@@ -99,7 +111,7 @@
 
 <div class="card-tile" style="margin-top:16px;">
     <div class="card-head"><h3>المرفقات</h3><span class="pill">@Model.Attachments.Count</span></div>
-    @if (canManage)
+    @if (canAttach)
     {
         <form asp-action="Upload" asp-route-id="@c.Id" method="post" enctype="multipart/form-data" class="mc-upload">
             @Html.AntiForgeryToken()
@@ -117,7 +129,7 @@
                 <td dir="ltr" style="text-align:right;">@Size(a.Size)</td>
                 <td dir="ltr" style="text-align:right;">@RealState.Web.AppCulture.When(a.CreatedAt)</td>
                 <td>
-                    @if (canManage)
+                    @if (canAttach)
                     {
                         <form asp-action="DeleteAttachment" asp-route-id="@a.Id" method="post" style="display:inline;" data-confirm="حذف المرفق «@a.FileName»؟" data-danger>@Html.AntiForgeryToken()<button type="submit" class="btn-sm btn-danger">حذف</button></form>
                     }

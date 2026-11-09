@@ -32,15 +32,19 @@ public class MaterialCustodyController : Controller
         _currentUser = currentUser;
     }
 
-    private bool CanManage() => User.HasClaim("permission", PermissionNames.MaterialCustodyManage);
-    private bool CanDelete() => User.HasClaim("permission", PermissionNames.MaterialCustodyDelete);
+    // One permission per action: hand over / edit / receive back / damaged-lost / transfer / attachments / cancel.
+    private bool Can(string permission) => User.HasClaim("permission", permission);
+    private bool CanDelete() => Can(PermissionNames.MaterialCustodyDelete);
+    /// <summary>Receiving back serves «سليمة» (Return) and «تالفة / مفقودة» (Damage).</summary>
+    private bool CanReceiveAny() => Can(PermissionNames.MaterialCustodyReturn) || Can(PermissionNames.MaterialCustodyDamage);
     private static string MC(int number) => "MC-" + number;
 
     // ---------- List ----------
     public async Task<IActionResult> Index(DateTime? from, DateTime? to, Guid? employeeId, MaterialCustodyStatus? status,
         string? itemType, string? q, CancellationToken ct)
     {
-        ViewData["CanManage"] = CanManage();
+        ViewData["CanCreate"] = Can(PermissionNames.MaterialCustodyCreate);
+        ViewData["CanReceive"] = CanReceiveAny();
         return View(await BuildListAsync(from, to, employeeId, status, itemType, q, ct));
     }
 
@@ -106,7 +110,10 @@ public class MaterialCustodyController : Controller
     {
         var vm = await DetailsAsync(id, ct);
         if (vm is null) return NotFound();
-        ViewData["CanManage"] = CanManage();
+        ViewData["CanEdit"] = Can(PermissionNames.MaterialCustodyEdit);
+        ViewData["CanReceive"] = CanReceiveAny();
+        ViewData["CanTransfer"] = Can(PermissionNames.MaterialCustodyTransfer);
+        ViewData["CanAttach"] = Can(PermissionNames.MaterialCustodyAttachments);
         ViewData["CanDelete"] = CanDelete();
         return View(vm);
     }
@@ -147,7 +154,7 @@ public class MaterialCustodyController : Controller
     [HttpGet]
     public async Task<IActionResult> Form(Guid? id, CancellationToken ct)
     {
-        if (!CanManage()) return Forbid();
+        if (!Can(id is Guid g && g != Guid.Empty ? PermissionNames.MaterialCustodyEdit : PermissionNames.MaterialCustodyCreate)) return Forbid();
         var model = new MaterialCustodyFormModel();
         if (id is Guid cid && cid != Guid.Empty)
         {
@@ -168,7 +175,7 @@ public class MaterialCustodyController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Form(MaterialCustodyFormModel model, List<IFormFile>? files, CancellationToken ct)
     {
-        if (!CanManage()) return Forbid();
+        if (!Can(model.Id != Guid.Empty ? PermissionNames.MaterialCustodyEdit : PermissionNames.MaterialCustodyCreate)) return Forbid();
         if (model.ExpectedReturnDate is DateTime exp && exp.Date < model.HandoverDate.Date)
             ModelState.AddModelError(nameof(model.ExpectedReturnDate), "تاريخ الإرجاع المتوقع قبل تاريخ التسليم.");
         ValidateFiles(files);
@@ -229,7 +236,7 @@ public class MaterialCustodyController : Controller
     [HttpGet]
     public async Task<IActionResult> TransferForm(Guid id, CancellationToken ct)
     {
-        if (!CanManage()) return Forbid();
+        if (!Can(PermissionNames.MaterialCustodyTransfer)) return Forbid();
         var c = await _db.MaterialCustodies.FirstOrDefaultAsync(x => x.Id == id, ct);
         if (c is null) return NotFound();
         if (c.Status != MaterialCustodyStatus.HandedOver)
@@ -245,7 +252,7 @@ public class MaterialCustodyController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Transfer(MaterialCustodyTransferModel model, CancellationToken ct)
     {
-        if (!CanManage()) return Forbid();
+        if (!Can(PermissionNames.MaterialCustodyTransfer)) return Forbid();
         var old = await _db.MaterialCustodies.FirstOrDefaultAsync(x => x.Id == model.Id, ct);
         if (old is null) return NotFound();
         if (old.Status != MaterialCustodyStatus.HandedOver)
@@ -284,7 +291,7 @@ public class MaterialCustodyController : Controller
     [HttpGet]
     public async Task<IActionResult> ReturnForm(Guid id, CancellationToken ct)
     {
-        if (!CanManage()) return Forbid();
+        if (!CanReceiveAny()) return Forbid();
         var c = await _db.MaterialCustodies.FirstOrDefaultAsync(x => x.Id == id, ct);
         if (c is null) return NotFound();
         if (!CanReturn(c.Status))
@@ -302,7 +309,7 @@ public class MaterialCustodyController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Return(MaterialCustodyReturnModel model, CancellationToken ct)
     {
-        if (!CanManage()) return Forbid();
+        if (!CanReceiveAny()) return Forbid();
         var c = await _db.MaterialCustodies.FirstOrDefaultAsync(x => x.Id == model.Id, ct);
         if (c is null) return NotFound();
         if (!CanReturn(c.Status))
@@ -312,6 +319,10 @@ public class MaterialCustodyController : Controller
         }
         if (model.Status is not (MaterialCustodyStatus.Returned or MaterialCustodyStatus.Damaged or MaterialCustodyStatus.Lost))
             ModelState.AddModelError(nameof(model.Status), "اختر حالة الاستلام.");
+        else if (!Can(model.Status == MaterialCustodyStatus.Returned ? PermissionNames.MaterialCustodyReturn : PermissionNames.MaterialCustodyDamage))
+            ModelState.AddModelError(nameof(model.Status), model.Status == MaterialCustodyStatus.Returned
+                ? "لا تملك صلاحية استلام العهدة سليمة."
+                : "لا تملك صلاحية تسجيل العهدة تالفة أو مفقودة.");
         if (model.ReturnDate.Date < c.HandoverDate.Date)
             ModelState.AddModelError(nameof(model.ReturnDate), "تاريخ الاستلام قبل تاريخ التسليم.");
         if (!ModelState.IsValid)
@@ -373,7 +384,7 @@ public class MaterialCustodyController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Upload(Guid id, List<IFormFile>? files, CancellationToken ct)
     {
-        if (!CanManage()) return Forbid();
+        if (!Can(PermissionNames.MaterialCustodyAttachments)) return Forbid();
         var c = await _db.MaterialCustodies.FirstOrDefaultAsync(x => x.Id == id, ct);
         if (c is null) return NotFound();
         ValidateFiles(files);
@@ -403,7 +414,7 @@ public class MaterialCustodyController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> DeleteAttachment(Guid id, CancellationToken ct)
     {
-        if (!CanManage()) return Forbid();
+        if (!Can(PermissionNames.MaterialCustodyAttachments)) return Forbid();
         var a = await _db.MaterialCustodyAttachments.FirstOrDefaultAsync(x => x.Id == id, ct);
         if (a is null) return NotFound();
         var number = await _db.MaterialCustodies.Where(c => c.Id == a.MaterialCustodyId).Select(c => c.Number).FirstOrDefaultAsync(ct);

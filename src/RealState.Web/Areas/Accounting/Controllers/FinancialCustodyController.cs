@@ -107,8 +107,13 @@ public class FinancialCustodyController : Controller
         var vm = await DetailsAsync(id, ct);
         if (vm is null) return NotFound();
         ViewData["CanCreate"] = Can(PermissionNames.FinancialCustodyCreate);
+        ViewData["CanEdit"] = Can(PermissionNames.FinancialCustodyEdit);
+        ViewData["CanDisburse"] = Can(PermissionNames.FinancialCustodyDisburse);
         ViewData["CanSettle"] = Can(PermissionNames.FinancialCustodySettle);
+        ViewData["CanReceiveCash"] = Can(PermissionNames.FinancialCustodyReceiveCash);
+        ViewData["CanClose"] = Can(PermissionNames.FinancialCustodyClose);
         ViewData["CanDelete"] = Can(PermissionNames.FinancialCustodyDelete);
+        ViewData["CanDeleteMovement"] = Can(PermissionNames.FinancialCustodyDeleteMovement);
         return View(vm);
     }
 
@@ -200,7 +205,7 @@ public class FinancialCustodyController : Controller
     [HttpGet]
     public async Task<IActionResult> EditForm(Guid id, CancellationToken ct)
     {
-        if (!Can(PermissionNames.FinancialCustodyCreate)) return Forbid();
+        if (!Can(PermissionNames.FinancialCustodyEdit)) return Forbid();
         var c = await _db.FinancialCustodies.FirstOrDefaultAsync(x => x.Id == id, ct);
         if (c is null) return NotFound();
         return PartialView("_FinancialCustodyEditForm", new FinancialCustodyEditModel { Id = c.Id, Number = c.Number, Purpose = c.Purpose, Notes = c.Notes });
@@ -210,7 +215,7 @@ public class FinancialCustodyController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Edit(FinancialCustodyEditModel model, CancellationToken ct)
     {
-        if (!Can(PermissionNames.FinancialCustodyCreate)) return Forbid();
+        if (!Can(PermissionNames.FinancialCustodyEdit)) return Forbid();
         var c = await _db.FinancialCustodies.FirstOrDefaultAsync(x => x.Id == model.Id, ct);
         if (c is null) return NotFound();
         if (!ModelState.IsValid) { model.Number = c.Number; return PartialView("_FinancialCustodyEditForm", model); }
@@ -265,8 +270,8 @@ public class FinancialCustodyController : Controller
     }
 
     private bool CanCash(CustodyMovementKind kind) => kind == CustodyMovementKind.Disbursement
-        ? Can(PermissionNames.FinancialCustodyCreate)
-        : Can(PermissionNames.FinancialCustodySettle);
+        ? Can(PermissionNames.FinancialCustodyDisburse)
+        : Can(PermissionNames.FinancialCustodyReceiveCash);
 
     // ---------- Settlement: approve the expenses paid from the custody ----------
     [HttpGet]
@@ -348,7 +353,7 @@ public class FinancialCustodyController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Close(Guid id, CancellationToken ct)
     {
-        if (!Can(PermissionNames.FinancialCustodySettle)) return Forbid();
+        if (!Can(PermissionNames.FinancialCustodyClose)) return Forbid();
         var c = await _db.FinancialCustodies.FirstOrDefaultAsync(x => x.Id == id, ct);
         if (c is null) return NotFound();
         var balance = await BalanceAsync(c.Id, ct);
@@ -370,7 +375,7 @@ public class FinancialCustodyController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Reopen(Guid id, CancellationToken ct)
     {
-        if (!Can(PermissionNames.FinancialCustodySettle)) return Forbid();
+        if (!Can(PermissionNames.FinancialCustodyClose)) return Forbid();
         var c = await _db.FinancialCustodies.FirstOrDefaultAsync(x => x.Id == id, ct);
         if (c is null) return NotFound();
         c.Status = FinancialCustodyStatus.Open;
@@ -385,7 +390,7 @@ public class FinancialCustodyController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> DeleteMovement(Guid id, CancellationToken ct)
     {
-        if (!Can(PermissionNames.FinancialCustodyDelete)) return Forbid();
+        if (!Can(PermissionNames.FinancialCustodyDeleteMovement)) return Forbid();
         var m = await _db.FinancialCustodyMovements.FirstOrDefaultAsync(x => x.Id == id, ct);
         if (m is null) return NotFound();
         var c = await _db.FinancialCustodies.FirstAsync(x => x.Id == m.FinancialCustodyId, ct);

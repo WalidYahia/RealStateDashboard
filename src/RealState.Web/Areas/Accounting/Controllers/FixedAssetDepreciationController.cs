@@ -48,6 +48,7 @@ public class FixedAssetDepreciationController : Controller
         var entries = await q.OrderByDescending(d => d.Date).ToListAsync(ct);
 
         ViewData["CanDepreciate"] = CanDepreciate();
+        ViewData["CanDeleteDepreciation"] = User.HasClaim("permission", PermissionNames.FixedAssetsDeleteDepreciation);
         return View(new DepreciationVm
         {
             From = from, To = to, CategoryId = categoryId,
@@ -121,7 +122,7 @@ public class FixedAssetDepreciationController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Delete(Guid id, bool toAsset, CancellationToken ct)
     {
-        if (!CanDepreciate()) return Forbid();
+        if (!User.HasClaim("permission", PermissionNames.FixedAssetsDeleteDepreciation)) return Forbid();
         var d = await _db.FixedAssetDepreciations.FirstOrDefaultAsync(x => x.Id == id, ct);
         if (d is null) return NotFound();
         var a = await _db.FixedAssets.FirstOrDefaultAsync(x => x.Id == d.FixedAssetId, ct);

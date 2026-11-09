@@ -121,7 +121,7 @@ html.theme-fading, html.theme-fading *, html.theme-fading *::before, html.theme-
 .fb-reset:hover { color: var(--critical); background: rgba(208,59,59,.10); }
 
 .fb-body {
-    display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(165px, 1fr));
     gap: 16px 16px; padding: 16px 18px 18px; align-items: start;
 }
 .fb-range { grid-column: span 2; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
@@ -143,7 +143,7 @@ html.theme-fading, html.theme-fading *, html.theme-fading *::before, html.theme-
 
 /* date range: one box, two parts */
 .fb-range-box {
-    display: flex; align-items: stretch; min-height: 42px; background: var(--surface-2);
+    display: flex; align-items: stretch; min-height: 38px; background: var(--surface-2);
     border: 1px solid var(--border); border-radius: 10px; overflow: hidden; transition: border-color .15s, box-shadow .15s;
 }
 .fb-range-box:focus-within { border-color: var(--series-1); box-shadow: 0 0 0 3px rgba(57,135,229,.18); }
@@ -166,14 +166,14 @@ html.theme-fading, html.theme-fading *, html.theme-fading *::before, html.theme-
 .fb-chip.active { background: var(--series-1); border-color: var(--series-1); color: #fff; }
 
 /* inputs */
-.fb .form-control.fb-input, .fb .ss-input { margin: 0; min-height: 42px; padding: 8px 12px; }
+.fb .form-control.fb-input, .fb .ss-input { margin: 0; min-height: 38px; padding: 6px 10px; font-size: 13.5px; }
 .fb .form-control:focus, .fb .ss-input:focus { border-color: var(--series-1); box-shadow: 0 0 0 3px rgba(57,135,229,.18); }
 .fb-on .form-control, .fb-on .ss-input { border-color: rgba(57,135,229,.55); }
 /* Placeholders («🔍 الكل», hints) readable in both themes — Bootstrap's default is near-invisible on the dark surface. */
 .fb .fb-input::placeholder, .fb .ss-input::placeholder { color: var(--muted); opacity: 1; }
 /* checkbox group (multi-choice filter) */
 .fb-checks {
-    display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; min-height: 42px; padding: 6px 12px;
+    display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; min-height: 38px; padding: 6px 12px;
     background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px;
 }
 .fb-on .fb-checks { border-color: rgba(57,135,229,.55); }

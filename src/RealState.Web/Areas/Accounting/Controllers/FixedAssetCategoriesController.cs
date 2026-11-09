@@ -29,7 +29,7 @@ public class FixedAssetCategoriesController : Controller
         _assets = assets;
     }
 
-    private bool CanManage() => User.HasClaim("permission", PermissionNames.FixedAssetsManage);
+    private bool Can(string permission) => User.HasClaim("permission", permission);
 
     public async Task<IActionResult> Index(CancellationToken ct)
     {
@@ -41,7 +41,9 @@ public class FixedAssetCategoriesController : Controller
             .Select(g => new { g.Key, Sum = g.Sum(d => d.Amount) }).ToDictionaryAsync(x => x.Key, x => x.Sum, ct);
         string? Acc(Guid? id) => id is Guid g ? accounts.GetValueOrDefault(g) : null;
 
-        ViewData["CanManage"] = CanManage();
+        ViewData["CanCreate"] = Can(PermissionNames.FixedAssetCategoriesCreate);
+        ViewData["CanEdit"] = Can(PermissionNames.FixedAssetCategoriesEdit);
+        ViewData["CanDelete"] = Can(PermissionNames.FixedAssetCategoriesDelete);
         return View(categories.Select(c =>
         {
             var mine = assets.Where(a => a.CategoryId == c.Id).ToList();
@@ -60,7 +62,7 @@ public class FixedAssetCategoriesController : Controller
     [HttpGet]
     public async Task<IActionResult> Form(Guid? id, CancellationToken ct)
     {
-        if (!CanManage()) return Forbid();
+        if (!Can(id is Guid g && g != Guid.Empty ? PermissionNames.FixedAssetCategoriesEdit : PermissionNames.FixedAssetCategoriesCreate)) return Forbid();
         var model = new FixedAssetCategoryFormModel();
         if (id is Guid cid && cid != Guid.Empty)
         {
@@ -80,7 +82,7 @@ public class FixedAssetCategoriesController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Form(FixedAssetCategoryFormModel model, CancellationToken ct)
     {
-        if (!CanManage()) return Forbid();
+        if (!Can(model.Id != Guid.Empty ? PermissionNames.FixedAssetCategoriesEdit : PermissionNames.FixedAssetCategoriesCreate)) return Forbid();
         var name = model.Name?.Trim() ?? "";
         if (name.Length > 0 && await _db.FixedAssetCategories.AnyAsync(c => c.Name == name && c.Id != model.Id, ct))
             ModelState.AddModelError(nameof(model.Name), "توجد فئة بنفس الاسم.");
@@ -120,7 +122,7 @@ public class FixedAssetCategoriesController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
     {
-        if (!CanManage()) return Forbid();
+        if (!Can(PermissionNames.FixedAssetCategoriesDelete)) return Forbid();
         var c = await _db.FixedAssetCategories.FirstOrDefaultAsync(x => x.Id == id, ct);
         if (c is null) return NotFound();
         if (await _db.FixedAssets.IgnoreQueryFilters().AnyAsync(a => a.CategoryId == id && !a.IsDeleted, ct))

@@ -1,14 +1,16 @@
 @model List<FixedAssetCategoryRow>
 @{
     ViewData["Title"] = "فئات الأصول الثابتة";
-    var canManage = ViewData["CanManage"] as bool? ?? false;
+    var canCreate = ViewData["CanCreate"] as bool? ?? false;
+    var canEdit = ViewData["CanEdit"] as bool? ?? false;
+    var canDelete = ViewData["CanDelete"] as bool? ?? false;
     string N(decimal v) => v.ToString("N2", RealState.Web.AppCulture.Ar);
 }
 <div class="page-head">
     <h1>فئات الأصول الثابتة</h1>
     <div style="display:flex;gap:8px;flex-wrap:wrap;">
         <a class="btn-sm" asp-controller="FixedAssets" asp-action="Index">📦 الأصول الثابتة</a>
-        @if (canManage)
+        @if (canCreate)
         {
             <button type="button" class="btn-new-tenant" data-quick-new onclick="appOpenModal('@Url.Action("Form")', 'فئة أصول جديدة')">➕ فئة</button>
         }
@@ -40,13 +42,13 @@
                 <td>@N(c.Cost)</td>
                 <td>@N(c.BookValue)</td>
                 <td style="white-space:nowrap;">
-                    @if (canManage)
+                    @if (canEdit)
                     {
                         <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("Form", new { id = c.Id })', 'تعديل الفئة')">✏️ تعديل</button>
-                        @if (c.AssetsCount == 0)
-                        {
-                            <form asp-action="Delete" asp-route-id="@c.Id" method="post" style="display:inline;" data-confirm="حذف الفئة «@c.Name»؟" data-danger>@Html.AntiForgeryToken()<button type="submit" class="btn-sm btn-danger">🗑</button></form>
-                        }
+                    }
+                    @if (canDelete && c.AssetsCount == 0)
+                    {
+                        <form asp-action="Delete" asp-route-id="@c.Id" method="post" style="display:inline;" data-confirm="حذف الفئة «@c.Name»؟" data-danger>@Html.AntiForgeryToken()<button type="submit" class="btn-sm btn-danger">🗑</button></form>
                     }
                 </td>
             </tr>

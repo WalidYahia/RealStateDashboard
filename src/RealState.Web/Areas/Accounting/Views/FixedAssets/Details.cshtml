@@ -2,7 +2,10 @@
 @{
     var a = Model.Asset;
     ViewData["Title"] = $"أصل ثابت FA-{a.Number}";
-    var canManage = ViewData["CanManage"] as bool? ?? false;
+    var canEdit = ViewData["CanEdit"] as bool? ?? false;
+    var canPost = ViewData["CanPost"] as bool? ?? false;
+    var canUndoDispose = ViewData["CanUndoDispose"] as bool? ?? false;
+    var canDeleteDepreciation = ViewData["CanDeleteDepreciation"] as bool? ?? false;
     var canDelete = ViewData["CanDelete"] as bool? ?? false;
     var canDispose = ViewData["CanDispose"] as bool? ?? false;
     var canDepreciate = ViewData["CanDepreciate"] as bool? ?? false;
@@ -24,7 +27,7 @@
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;">
         <a class="btn-sm" asp-action="Index">رجوع لقائمة الأصول</a>
-        @if (canManage && !a.IsPosted)
+        @if (canPost && !a.IsPosted)
         {
             <button type="button" class="btn-new-tenant" onclick="appOpenModal('@Url.Action("PostForm", new { id = a.Id })', 'ترحيل قيد اقتناء FA-@a.Number')">📒 ترحيل قيد الاقتناء</button>
         }
@@ -32,7 +35,7 @@
         {
             <button type="button" class="btn-new-tenant" onclick="appOpenModal('@Url.Action("Form", "FixedAssetDepreciation", new { assetId = a.Id })', 'تسجيل إهلاك على FA-@a.Number')">📉 تسجيل إهلاك</button>
         }
-        @if (canManage)
+        @if (canEdit)
         {
             <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("Form", new { id = a.Id })', 'تعديل الأصل FA-@a.Number')">✏️ تعديل</button>
         }
@@ -40,7 +43,7 @@
         {
             <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("DisposeForm", new { id = a.Id })', 'بيع / استبعاد FA-@a.Number')">🗑 بيع / استبعاد</button>
         }
-        @if (canDispose && a.IsDisposed)
+        @if (canUndoDispose && a.IsDisposed)
         {
             <form asp-action="UndoDispose" asp-route-id="@a.Id" method="post" style="display:inline;" data-confirm="إلغاء استبعاد الأصل FA-@a.Number وعكس قيده؟">@Html.AntiForgeryToken()<button type="submit" class="btn-sm">↺ إلغاء الاستبعاد</button></form>
         }
@@ -84,7 +87,7 @@
                     @if (Model.PurchaseSafe is string safe) { <span> · @safe</span> }
                     @if (a.PurchaseTransactionId is Guid pt && canExpenses) { <a class="btn-sm" asp-controller="Expenses" asp-action="PrintOne" asp-route-id="@pt" target="_blank">🖨 سند @Model.PurchaseVoucherSerial</a> }
                 </td></tr>
-                <tr><td class="muted">حسابات الأصل</td><td>
+                <tr><td class="muted">حسابات الأصل</td><td style="overflow-wrap:anywhere;">
                     @if (Model.CostAccount is null)
                     {
                         <span style="color:var(--muted);">تُنشأ عند ترحيل قيد الاقتناء — تحت حساب الفئة في «الأصول الثابتة» و«مجمع الإهلاك».</span>
@@ -156,7 +159,7 @@
                 <td>@N(running)</td>
                 <td>@N(a.TotalCost - running)</td>
                 <td style="white-space:nowrap;">
-                    @if (canDepreciate && !a.IsDisposed)
+                    @if (canDeleteDepreciation && !a.IsDisposed)
                     {
                         <form asp-controller="FixedAssetDepreciation" asp-action="Delete" asp-route-id="@d.Id" asp-route-toAsset="true" method="post" style="display:inline;" data-danger
                               data-confirm="حذف إهلاك @N(d.Amount) ج.م وعكس قيده؟">@Html.AntiForgeryToken()<button type="submit" class="btn-sm btn-danger">🗑</button></form>

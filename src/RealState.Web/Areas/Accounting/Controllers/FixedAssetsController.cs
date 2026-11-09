@@ -36,13 +36,15 @@ public class FixedAssetsController : Controller
     }
 
     private bool Can(string permission) => User.HasClaim("permission", permission);
+    /// <summary>Sell (with proceeds) or write off / destroy (without) — the disposal form serves both.</summary>
+    private bool CanDisposeAny() => Can(PermissionNames.FixedAssetsDispose) || Can(PermissionNames.FixedAssetsWriteOff);
     private static string FA(int number) => "FA-" + number;
     private void Refused() => HttpContext.Items[RealState.Web.Filters.ActivityLogFilter.SkipItem] = true;
 
     // ---------- List ----------
     public async Task<IActionResult> Index(Guid? categoryId, string? state, string? q, CancellationToken ct)
     {
-        ViewData["CanManage"] = Can(PermissionNames.FixedAssetsManage);
+        ViewData["CanCreate"] = Can(PermissionNames.FixedAssetsCreate);
         return View(await BuildListAsync(categoryId, state, q, ct));
     }
 
@@ -131,10 +133,13 @@ public class FixedAssetsController : Controller
                 && (x.SubKind == FixedAssetAccounting.AssetCostKind || x.SubKind == FixedAssetAccounting.AssetAccumulatedKind))
             .Select(x => new { x.SubKind, Text = x.Code + " — " + x.Name }).ToListAsync(ct);
 
-        ViewData["CanManage"] = Can(PermissionNames.FixedAssetsManage);
+        ViewData["CanEdit"] = Can(PermissionNames.FixedAssetsEdit);
+        ViewData["CanPost"] = Can(PermissionNames.FixedAssetsCreate);
         ViewData["CanDelete"] = Can(PermissionNames.FixedAssetsDelete);
-        ViewData["CanDispose"] = Can(PermissionNames.FixedAssetsDispose);
+        ViewData["CanDispose"] = CanDisposeAny();
+        ViewData["CanUndoDispose"] = Can(PermissionNames.FixedAssetsUndoDispose);
         ViewData["CanDepreciate"] = Can(PermissionNames.FixedAssetsDepreciate);
+        ViewData["CanDeleteDepreciation"] = Can(PermissionNames.FixedAssetsDeleteDepreciation);
         return View(new FixedAssetDetailsVm
         {
             Asset = a,
@@ -161,7 +166,7 @@ public class FixedAssetsController : Controller
     [HttpGet]
     public async Task<IActionResult> Form(Guid? id, CancellationToken ct)
     {
-        if (!Can(PermissionNames.FixedAssetsManage)) return Forbid();
+        if (!Can(id is Guid g && g != Guid.Empty ? PermissionNames.FixedAssetsEdit : PermissionNames.FixedAssetsCreate)) return Forbid();
         var model = new FixedAssetFormModel();
         if (id is Guid aid && aid != Guid.Empty)
         {
@@ -184,7 +189,7 @@ public class FixedAssetsController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Form(FixedAssetFormModel model, CancellationToken ct)
     {
-        if (!Can(PermissionNames.FixedAssetsManage)) return Forbid();
+        if (!Can(model.Id != Guid.Empty ? PermissionNames.FixedAssetsEdit : PermissionNames.FixedAssetsCreate)) return Forbid();
         var isEdit = model.Id != Guid.Empty;
         FixedAsset? a = null;
         if (isEdit)
@@ -282,7 +287,7 @@ public class FixedAssetsController : Controller
     [HttpGet]
     public async Task<IActionResult> PostForm(Guid id, CancellationToken ct)
     {
-        if (!Can(PermissionNames.FixedAssetsManage)) return Forbid();
+        if (!Can(PermissionNames.FixedAssetsCreate)) return Forbid();   // posting an acquisition = adding the asset to the books
         var a = await _db.FixedAssets.FirstOrDefaultAsync(x => x.Id == id, ct);
         if (a is null) return NotFound();
         if (a.IsPosted) return Content("<div style=\"padding:18px;text-align:center;\">الأصل مُرحَّل بالفعل.</div>", "text/html");
@@ -293,7 +298,7 @@ public class FixedAssetsController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Post(FixedAssetPostModel model, CancellationToken ct)
     {
-        if (!Can(PermissionNames.FixedAssetsManage)) return Forbid();
+        if (!Can(PermissionNames.FixedAssetsCreate)) return Forbid();   // posting an acquisition = adding the asset to the books
         var a = await _db.FixedAssets.FirstOrDefaultAsync(x => x.Id == model.Id, ct);
         if (a is null) return NotFound();
         if (a.IsPosted) { Refused(); return Json(new { ok = false, error = "الأصل مُرحَّل بالفعل." }); }
@@ -326,7 +331,7 @@ public class FixedAssetsController : Controller
     [HttpGet]
     public async Task<IActionResult> DisposeForm(Guid id, CancellationToken ct)
     {
-        if (!Can(PermissionNames.FixedAssetsDispose)) return Forbid();
+        if (!CanDisposeAny()) return Forbid();
         var a = await _db.FixedAssets.FirstOrDefaultAsync(x => x.Id == id, ct);
         if (a is null) return NotFound();
         if (await DisposeBlockerAsync(a, ct) is string why)
@@ -341,10 +346,15 @@ public class FixedAssetsController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Dispose(FixedAssetDisposeModel model, CancellationToken ct)
     {
-        if (!Can(PermissionNames.FixedAssetsDispose)) return Forbid();
+        if (!CanDisposeAny()) return Forbid();
         var a = await _db.FixedAssets.FirstOrDefaultAsync(x => x.Id == model.Id, ct);
         if (a is null) return NotFound();
         if (await DisposeBlockerAsync(a, ct) is string why) { Refused(); return Json(new { ok = false, error = why }); }
+        // A sale (with proceeds) and a write-off / destruction (none) are separate permissions.
+        if (model.Proceeds > 0 && !Can(PermissionNames.FixedAssetsDispose))
+            ModelState.AddModelError(nameof(model.Proceeds), "لا تملك صلاحية بيع الأصول — يمكنك الشطب / الإتلاف فقط (متحصلات 0).");
+        else if (model.Proceeds <= 0 && !Can(PermissionNames.FixedAssetsWriteOff))
+            ModelState.AddModelError(nameof(model.Proceeds), "لا تملك صلاحية شطب / إتلاف الأصول — أدخل متحصلات البيع.");
         if (model.Proceeds > 0 && model.SafeId is null) ModelState.AddModelError(nameof(model.SafeId), "اختر الخزنة التي تُورَّد إليها المتحصلات.");
         var lastDep = await _db.FixedAssetDepreciations.Where(d => d.FixedAssetId == a.Id).MaxAsync(d => (DateTime?)d.Date, ct);
         if (lastDep is DateTime ld && model.Date.Date < ld.Date)
@@ -373,7 +383,7 @@ public class FixedAssetsController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> UndoDispose(Guid id, CancellationToken ct)
     {
-        if (!Can(PermissionNames.FixedAssetsDispose)) return Forbid();
+        if (!Can(PermissionNames.FixedAssetsUndoDispose)) return Forbid();
         var a = await _db.FixedAssets.FirstOrDefaultAsync(x => x.Id == id, ct);
         if (a is null) return NotFound();
         if (!a.IsDisposed) return RedirectToAction(nameof(Details), new { id });

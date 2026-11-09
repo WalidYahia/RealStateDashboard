@@ -13,7 +13,14 @@
         </div>
         <div>
             <label asp-for="Status" class="form-label"></label>
-            <select asp-for="Status" class="form-control" asp-items="ArabicLabels.MaterialCustodyReturnOptions(Model.Status)"></select>
+            @{
+                // «سليمة» needs the receive permission, «تالفة / مفقودة» the damage one — only the allowed outcomes are offered.
+                var canReturn = User.Can(PermissionNames.MaterialCustodyReturn);
+                var canDamage = User.Can(PermissionNames.MaterialCustodyDamage);
+                var outcomes = ArabicLabels.MaterialCustodyReturnOptions(Model.Status)
+                    .Where(o => o.Value == "1" ? canReturn : canDamage).ToList();
+            }
+            <select asp-for="Status" class="form-control" asp-items="outcomes"></select>
             <span asp-validation-for="Status" class="field-validation-error"></span>
         </div>
         <div class="full">

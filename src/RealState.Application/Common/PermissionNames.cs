@@ -148,21 +148,42 @@ public static class PermissionNames
     public const string AccountsPostJournal = "Accounts.PostJournal"; // add/edit/delete manual journal entries (قيد يدوي)
     public const string AccountsOpeningBalances = "Accounts.OpeningBalances"; // set the accounts' opening balances (الأرصدة الافتتاحية)
 
-    // ----- Fixed assets (الأصول الثابتة) — the items physical custodies are handed over from -----
+    // ----- Fixed assets (الأصول الثابتة) — the items physical custodies are handed over from; one permission per action -----
     public const string FixedAssetsView = "FixedAssets.View";
-    public const string FixedAssetsManage = "FixedAssets.Manage";   // add / edit / activate-deactivate
-    public const string FixedAssetsDelete = "FixedAssets.Delete";
-    public const string FixedAssetsDepreciate = "FixedAssets.Depreciate";   // record / delete depreciation on an asset
-    public const string FixedAssetsDispose = "FixedAssets.Dispose";         // sell / write off (and undo)
+    public const string FixedAssetsCreate = "FixedAssets.Create";                 // add an asset + post its acquisition
+    public const string FixedAssetsEdit = "FixedAssets.Edit";                     // edit its data / take it out of service
+    public const string FixedAssetsDelete = "FixedAssets.Delete";                 // delete one entered by mistake
+    public const string FixedAssetsDepreciate = "FixedAssets.Depreciate";         // record depreciation on an asset
+    public const string FixedAssetsDeleteDepreciation = "FixedAssets.DeleteDepreciation";
+    public const string FixedAssetsDispose = "FixedAssets.Dispose";               // sell (with proceeds)
+    public const string FixedAssetsWriteOff = "FixedAssets.WriteOff";             // write off / destroy (no proceeds)
+    public const string FixedAssetsUndoDispose = "FixedAssets.UndoDispose";       // undo a sale / write-off
+    public const string FixedAssetCategoriesCreate = "FixedAssets.CategoriesCreate";
+    public const string FixedAssetCategoriesEdit = "FixedAssets.CategoriesEdit";
+    public const string FixedAssetCategoriesDelete = "FixedAssets.CategoriesDelete";
+    /// <summary>Retired (split into the per-action permissions above) — kept only to grant them to its holders.</summary>
+    private const string LegacyFixedAssetsManage = "FixedAssets.Manage";
 
-    // ----- Custodies (العُهد) -----
-    public const string MaterialCustodyView = "MaterialCustody.View";       // view the physical custody register
-    public const string MaterialCustodyManage = "MaterialCustody.Manage";   // hand over / edit / receive back + attachments
-    public const string MaterialCustodyDelete = "MaterialCustody.Delete";
-    public const string FinancialCustodyView = "FinancialCustody.View";     // view cash custodies and their statements
-    public const string FinancialCustodyCreate = "FinancialCustody.Create"; // open a custody + disburse cash from a safe
-    public const string FinancialCustodySettle = "FinancialCustody.Settle"; // the accountant: approve expenses, receive cash back, close
-    public const string FinancialCustodyDelete = "FinancialCustody.Delete"; // delete a custody / reverse a movement
+    // ----- Custodies (العُهد) — one permission per action -----
+    public const string MaterialCustodyView = "MaterialCustody.View";             // view the physical custody register
+    public const string MaterialCustodyCreate = "MaterialCustody.Create";         // hand over a new custody
+    public const string MaterialCustodyEdit = "MaterialCustody.Edit";
+    public const string MaterialCustodyReturn = "MaterialCustody.Return";         // receive it back in good condition / correct it
+    public const string MaterialCustodyDamage = "MaterialCustody.Damage";         // record it damaged / lost
+    public const string MaterialCustodyTransfer = "MaterialCustody.Transfer";     // move it to another employee
+    public const string MaterialCustodyAttachments = "MaterialCustody.Attachments";
+    public const string MaterialCustodyDelete = "MaterialCustody.Delete";         // cancel one recorded by mistake
+    /// <summary>Retired (split into the per-action permissions above) — kept only to grant them to its holders.</summary>
+    private const string LegacyMaterialCustodyManage = "MaterialCustody.Manage";
+    public const string FinancialCustodyView = "FinancialCustody.View";           // view cash custodies and their statements
+    public const string FinancialCustodyCreate = "FinancialCustody.Create";       // open a custody + disburse its first amount
+    public const string FinancialCustodyEdit = "FinancialCustody.Edit";
+    public const string FinancialCustodyDisburse = "FinancialCustody.Disburse";   // disburse an extra amount from a safe
+    public const string FinancialCustodySettle = "FinancialCustody.Settle";       // the accountant: approve the expenses
+    public const string FinancialCustodyReceiveCash = "FinancialCustody.ReceiveCash"; // receive unspent cash back into a safe
+    public const string FinancialCustodyClose = "FinancialCustody.Close";         // close / reopen
+    public const string FinancialCustodyDelete = "FinancialCustody.Delete";       // delete a custody (reverses everything)
+    public const string FinancialCustodyDeleteMovement = "FinancialCustody.DeleteMovement"; // reverse one movement
 
     // ----- Inventory (المخزون) -----
     public const string InventoryView = "Inventory.View";           // view inventory pages
@@ -318,19 +339,36 @@ public static class PermissionNames
         new PermissionInfo(AccountsPostJournal, "تسجيل القيود اليدوية (إضافة/تعديل/حذف)", GAccounting),
         new PermissionInfo(AccountsOpeningBalances, "تعديل الأرصدة الافتتاحية للحسابات", GAccounting),
 
-        new PermissionInfo(FixedAssetsView,   "عرض الأصول الثابتة", GFixedAssets),
-        new PermissionInfo(FixedAssetsManage, "إضافة وتعديل الأصول الثابتة وفئاتها", GFixedAssets),
-        new PermissionInfo(FixedAssetsDelete, "حذف الأصول الثابتة (بلا سجل عُهد أو إهلاك)", GFixedAssets),
-        new PermissionInfo(FixedAssetsDepreciate, "تسجيل إهلاك الأصول وحذفه", GFixedAssets),
-        new PermissionInfo(FixedAssetsDispose, "بيع / استبعاد الأصول الثابتة", GFixedAssets),
+        new PermissionInfo(FixedAssetsView,   "عرض الأصول الثابتة وسجل الإهلاك", GFixedAssets),
+        new PermissionInfo(FixedAssetsCreate, "إضافة أصل ثابت (وترحيل قيد اقتنائه)", GFixedAssets),
+        new PermissionInfo(FixedAssetsEdit,   "تعديل بيانات الأصل الثابت (وإخراجه من الخدمة)", GFixedAssets),
+        new PermissionInfo(FixedAssetsDelete, "حذف الأصل الثابت المُدخل بالخطأ (بلا عُهد أو إهلاك)", GFixedAssets),
+        new PermissionInfo(FixedAssetsDepreciate, "تسجيل إهلاك على الأصول", GFixedAssets),
+        new PermissionInfo(FixedAssetsDeleteDepreciation, "حذف قيد إهلاك", GFixedAssets),
+        new PermissionInfo(FixedAssetsDispose, "بيع الأصل الثابت (بمتحصلات)", GFixedAssets),
+        new PermissionInfo(FixedAssetsWriteOff, "شطب / إتلاف الأصل الثابت (استبعاد بلا متحصلات)", GFixedAssets),
+        new PermissionInfo(FixedAssetsUndoDispose, "إلغاء بيع / استبعاد الأصل الثابت", GFixedAssets),
+        new PermissionInfo(FixedAssetCategoriesCreate, "إضافة فئات الأصول", GFixedAssets),
+        new PermissionInfo(FixedAssetCategoriesEdit, "تعديل فئات الأصول", GFixedAssets),
+        new PermissionInfo(FixedAssetCategoriesDelete, "حذف فئات الأصول", GFixedAssets),
 
         new PermissionInfo(MaterialCustodyView,   "عرض العُهد العينية", GCustody),
-        new PermissionInfo(MaterialCustodyManage, "تسليم واستلام العُهد العينية وتعديلها ومرفقاتها", GCustody),
-        new PermissionInfo(MaterialCustodyDelete, "إلغاء العُهد العينية المسجَّلة بالخطأ", GCustody),
+        new PermissionInfo(MaterialCustodyCreate, "تسليم عهدة عينية جديدة", GCustody),
+        new PermissionInfo(MaterialCustodyEdit,   "تعديل بيانات العهدة العينية", GCustody),
+        new PermissionInfo(MaterialCustodyReturn, "استلام العهدة العينية سليمة (وتصحيح الاستلام)", GCustody),
+        new PermissionInfo(MaterialCustodyDamage, "تسجيل العهدة العينية تالفة أو مفقودة", GCustody),
+        new PermissionInfo(MaterialCustodyTransfer, "تحويل العهدة العينية لموظف آخر", GCustody),
+        new PermissionInfo(MaterialCustodyAttachments, "إضافة وحذف مرفقات العهدة العينية", GCustody),
+        new PermissionInfo(MaterialCustodyDelete, "إلغاء العهدة العينية المسجَّلة بالخطأ", GCustody),
         new PermissionInfo(FinancialCustodyView,   "عرض العُهد المالية وكشوفها", GCustody),
-        new PermissionInfo(FinancialCustodyCreate, "فتح عهدة مالية وصرف نقدية لها من خزنة", GCustody),
-        new PermissionInfo(FinancialCustodySettle, "تسوية العُهد المالية (اعتماد المصروفات، رد النقدية، الإقفال)", GCustody),
-        new PermissionInfo(FinancialCustodyDelete, "حذف العُهد المالية وحركاتها", GCustody),
+        new PermissionInfo(FinancialCustodyCreate, "فتح عهدة مالية وصرف مبلغها من خزنة", GCustody),
+        new PermissionInfo(FinancialCustodyEdit,   "تعديل بيانات العهدة المالية", GCustody),
+        new PermissionInfo(FinancialCustodyDisburse, "صرف مبلغ إضافي على العهدة المالية", GCustody),
+        new PermissionInfo(FinancialCustodySettle, "تسوية مصروفات العهدة المالية (اعتمادها)", GCustody),
+        new PermissionInfo(FinancialCustodyReceiveCash, "استلام النقدية المردودة من العهدة المالية", GCustody),
+        new PermissionInfo(FinancialCustodyClose, "إقفال العهدة المالية وإعادة فتحها", GCustody),
+        new PermissionInfo(FinancialCustodyDelete, "حذف العهدة المالية (بعكس كل حركاتها)", GCustody),
+        new PermissionInfo(FinancialCustodyDeleteMovement, "حذف حركة على العهدة المالية", GCustody),
 
         new PermissionInfo(InventoryView,      "عرض المخزون", GInventory),
         new PermissionInfo(InventoryManage,    "إدارة الأصناف والتصنيفات ووحدات القياس والمخازن والإعدادات", GInventory),
@@ -404,6 +442,26 @@ public static class PermissionNames
         [SalesUncancel] = SalesDelete,
         [SalesRefund] = SalesDelete,
         [SalesDeleteRefund] = SalesDelete,
+        // Fixed assets / custodies: one permission per action — whoever held the broader one keeps each of its actions.
+        [FixedAssetsCreate] = LegacyFixedAssetsManage,
+        [FixedAssetsEdit] = LegacyFixedAssetsManage,
+        [FixedAssetCategoriesCreate] = LegacyFixedAssetsManage,
+        [FixedAssetCategoriesEdit] = LegacyFixedAssetsManage,
+        [FixedAssetCategoriesDelete] = LegacyFixedAssetsManage,
+        [FixedAssetsDeleteDepreciation] = FixedAssetsDepreciate,
+        [FixedAssetsWriteOff] = FixedAssetsDispose,
+        [FixedAssetsUndoDispose] = FixedAssetsDispose,
+        [MaterialCustodyCreate] = LegacyMaterialCustodyManage,
+        [MaterialCustodyEdit] = LegacyMaterialCustodyManage,
+        [MaterialCustodyReturn] = LegacyMaterialCustodyManage,
+        [MaterialCustodyDamage] = LegacyMaterialCustodyManage,
+        [MaterialCustodyTransfer] = LegacyMaterialCustodyManage,
+        [MaterialCustodyAttachments] = LegacyMaterialCustodyManage,
+        [FinancialCustodyEdit] = FinancialCustodyCreate,
+        [FinancialCustodyDisburse] = FinancialCustodyCreate,
+        [FinancialCustodyReceiveCash] = FinancialCustodySettle,
+        [FinancialCustodyClose] = FinancialCustodySettle,
+        [FinancialCustodyDeleteMovement] = FinancialCustodyDelete,
     };
 
     /// <summary>Permissions granted to a TenantAdmin: everything except cross-tenant management.</summary>

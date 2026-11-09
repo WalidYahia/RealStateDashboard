@@ -40,6 +40,11 @@ public static class ActivityActionType
         if (a.Contains("delete") || a is "cancelpayment" or "cancelcollection") return Delete;
         if (a.Contains("create") || a is "pay" or "collect" or "refund") return Create;
         if (a is "cancelcontract" or "uncancelcontract") return Update;   // فسخ التعاقد / إلغاء الفسخ — the contract stays on file
+        // New records: a custody transferred to another employee, a cash movement / settlement on a financial custody.
+        if (a is "transfer" or "cash" or "settle") return Create;
+        // State changes of a record that stays on file: posting a document / an asset's acquisition, selling / writing off
+        // an asset (and undoing it), receiving back / cancelling a custody, closing / reopening a financial custody.
+        if (a is "post" or "dispose" or "undodispose" or "return" or "cancel" or "close" or "reopen") return Update;
         if (a.Contains("edit") || a.Contains("update") || a.Contains("toggle")
             || a.Contains("reset") || a.Contains("branding") || a.Contains("upload")
             || a.Contains("selecttenant") || a.Contains("form")) return Update;
