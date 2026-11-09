@@ -90,6 +90,8 @@ public static class PermissionNames
     public const string CustomersCreate = "Customers.Create";
     public const string CustomersEdit = "Customers.Edit";
     public const string CustomersDelete = "Customers.Delete";
+    public const string CustomersAdjustBalance = "Customers.AdjustBalance";         // تسوية رصيد (up / down, non-cash)
+    public const string CustomersDeleteAdjustment = "Customers.DeleteAdjustment";
 
     // ----- CRM: salespersons -----
     public const string SalespersonsView = "Salespersons.View";
@@ -115,6 +117,8 @@ public static class PermissionNames
     public const string SuppliersEdit = "Suppliers.Edit";
     public const string SuppliersDelete = "Suppliers.Delete";
     public const string SuppliersPay = "Suppliers.Pay";
+    public const string SuppliersAdjustBalance = "Suppliers.AdjustBalance";         // تسوية رصيد (up / down, non-cash)
+    public const string SuppliersDeleteAdjustment = "Suppliers.DeleteAdjustment";
 
     // ----- Purchasing: purchase invoices (فواتير المشتريات) ----- (paying an invoice uses Suppliers.Pay)
     public const string PurchaseInvoicesView = "PurchaseInvoices.View";
@@ -230,7 +234,8 @@ public static class PermissionNames
     private const string GSuppliers = "المشتريات";
     private const string GContracting = "المقاولات";
     private const string GAccounting = "المحاسبة";
-    private const string GCustody = "العُهد";
+    private const string GMaterialCustody = "العُهد العينية";
+    private const string GFinancialCustody = "العُهد المالية";
     private const string GFixedAssets = "الأصول الثابتة";
     private const string GInventory = "المخزون";
     private const string GReports = "التقارير";
@@ -299,6 +304,8 @@ public static class PermissionNames
         new PermissionInfo(CustomersCreate, "إضافة عميل",               GCustomers),
         new PermissionInfo(CustomersEdit,   "تعديل العملاء",            GCustomers),
         new PermissionInfo(CustomersDelete, "حذف العملاء",              GCustomers),
+        new PermissionInfo(CustomersAdjustBalance, "تسوية رصيد العميل (زيادة / تخفيض)", GCustomers),
+        new PermissionInfo(CustomersDeleteAdjustment, "حذف تسوية رصيد العميل", GCustomers),
 
         new PermissionInfo(SalespersonsView,   "عرض المندوبين", GSalespersons),
         new PermissionInfo(SalespersonsCreate, "إضافة مندوب",   GSalespersons),
@@ -317,6 +324,8 @@ public static class PermissionNames
         new PermissionInfo(SuppliersEdit,   "تعديل الموردين وأوامر التوريد",           GSuppliers),
         new PermissionInfo(SuppliersDelete, "حذف الموردين وأوامر التوريد",             GSuppliers),
         new PermissionInfo(SuppliersPay,    "سداد دفعات للموردين",                     GSuppliers),
+        new PermissionInfo(SuppliersAdjustBalance, "تسوية رصيد المورد (زيادة / تخفيض)", GSuppliers),
+        new PermissionInfo(SuppliersDeleteAdjustment, "حذف تسوية رصيد المورد", GSuppliers),
         new PermissionInfo(PurchaseInvoicesView,   "عرض فواتير المشتريات",  GSuppliers),
         new PermissionInfo(PurchaseInvoicesCreate, "إضافة فاتورة مشتريات",  GSuppliers),
         new PermissionInfo(PurchaseInvoicesEdit,   "تعديل فواتير المشتريات", GSuppliers),
@@ -352,23 +361,23 @@ public static class PermissionNames
         new PermissionInfo(FixedAssetCategoriesEdit, "تعديل فئات الأصول", GFixedAssets),
         new PermissionInfo(FixedAssetCategoriesDelete, "حذف فئات الأصول", GFixedAssets),
 
-        new PermissionInfo(MaterialCustodyView,   "عرض العُهد العينية", GCustody),
-        new PermissionInfo(MaterialCustodyCreate, "تسليم عهدة عينية جديدة", GCustody),
-        new PermissionInfo(MaterialCustodyEdit,   "تعديل بيانات العهدة العينية", GCustody),
-        new PermissionInfo(MaterialCustodyReturn, "استلام العهدة العينية سليمة (وتصحيح الاستلام)", GCustody),
-        new PermissionInfo(MaterialCustodyDamage, "تسجيل العهدة العينية تالفة أو مفقودة", GCustody),
-        new PermissionInfo(MaterialCustodyTransfer, "تحويل العهدة العينية لموظف آخر", GCustody),
-        new PermissionInfo(MaterialCustodyAttachments, "إضافة وحذف مرفقات العهدة العينية", GCustody),
-        new PermissionInfo(MaterialCustodyDelete, "إلغاء العهدة العينية المسجَّلة بالخطأ", GCustody),
-        new PermissionInfo(FinancialCustodyView,   "عرض العُهد المالية وكشوفها", GCustody),
-        new PermissionInfo(FinancialCustodyCreate, "فتح عهدة مالية وصرف مبلغها من خزنة", GCustody),
-        new PermissionInfo(FinancialCustodyEdit,   "تعديل بيانات العهدة المالية", GCustody),
-        new PermissionInfo(FinancialCustodyDisburse, "صرف مبلغ إضافي على العهدة المالية", GCustody),
-        new PermissionInfo(FinancialCustodySettle, "تسوية مصروفات العهدة المالية (اعتمادها)", GCustody),
-        new PermissionInfo(FinancialCustodyReceiveCash, "استلام النقدية المردودة من العهدة المالية", GCustody),
-        new PermissionInfo(FinancialCustodyClose, "إقفال العهدة المالية وإعادة فتحها", GCustody),
-        new PermissionInfo(FinancialCustodyDelete, "حذف العهدة المالية (بعكس كل حركاتها)", GCustody),
-        new PermissionInfo(FinancialCustodyDeleteMovement, "حذف حركة على العهدة المالية", GCustody),
+        new PermissionInfo(MaterialCustodyView,   "عرض العُهد العينية", GMaterialCustody),
+        new PermissionInfo(MaterialCustodyCreate, "تسليم عهدة عينية جديدة", GMaterialCustody),
+        new PermissionInfo(MaterialCustodyEdit,   "تعديل بيانات العهدة العينية", GMaterialCustody),
+        new PermissionInfo(MaterialCustodyReturn, "استلام العهدة العينية سليمة (وتصحيح الاستلام)", GMaterialCustody),
+        new PermissionInfo(MaterialCustodyDamage, "تسجيل العهدة العينية تالفة أو مفقودة", GMaterialCustody),
+        new PermissionInfo(MaterialCustodyTransfer, "تحويل العهدة العينية لموظف آخر", GMaterialCustody),
+        new PermissionInfo(MaterialCustodyAttachments, "إضافة وحذف مرفقات العهدة العينية", GMaterialCustody),
+        new PermissionInfo(MaterialCustodyDelete, "إلغاء العهدة العينية المسجَّلة بالخطأ", GMaterialCustody),
+        new PermissionInfo(FinancialCustodyView,   "عرض العُهد المالية وكشوفها", GFinancialCustody),
+        new PermissionInfo(FinancialCustodyCreate, "فتح عهدة مالية وصرف مبلغها من خزنة", GFinancialCustody),
+        new PermissionInfo(FinancialCustodyEdit,   "تعديل بيانات العهدة المالية", GFinancialCustody),
+        new PermissionInfo(FinancialCustodyDisburse, "صرف مبلغ إضافي على العهدة المالية", GFinancialCustody),
+        new PermissionInfo(FinancialCustodySettle, "تسوية مصروفات العهدة المالية (اعتمادها)", GFinancialCustody),
+        new PermissionInfo(FinancialCustodyReceiveCash, "استلام النقدية المردودة من العهدة المالية", GFinancialCustody),
+        new PermissionInfo(FinancialCustodyClose, "إقفال العهدة المالية وإعادة فتحها", GFinancialCustody),
+        new PermissionInfo(FinancialCustodyDelete, "حذف العهدة المالية (بعكس كل حركاتها)", GFinancialCustody),
+        new PermissionInfo(FinancialCustodyDeleteMovement, "حذف حركة على العهدة المالية", GFinancialCustody),
 
         new PermissionInfo(InventoryView,      "عرض المخزون", GInventory),
         new PermissionInfo(InventoryManage,    "إدارة الأصناف والتصنيفات ووحدات القياس والمخازن والإعدادات", GInventory),
@@ -462,6 +471,11 @@ public static class PermissionNames
         [FinancialCustodyReceiveCash] = FinancialCustodySettle,
         [FinancialCustodyClose] = FinancialCustodySettle,
         [FinancialCustodyDeleteMovement] = FinancialCustodyDelete,
+        // Balance adjustments (تسوية رصيد): whoever could edit the party gets them, so existing admins aren't locked out.
+        [CustomersAdjustBalance] = CustomersEdit,
+        [CustomersDeleteAdjustment] = CustomersEdit,
+        [SuppliersAdjustBalance] = SuppliersEdit,
+        [SuppliersDeleteAdjustment] = SuppliersEdit,
     };
 
     /// <summary>Permissions granted to a TenantAdmin: everything except cross-tenant management.</summary>

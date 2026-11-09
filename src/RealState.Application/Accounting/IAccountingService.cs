@@ -24,6 +24,8 @@ public static class AccountingSources
     public const string SaleContractCancel = "SaleContractCancel";
     /// <summary>An account's opening balance (SourceId = the account) — safes use "SafeOpening".</summary>
     public const string OpeningBalance = "OpeningBalance";
+    /// <summary>A customer / supplier balance adjustment (تسوية رصيد) — SourceId = the adjustment.</summary>
+    public const string BalanceAdjustment = "BalanceAdjustment";
 }
 
 public interface IAccountingService
@@ -92,6 +94,13 @@ public interface IAccountingService
 
     /// <summary>Sales return → Dr مردودات المبيعات / Cr العملاء (a credit on the customer's receivable). The stock side
     /// (Dr المخزون / Cr تكلفة المبيعات) is posted by the return's automatic goods receipt. Re-posts (removes old first).</summary>
+    /// <summary>
+    /// Posts (re-posts) a balance adjustment: customer up — Dr العملاء / Cr counter; customer down — Dr counter / Cr العملاء;
+    /// supplier up — Dr counter / Cr الموردون; supplier down — Dr الموردون / Cr counter. The counter is the picked account,
+    /// else «تسويات أرصدة دائنة» (4930) / «تسويات أرصدة مدينة» (5930) for the direction.
+    /// </summary>
+    Task SyncBalanceAdjustmentAsync(BalanceAdjustment adjustment, CancellationToken ct = default);
+
     Task SyncSalesReturnAsync(ProductSalesReturn ret, int invoiceNumber, IReadOnlyList<ProductSalesReturnItem> items, CancellationToken ct = default);
 
     /// <summary>Purchase return → Dr الموردون / Cr بضاعة واردة لم تُفوتر (by <paramref name="stockIssueCost"/>, what the

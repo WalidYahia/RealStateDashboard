@@ -391,6 +391,35 @@ public class AccountingService : IAccountingService
         }, ct);
     }
 
+    public async Task SyncBalanceAdjustmentAsync(BalanceAdjustment a, CancellationToken ct = default)
+    {
+        await _engine.RemoveBySourceAsync(AccountingSources.BalanceAdjustment, a.Id, ct);
+        if (a.Amount <= 0) return;
+        var isCustomer = a.CustomerId is not null;
+        // Its effect on the party's account in that account's terms: a customer's balance is a debit, a supplier's a credit.
+        var partyDebit = isCustomer ? a.Increase : !a.Increase;
+        var counterCode = a.CounterAccountId is Guid cid
+            ? await _db.Accounts.Where(x => x.Id == cid).Select(x => x.Code).FirstOrDefaultAsync(ct)
+            : null;
+        counterCode ??= partyDebit ? LedgerAccounts.AdjustmentsRevenue : LedgerAccounts.AdjustmentsExpense;
+        var desc = $"تسوية رصيد ADJ-{a.Number}" + (string.IsNullOrWhiteSpace(a.Reason) ? "" : $" — {a.Reason}");
+        LedgerLine party;
+        if (isCustomer)
+        {
+            var name = await _db.Customers.IgnoreQueryFilters().Where(c => c.Id == a.CustomerId).Select(c => c.FullName).FirstOrDefaultAsync(ct);
+            party = new LedgerLine(LedgerAccounts.AccountsReceivable, partyDebit ? a.Amount : 0, partyDebit ? 0 : a.Amount, desc,
+                SubKind: "Customer", SubRefId: a.CustomerId, SubName: name, CustomerId: a.CustomerId);
+        }
+        else
+        {
+            var name = await _db.Suppliers.IgnoreQueryFilters().Where(s => s.Id == a.SupplierId).Select(s => s.Name).FirstOrDefaultAsync(ct);
+            party = new LedgerLine(LedgerAccounts.AccountsPayable, partyDebit ? a.Amount : 0, partyDebit ? 0 : a.Amount, desc,
+                SubKind: "Supplier", SubRefId: a.SupplierId, SubName: name, SupplierId: a.SupplierId);
+        }
+        var counter = new LedgerLine(counterCode, partyDebit ? 0 : a.Amount, partyDebit ? a.Amount : 0, desc);
+        await _engine.PostAsync(a.Date, desc, AccountingSources.BalanceAdjustment, a.Id, new[] { party, counter }, ct);
+    }
+
     public async Task SyncSalesReturnAsync(ProductSalesReturn ret, int invoiceNumber, IReadOnlyList<ProductSalesReturnItem> items, CancellationToken ct = default)
     {
         await _engine.RemoveBySourceAsync(AccountingSources.SalesReturn, ret.Id, ct);

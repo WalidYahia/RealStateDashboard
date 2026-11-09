@@ -214,6 +214,16 @@ internal static class CustomerLedger
                 Statement = (t.Type == TxnType.Income ? "تحصيل على الحساب" : "صرف للعميل على الحساب") + (string.IsNullOrWhiteSpace(t.Description) ? "" : $" — {t.Description}"),
                 Amount = t.Amount
             });
+
+        // Balance adjustments (تسوية رصيد): up (+) / down (−), with their reason.
+        var adjustments = await db.BalanceAdjustments.Where(a => a.CustomerId != null && (only == null || a.CustomerId == only)).ToListAsync(ct);
+        foreach (var a in adjustments)
+            Add(a.CustomerId!.Value, new CustomerLedgerRow
+            {
+                Kind = a.Increase ? CustomerLedgerKind.AdjustmentUp : CustomerLedgerKind.AdjustmentDown, Id = a.Id,
+                Source = $"تسوية رصيد ADJ-{a.Number}", Date = a.Date, Amount = a.Amount,
+                Statement = (a.Increase ? "زيادة الرصيد المستحق على العميل" : "تخفيض الرصيد المستحق على العميل") + (string.IsNullOrWhiteSpace(a.Reason) ? "" : $" — {a.Reason}")
+            });
         return byCustomer;
     }
 }

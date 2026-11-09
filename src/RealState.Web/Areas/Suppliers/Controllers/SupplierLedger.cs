@@ -142,10 +142,13 @@ internal static class SupplierLedger
                 .Where(t => t.Source == TxnSource.SupplierAccount && t.SupplierId != null && (only == null || t.SupplierId == only)).ToListAsync(ct))
             .GroupBy(t => t.SupplierId!.Value).ToDictionary(g => g.Key, g => g.ToList());
         var paymentsBySupplier = payments.GroupBy(p => p.SupplierId).ToDictionary(g => g.Key, g => g.ToList());
+        // Balance adjustments (تسوية رصيد): up (+ owed to the supplier) / down (−).
+        var adjustments = (await db.BalanceAdjustments.Where(a => a.SupplierId != null && (only == null || a.SupplierId == only)).ToListAsync(ct))
+            .GroupBy(a => a.SupplierId!.Value).ToDictionary(g => g.Key, g => g.ToList());
         var retsBySupplier = rets.GroupBy(r => r.SupplierId).ToDictionary(g => g.Key, g => g.ToList());
 
         var supplierIds = obligations.Keys.Concat(paymentsBySupplier.Keys).Concat(retsBySupplier.Keys)
-            .Concat(openings.Keys).Concat(accountVouchers.Keys).Distinct();
+            .Concat(openings.Keys).Concat(accountVouchers.Keys).Concat(adjustments.Keys).Distinct();
         var result = new Dictionary<Guid, SupplierLedgerData>();
         foreach (var supplierId in supplierIds)
         {
@@ -154,6 +157,7 @@ internal static class SupplierLedger
             var supRets = retsBySupplier.GetValueOrDefault(supplierId) ?? new();
             var opening = openings.GetValueOrDefault(supplierId);
             var vouchers = accountVouchers.GetValueOrDefault(supplierId) ?? new();
+            var adjs = adjustments.GetValueOrDefault(supplierId) ?? new();
 
             // Build one ledger row per obligation (+) and per payment (settlement, −).
             var rows = obl.Select(o => new SupplierLedgerRow
@@ -199,9 +203,18 @@ internal static class SupplierLedger
                             + (string.IsNullOrWhiteSpace(t.Description) ? "" : $" — {t.Description}")
             }));
 
+            rows.AddRange(adjs.Select(a => new SupplierLedgerRow
+            {
+                Kind = a.Increase ? SupplierLedgerKind.AdjustmentUp : SupplierLedgerKind.AdjustmentDown, Id = a.Id,
+                Source = $"تسوية رصيد ADJ-{a.Number}", Date = a.Date, Amount = a.Amount,
+                Statement = (a.Increase ? "زيادة المستحق للمورد" : "تخفيض المستحق للمورد") + (string.IsNullOrWhiteSpace(a.Reason) ? "" : $" — {a.Reason}")
+            }));
+
             result[supplierId] = new SupplierLedgerData(rows,
                 // Net of purchase returns, and of the cash the supplier refunded through them.
-                TotalObligations: obl.Sum(o => o.Total - o.Returned) + (opening is { IsDebit: false } ? opening.Amount : 0m),
+                // …and of balance adjustments (they change what's owed, not what's paid).
+                TotalObligations: obl.Sum(o => o.Total - o.Returned) + (opening is { IsDebit: false } ? opening.Amount : 0m)
+                                  + adjs.Where(a => a.Increase).Sum(a => a.Amount) - adjs.Where(a => !a.Increase).Sum(a => a.Amount),
                 TotalPaid: pays.Sum(p => p.Amount) - supRets.Sum(r => r.RefundAmount) + (opening is { IsDebit: true } ? opening.Amount : 0m)
                            + vouchers.Where(t => t.Type == TxnType.Expense).Sum(t => t.Amount) - vouchers.Where(t => t.Type == TxnType.Income).Sum(t => t.Amount),
                 InvoicesCount: obl.Count,

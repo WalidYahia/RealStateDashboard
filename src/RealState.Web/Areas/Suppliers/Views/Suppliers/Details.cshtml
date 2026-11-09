@@ -6,6 +6,8 @@
     string D(DateTime d) => RealState.Web.AppCulture.When(d);   // date + time when it has one
     string? F(DateTime? d) => d?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
     var detailed = ViewData["Detailed"] as bool? ?? false;
+    var canDeleteAdjustment = User.Can(PermissionNames.SuppliersDeleteAdjustment);
+    var back = Context.Request.Path + Context.Request.QueryString;
 }
 <div class="page-head">
     <div>
@@ -21,7 +23,11 @@
         @* Payments are on the account (سند صرف) — not on a particular invoice. *@
         @if (canPay)
         {
-            <button type="button" class="btn-new-tenant" onclick="appOpenModal('@Url.Action("PayForm", new { id = Model.Supplier.Id })', 'سداد دفعة للمورد')">💵 سداد دفعة</button>
+            <button type="button" class="btn-new-tenant" onclick="appOpenModal('@Url.Action("PayForm", new { id = Model.Supplier.Id })', 'سداد دفعة للمورد')">💵 سداد</button>
+        }
+        @if (User.Can(PermissionNames.SuppliersAdjustBalance))
+        {
+            <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("Form", "BalanceAdjustments", new { area = "Accounting", party = "supplier", id = Model.Supplier.Id })', 'تسوية رصيد المورد')">⚖️ تسوية رصيد</button>
         }
         @if (User.Can(PermissionNames.SuppliersEdit))
         {
@@ -103,6 +109,11 @@
                     {
                         <a class="btn-sm" asp-action="VoucherReceipt" asp-route-id="@r.Id" target="_blank" style="margin-inline-start:8px;">🖨 طباعة</a>
                     }
+                    else if (r.Kind is SupplierLedgerKind.AdjustmentUp or SupplierLedgerKind.AdjustmentDown && canDeleteAdjustment)
+                    {
+                        <form asp-area="Accounting" asp-controller="BalanceAdjustments" asp-action="Delete" asp-route-id="@r.Id" asp-route-returnUrl="@back" method="post" style="display:inline;margin-inline-start:8px;"
+                              data-confirm="حذف @r.Source وعكس قيدها؟" data-danger>@Html.AntiForgeryToken()<button type="submit" class="btn-sm btn-danger">🗑</button></form>
+                    }
                     else if (r.Kind == SupplierLedgerKind.Refund && User.Can(PermissionNames.PurchaseReturnsView))
                     {
                         <a class="btn-sm" asp-controller="PurchaseReturns" asp-action="RefundVoucher" asp-route-id="@r.Id" target="_blank" style="margin-inline-start:8px;">🖨 طباعة</a>
@@ -134,4 +145,5 @@
 
 @section Scripts {
     <script src="~/js/statement-items.js" asp-append-version="true"></script>
+    <script src="~/js/balance-adjust.js" asp-append-version="true"></script>
 }

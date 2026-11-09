@@ -6,8 +6,9 @@ namespace RealState.Web.Areas.CRM.Models;
 /// <remarks>ContractCancel reverses a cancelled contract (−); CancelFee is the fee kept from its refund (+); paying the refund
 /// back is a <see cref="Refund"/> row. PeriodOpening is «الرصيد الافتتاحي للفترة» — the balance carried in from before a
 /// filtered period (first row only). SupplierSide is a movement on the linked supplier account of a «عميل ومورد» party
-/// (see <see cref="CustomerLedgerRow.SupplierRow"/>).</remarks>
-public enum CustomerLedgerKind { Contract, Invoice, InstallmentCollection, InvoiceCollection, Return, Refund, AccountReceipt, AccountPayment, OpeningDebit, OpeningCredit, ContractCancel, CancelFee, PeriodOpening, SupplierSide }
+/// (see <see cref="CustomerLedgerRow.SupplierRow"/>). AdjustmentUp / AdjustmentDown: a balance adjustment (تسوية رصيد) that
+/// raises (+) / lowers (−) what the customer owes.</remarks>
+public enum CustomerLedgerKind { Contract, Invoice, InstallmentCollection, InvoiceCollection, Return, Refund, AccountReceipt, AccountPayment, OpeningDebit, OpeningCredit, ContractCancel, CancelFee, PeriodOpening, SupplierSide, AdjustmentUp, AdjustmentDown }
 
 /// <summary>One row of the running-balance customer ledger («كشف حساب» — same layout as the supplier's).</summary>
 public class CustomerLedgerRow
@@ -35,7 +36,7 @@ public class CustomerLedgerRow
     /// <summary>Lowers what the customer owes (shown as −): collections (incl. on-account receipts) and returns.</summary>
     public bool Decreases => SupplierRow is { } s ? !s.Decreases
         : Kind is CustomerLedgerKind.InstallmentCollection or CustomerLedgerKind.InvoiceCollection or CustomerLedgerKind.Return or CustomerLedgerKind.ContractCancel
-            or CustomerLedgerKind.AccountReceipt or CustomerLedgerKind.OpeningCredit;
+            or CustomerLedgerKind.AccountReceipt or CustomerLedgerKind.OpeningCredit or CustomerLedgerKind.AdjustmentDown;
     /// <summary>The row's voucher is a سند صرف (printed from المصروفات) rather than a سند قبض.</summary>
     public bool VoucherIsExpense => Kind is CustomerLedgerKind.Refund or CustomerLedgerKind.AccountPayment;
     /// <summary>Same-day order: what's owed first, then collections, returns, refunds.</summary>
@@ -44,6 +45,7 @@ public class CustomerLedgerRow
         CustomerLedgerKind.OpeningDebit or CustomerLedgerKind.OpeningCredit => -1,   // the opening balance comes first
         CustomerLedgerKind.InstallmentCollection or CustomerLedgerKind.InvoiceCollection or CustomerLedgerKind.AccountReceipt => 1,
         CustomerLedgerKind.AccountPayment => 3,
+        CustomerLedgerKind.AdjustmentUp or CustomerLedgerKind.AdjustmentDown => 4,   // after the day's other movements
         CustomerLedgerKind.Return or CustomerLedgerKind.ContractCancel or CustomerLedgerKind.CancelFee => 2,
         CustomerLedgerKind.Refund => 3,
         _ => 0

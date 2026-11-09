@@ -221,6 +221,7 @@ public class TenantsController : Controller
             // --- Cash (transfers -> movements; before Safe / Project) ---
             await _db.SafeTransfers.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
             await _db.SafeTransactions.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
+            await _db.BalanceAdjustments.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
             // --- Returns (items -> returns; before their invoices) ---
             await _db.ProductSalesReturnItems.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);
             await _db.ProductSalesReturns.IgnoreQueryFilters().Where(x => x.TenantId == id).ExecuteDeleteAsync(ct);

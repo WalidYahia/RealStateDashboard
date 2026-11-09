@@ -106,6 +106,7 @@ public static class ActivityActionType
         "FixedAssetCategories" => "فئة أصول ثابتة",
         "FixedAssetDepreciation" => "إهلاك الأصول",
         "FinancialCustody" => "عهدة مالية",
+        "BalanceAdjustments" => "تسوية رصيد",
         "PurchaseReturns" => "مرتجع مشتريات",
         "WorkOrders" => "أمر شغل",
         "Contractors" => "مقاول",

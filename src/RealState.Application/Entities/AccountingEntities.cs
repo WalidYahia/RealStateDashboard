@@ -89,3 +89,26 @@ public class SafeTransaction : AuditableEntity, ITenantEntity
     /// <summary>The cancelled sale contract a <see cref="TxnSource.ContractCancelRefund"/> voucher refunds.</summary>
     public Guid? SaleContractId { get; set; }
 }
+
+/// <summary>
+/// تسوية رصيد — a non-cash adjustment of one customer's or one supplier's account balance, up or down (a settlement
+/// discount, a written-off remainder, a correction…), with its reason. Exactly one of <see cref="CustomerId"/> /
+/// <see cref="SupplierId"/> is set. It posts one journal entry against <see cref="CounterAccountId"/> (default: «تسويات
+/// أرصدة دائنة» when it raises a customer's / lowers a supplier's balance, «تسويات أرصدة مدينة» the other way). Numbered
+/// ADJ-{year}{4-digit seq}.
+/// </summary>
+public class BalanceAdjustment : AuditableEntity, ITenantEntity
+{
+    public Guid TenantId { get; set; }
+    public int Number { get; set; }
+    public Guid? CustomerId { get; set; }
+    public Guid? SupplierId { get; set; }
+    /// <summary>Date + time entered by the user; the journal entry takes it.</summary>
+    public DateTime Date { get; set; }
+    /// <summary>True: the balance goes up (the customer owes more / more is owed to the supplier); false: it goes down.</summary>
+    public bool Increase { get; set; }
+    public decimal Amount { get; set; }
+    public string Reason { get; set; } = string.Empty;
+    /// <summary>The other side of the entry (a revenue / expense account); null = the default for the direction.</summary>
+    public Guid? CounterAccountId { get; set; }
+}

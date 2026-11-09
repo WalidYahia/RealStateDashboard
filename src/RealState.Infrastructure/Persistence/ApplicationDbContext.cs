@@ -89,6 +89,7 @@ public class ApplicationDbContext
     public DbSet<Installment> Installments => Set<Installment>();
     public DbSet<Safe> Safes => Set<Safe>();
     public DbSet<SafeTransaction> SafeTransactions => Set<SafeTransaction>();
+    public DbSet<BalanceAdjustment> BalanceAdjustments => Set<BalanceAdjustment>();
     public DbSet<SafeTransfer> SafeTransfers => Set<SafeTransfer>();
     public DbSet<Supplier> Suppliers => Set<Supplier>();
     public DbSet<SupplierOrder> SupplierOrders => Set<SupplierOrder>();
@@ -404,6 +405,9 @@ public class ApplicationDbContext
         builder.Entity<FixedAsset>().HasOne(a => a.Category).WithMany().HasForeignKey(a => a.CategoryId).OnDelete(DeleteBehavior.Restrict);
         builder.Entity<FixedAssetDepreciation>().HasOne(d => d.Asset).WithMany().HasForeignKey(d => d.FixedAssetId).OnDelete(DeleteBehavior.Restrict);
         builder.Entity<FixedAssetDepreciation>().HasIndex(d => new { d.FixedAssetId, d.Date });
+        builder.Entity<BalanceAdjustment>().HasIndex(a => new { a.TenantId, a.Number });
+        builder.Entity<BalanceAdjustment>().HasIndex(a => a.CustomerId);
+        builder.Entity<BalanceAdjustment>().HasIndex(a => a.SupplierId);
         builder.Entity<MaterialCustodyAttachment>().HasOne(a => a.Custody).WithMany(c => c.Attachments).HasForeignKey(a => a.MaterialCustodyId).OnDelete(DeleteBehavior.Cascade);
         builder.Entity<FinancialCustody>().HasOne(c => c.Employee).WithMany().HasForeignKey(c => c.EmployeeId).OnDelete(DeleteBehavior.Restrict);
         builder.Entity<FinancialCustody>().HasIndex(c => new { c.TenantId, c.Number });

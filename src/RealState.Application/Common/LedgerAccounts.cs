@@ -44,6 +44,7 @@ public static class LedgerAccounts
     public const string InventoryCostGain = "4950";    // أرباح تسوية تكلفة المخزون — cost updates that raise stock value
     public const string InventoryCostLoss = "5950";    // خسائر تسوية تكلفة المخزون — cost updates that lower stock value
     public const string OtherRevenue = "4900";
+    public const string AdjustmentsRevenue = "4930";   // تسويات أرصدة دائنة — a customer balance raised / a supplier balance lowered
     public const string ContractCancellationFees = "4910";   // إيرادات رسوم فسخ التعاقد — the fee kept when a sale contract is cancelled
     public const string CostOfSales = "5100";
     public const string ProjectCosts = "5200";
@@ -51,6 +52,7 @@ public static class LedgerAccounts
     public const string ContractingCosts = "5400";
     public const string SalariesAndRewards = "5500";
     public const string GeneralExpenses = "5900";
+    public const string AdjustmentsExpense = "5930";   // تسويات أرصدة مدينة — a customer balance lowered / a supplier balance raised
 
     /// <summary>Control accounts whose children are per-entity subsidiaries — added only from their own
     /// pages (customers / suppliers / contractors / safes / employees / fixed-asset categories), never hand-added in the chart.</summary>
@@ -90,6 +92,7 @@ public static class LedgerAccounts
         new(InventoryCostGain, "أرباح تسوية تكلفة المخزون", AccountType.Revenue, "4000", true),
         new(AssetDisposalGain, "أرباح استبعاد الأصول", AccountType.Revenue, "4000", true),
         new(OtherRevenue, "إيرادات أخرى", AccountType.Revenue, "4000", true),
+        new(AdjustmentsRevenue, "تسويات أرصدة دائنة", AccountType.Revenue, "4000", true),
         new(ContractCancellationFees, "إيرادات رسوم فسخ التعاقد", AccountType.Revenue, "4000", true),
 
         // Expenses
@@ -104,5 +107,6 @@ public static class LedgerAccounts
         new(AssetDisposalLoss, "خسائر استبعاد الأصول", AccountType.Expense, "5000", true),
         new(InventoryCostLoss, "خسائر تسوية تكلفة المخزون", AccountType.Expense, "5000", true),
         new(GeneralExpenses, "مصروفات عامة", AccountType.Expense, "5000", true),
+        new(AdjustmentsExpense, "تسويات أرصدة مدينة", AccountType.Expense, "5000", true),
     };
 }

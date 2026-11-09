@@ -261,8 +261,9 @@ public class CustomersController : Controller
         return new CustomerLedgerVm
         {
             Customer = customer, From = from, To = to,
-            TotalObligations = ordered.Where(r => r.Kind is CustomerLedgerKind.Contract or CustomerLedgerKind.Invoice or CustomerLedgerKind.OpeningDebit or CustomerLedgerKind.CancelFee).Sum(r => r.Amount)
-                               - ordered.Where(r => r.Kind is CustomerLedgerKind.Return or CustomerLedgerKind.ContractCancel).Sum(r => r.Amount),
+            // Adjustments change what's owed (not what's collected).
+            TotalObligations = ordered.Where(r => r.Kind is CustomerLedgerKind.Contract or CustomerLedgerKind.Invoice or CustomerLedgerKind.OpeningDebit or CustomerLedgerKind.CancelFee or CustomerLedgerKind.AdjustmentUp).Sum(r => r.Amount)
+                               - ordered.Where(r => r.Kind is CustomerLedgerKind.Return or CustomerLedgerKind.ContractCancel or CustomerLedgerKind.AdjustmentDown).Sum(r => r.Amount),
             TotalPaid = ordered.Where(r => r.Kind is CustomerLedgerKind.InstallmentCollection or CustomerLedgerKind.InvoiceCollection or CustomerLedgerKind.AccountReceipt or CustomerLedgerKind.OpeningCredit).Sum(r => r.Amount)
                         - ordered.Where(r => r.Kind is CustomerLedgerKind.Refund or CustomerLedgerKind.AccountPayment).Sum(r => r.Amount),
             // Contracts still in force (each cancelled one also has a ContractCancel row) + sales invoices.
@@ -504,6 +505,7 @@ public class CustomersController : Controller
         // …and so does one with real-estate sale contracts (receivable, installments, collections).
         var hasInvoices = await _db.ProductSalesInvoices.AnyAsync(i => i.CustomerId == id, ct)
                           || await _db.SafeTransactions.AnyAsync(t => t.Source == TxnSource.CustomerAccount && t.CustomerId == id, ct)
+                          || await _db.BalanceAdjustments.AnyAsync(a => a.CustomerId == id, ct)
                           || await _db.AccountOpeningBalances.AnyAsync(b => b.Account!.SubKind == "Customer" && b.Account.SubRefId == id, ct);
         if (hasInvoices || await _db.SaleContracts.AnyAsync(s => s.CustomerId == id, ct))
         {

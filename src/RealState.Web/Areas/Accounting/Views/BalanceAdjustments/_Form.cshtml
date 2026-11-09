@@ -1,0 +1,85 @@
+@model BalanceAdjustmentFormModel
+@*
+    تسوية رصيد (modal, from the customer / supplier statement). A «عميل ومورد» party gets one form for both accounts: it
+    picks the account (كعميل / كمورد) the adjustment goes on. wwwroot/js/balance-adjust.js (balanceAdjustInit) keeps the
+    direction labels, the default counter account and the balances after the adjustment in step with the choices.
+*@
+@{
+    var s = Model.IsSupplier;
+    var merged = Model.IsMerged;
+    var inv = System.Globalization.CultureInfo.InvariantCulture;
+    string N(decimal v) => v.ToString("N2", RealState.Web.AppCulture.Ar);
+    // The counter account (shown for information): «تسويات أرصدة دائنة» when the party's account is debited (customer up /
+    // supplier down), else «… مدينة».
+    const string AutoRevenue = "تسويات أرصدة دائنة (4930)";
+    const string AutoExpense = "تسويات أرصدة مدينة (5930)";
+    var auto = (s ? !Model.Increase : Model.Increase) ? AutoRevenue : AutoExpense;
+    // Customer: + = owed by them; supplier: + = owed to them; net (عميل ومورد): + = owed by them.
+    string CustomerSide(decimal v) => v == 0 ? "متوازن" : v > 0 ? "مستحق عليه" : "مستحق له";
+    string SupplierSide(decimal v) => v == 0 ? "متوازن" : v > 0 ? "مستحق له" : "مستحق عليه";
+    const string DownCustomer = "تخفيض المستحق على العميل", UpCustomer = "زيادة المستحق على العميل";
+    const string DownSupplier = "تخفيض المستحق للمورد", UpSupplier = "زيادة المستحق للمورد";
+}
+<form id="appModalForm" asp-area="Accounting" asp-controller="BalanceAdjustments" asp-action="Form" method="post"
+      data-modal-init="balanceAdjustInit" data-merged="@(merged ? "1" : "0")"
+      data-customer-balance="@((merged ? Model.CustomerBalance : s ? 0m : Model.Balance).ToString(inv))"
+      data-supplier-balance="@((merged ? Model.SupplierBalance : s ? Model.Balance : 0m).ToString(inv))"
+      data-auto-revenue="@AutoRevenue" data-auto-expense="@AutoExpense">
+    @Html.AntiForgeryToken()
+    @* The account is the page it was opened from: the customer statement → كعميل, the supplier page → كمورد. *@
+    <input type="hidden" asp-for="PartyId" />
+    <input type="hidden" asp-for="Party" />
+    @if (merged)
+    {
+        <input type="hidden" asp-for="LinkedSupplierId" />
+    }
+    <div asp-validation-summary="ModelOnly" class="validation-summary-errors"></div>
+
+    <div class="status-message" style="background:var(--surface-2);border-color:var(--border);color:var(--text-secondary);">
+        @if (merged)
+        {
+            <div><span class="badge-state state-warn">عميل ومورد</span> <strong>@Model.PartyName</strong> ·
+                صافي الرصيد: <strong>@N(Math.Abs(Model.NetBalance)) ج.م</strong> (@(Model.NetBalance == 0 ? "متوازن" : Model.NetBalance > 0 ? "مدين — مستحق عليه" : "دائن — مستحق له"))</div>
+            <div style="font-size:12.5px;">رصيده كعميل @N(Math.Abs(Model.CustomerBalance)) (@CustomerSide(Model.CustomerBalance)) · كمورد @N(Math.Abs(Model.SupplierBalance)) (@SupplierSide(Model.SupplierBalance))</div>
+        }
+        else
+        {
+            <div>@(s ? "المورد" : "العميل"): <strong>@Model.PartyName</strong> · الرصيد الحالي: <strong>@N(Math.Abs(Model.Balance)) ج.م</strong> (@(s ? SupplierSide(Model.Balance) : CustomerSide(Model.Balance)))</div>
+        }
+        <div style="font-size:12.5px;margin-top:4px;">تسوية غير نقدية — لا تمر بخزنة؛ تُقيَّد على الحساب المقابل وتظهر في كشف الحساب.</div>
+    </div>
+
+    <div class="form-grid">
+        <div class="full">
+            <label class="form-label">@Html.DisplayNameFor(m => m.Increase)</label>
+            <div class="sched-mode">
+                <label><input type="radio" name="Increase" value="false" checked="@(!Model.Increase)" data-adj-dir />
+                    <span data-adj-label data-customer="@DownCustomer" data-supplier="@DownSupplier">@(s ? DownSupplier : DownCustomer)</span></label>
+                <label><input type="radio" name="Increase" value="true" checked="@Model.Increase" data-adj-dir />
+                    <span data-adj-label data-customer="@UpCustomer" data-supplier="@UpSupplier">@(s ? UpSupplier : UpCustomer)</span></label>
+            </div>
+        </div>
+        <div>
+            <label asp-for="Amount" class="form-label"></label>
+            <input asp-for="Amount" class="form-control" type="number" step="any" min="0.01" inputmode="decimal" dir="ltr" data-adj-amount
+                   value="@(Model.Amount > 0 ? Model.Amount.ToString(inv) : "")" />
+            <span asp-validation-for="Amount" class="field-validation-error"></span>
+        </div>
+        <div>
+            <label asp-for="Date" class="form-label"></label>
+            <input asp-for="Date" class="form-control" type="datetime-local" dir="ltr" asp-format="{0:yyyy-MM-ddTHH:mm}"
+                   max="@(ClientTime.Today.ToString("yyyy-MM-dd", inv))T23:59" />
+            <span asp-validation-for="Date" class="field-validation-error"></span>
+        </div>
+        <div class="full">
+            <label asp-for="Reason" class="form-label"></label>
+            <input asp-for="Reason" class="form-control" placeholder="مثال: خصم تسوية نهائية / فرق تقريب / تصحيح رصيد" />
+            <span asp-validation-for="Reason" class="field-validation-error"></span>
+        </div>
+        <div class="full" style="color:var(--muted);font-size:12.5px;">
+            الحساب المقابل: <strong data-adj-counter>@auto</strong>
+        </div>
+    </div>
+    <div class="settle-total" data-adj-result style="margin-top:10px;"></div>
+    <button type="submit" class="btn-primary" style="margin-top:12px;">⚖️ تسجيل التسوية</button>
+</form>

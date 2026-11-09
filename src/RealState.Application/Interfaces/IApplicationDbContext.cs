@@ -71,6 +71,7 @@ public interface IApplicationDbContext
     DbSet<Installment> Installments { get; }
     DbSet<Safe> Safes { get; }
     DbSet<SafeTransaction> SafeTransactions { get; }
+    DbSet<BalanceAdjustment> BalanceAdjustments { get; }
     DbSet<SafeTransfer> SafeTransfers { get; }
     DbSet<Supplier> Suppliers { get; }
     DbSet<SupplierOrder> SupplierOrders { get; }

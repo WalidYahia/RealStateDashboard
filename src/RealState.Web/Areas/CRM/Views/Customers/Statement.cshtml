@@ -13,6 +13,10 @@
     var canExpenses = User.Can(PermissionNames.ExpensesView);
     const string LinkStyle = "color:var(--series-1);text-decoration:none;font-weight:600;";
     var detailed = ViewData["Detailed"] as bool? ?? false;
+    // تسوية رصيد: on the customer's account, and (عميل ومورد) on the linked supplier's.
+    var canDeleteAdjustment = User.Can(PermissionNames.CustomersDeleteAdjustment);
+    var canDeleteSupplierAdjustment = User.Can(PermissionNames.SuppliersDeleteAdjustment);
+    var back = Context.Request.Path + Context.Request.QueryString;
 }
 <div class="page-head">
     <div>
@@ -33,21 +37,26 @@
         {
             <a class="btn-sm" asp-area="Sales" asp-controller="SalesInvoices" asp-action="Index" asp-route-customerId="@c.Id">فواتير المبيعات</a>
         }
-        @* Payments are on the account (سند قبض) — not on a particular invoice. *@
+        @if (Model.LinkedSupplier is { } purchases && User.Can(PermissionNames.PurchaseInvoicesView))
+        {
+            <a class="btn-sm" asp-area="Suppliers" asp-controller="PurchaseInvoices" asp-action="Index" asp-route-supplierId="@purchases.Id">فواتير المشتريات</a>
+        }
+        @* Money on the account (not on a particular invoice): تحصيل (سند قبض), سداد (سند صرف — «عميل ومورد»), تسوية رصيد. *@
         @if (ViewData["CanCollect"] as bool? ?? false)
         {
-            <button type="button" class="btn-new-tenant" onclick="appOpenModal('@Url.Action("CollectForm", new { id = c.Id })', 'تحصيل دفعة من العميل')">💵 تحصيل دفعة</button>
+            <button type="button" class="btn-new-tenant" onclick="appOpenModal('@Url.Action("CollectForm", new { id = c.Id })', 'تحصيل دفعة من العميل')">💵 تحصيل</button>
+        }
+        @if (Model.LinkedSupplier is { } paid && User.Can(PermissionNames.SuppliersPay))
+        {
+            <button type="button" class="btn-new-tenant" onclick="appOpenModal('@Url.Action("PayForm", "Suppliers", new { area = "Suppliers", id = paid.Id })', 'سداد دفعة للمورد')">💵 سداد</button>
+        }
+        @* From the customer statement the customer account is adjusted («عميل ومورد»: the form shows the net too). *@
+        @if (User.Can(PermissionNames.CustomersAdjustBalance))
+        {
+            <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("Form", "BalanceAdjustments", new { area = "Accounting", party = "customer", id = c.Id })', 'تسوية رصيد')">⚖️ تسوية رصيد</button>
         }
         @if (Model.LinkedSupplier is { } sup)
         {
-            @if (User.Can(PermissionNames.PurchaseInvoicesView))
-            {
-                <a class="btn-sm" asp-area="Suppliers" asp-controller="PurchaseInvoices" asp-action="Index" asp-route-supplierId="@sup.Id">فواتير المشتريات</a>
-            }
-            @if (User.Can(PermissionNames.SuppliersPay))
-            {
-                <button type="button" class="btn-new-tenant" onclick="appOpenModal('@Url.Action("PayForm", "Suppliers", new { area = "Suppliers", id = sup.Id })', 'سداد دفعة للمورد')">💵 سداد دفعة للمورد</button>
-            }
             @if (User.Can(PermissionNames.SuppliersEdit))
             {
                 <button type="button" class="btn-sm" onclick="appOpenModal('@Url.Action("Form", "Suppliers", new { area = "Suppliers", id = sup.Id })', 'تعديل المورد')">✏️ بيانات المورد</button>
@@ -141,6 +150,11 @@ else
                         {
                             <a class="btn-sm" asp-area="Suppliers" asp-controller="Suppliers" asp-action="VoucherReceipt" asp-route-id="@sr.Id" target="_blank" style="margin-inline-start:8px;">🖨 طباعة</a>
                         }
+                        else if (sr.Kind is SupplierLedgerKind.AdjustmentUp or SupplierLedgerKind.AdjustmentDown && canDeleteSupplierAdjustment)
+                        {
+                            <form asp-area="Accounting" asp-controller="BalanceAdjustments" asp-action="Delete" asp-route-id="@sr.Id" asp-route-returnUrl="@back" method="post" style="display:inline;margin-inline-start:8px;"
+                                  data-confirm="حذف @r.Source وعكس قيدها؟" data-danger>@Html.AntiForgeryToken()<button type="submit" class="btn-sm btn-danger">🗑</button></form>
+                        }
                         else if (sr.Kind == SupplierLedgerKind.Refund && User.Can(PermissionNames.PurchaseReturnsView))
                         {
                             <a class="btn-sm" asp-area="Suppliers" asp-controller="PurchaseReturns" asp-action="RefundVoucher" asp-route-id="@sr.Id" target="_blank" style="margin-inline-start:8px;">🖨 طباعة</a>
@@ -182,7 +196,15 @@ else
                     {
                         <button type="button" class="stmt-items-btn" data-items-toggle aria-expanded="@(detailed ? "true" : "false")">الأصناف (@r.Items.Count)</button>
                     }
-                    @if (r.Kind is CustomerLedgerKind.AccountReceipt or CustomerLedgerKind.AccountPayment)
+                    @if (r.Kind is CustomerLedgerKind.AdjustmentUp or CustomerLedgerKind.AdjustmentDown)
+                    {
+                        if (canDeleteAdjustment)
+                        {
+                            <form asp-area="Accounting" asp-controller="BalanceAdjustments" asp-action="Delete" asp-route-id="@r.Id" asp-route-returnUrl="@back" method="post" style="display:inline;margin-inline-start:8px;"
+                                  data-confirm="حذف @r.Source وعكس قيدها؟" data-danger>@Html.AntiForgeryToken()<button type="submit" class="btn-sm btn-danger">🗑</button></form>
+                        }
+                    }
+                    else if (r.Kind is CustomerLedgerKind.AccountReceipt or CustomerLedgerKind.AccountPayment)
                     {
                         <a class="btn-sm" asp-action="VoucherReceipt" asp-route-id="@r.VoucherId" target="_blank" style="margin-inline-start:8px;">🖨 طباعة</a>
                     }
@@ -217,4 +239,5 @@ else
 
 @section Scripts {
     <script src="~/js/statement-items.js" asp-append-version="true"></script>
+    <script src="~/js/balance-adjust.js" asp-append-version="true"></script>
 }

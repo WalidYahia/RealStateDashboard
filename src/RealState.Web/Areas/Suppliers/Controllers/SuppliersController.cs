@@ -146,6 +146,7 @@ public class SuppliersController : Controller
             await _db.SupplierOrders.AnyAsync(o => o.SupplierId == id, ct) ||
             await _db.SupplierPayments.AnyAsync(p => p.SupplierId == id, ct) ||
             await _db.SafeTransactions.AnyAsync(t => t.Source == TxnSource.SupplierAccount && t.SupplierId == id, ct) ||
+            await _db.BalanceAdjustments.AnyAsync(a => a.SupplierId == id, ct) ||
             await _db.AccountOpeningBalances.AnyAsync(b => b.Account!.SubKind == "Supplier" && b.Account.SubRefId == id, ct))
         {
             TempData["ErrorMessage"] = "لا يمكن حذف مورد لديه فواتير مشتريات أو أوامر توريد أو مدفوعات أو رصيد افتتاحي.";

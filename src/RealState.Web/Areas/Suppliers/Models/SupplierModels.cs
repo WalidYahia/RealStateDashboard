@@ -212,7 +212,8 @@ public class InvoiceDetailsVm
 /// <summary>Order / Invoice raise what's owed to the supplier; Payment and Return (a purchase return — debit note) lower
 /// it; Refund (cash the supplier paid back through a return) raises it again.</summary>
 /// <remarks>PeriodOpening: «الرصيد الافتتاحي للفترة» — the balance carried in from before a filtered period (first row only).</remarks>
-public enum SupplierLedgerKind { Order, Invoice, Payment, Return, Refund, AccountPayment, AccountReceipt, OpeningCredit, OpeningDebit, PeriodOpening }
+/// <remarks>AdjustmentUp / AdjustmentDown: a balance adjustment (تسوية رصيد) that raises (+) / lowers (−) what's owed to the supplier.</remarks>
+public enum SupplierLedgerKind { Order, Invoice, Payment, Return, Refund, AccountPayment, AccountReceipt, OpeningCredit, OpeningDebit, PeriodOpening, AdjustmentUp, AdjustmentDown }
 
 /// <summary>One row of the running-balance supplier ledger (an invoice / legacy order obligation, or a payment).</summary>
 public class SupplierLedgerRow
@@ -230,13 +231,15 @@ public class SupplierLedgerRow
     public List<RealState.Web.Models.StatementItem> Items { get; set; } = new();
     public bool IsObligation => Kind is SupplierLedgerKind.Order or SupplierLedgerKind.Invoice;
     /// <summary>Lowers what's owed to the supplier (shown as −).</summary>
-    public bool Decreases => Kind is SupplierLedgerKind.Payment or SupplierLedgerKind.Return or SupplierLedgerKind.AccountPayment or SupplierLedgerKind.OpeningDebit;
+    public bool Decreases => Kind is SupplierLedgerKind.Payment or SupplierLedgerKind.Return or SupplierLedgerKind.AccountPayment or SupplierLedgerKind.OpeningDebit
+        or SupplierLedgerKind.AdjustmentDown;
     /// <summary>Same-day order: what's owed first, then payments, returns, refunds.</summary>
     public int DayOrder => Kind switch
     {
         SupplierLedgerKind.OpeningCredit or SupplierLedgerKind.OpeningDebit => -1,   // the opening balance comes first
         SupplierLedgerKind.Payment or SupplierLedgerKind.AccountPayment => 1, SupplierLedgerKind.Return => 2,
-        SupplierLedgerKind.Refund or SupplierLedgerKind.AccountReceipt => 3, _ => 0
+        SupplierLedgerKind.Refund or SupplierLedgerKind.AccountReceipt => 3,
+        SupplierLedgerKind.AdjustmentUp or SupplierLedgerKind.AdjustmentDown => 4, _ => 0
     };
 }
 
